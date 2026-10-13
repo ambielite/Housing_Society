@@ -1,0 +1,30 @@
+﻿{
+    "name":  "backend",
+    "version":  "1.0.0",
+    "description":  "",
+    "main":  "index.js",
+    "scripts":  {
+                    "test":  "echo \"Error: no test specified\" \u0026\u0026 exit 1",
+                    "db:migrate":  "node scripts/migrate.js up",
+                    "db:status":  "node scripts/migrate.js status",
+                    "db:check":  "node scripts/migrate.js check"
+                },
+    "keywords":  [
+
+                 ],
+    "author":  "",
+    "license":  "ISC",
+    "type":  "commonjs",
+    "dependencies":  {
+                         "dotenv":  "^17.4.2",
+                         "express":  "^5.2.1",
+                         "multer":  "^2.4.0",
+                         "node-cron":  "^4.6.0",
+                         "pdfkit":  "^0.20.2",
+                         "pg":  "^8.23.0",
+                         "pg-hstore":  "^2.3.4",
+                         "qrcode":  "^1.5.4",
+                         "sequelize":  "^6.37.8",
+                         "uuid":  "^14.0.2"
+                     }
+}

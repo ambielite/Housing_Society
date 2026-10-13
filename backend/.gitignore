@@ -1,0 +1,11 @@
+﻿node_modules/
+uploads/
+.env
+.env.*
+!.env.example
+*.log
+*.zip
+*.pem
+*.key
+*.p12
+coverage/
