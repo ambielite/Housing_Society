@@ -1,0 +1,144 @@
+====================================================================
+HOUSING SOCIETY MANAGEMENT PLATFORM
+DEPLOYMENT & OPERATIONAL PROCEDURES (PHASE 19)
+====================================================================
+Scope note: this covers the backend modules actually built across
+Phases 1, 4, 8, 9, 12, 13, 16 (yours) - Auth/RBAC, Parking/Vehicles,
+Vendors/Procurement, Gates/Visitors/Deliveries, Amenities, Helpdesk/
+SLA, Document Vault. It explicitly does NOT cover Society/Unit setup,
+Billing/Ledger/Payments, or Multi-Society/Cluster - those are your
+teammate's phases and need their own sign-off before a real production
+deployment, since this app cannot function correctly without them.
+
+--------------------------------------------------------------------
+1. PRE-DEPLOYMENT CHECKLIST
+--------------------------------------------------------------------
+[ ] All migrations (000-029 as of this phase) run successfully against
+    a fresh database with no errors
+[ ] .env configured with PRODUCTION values, not development ones -
+    especially:
+      - JWT_ACCESS_SECRET / JWT_REFRESH_SECRET: long, random, NEVER
+        reused from development
+      - DB_PASSWORD: a real production credential, not "sujal28" or
+        any development placeholder
+      - NODE_ENV=production
+      - CORS_ORIGIN: the real frontend domain, not localhost
+[ ] npm install --production (skip devDependencies like jest/supertest
+    in the actual deployed environment)
+[ ] Run the automated test suite (see TESTING_SETUP.txt) against a
+    staging database and confirm all tests pass
+[ ] Confirm GET /health returns "database": "connected" in the target
+    environment
+[ ] Confirm rate limiting is active (Phase 19 middleware) - a burst of
+    requests to /auth/login should return 429 after 10 attempts
+
+--------------------------------------------------------------------
+2. PRODUCTION CONFIGURATION LOCKS
+--------------------------------------------------------------------
+Once deployed, these must NOT casually change without a deliberate,
+reviewed process:
+  - JWT secrets (rotating them invalidates every active session/token)
+  - Database connection details
+  - CORS_ORIGIN (loosening this is a real security regression)
+  - Rate limit thresholds (src/common/rateLimiter.js) - loosening these
+    without a specific reason re-opens the brute-force risk they exist
+    to close
+
+Any change to the above should go through the same review process as
+a code change, not be edited ad-hoc on a running production server.
+
+Rate limit settings (optional .env variables, defaults shown):
+  RATE_LIMIT_GENERAL_MAX=300   requests per 15 min per IP, whole API
+  RATE_LIMIT_AUTH_MAX=10       attempts per 15 min per IP on login,
+                               register, forgot-password, reset-password
+For LOCAL DEVELOPMENT / heavy Postman sessions you may want to raise
+these (e.g. RATE_LIMIT_AUTH_MAX=100) so switching between test users
+doesn't trigger a 429. NEVER carry raised values into production.
+
+--------------------------------------------------------------------
+3. LOGGING & MONITORING (WHAT EXISTS TODAY)
+--------------------------------------------------------------------
+Currently implemented:
+  - morgan HTTP request logging, including a per-request correlation
+    id (see src/common/requestId.js) - every log line for a given
+    request can be found via its "x-request-id" header value
+  - GET /health - checks real DB connectivity, not just process uptime
+
+NOT yet implemented (flagged, not silently assumed to exist):
+  - Centralized log aggregation (e.g. shipping logs to a service) -
+    currently logs only go to stdout/console
+  - Alerting (e.g. "page someone if error rate spikes") - no alerting
+    integration exists in this codebase
+  - Application performance monitoring (APM) / distributed tracing
+  - A real background job scheduler (referenced throughout this
+    project's "check-on-read" patterns - SLA breach detection, amenity
+    pending-payment expiry, overstay alerts all currently compute on
+    read rather than via a proactive timer)
+
+These are infrastructure/tooling decisions beyond a single backend
+phase's scope - flag to whoever owns production infrastructure.
+
+--------------------------------------------------------------------
+4. KNOWN GAPS TO CARRY INTO PRODUCTION PLANNING
+--------------------------------------------------------------------
+Documenting these explicitly rather than letting them surface as
+surprises later:
+
+  a) File storage is LOCAL DISK (uploads/documents/), not real object
+     storage (S3-compatible). This was a deliberate simplification for
+     backend-only Postman testing (Phase 16). Production needs a real
+     decision here before going live - local disk doesn't survive a
+     server being replaced/scaled horizontally.
+
+  b) Placeholder foreign keys (no FK constraint yet, by design, pending
+     other phases):
+       - vendor_documents.document_id, vendor_contracts.document_id,
+         vendor_invoices.document_id -> now resolvable via Phase 16's
+         real documents table; the retroactive FK-tightening migration
+         was deferred (your decision) and should be scheduled
+       - amenity_bookings.payment_id, vendor_payments.payment_id ->
+         pending your teammate's Phase 7 (Payments)
+       - visitor_profiles.photo_document_id, ticket_attachments.document_id
+         -> same as (a), resolvable now, tightening deferred
+
+  c) Escalation and breach detection (Phase 13) are check-on-read, not
+     proactive. A ticket nobody looks at can sit breached with no
+     alert firing. Acceptable for now per your own decision; revisit
+     once a job scheduler exists.
+
+  d) No centralized audit_logs table exists across the whole project
+     (only Document Vault has its own narrow document_downloads audit
+     table, added specifically for that phase). Broader "who changed
+     what" auditing beyond what's in this phase was never built.
+
+--------------------------------------------------------------------
+5. UAT (USER ACCEPTANCE TESTING) - SUGGESTED SCOPE
+--------------------------------------------------------------------
+Recommend UAT be conducted by having actual prospective users
+(Facility Manager, Helpdesk Manager, Security Head personas) walk
+through the real Postman collections/reference guides already built
+for each phase:
+  - API_Reference_Phase4  (Parking & Vehicles)
+  - API_Reference_Phase8  (Vendors & Procurement)
+  - API_Reference_Phase9  (Gates, Visitors, Deliveries)
+  - API_Reference_Phase12 (Amenities & Bookings)
+  - API_Reference_Phase13 (Helpdesk, SLA & Escalation)
+  - API_Reference_Phase16 (Document Vault)
+Each already contains a full walkthrough sequence - UAT can literally
+follow the same steps, but with real prospective end-users driving
+Postman instead of the developer.
+
+--------------------------------------------------------------------
+6. DATA MIGRATION REHEARSAL
+--------------------------------------------------------------------
+Not applicable to this backend in isolation - a real "migration
+rehearsal" (per the doc's Section 33, Migration Center) requires the
+Society/Unit onboarding wizard and bulk-import tooling, neither of
+which exists in any phase built so far (yours or your teammate's, as
+far as this backend goes). Flag this to your manager as a gap that
+needs its own phase/owner before production data migration can be
+rehearsed meaningfully.
+
+====================================================================
+END OF DOCUMENT
+====================================================================

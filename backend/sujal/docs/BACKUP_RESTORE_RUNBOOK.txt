@@ -1,0 +1,124 @@
+====================================================================
+HOUSING SOCIETY MANAGEMENT PLATFORM
+BACKUP & DISASTER RECOVERY RUNBOOK (PHASE 19)
+====================================================================
+Covers only what's actually built in this backend (Auth, Users, RBAC,
+Parking, Vehicles, Vendors, Procurement, Gates, Visitors, Deliveries,
+Amenities, Helpdesk, Document Vault). Anything touching Billing/
+Payments/Ledger is your teammate's scope and not covered here.
+
+--------------------------------------------------------------------
+1. WHAT NEEDS BACKING UP
+--------------------------------------------------------------------
+a) PostgreSQL database - every table across every phase. This is the
+   single most important thing: it's the source of truth for
+   everything, including which files exist (documents.storage_key
+   points at a file on disk - the DB row and the file are only useful
+   together).
+
+b) Uploaded files on local disk - the Document Vault (Phase 16) writes
+   real files to:
+     backend/uploads/documents/
+   A database backup WITHOUT this folder is incomplete - you'd have
+   metadata rows pointing at files that no longer exist.
+
+c) Environment configuration (.env) - NOT the secrets themselves in
+   plaintext backup storage, but a record of WHICH variables exist,
+   so a fresh environment can be reconstructed. Never commit real
+   secrets to backup storage unencrypted.
+
+--------------------------------------------------------------------
+2. DATABASE BACKUP (PostgreSQL)
+--------------------------------------------------------------------
+Manual backup command (run from a machine with access to the DB):
+
+  pg_dump -h <DB_HOST> -p <DB_PORT> -U <DB_USER> -d <DB_NAME> ^
+    -F c -f "housing_society_backup_%DATE%.dump"
+
+  (-F c = custom format, allows selective restore of individual tables
+   later, and compresses automatically - preferred over plain .sql)
+
+Recommended schedule for production (once deployed):
+  - Full backup: daily, retained for 30 days
+  - Point-in-time recovery (WAL archiving): if your hosting provider
+    supports it (e.g. managed Postgres like RDS/Cloud SQL), enable it -
+    this lets you restore to any point in time, not just the last
+    daily snapshot. Confirm with whoever provisions production hosting
+    whether this is available; it's an infrastructure decision, not
+    something this application code controls.
+
+--------------------------------------------------------------------
+3. FILE STORAGE BACKUP (uploads/documents)
+--------------------------------------------------------------------
+Manual backup (simplest approach for local-disk storage):
+
+  Windows (PowerShell):
+    Compress-Archive -Path "uploads\documents" -DestinationPath "documents_backup_%DATE%.zip"
+
+  Linux/Mac:
+    tar -czf documents_backup_$(date +%Y%m%d).tar.gz uploads/documents/
+
+Run this on the SAME schedule as the database backup, and store both
+backups together (or with matching timestamps) - a document row and
+its file must be restored as a pair.
+
+NOTE: production should not rely on local disk long-term regardless of
+backup discipline - the DB doc's own convention says "Secure object
+storage" (e.g. S3-compatible). Local disk was a deliberate, agreed
+simplification for backend-only Postman testing (see the Phase 16
+build notes) - flag this to whoever owns production infrastructure
+decisions before going live.
+
+--------------------------------------------------------------------
+4. RESTORE PROCEDURE
+--------------------------------------------------------------------
+Step 1 - Restore the database:
+  pg_restore -h <DB_HOST> -p <DB_PORT> -U <DB_USER> -d <DB_NAME> ^
+    --clean --if-exists "housing_society_backup_YYYYMMDD.dump"
+
+  (--clean --if-exists drops existing objects first, so this is safe
+   to run against a fresh/empty database)
+
+Step 2 - Restore the uploaded files:
+  Extract the documents_backup archive back into:
+    backend/uploads/documents/
+  (must match the exact folder name - storage_key values in the
+   restored DB are relative to this path)
+
+Step 3 - Verify:
+  a) Run: npm run migrate
+     (confirms all migrations are marked applied - should report
+     "Skipping already-applied migration" for everything, meaning the
+     restored DB already has the full schema)
+  b) Start the server: npm start
+  c) Call GET /health - confirm "database": "connected"
+  d) Log in via Postman with a known test user, confirm a real
+     document from Phase 16 can be downloaded successfully (proves
+     both the DB restore AND the file restore worked together)
+
+--------------------------------------------------------------------
+5. RESTORE DRILL SCHEDULE
+--------------------------------------------------------------------
+The doc explicitly calls for "restore testing on a defined schedule."
+Recommended: perform steps 1-4 above against a SEPARATE, non-production
+database at least once per month (or before any major release), and
+record the outcome (pass/fail, time taken) in a simple log. This
+project has not had this exercised yet as of this document being
+written - it should be the first thing done once production hosting
+is decided.
+
+--------------------------------------------------------------------
+6. RPO / RTO TARGETS (TO BE CONFIRMED WITH YOUR MANAGER)
+--------------------------------------------------------------------
+The doc requires these be "documented before production" - they are
+BUSINESS decisions (how much data loss is acceptable, how fast must
+recovery be), not something this document can set unilaterally:
+
+  RPO (Recovery Point Objective) - max acceptable data loss: _______
+  RTO (Recovery Time Objective) - max acceptable downtime:  _______
+
+Fill these in only after your manager/stakeholders confirm them.
+
+====================================================================
+END OF DOCUMENT
+====================================================================

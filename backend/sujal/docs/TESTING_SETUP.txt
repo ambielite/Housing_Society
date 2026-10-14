@@ -1,0 +1,124 @@
+====================================================================
+AUTOMATED SECURITY & CONCURRENCY TEST SUITE - SETUP
+====================================================================
+This is a NEW capability for this project - every phase before now
+was tested manually via Postman. This suite automates the repeatable
+security checks (IDOR, RBAC, auth) and the amenity double-booking
+race condition, so they can be re-run any time (e.g. before every
+deployment) instead of manually re-clicking through Postman each time.
+
+--------------------------------------------------------------------
+1. INSTALL DEPENDENCIES
+--------------------------------------------------------------------
+From your backend project root:
+
+  npm install --save-dev jest supertest
+  npm install express-rate-limit
+
+(jest/supertest are dev-only - they run the tests, they're not needed
+in production. express-rate-limit IS a real runtime dependency - it's
+the Phase 19 hardening middleware.)
+
+--------------------------------------------------------------------
+2. WHERE THE FILES GO
+--------------------------------------------------------------------
+Copy these into your existing backend project, preserving the paths:
+
+  jest.config.js                              -> backend root
+  .env.test.example                           -> backend root
+  tests/helpers/loadEnv.js                    -> backend/tests/helpers/
+  tests/helpers/testClient.js                 -> backend/tests/helpers/
+  tests/auth.security.test.js                 -> backend/tests/
+  tests/rbac.security.test.js                 -> backend/tests/
+  tests/idor.security.test.js                 -> backend/tests/
+  tests/amenity-concurrency.test.js           -> backend/tests/
+  src/common/requestId.js                     -> backend/src/common/
+  src/common/rateLimiter.js                   -> backend/src/common/
+
+Then REPLACE these two existing files with the updated versions:
+  src/app.js
+  src/modules/auth/auth.routes.js
+
+--------------------------------------------------------------------
+3. CONFIGURE TEST FIXTURES
+--------------------------------------------------------------------
+Copy .env.test.example to .env.test (same folder, backend root) and
+fill in:
+  TEST_SOCIETY_ID        <- a real societies.id from your teammate's table
+  TEST_UNIT_ID           <- a real units.id from your teammate's table
+  TEST_SUPERADMIN_EMAIL     <- your existing seeded super admin's email
+  TEST_SUPERADMIN_PASSWORD <- that super admin's password
+
+.env.test is test-only configuration - never commit it if it contains
+anything sensitive, same as your real .env.
+
+--------------------------------------------------------------------
+4. ADD A TEST SCRIPT (optional but recommended)
+--------------------------------------------------------------------
+In package.json, add to "scripts":
+  "test": "jest --runInBand"
+
+--------------------------------------------------------------------
+5. RUN THE TESTS
+--------------------------------------------------------------------
+Make sure your local Postgres is running and reachable (same as when
+you test in Postman), then:
+
+  npm test
+
+  or, without the package.json script:
+
+  npx jest --runInBand
+
+Expected: all test files pass. Total runtime is normally under 30
+seconds - the amenity concurrency test is the slowest since it
+actually creates and tears down a real amenity/slot.
+
+--------------------------------------------------------------------
+6. WHAT EACH FILE PROVES
+--------------------------------------------------------------------
+auth.security.test.js
+  - No token -> 401. Garbage token -> 401. Wrong password -> 401 with
+    a generic message (doesn't leak whether the email exists).
+  - Correct login works, and a used-up refresh token cannot be reused
+    (rotation actually works, not just claimed to).
+
+rbac.security.test.js
+  - A VIEW_ONLY user can read vendors but is blocked (403) from
+    creating or deleting one.
+  - SUPER_ADMIN bypasses permission checks as designed.
+
+idor.security.test.js
+  - Vendor A's own list of vendors never includes Vendor B's record -
+    proves the Phase 8 vendor-scoping fix still works.
+  - Documents the current (unscoped) behavior of the direct
+    GET /vendors/:id endpoint as a known area worth a second look if
+    it ever needs strict per-request scoping too.
+
+amenity-concurrency.test.js
+  - Creates a capacity-1 slot, fires two booking requests at it
+    simultaneously, and asserts exactly one succeeds (201) while the
+    other is correctly rejected (409) - the automated proof that the
+    SELECT...FOR UPDATE row lock from Phase 12 actually works under
+    real concurrent load, not just in a manual two-tab Postman test.
+
+--------------------------------------------------------------------
+7. WHAT THIS SUITE DELIBERATELY DOES NOT COVER
+--------------------------------------------------------------------
+Per the scoping discussion for this phase:
+  - Accounting invariants / double-entry balance checks (teammate's
+    Billing/Ledger phase, not built by this backend)
+  - Payment webhook idempotency (teammate's Payments phase, not built)
+  - Load testing of billing/dashboard/reporting endpoints (neither
+    exists in either developer's built scope)
+  - Society isolation across multiple societies (meaningful only once
+    your teammate's Multi-Society/Cluster phase exists)
+
+If any of these become your responsibility later, this suite's
+patterns (testClient.js's login/createTestUser helpers) can be reused
+directly - the structure is intentionally generic, not hardcoded to
+only vendors/amenities.
+
+====================================================================
+END OF DOCUMENT
+====================================================================
