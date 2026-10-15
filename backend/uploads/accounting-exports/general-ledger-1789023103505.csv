@@ -1,0 +1,4 @@
+transactionDate,journalNumber,referenceType,referenceId,accountCode,accountName,description,debitAmount,creditAmount,runningBalance
+2026-04-01,JV-BILL-1788858418237,BILLING,25f5f808-9e0d-4c9a-bab9-0d2f8029742f,1300,Member Receivables,Receivable for BILL-2026-0001,5000,0,5000
+2026-09-01,JV-BILL-1788933767403,BILLING,93608850-62e6-4cde-95a6-87a733dae19f,1300,Member Receivables,Receivable for BILL-2026-0001,3000,0,8000
+2026-09-10,PAY-1789018463135-7017,PAYMENT,aafd3a51-77e5-4cc8-baff-e87d2a195692,1300,Member Receivables,Receivable cleared - PAY-1789018372847-6753,0,3000,5000

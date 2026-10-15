@@ -1,0 +1,7 @@
+journalNumber,transactionDate,accountingPeriodId,referenceType,referenceId,journalDescription,journalStatus,accountCode,accountName,accountType,lineNumber,lineDescription,debitAmount,creditAmount
+JV-BILL-1788858418237,2026-04-01,3e32eb63-b66a-418a-a894-30c80a5b7c71,BILLING,25f5f808-9e0d-4c9a-bab9-0d2f8029742f,Maintenance Bill BILL-2026-0001,POSTED,1300,Member Receivables,RECEIVABLE,1,Receivable for BILL-2026-0001,5000,0
+JV-BILL-1788858418237,2026-04-01,3e32eb63-b66a-418a-a894-30c80a5b7c71,BILLING,25f5f808-9e0d-4c9a-bab9-0d2f8029742f,Maintenance Bill BILL-2026-0001,POSTED,4100,Maintenance Income,INCOME,2,Maintenance income for BILL-2026-0001,0,5000
+JV-BILL-1788933767403,2026-09-01,3e32eb63-b66a-418a-a894-30c80a5b7c71,BILLING,93608850-62e6-4cde-95a6-87a733dae19f,Maintenance Bill BILL-2026-0001,POSTED,1300,Member Receivables,RECEIVABLE,1,Receivable for BILL-2026-0001,3000,0
+JV-BILL-1788933767403,2026-09-01,3e32eb63-b66a-418a-a894-30c80a5b7c71,BILLING,93608850-62e6-4cde-95a6-87a733dae19f,Maintenance Bill BILL-2026-0001,POSTED,4100,Maintenance Income,INCOME,2,Income for BILL-2026-0001,0,3000
+PAY-1789018463135-7017,2026-09-10,3e32eb63-b66a-418a-a894-30c80a5b7c71,PAYMENT,aafd3a51-77e5-4cc8-baff-e87d2a195692,Payment received - PAY-1789018372847-6753,POSTED,1200,Bank,ASSET,1,Payment received through NEFT,3000,0
+PAY-1789018463135-7017,2026-09-10,3e32eb63-b66a-418a-a894-30c80a5b7c71,PAYMENT,aafd3a51-77e5-4cc8-baff-e87d2a195692,Payment received - PAY-1789018372847-6753,POSTED,1300,Member Receivables,RECEIVABLE,2,Receivable cleared - PAY-1789018372847-6753,0,3000
