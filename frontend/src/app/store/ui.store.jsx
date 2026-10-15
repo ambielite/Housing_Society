@@ -44,7 +44,7 @@ export function SocietyProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ societyId: override || user?.society_id || null, setSocietyId }),
+    () => ({ societyId: override || user?.society_id || null, setSocietyId, selectSociety: (society) => setSocietyId(society?.id || society?.societyId || society || null) }),
     [override, user, setSocietyId]
   );
 

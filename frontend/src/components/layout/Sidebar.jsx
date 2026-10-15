@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Car, CheckCircle, ClipboardList, FileText, LayoutDashboard, LogOut, ParkingSquare, ShieldCheck, Truck, Users , Shield , CalendarDays , LifeBuoy , FolderArchive , Gauge , ChartNoAxesCombined} from 'lucide-react';
+import { Building2, Car, ChartNoAxesCombined, CheckCircle, ClipboardList, FileText, FolderArchive, Gauge, Home, Layers3, LayoutDashboard, LifeBuoy, LogOut, MessageSquare, Network, Package, ParkingSquare, Shield, ShieldCheck, Truck, Users, Wallet, CalendarDays } from 'lucide-react';
 import useAuth from '../../app/providers/useAuth';
 import { useUi } from '../../app/store/ui.store';
 
@@ -14,6 +14,14 @@ import { useUi } from '../../app/store/ui.store';
  */
 const NAV_ITEMS = [
   { label: 'Dashboard', to: '/dashboard', icon: LayoutDashboard },
+  { label: 'Society Overview', to: '/housing-dashboard', icon: Building2 },
+  { label: 'Societies', to: '/societies', icon: Building2 },
+  { label: 'Towers', to: '/towers', icon: Layers3 },
+  { label: 'Floors', to: '/floors', icon: Layers3 },
+  { label: 'Units', to: '/units', icon: Home },
+  { label: 'Residents', to: '/residents', icon: Users },
+  { label: 'Move-in / Move-out', to: '/move-in-out', icon: ClipboardList },
+  { label: 'Finance', to: '/finance', icon: Wallet },
   { label: 'Users', to: '/users', permission: 'USER_READ', icon: Users },
   { label: 'Roles', to: '/roles', permission: 'ROLE_READ', icon: ShieldCheck },
   {
@@ -28,6 +36,12 @@ const NAV_ITEMS = [
   { label: 'Purchase Orders', to: '/purchase-orders', permission: 'PURCHASE_ORDER_READ', icon: FileText },
   { label: 'Approvals', to: '/approvals', permission: 'APPROVAL_READ', icon: CheckCircle },
   { label: 'Security', to: '/security', permission: ['GATE_READ', 'VISITOR_PROFILE_READ', 'DELIVERY_READ'], icon: Shield },
+  { label: 'Security Operations', to: '/security-operations', icon: Shield },
+  { label: 'Assets', to: '/assets', icon: Package },
+  { label: 'Notifications', to: '/notifications', icon: CalendarDays },
+  { label: 'Community', to: '/community', icon: MessageSquare },
+  { label: 'Reports', to: '/reports', icon: ChartNoAxesCombined },
+  { label: 'Multi-society', to: '/multi-society', icon: Network },
   { label: 'Amenities', to: '/amenities', permission: ['AMENITY_READ', 'AMENITY_SLOT_READ', 'AMENITY_BOOKING_READ'], icon: CalendarDays },
   { label: 'Helpdesk', to: '/helpdesk/tickets', permission: 'TICKET_READ', icon: LifeBuoy },
   { label: 'Document Vault', to: '/document-vault', permission: ['DOCUMENT_FOLDER_READ', 'DOCUMENT_READ'], icon: FolderArchive },

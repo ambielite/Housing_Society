@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Activity, Archive, Bell, Boxes, CalendarClock, ClipboardList, FileText, Gauge, Package, Pencil, Plus, QrCode, RefreshCw, Search, ShieldCheck, Tag, Trash2, Truck, Wrench, X } from "lucide-react";
-import axiosClient from "../../../lib/axios";
+import { legacyApi as axiosClient } from "../../../lib/axios";
 import assetsApi from "../api/assets.api";
 
 const rows = (value) => {
@@ -10,7 +10,7 @@ const rows = (value) => {
     return Array.isArray(result) ? result.filter((item) => item && typeof item === "object") : [];
 };
 const societyId = () => String(localStorage.getItem("selectedSocietyId") || "").replace(/^:+/, "").trim();
-const fileUrl = (path) => { if (!path) return "#"; if (/^https?:\/\//i.test(path)) return path; const base = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api"; return `${base.replace(/\/api\/?$/, "")}${path.startsWith("/") ? path : `/${path}`}`; };
+const fileUrl = (path) => { if (!path) return "#"; if (/^https?:\/\//i.test(path)) return path; const base = import.meta.env.VITE_LEGACY_API_BASE_URL || (import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api/v1").replace(/\/api\/v1\/?$/, "/api"); return `${base.replace(/\/api\/?$/, "")}${path.startsWith("/") ? path : `/${path}`}`; };
 const title = (value) => String(value || "—").replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
 const date = (value) => value ? String(value).slice(0, 10) : "—";
 const money = (value) => value == null || value === "" ? "—" : new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(value));

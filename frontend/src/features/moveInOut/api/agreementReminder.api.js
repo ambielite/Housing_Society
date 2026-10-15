@@ -1,4 +1,4 @@
-import axiosClient from "../../../lib/axios";
+import { legacyApi as axiosClient } from "../../../lib/axios";
 
 const agreementReminderApi = {
     getAll: async () => (await axiosClient.get("/agreement-reminders")).data,

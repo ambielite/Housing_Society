@@ -3,7 +3,7 @@ import { Plus, Receipt, Search } from "lucide-react";
 import billingApi from "../api/billing.api";
 import billingConfigApi from "../api/billingConfig.api";
 import BillingForm from "../components/BillingForm";
-import axiosClient from "../../../lib/axios";
+import { legacyApi as axiosClient } from "../../../lib/axios";
 
 const rowsFrom = (response) => {
     const rows = Array.isArray(response) ? response : response?.data || response?.records || [];
@@ -84,6 +84,3 @@ const FinanceBillingPage = () => {
     </section>;
 };
 export default FinanceBillingPage;
-
-
-

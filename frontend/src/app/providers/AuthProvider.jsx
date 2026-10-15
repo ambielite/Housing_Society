@@ -11,6 +11,7 @@ export default function AuthProvider({ children }) {
   const clearSession = useCallback(() => {
     tokenStorage.clear();
     societyStorage.clear();
+    localStorage.removeItem('user');
     setUser(null);
   }, []);
 
@@ -21,7 +22,10 @@ export default function AuthProvider({ children }) {
     authApi
       .fetchProfile()
       .then((profile) => {
-        if (!cancelled) setUser(profile);
+        if (!cancelled) {
+          localStorage.setItem('user', JSON.stringify(profile));
+          setUser(profile);
+        }
       })
       .catch(() => {
         if (!cancelled) clearSession();
@@ -45,6 +49,7 @@ export default function AuthProvider({ children }) {
     const data = await authApi.login(email, password);
     societyStorage.clear(); // never carry a previous user's society override
     tokenStorage.set({ accessToken: data.accessToken, refreshToken: data.refreshToken });
+    localStorage.setItem('user', JSON.stringify(data.user));
     setUser(data.user);
     return data.user;
   }, []);

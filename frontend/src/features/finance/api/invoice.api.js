@@ -1,4 +1,4 @@
-import axiosClient from "../../../lib/axios";
+import { legacyApi as axiosClient } from "../../../lib/axios";
 
 const invoiceApi = {
     getAll: async (params = {}) => (await axiosClient.get("/invoices", { params })).data,

@@ -1,4 +1,4 @@
-import axiosClient from "../../../lib/axios";
+import { legacyApi as axiosClient } from "../../../lib/axios";
 
 const normalizeSocietyId = (societyId) => String(societyId ?? "").replace(/^:+/, "").trim();
 

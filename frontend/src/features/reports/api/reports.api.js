@@ -1,4 +1,4 @@
-import axiosClient from "../../../lib/axios";
+import { legacyApi as axiosClient } from "../../../lib/axios";
 
 const reportRequest = async (path, params) => {
     const response = await axiosClient.get(path, { params });

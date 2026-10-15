@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Activity, Bell, CheckCheck, ChevronRight, CircleAlert, FileText, Mail, Megaphone, MessageSquare, Plus, RefreshCw, Search, Settings2, Smartphone, Trash2 } from "lucide-react";
-import axiosClient from "../../../lib/axios";
+import { legacyApi as axiosClient } from "../../../lib/axios";
 import { useAuth } from "../../../app/providers/useAuth";
 import notificationsApi from "../api/notifications.api";
 
