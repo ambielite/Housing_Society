@@ -1,5 +1,0 @@
-accountCode,accountName,accountType,totalDebit,totalCredit,balance,balanceType
-1100,Cash,ASSET,442.68,0,442.68,DEBIT
-1200,Bank,ASSET,3000,0,3000,DEBIT
-1300,Member Receivables,RECEIVABLE,15036,3442.68,11593.32,DEBIT
-4100,Maintenance Income,INCOME,0,15036,15036,CREDIT

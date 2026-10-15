@@ -1,4 +1,0 @@
-accountCode,accountName,accountType,totalDebit,totalCredit,balance,balanceType
-1200,Bank,ASSET,3000,0,3000,DEBIT
-1300,Member Receivables,RECEIVABLE,8000,3000,5000,DEBIT
-4100,Maintenance Income,INCOME,0,8000,8000,CREDIT
