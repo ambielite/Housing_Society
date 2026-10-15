@@ -1,0 +1,4 @@
+{
+  "plugins": ["react"],
+  "ignorePatterns": ["dist", "node_modules"]
+}
