@@ -4,6 +4,7 @@ const app = require("./app");
 
 const sequelize =
     require("./config/database");
+const { pool } = require("./config/db");
 
 require("./config/models");
 
@@ -29,12 +30,31 @@ const startNotificationJob =
 const PORT =
     process.env.PORT || 5000;
 
+let server;
+let shuttingDown = false;
+
+const shutdown = async (signal) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`${signal} received. Closing the HTTP server and database connections...`);
+
+    if (server) {
+        await new Promise((resolve) => server.close(resolve));
+    }
+
+    await Promise.allSettled([pool.end(), sequelize.close()]);
+};
+
+process.on("SIGINT", () => shutdown("SIGINT").finally(() => process.exit(0)));
+process.on("SIGTERM", () => shutdown("SIGTERM").finally(() => process.exit(0)));
+
 
 const startServer = async () => {
 
     try {
 
         await sequelize.authenticate();
+        await pool.query("SELECT 1");
 
         console.log(
             "PostgreSQL connected"
@@ -47,7 +67,7 @@ const startServer = async () => {
         );
 
 
-        app.listen(
+        server = app.listen(
             PORT,
             () => {
 

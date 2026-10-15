@@ -1,6 +1,8 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("../../../config/database");
 
+// Shared vendor record. The Sujal vendor API owns CRUD; this Sequelize model
+// remains for associations from assets, AMCs, maintenance schedules, and work orders.
 const Vendor = sequelize.define(
     "Vendor",
     {
@@ -9,76 +11,53 @@ const Vendor = sequelize.define(
             defaultValue: DataTypes.UUIDV4,
             primaryKey: true
         },
-
         societyId: {
             type: DataTypes.UUID,
             allowNull: false,
-            field: "society_id",
-            references: {
-                model: "societies",
-                key: "id"
-            }
+            field: "society_id"
         },
-
-        vendorCode: {
-            type: DataTypes.STRING(100),
-            allowNull: false,
-            field: "vendor_code"
+        userId: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            field: "user_id"
         },
-
-        companyName: {
+        legalName: {
             type: DataTypes.STRING(255),
             allowNull: false,
-            field: "company_name"
+            field: "legal_name"
         },
-
-        contactPerson: {
-            type: DataTypes.STRING(150),
+        tradeName: {
+            type: DataTypes.STRING(255),
             allowNull: true,
-            field: "contact_person"
+            field: "trade_name"
         },
-
-        phone: {
-            type: DataTypes.STRING(30),
-            allowNull: true
-        },
-
-        email: {
-            type: DataTypes.STRING(150),
-            allowNull: true
-        },
-
-        address: {
-            type: DataTypes.TEXT,
-            allowNull: true
-        },
-
-        gstin: {
-            type: DataTypes.STRING(20),
-            allowNull: true
-        },
-
         pan: {
             type: DataTypes.STRING(20),
             allowNull: true
         },
-
-        serviceType: {
-            type: DataTypes.STRING(150),
+        gstin: {
+            type: DataTypes.STRING(20),
+            allowNull: true
+        },
+        contactEmail: {
+            type: DataTypes.STRING(255),
             allowNull: true,
-            field: "service_type"
+            field: "contact_email"
         },
-
+        phone: {
+            type: DataTypes.STRING(20),
+            allowNull: true
+        },
+        addressId: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            field: "address_id"
+        },
         status: {
-            type: DataTypes.ENUM(
-                "ACTIVE",
-                "INACTIVE",
-                "BLACKLISTED"
-            ),
+            type: DataTypes.STRING(20),
             allowNull: false,
-            defaultValue: "ACTIVE"
+            defaultValue: "PENDING"
         },
-
         remarks: {
             type: DataTypes.TEXT,
             allowNull: true
@@ -86,41 +65,9 @@ const Vendor = sequelize.define(
     },
     {
         tableName: "vendors",
-
         timestamps: true,
-
         createdAt: "created_at",
-        updatedAt: "updated_at",
-
-        indexes: [
-            {
-                unique: true,
-                fields: [
-                    "society_id",
-                    "vendor_code"
-                ]
-            },
-            {
-                fields: [
-                    "society_id"
-                ]
-            },
-            {
-                fields: [
-                    "company_name"
-                ]
-            },
-            {
-                fields: [
-                    "status"
-                ]
-            },
-            {
-                fields: [
-                    "service_type"
-                ]
-            }
-        ]
+        updatedAt: "updated_at"
     }
 );
 

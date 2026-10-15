@@ -1,14 +1,28 @@
 const express = require("express");
 const app = express();
 const path = require("path");
+const helmet = require("helmet");
+const morgan = require("morgan");
+const requestId = require("./common/requestId");
+const { pool } = require("./config/db");
+const sequelize = require("./config/database");
+const sujalApiRoutes = require("./routes");
+const { notFoundHandler, errorHandler } = require("./common/errorHandler");
+
+app.use(requestId);
+app.use(helmet());
+morgan.token("reqid", (req) => req.id);
+app.use(morgan(process.env.NODE_ENV === "production" ? ":reqid :method :url :status :response-time ms" : "dev"));
 
 // Keep browser origins explicit. Add deployed frontend URLs with the
 // comma-separated CORS_ORIGINS environment variable.
+const corsOrigins =
+    process.env.CORS_ORIGINS ||
+    process.env.CORS_ORIGIN ||
+    "http://localhost:5173,http://127.0.0.1:5173";
+const allowAnyOrigin = corsOrigins.trim() === "*";
 const allowedOrigins = new Set(
-    (
-        process.env.CORS_ORIGINS ||
-        "http://localhost:5173,http://127.0.0.1:5173"
-    )
+    corsOrigins
         .split(",")
         .map((origin) => origin.trim())
         .filter(Boolean)
@@ -17,7 +31,7 @@ const allowedOrigins = new Set(
 app.use((req, res, next) => {
     const origin = req.headers.origin;
 
-    if (origin && !allowedOrigins.has(origin)) {
+    if (origin && !allowAnyOrigin && !allowedOrigins.has(origin)) {
         return res.status(403).json({
             success: false,
             message: `Origin ${origin} is not allowed by CORS.`
@@ -38,6 +52,7 @@ app.use((req, res, next) => {
         "Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Society-Id"
     );
     res.setHeader("Access-Control-Max-Age", "86400");
+    res.setHeader("Access-Control-Allow-Credentials", "true");
 
     if (req.method === "OPTIONS") {
         return res.sendStatus(204);
@@ -47,6 +62,7 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 app.use(
     "/uploads",
@@ -113,7 +129,6 @@ const assetMaintenanceRoutes = require("./modules/assets/asset-maintenance/asset
 const inventoryRoutes = require("./modules/assets/inventory/inventory.routes");
 const stockTransactionRoutes = require("./modules/assets/stock-transaction/stockTransaction.routes");
 const amcRoutes = require("./modules/assets/amc/amc.routes");
-const vendorRoutes = require("./modules/assets/vendor/vendor.routes");
 const workOrderRoutes = require("./modules/assets/preventive-maintenance/workOrder.routes");
 const maintenanceScheduleRoutes = require("./modules/assets/preventive-maintenance/maintenanceSchedule.routes");    
 const assetLifecycleRoutes = require("./modules/assets/asset-lifecycle/assetLifecycle.routes"); 
@@ -210,7 +225,6 @@ app.use("/api/asset-maintenance", assetMaintenanceRoutes);
 app.use("/api/inventory", inventoryRoutes);
 app.use("/api/stock-transactions", stockTransactionRoutes);
 app.use("/api/amcs", amcRoutes);
-app.use("/api/vendors", vendorRoutes);  
 app.use("/api/work-orders", workOrderRoutes);   
 app.use("/api/maintenance-schedules", maintenanceScheduleRoutes);   
 app.use("/api/asset-lifecycle", assetLifecycleRoutes);
@@ -253,27 +267,24 @@ app.use("/api/resident-kyc",residentKycRoutes);
 app.use("/api/resident-verifications",residentVerificationRoutes);
 app.use("/api/non-members",nonMemberRoutes);
 
+// The former Sujal service is now mounted into the shared Express server.
+// Keep its established /api/v1 paths while the existing API remains under /api.
+app.use("/api/v1", sujalApiRoutes);
+
+app.get("/health", async (req, res, next) => {
+    try {
+        await Promise.all([pool.query("SELECT 1"), sequelize.authenticate()]);
+        res.json({ status: "ok", requestId: req.id, database: "connected" });
+    } catch (error) {
+        next(error);
+    }
+});
+
 app.get("/", (req, res) => {
     res.json({
         success: true,
         message: "Housing Society Backend API is running"
     });
-});
-
-app.use((err, req, res, next) => {
-
-    console.error(err);
-
-
-    res.status(
-        err.statusCode || 500
-    ).json({
-        success: false,
-        message:
-            err.message ||
-            "Internal Server Error"
-    });
-
 });
 
 app.post("/test", (req, res) => {
@@ -282,5 +293,8 @@ app.post("/test", (req, res) => {
         message: "POST is working"
     });
 });
+
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 module.exports = app;
