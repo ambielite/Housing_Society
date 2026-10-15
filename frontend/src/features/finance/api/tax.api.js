@@ -1,4 +1,4 @@
-import axiosClient from "../../../lib/axios";
+﻿import axiosClient from "../../../lib/legacyAxios";
 
 const taxApi = {
     getAll: async (societyId, params = {}) => (await axiosClient.get("/taxes", { params: { ...params, ...(societyId ? { societyId } : {}) } })).data,

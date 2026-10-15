@@ -1,160 +1,87 @@
-import {
-    Bell,
-    ChevronDown,
-    Menu,
-    Moon,
-    Sun
-} from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Bell, ChevronDown, Menu, Moon, Sun } from 'lucide-react';
+import useAuth from '../../app/providers/useAuth';
+import useTheme from '../../app/providers/useTheme';
+import { useUi } from '../../app/store/ui.store';
 
-import { useAuth } from "../../app/providers/useAuth";
-import { useSociety } from "../../app/store/useSociety";
-import { useTheme } from "../../app/providers/useTheme";
-import societyApi from "../../features/societies/api/society.api";
+export const roleLabel = (code) =>
+  code
+    .toLowerCase()
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
 
-const normalizeSocietyId = (value) => String(value ?? "").replace(/^:+/, "").trim();
+export default function Topbar() {
+  const { user, roles, logout, logoutAll } = useAuth();
+  const { theme, toggleTheme } = useTheme();
+  const { toggleSidebar } = useUi();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
 
-const Topbar = ({ onMenuClick }) => {
-
-    const { user } = useAuth();
-    const { selectedSociety, selectSociety } = useSociety();
-    const { theme, toggleTheme } = useTheme();
-    const [societies, setSocieties] = useState([]);
-
-    useEffect(() => {
-        const loadSocieties = async () => {
-            try {
-                const response = await societyApi.getAll();
-                const list = Array.isArray(response) ? response : response?.data || response?.societies || [];
-                setSocieties(Array.isArray(list) ? list : []);
-            } catch {
-                setSocieties([]);
-            }
-        };
-
-        loadSocieties();
-    }, []);
-
-    useEffect(() => {
-        if (!selectedSociety && societies.length > 0) {
-            selectSociety(societies[0]);
-        }
-    }, [selectedSociety, societies, selectSociety]);
-
-    const handleSocietyChange = (event) => {
-        const selected = societies.find((society) => normalizeSocietyId(society.id) === normalizeSocietyId(event.target.value));
-        selectSociety(selected || null);
+  useEffect(() => {
+    const onClick = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) setMenuOpen(false);
     };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, []);
 
-    return (
-        <header className="topbar">
+  const fullName = [user?.first_name, user?.last_name].filter(Boolean).join(' ') || user?.email;
+  const initial = (user?.first_name || user?.email || '?').charAt(0).toUpperCase();
 
-            {/* Left Side */}
-            <div className="topbar-left">
+  return (
+    <header className="topbar">
+      <div className="topbar-left">
+        <button type="button" className="mobile-menu-button" onClick={toggleSidebar} aria-label="Open menu">
+          <Menu size={20} />
+        </button>
+      </div>
 
-                <button
-                    className="mobile-menu-button"
-                    onClick={onMenuClick}
-                    type="button"
-                    aria-label="Open menu"
-                >
-                    <Menu size={22} />
-                </button>
+      <div className="topbar-right">
+        <button
+          type="button"
+          className="theme-toggle"
+          onClick={toggleTheme}
+          aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+        >
+          {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+        </button>
 
-                <div className="current-society">
+        <button type="button" className="notification-button" aria-label="Notifications" title="Notifications (coming soon)">
+          <Bell size={18} />
+        </button>
 
-                    <span className="topbar-label">
-                        Current Society
-                    </span>
-
-                    <select
-                        className="society-topbar-select"
-                        value={selectedSociety?.id ?? ""}
-                        onChange={handleSocietyChange}
-                        aria-label="Select society"
-                    >
-                        <option value="">Select Society</option>
-                        {societies.map((society) => (
-                            <option key={society.id} value={society.id}>{society.name}</option>
-                        ))}
-                    </select>
-
-                </div>
-
+        <div className="user-menu-wrap" ref={menuRef}>
+          <button
+            type="button"
+            className="user-menu"
+            onClick={() => setMenuOpen((open) => !open)}
+            aria-expanded={menuOpen}
+            aria-haspopup="menu"
+          >
+            <span className="avatar">{initial}</span>
+            <span className="user-info">
+              <strong>{fullName}</strong>
+              <span>{roles.map(roleLabel).join(', ') || 'No role assigned'}</span>
+            </span>
+            <ChevronDown size={16} />
+          </button>
+          {menuOpen && (
+            <div className="menu" role="menu">
+              <Link to="/change-password" role="menuitem" onClick={() => setMenuOpen(false)}>
+                Change password
+              </Link>
+              <button type="button" role="menuitem" onClick={logout}>
+                Sign out
+              </button>
+              <button type="button" role="menuitem" onClick={logoutAll}>
+                Sign out on all devices
+              </button>
             </div>
-
-
-            {/* Right Side */}
-            <div className="topbar-right">
-
-                {/* Theme Toggle */}
-                <button
-                    type="button"
-                    className="theme-toggle"
-                    onClick={toggleTheme}
-                    title={
-                        theme === "light"
-                            ? "Switch to Dark Mode"
-                            : "Switch to Light Mode"
-                    }
-                    aria-label={
-                        theme === "light"
-                            ? "Switch to Dark Mode"
-                            : "Switch to Light Mode"
-                    }
-                >
-                    {theme === "light" ? (
-                        <Moon size={19} />
-                    ) : (
-                        <Sun size={19} />
-                    )}
-                </button>
-
-
-                {/* Notifications */}
-                <button
-                    type="button"
-                    className="notification-button"
-                    title="Notifications"
-                >
-                    <Bell size={20} />
-
-                    <span className="notification-dot"></span>
-                </button>
-
-
-                {/* User Menu */}
-                <div className="user-menu">
-
-                    <div className="avatar">
-                        {user?.name
-                            ?.charAt(0)
-                            ?.toUpperCase() || "A"}
-                    </div>
-
-                    <div className="user-info">
-
-                        <strong>
-                            {user?.name ||
-                                "Administrator"}
-                        </strong>
-
-                        <span>
-                            {user?.role ||
-                                "Admin"}
-                        </span>
-
-                    </div>
-
-                    <ChevronDown size={17} />
-
-                </div>
-
-            </div>
-
-        </header>
-    );
-};
-
-export default Topbar;
-
+          )}
+        </div>
+      </div>
+    </header>
+  );
+}

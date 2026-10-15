@@ -1,288 +1,376 @@
-import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
-import { Activity, AlertOctagon, CalendarDays, ClipboardCheck, FileText, MapPin, Plus, RefreshCw, Search, Shield, Siren, Users, X } from "lucide-react";
-import securityApi from "../api/security.api";
-import unitApi from "../../units/api/unit.api";
+import { useEffect, useMemo, useState } from 'react';
+import useAuth from '../../../app/providers/useAuth';
+import useSociety from '../../../app/store/useSociety';
+import useUnits from '../../../utils/useUnits';
+import useFetch from '../../../utils/useFetch';
+import { formatDateTime } from '../../../utils/format';
+import { getErrorMessage } from '../../../lib/axios';
+import PageContainer from '../../../components/layout/PageContainer';
+import DataTable from '../../../components/tables/DataTable';
+import Alert from '../../../components/ui/Alert';
+import Modal from '../../../components/ui/Modal';
+import SocietyIdPrompt from '../../../components/ui/SocietyIdPrompt';
+import TextField from '../../../components/ui/TextField';
+import SelectField from '../../../components/ui/SelectField';
+import * as api from '../api/security.api';
+import { GATE_TYPES, GATE_STATUSES, GUARD_STATUSES, CREDENTIAL_TYPES, CARD_STATUSES, DEVICE_TYPES, DEVICE_STATUSES, label } from '../components/securityOptions';
+import SecurityBadge from '../components/SecurityBadge';
+import { FormActions, UserPicker, VendorPicker, GatePicker, ErrorBox } from '../components/SecurityFormHelpers';
+import VisitorsPage from './VisitorsPage';
+import DeliveriesPage from './DeliveriesPage';
 
-const rowsFrom = (response) => {
-    let rows = Array.isArray(response) ? response : response?.data || response?.records || [];
-    if (!Array.isArray(rows) && Array.isArray(rows?.rows)) rows = rows.rows;
-    return Array.isArray(rows) ? rows.filter((row) => row && typeof row === "object") : [];
+const list = (value) => {
+  if (Array.isArray(value)) return value;
+  if (Array.isArray(value?.data)) return value.data;
+  if (value?.data && typeof value.data === 'object') return list(value.data);
+  if (Array.isArray(value?.records)) return value.records;
+  if (Array.isArray(value?.rows)) return value.rows;
+  if (Array.isArray(value?.users)) return value.users;
+  if (Array.isArray(value?.vendors)) return value.vendors;
+  if (Array.isArray(value?.units)) return value.units;
+  if (Array.isArray(value?.gates)) return value.gates;
+  return [];
 };
-const societyId = () => String(localStorage.getItem("selectedSocietyId") || "").replace(/^:+/, "").trim();
-const documentUrl = (filePath) => {
-    if (!filePath) return "#";
-    if (/^https?:\/\//i.test(filePath)) return filePath;
-    const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
-    return `${apiBase.replace(/\/api\/?$/, "")}${filePath.startsWith("/") ? filePath : `/${filePath}`}`;
-};
-const localDate = () => { const now = new Date(); return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
-const tabs = [
-    ["overview", "Overview", Shield], ["staff", "Staff & documents", Users], ["attendance", "Attendance", ClipboardCheck],
-    ["rosters", "Shifts & rosters", CalendarDays], ["tasks", "Tasks", Activity], ["patrols", "Patrols", MapPin],
-    ["incidents", "Incidents", AlertOctagon], ["emergencies", "Emergencies", Siren], ["audit", "Audit trail", FileText]
-];
-const configs = {
-    attendance: { title: "Attendance record", api: "createAttendance", fields: [["staffId", "Staff", "staff"], ["attendanceDate", "Attendance date", "date"], ["status", "Status", "select", ["PRESENT", "ABSENT", "LATE", "HALF_DAY", "ON_LEAVE"]], ["checkInTime", "Check in", "time"], ["checkOutTime", "Check out", "time"], ["workingMinutes", "Working minutes", "number"], ["overtimeMinutes", "Overtime minutes", "number"], ["remarks", "Remarks"]] },
-    staff: { title: "Staff member", api: "createStaff", fields: [["employeeCode", "Employee code"], ["firstName", "First name"], ["lastName", "Last name"], ["mobileNumber", "Mobile number"], ["email", "Email"], ["joiningDate", "Joining date", "date"], ["staffType", "Staff type", "select", ["SECURITY_GUARD", "SECURITY_SUPERVISOR", "HOUSEKEEPING", "MAINTENANCE", "ELECTRICIAN", "PLUMBER", "GARDENER", "OTHER"]]] },
-    assignment: { title: "Unit assignment", api: "createAssignment", fields: [["staffId", "Staff", "staff"], ["unitId", "Unit", "unit"], ["assignmentType", "Assignment type", "select", ["SECURITY", "HOUSEKEEPING", "MAINTENANCE", "SUPPORT", "OTHER"]], ["startDate", "Start date", "date"], ["endDate", "End date", "date"]] },
-    document: { title: "Upload staff document", api: "uploadDocument", fields: [["staffId", "Staff", "staff"], ["documentType", "Document type", "select", ["ID_PROOF", "PAN", "ADDRESS_PROOF", "POLICE_VERIFICATION", "EMPLOYMENT_PROOF", "CONTRACT", "MEDICAL_CERTIFICATE", "OTHER"]], ["file", "Choose document", "file"], ["issueDate", "Issue date", "date"], ["expiryDate", "Expiry date", "date"], ["documentNumber", "Document number"], ["remarks", "Notes", "textarea"]] },
-    shift: { title: "Shift", api: "createShift", fields: [["shiftCode", "Shift code"], ["shiftName", "Shift name"], ["shiftType", "Shift type", "select", ["MORNING", "AFTERNOON", "EVENING", "NIGHT", "GENERAL", "OTHER"]], ["startTime", "Start time", "time"], ["endTime", "End time", "time"], ["breakMinutes", "Break minutes", "number"], ["graceMinutes", "Grace minutes", "number"]] },
-    roster: { title: "Roster Entry", api: "createRoster", fields: [["staffId", "Staff", "staff"], ["shiftId", "Shift", "shift"], ["rosterDate", "Roster date", "date"], ["rosterType", "Roster type", "select", ["DAILY", "WEEKLY", "MONTHLY"]]] },
-    task: { title: "Staff task", api: "createTask", fields: [["staffId", "Staff", "staff"], ["title", "Title"], ["description", "Description", "textarea"], ["taskType", "Task type", "select", ["SECURITY", "HOUSEKEEPING", "MAINTENANCE", "INSPECTION", "PATROL", "EMERGENCY", "OTHER"]], ["priority", "Priority", "select", ["LOW", "MEDIUM", "HIGH", "URGENT"]], ["dueDate", "Due date", "date"]] },
-    checkpoint: { title: "Patrol checkpoint", api: "createCheckpoint", fields: [["checkpointCode", "Checkpoint code"], ["checkpointName", "Checkpoint name"], ["locationName", "Location"], ["sequenceOrder", "Sequence", "number"], ["verificationMethod", "Verification method", "select", ["QR", "NFC", "GPS", "QR_NFC", "QR_GPS", "NFC_GPS", "QR_NFC_GPS"]], ["gpsLatitude", "GPS latitude", "number"], ["gpsLongitude", "GPS longitude", "number"], ["gpsRadiusMeters", "GPS radius (m)", "number"]] },
-    patrol: { title: "Patrol", api: "createPatrol", fields: [["staffId", "Staff", "staff"], ["patrolCode", "Patrol code"], ["patrolName", "Patrol name"], ["patrolDate", "Patrol date", "date"], ["plannedStartTime", "Planned start", "time"], ["plannedEndTime", "Planned end", "time"]] },
-    incident: { title: "Incident", api: "createIncident", fields: [["incidentNumber", "Incident number"], ["incidentType", "Type", "select", ["SECURITY_BREACH", "THEFT", "FIRE", "MEDICAL", "ACCIDENT", "FIGHT", "VANDALISM", "UNAUTHORIZED_ACCESS", "VEHICLE", "PROPERTY_DAMAGE", "SAFETY_HAZARD", "OTHER"]], ["title", "Title"], ["description", "Description", "textarea"], ["incidentDate", "Date and time", "datetime-local"], ["severity", "Severity", "select", ["LOW", "MEDIUM", "HIGH", "CRITICAL"]], ["priority", "Priority", "select", ["LOW", "MEDIUM", "HIGH", "URGENT"]], ["location", "Location"]] },
-    emergency: { title: "Emergency / SOS", api: "createEmergency", fields: [["emergencyNumber", "Emergency number"], ["emergencyType", "Type", "select", ["FIRE", "MEDICAL", "SECURITY_BREACH", "THEFT", "ACCIDENT", "ELECTRICAL", "WATER_LEAKAGE", "FLOOD", "GAS_LEAK", "MISSING_PERSON", "NATURAL_DISASTER", "VIOLENCE", "OTHER"]], ["title", "Title"], ["description", "Description", "textarea"], ["priority", "Priority", "select", ["LOW", "MEDIUM", "HIGH", "CRITICAL"]], ["location", "Location"]] }
-};
-const titleCase = (value) => {
-    if (!value) return "";
+const initial = (extra = {}) => ({ ...extra });
 
-    let label = String(value)
-        // camelCase → camel Case
-        .replace(/([a-z])([A-Z])/g, "$1 $2")
+function GateForm({ societyId, value, gates = [], onSubmit, onCancel, saving, error }) {
+  const [form, setForm] = useState(initial({ societyId, name: value?.name || '', location: value?.location || '', gateType: value?.gate_type || 'MAIN', status: value?.status || 'ACTIVE' }));
+  const [validationError, setValidationError] = useState('');
+  const edit = Boolean(value);
+  const set = (k, v) => {
+    setValidationError('');
+    setForm((f) => ({ ...f, [k]: v }));
+  };
 
-        // PascalCase → Pascal Case
-        .replace(/([A-Z])([A-Z][a-z])/g, "$1 $2")
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const name = form.name.trim();
+    const location = form.location.trim();
 
-        // snake_case / kebab-case / spaces → spaces
-        .replace(/[_-]+/g, " ")
+    if (!name) return setValidationError('Gate name is required.');
+    if (name.length < 2) return setValidationError('Gate name must be at least 2 characters.');
+    if (name.length > 100) return setValidationError('Gate name must not exceed 100 characters.');
+    if (!location) return setValidationError('Gate location is required.');
+    if (location.length > 255) return setValidationError('Gate location must not exceed 255 characters.');
 
-        // Handle concatenated "id", "url", "api"
-        .replace(/id$/i, " ID")
-        .replace(/url$/i, " URL")
-        .replace(/api$/i, " API")
+    const duplicateName = gates.some((g) =>
+      g.id !== value?.id && String(g.name || '').trim().toLowerCase() === name.toLowerCase()
+    );
+    if (duplicateName) return setValidationError('A gate with this name already exists.');
 
-        // Remove extra spaces
-        .replace(/\s+/g, " ")
-        .trim();
+    onSubmit(edit
+      ? { name, location, gateType: form.gateType, status: form.status }
+      : { ...form, name, location }
+    );
+  };
 
-    // Capitalize each word
-    label = label.replace(/\b[a-z]/g, (char) => char.toUpperCase());
+  return <form onSubmit={handleSubmit}>
+    <ErrorBox error={error} />
+    {validationError && <div className="form-error">{validationError}</div>}
+    {!edit && <TextField id="gateSociety" label="Society" value={form.societyId} disabled />}
+    <TextField id="gateName" label="Gate name" value={form.name} onChange={(e) => set('name', e.target.value)} required />
+    <TextField id="gateLocation" label="Location" value={form.location} onChange={(e) => set('location', e.target.value)} required />
+    <SelectField id="gateType" label="Gate type" options={GATE_TYPES.map((v) => ({ value: v, label: label(v) }))} value={form.gateType} onChange={(e) => set('gateType', e.target.value)} />
+    {edit && <SelectField id="gateStatus" label="Status" options={GATE_STATUSES.map((v) => ({ value: v, label: label(v) }))} value={form.status} onChange={(e) => set('status', e.target.value)} />}
+    <FormActions saving={saving} onCancel={onCancel} submitLabel={edit ? 'Save changes' : 'Create gate'} />
+  </form>;
+}
 
-    // Preserve common abbreviations
-    label = label
-        .replace(/\bId\b/g, "ID")
-        .replace(/\bUrl\b/g, "URL")
-        .replace(/\bApi\b/g, "API");
+function GuardForm({ value, guards = [], onSubmit, onCancel, saving, error }) {
+  const [form, setForm] = useState({ userId: value?.user_id || '', employeeCode: value?.employee_code || '', agencyVendorId: value?.agency_vendor_id || null, status: value?.status || 'ACTIVE' });
+  const [validationError, setValidationError] = useState('');
+  const edit = Boolean(value);
+  const set = (k, v) => {
+    setValidationError('');
+    setForm((f) => ({ ...f, [k]: v }));
+  };
 
-    return label;
-};
-const display = (value) => value == null || value === "" ? "—" : typeof value === "object" ? JSON.stringify(value) : String(value);
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const userId = String(form.userId || '').trim();
+    const employeeCode = String(form.employeeCode || '').trim();
+
+    if (!userId) return setValidationError('Guard user is required.');
+    if (!employeeCode) return setValidationError('Employee code is required.');
+    if (employeeCode.length < 2) return setValidationError('Employee code must be at least 2 characters.');
+    if (employeeCode.length > 50) return setValidationError('Employee code must not exceed 50 characters.');
+
+    const duplicateUser = guards.some((g) =>
+      g.id !== value?.id && g.user_id === userId
+    );
+    if (duplicateUser) return setValidationError('This user is already registered as a security guard.');
+
+    const duplicateEmployeeCode = guards.some((g) =>
+      g.id !== value?.id && String(g.employee_code || '').trim().toLowerCase() === employeeCode.toLowerCase()
+    );
+    if (duplicateEmployeeCode) return setValidationError('This employee code already exists.');
+
+    onSubmit(edit
+      ? { employeeCode, agencyVendorId: form.agencyVendorId, status: form.status }
+      : { ...form, userId, employeeCode }
+    );
+  };
+
+  return <form onSubmit={handleSubmit}>
+    <ErrorBox error={error} />
+    {validationError && <div className="form-error">{validationError}</div>}
+    {!edit && <UserPicker value={form.userId} onChange={(v) => set('userId', v)} label="Guard user" />}
+    <TextField id="employeeCode" label="Employee code" value={form.employeeCode} onChange={(e) => set('employeeCode', e.target.value)} required />
+    <VendorPicker value={form.agencyVendorId} onChange={(v) => set('agencyVendorId', v)} />
+    {edit && <SelectField id="guardStatus" label="Status" options={GUARD_STATUSES.map((v) => ({ value: v, label: label(v) }))} value={form.status} onChange={(e) => set('status', e.target.value)} />}
+    <FormActions saving={saving} onCancel={onCancel} submitLabel={edit ? 'Save changes' : 'Add guard'} />
+  </form>;
+}
+
+function CardForm({ societyId, value, cards = [], onSubmit, onCancel, saving, error }) {
+  const [form, setForm] = useState({ societyId, holderUserId: value?.holder_user_id || '', credentialNo: value?.credential_no || '', credentialType: value?.credential_type || 'CARD', validUntil: value?.valid_until ? String(value.valid_until).slice(0, 16) : '' });
+  const [validationError, setValidationError] = useState('');
+  const set = (k, v) => {
+    setValidationError('');
+    setForm((f) => ({ ...f, [k]: v }));
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const holderUserId = String(form.holderUserId || '').trim();
+    const credentialNo = String(form.credentialNo || '').trim();
+
+    if (!holderUserId) return setValidationError('Card holder is required.');
+    if (!credentialNo) return setValidationError('Credential number is required.');
+    if (credentialNo.length < 2) return setValidationError('Credential number must be at least 2 characters.');
+    if (credentialNo.length > 100) return setValidationError('Credential number must not exceed 100 characters.');
+
+    const duplicateCredential = cards.some((c) =>
+      c.id !== value?.id && String(c.credential_no || '').trim().toLowerCase() === credentialNo.toLowerCase()
+    );
+    if (duplicateCredential) return setValidationError('This credential number already exists.');
+
+    if (form.validUntil) {
+      const validUntil = new Date(form.validUntil);
+      if (Number.isNaN(validUntil.getTime())) return setValidationError('Please enter a valid expiry date and time.');
+      if (validUntil <= new Date()) return setValidationError('Valid until must be a future date and time.');
+    }
+
+    onSubmit({
+      ...form,
+      holderUserId,
+      credentialNo,
+      validUntil: form.validUntil ? new Date(form.validUntil).toISOString() : null,
+    });
+  };
+
+  return <form onSubmit={handleSubmit}>
+    <ErrorBox error={error} />
+    {validationError && <div className="form-error">{validationError}</div>}
+    <UserPicker value={form.holderUserId} onChange={(v) => set('holderUserId', v)} label="Card holder" />
+    <TextField id="credentialNo" label="Credential number" value={form.credentialNo} onChange={(e) => set('credentialNo', e.target.value)} required />
+    <SelectField id="credentialType" label="Credential type" options={CREDENTIAL_TYPES.map((v) => ({ value: v, label: label(v) }))} value={form.credentialType} onChange={(e) => set('credentialType', e.target.value)} />
+    <TextField id="validUntil" label="Valid until" type="datetime-local" value={form.validUntil} onChange={(e) => set('validUntil', e.target.value)} />
+    <FormActions saving={saving} onCancel={onCancel} submitLabel="Issue access card" />
+  </form>;
+}
+
+function DeviceForm({ gates, value, onSubmit, onCancel, saving, error }) {
+  const [form, setForm] = useState({ gateId: value?.gate_id || '', deviceType: value?.device_type || 'CCTV', serialNo: value?.serial_no || '', ipAddress: value?.ip_address || '', status: value?.status || 'OFFLINE', lastSeenAt: value?.last_seen_at ? String(value.last_seen_at).slice(0, 16) : '' });
+  const edit = Boolean(value);
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  return <form onSubmit={(e) => { e.preventDefault(); const payload = edit ? { status: form.status, ipAddress: form.ipAddress, lastSeenAt: form.lastSeenAt ? new Date(form.lastSeenAt).toISOString() : null } : { gateId: form.gateId, deviceType: form.deviceType, serialNo: form.serialNo, ipAddress: form.ipAddress || null }; onSubmit(payload); }}>
+    <ErrorBox error={error} />
+    {!edit && <GatePicker gates={gates} value={form.gateId} onChange={(v) => set('gateId', v)} />}
+    {!edit && <SelectField id="deviceType" label="Device type" options={DEVICE_TYPES.map((v) => ({ value: v, label: label(v) }))} value={form.deviceType} onChange={(e) => set('deviceType', e.target.value)} />}
+    {!edit && <TextField id="serialNo" label="Serial number" value={form.serialNo} onChange={(e) => set('serialNo', e.target.value)} required />}
+    <TextField id="deviceIp" label="IP address" value={form.ipAddress} onChange={(e) => set('ipAddress', e.target.value)} />
+    {edit && <>
+      <SelectField id="deviceStatus" label="Status" options={DEVICE_STATUSES.map((v) => ({ value: v, label: label(v) }))} value={form.status} onChange={(e) => set('status', e.target.value)} />
+      <TextField id="lastSeenAt" label="Last seen at" type="datetime-local" value={form.lastSeenAt} onChange={(e) => set('lastSeenAt', e.target.value)} />
+    </>}
+    <FormActions saving={saving} onCancel={onCancel} submitLabel={edit ? 'Save device' : 'Register device'} />
+  </form>;
+}
 
 export default function SecurityPage() {
-    const { section } = useParams();
-    const [tab, setTab] = useState(section || "overview"); const [data, setData] = useState({}); const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(""); const [formError, setFormError] = useState(""); const [search, setSearch] = useState(""); const [form, setForm] = useState(""); const [busy, setBusy] = useState(false); const [editRecord, setEditRecord] = useState(null); const [workflow, setWorkflow] = useState(null);
-    const loadData = async () => {
-        setLoading(true); setError("");
-        try {
-            const keys = ["staff", "assignments", "documents", "attendance", "shifts", "rosters", "tasks", "checkpoints", "patrols", "incidents", "emergencies", "audits", "units"];
-            const methods = [securityApi.getStaff, securityApi.getAssignments, securityApi.getDocuments, securityApi.getAttendance, securityApi.getShifts, securityApi.getRosters, securityApi.getTasks, securityApi.getCheckpoints, securityApi.getPatrols, securityApi.getIncidents, securityApi.getEmergencies, securityApi.getAudits, unitApi.getAll];
-            const results = await Promise.allSettled(methods.map((method) => method()));
-            const next = {}; const failed = [];
-            results.forEach((result, index) => { const key = keys[index]; if (result.status === "fulfilled") next[key] = rowsFrom(result.value); else { next[key] = []; failed.push(key); } });
-            setData(next); if (failed.length) setError(`Could not load: ${failed.join(", ")}. Check the API connection and retry.`);
-        } catch (err) { setError(err.response?.data?.message || "Could not load security records."); }
-        finally { setLoading(false); }
-    };
-    useEffect(() => { loadData(); }, []);
-    useEffect(() => { setTab(section || "overview"); }, [section]);
-    useEffect(() => {
-        if (!form && !editRecord && !workflow) return undefined;
-        const previousOverflow = document.body.style.overflow;
-        document.body.style.overflow = "hidden";
-        const closeOnEscape = (event) => { if (event.key === "Escape") { setForm(""); setEditRecord(null); setWorkflow(null); } };
-        window.addEventListener("keydown", closeOnEscape);
-        return () => { document.body.style.overflow = previousOverflow; window.removeEventListener("keydown", closeOnEscape); };
-    }, [form, editRecord, workflow]);
-    const staff = data.staff || [];
-    const units = data.units || [];
-    const stats = [["Active staff", staff.filter((item) => item.status === "ACTIVE").length, Users], ["On duty today", (data.attendance || []).filter((item) => item.status === "PRESENT" || item.status === "LATE").length, ClipboardCheck], ["Open incidents", (data.incidents || []).filter((item) => !["CLOSED", "RESOLVED", "REJECTED"].includes(item.status)).length, AlertOctagon], ["Active emergencies", (data.emergencies || []).filter((item) => !["CLOSED", "RESOLVED", "CANCELLED", "FALSE_ALARM"].includes(item.status)).length, Siren]];
-    const sectionKey = { staff: "staff", attendance: "attendance", rosters: "rosters", tasks: "tasks", patrols: "patrols", incidents: "incidents", emergencies: "emergencies", audit: "audits" }[tab];
-    const items = data[sectionKey] || [];
-    const filtered = useMemo(() => { const q = search.trim().toLowerCase(); return items.filter((item) => !q || Object.values(item).map(display).join(" ").toLowerCase().includes(q)); }, [items, search]);
-    const save = async (event) => {
-        event.preventDefault(); const config = configs[form]; const formData = new FormData(event.currentTarget); const payload = form === "document" ? formData : Object.fromEntries(formData.entries());
-        if (form === "document" && !formData.get("file")?.size) { setFormError("Choose a document file to upload."); return; }
-        if (form === "document" && formData.get("file").size > 25 * 1024 * 1024) { setFormError("The selected file is larger than the 25 MB upload limit."); return; }
-        ["breakMinutes", "graceMinutes", "sequenceOrder", "gpsLatitude", "gpsLongitude", "gpsRadiusMeters"].forEach((key) => { if (payload[key] !== undefined && payload[key] !== "") payload[key] = Number(payload[key]); });
-            if (["staff", "shift", "roster", "task", "checkpoint", "patrol", "incident", "emergency"].includes(form)) payload.societyId = societyId();
-        setBusy(true); try { await securityApi[config.api](payload); setFormError(""); setForm(""); await loadData(); } catch (err) { const message = err.response?.data?.message || `Could not save ${config.title.toLowerCase()}.`; setError(message); setFormError(message); } finally { setBusy(false); }
-    };
-    const act = async (fn, ...args) => { try { setBusy(true); await fn(...args); await loadData(); } catch (err) { setError(err.response?.data?.message || "That action could not be completed."); } finally { setBusy(false); } };
-    const resourceFor = { staff: "staff", attendance: "staff-attendance", rosters: "rosters", tasks: "staff-tasks", patrols: "patrols", incidents: "incidents", emergencies: "emergencies", audit: "security-audits" }[tab];
-    const staffName = (id) => { const person = staff.find((item) => String(item.id) === String(id)); return person ? `${person.firstName || ""} ${person.lastName || ""}`.trim() : display(id); };
-    const actionsFor = (item) => {
-        const id = item.id;
-        if (tab === "staff") return <button onClick={() => act(item.status === "ACTIVE" ? securityApi.deactivateStaff : securityApi.activateStaff, id)}>{item.status === "ACTIVE" ? "Deactivate" : "Activate"}</button>;
-        if (tab === "patrols") return <button className="security-manage-button" onClick={async () => { try { const response = await securityApi.getPatrolCheckpoints(id); setWorkflow({ type: tab, item, checkpoints: rowsFrom(response) }); } catch (err) { setError(err.response?.data?.message || "Could not load patrol checkpoints."); } }}>Manage</button>;
-        if (["rosters", "tasks", "incidents", "emergencies"].includes(tab)) return <button className="security-manage-button" onClick={() => setWorkflow({ type: tab, item })}>Manage</button>;
-        return null;
-    };
-    const headings = { staff: ["Employee", "Type", "Contact", "Joined", "Status"], attendance: ["Staff", "Date", "Check in", "Check out", "Status"], rosters: ["Staff", "Shift", "Date", "Type", "Status"], tasks: ["Title", "Staff", "Type", "Due", "Priority", "Status"], patrols: ["Patrol", "Staff", "Date", "Window", "Status"], incidents: ["Number", "Incident", "Severity", "Location", "Status"], emergencies: ["Number", "Emergency", "Priority", "Location", "Status"], audit: ["When", "Module", "Action", "Actor", "Severity"] };
-    const cells = (item) => ({ staff: [<>{item.firstName} {item.lastName}<small>{item.employeeCode}</small></>, titleCase(item.staffType), item.mobileNumber, item.joiningDate?.slice(0, 10), titleCase(item.status)], attendance: [staffName(item.staffId), item.attendanceDate?.slice(0, 10), item.checkInTime, item.checkOutTime, titleCase(item.status)], rosters: [staffName(item.staffId), display(item.shiftId), item.rosterDate?.slice(0, 10), titleCase(item.rosterType), titleCase(item.status)], tasks: [item.title, staffName(item.staffId), titleCase(item.taskType), item.dueDate?.slice(0, 10), titleCase(item.priority), titleCase(item.status)], patrols: [item.patrolName, staffName(item.staffId), item.patrolDate?.slice(0, 10), `${item.plannedStartTime || "—"} – ${item.plannedEndTime || "—"}`, titleCase(item.status)], incidents: [item.incidentNumber, <><strong>{item.title}</strong></>, titleCase(item.severity), display(item.location), titleCase(item.status)], emergencies: [item.emergencyNumber, <><strong>{item.title}</strong></>, titleCase(item.priority), display(item.location), titleCase(item.status)], audit: [item.createdAt?.slice(0, 16)?.replace("T", " "), titleCase(item.module), titleCase(item.action), display(item.performedBy || item.userId), titleCase(item.severity)] }[tab] || []);
-    return <section className="society-dashboard security-page">
-        <header className="society-heading"><div><div className="society-eyebrow"><span className="society-eyebrow-dot"/> SECURITY OPERATIONS</div><h1>Security & staff</h1><p>Manage staff, duty coverage, patrol verification, incidents, and emergency response.</p></div><button className="society-add-button" onClick={loadData} disabled={loading}><RefreshCw size={16}/> Refresh</button></header>
-        {error && <div className="society-error" role="alert">{error}<button onClick={loadData}>Try again</button></div>}
-        <nav className="security-tabs" aria-label="Security sections">{tabs.map(([key, label, Icon]) => <button key={key} className={tab === key ? "active" : ""} onClick={() => { setTab(key); setSearch(""); }}><Icon size={16}/>{label}</button>)}</nav>
-        {tab === "overview" ? <><div className="society-stats">{stats.map(([label, count, Icon]) => <article className="society-stat-card" key={label}><span className="society-stat-icon society-stat-icon-blue"><Icon size={19}/></span><div><span className="society-stat-label">{label}</span><strong>{loading ? "—" : count}</strong></div></article>)}</div><div className="society-lifecycle-grid">{[["Patrols", "patrols", "patrols"], ["Incidents", "incidents", "incidents"], ["Emergency calls", "emergencies", "emergencies"], ["Staff tasks", "tasks", "tasks"]].map(([label, key, route]) => <button className="security-quick-card" key={key} onClick={() => setTab(route)}><span>{label}</span><strong>{(data[key] || []).length}</strong><small>Open {label.toLowerCase()} →</small></button>)}</div></> : <section className="society-list-panel"><div className="society-list-heading"><div><h2>{tabs.find(([key]) => key === tab)?.[1]}</h2><p>{tab === "audit" ? "Recorded changes and operational events across security workflows." : "Review records and take actions for the selected workflow."}</p></div><span className="society-count">{loading ? "Loading" : `${filtered.length} records`}</span></div>
-            <div className="society-toolbar"><label className="society-search"><Search size={17}/><input aria-label="Search records" placeholder="Search records" value={search} onChange={(event) => setSearch(event.target.value)}/></label>
-                {tab === "attendance" && <><select id="attendance-staff"><option value="">Select staff</option>{staff.map((person) => <option key={person.id} value={person.id}>{person.firstName} {person.lastName}</option>)}</select>{[["checkIn", "Check in"], ["checkOut", "Check out"], ["markAbsent", "Mark absent"], ["markLeave", "Mark leave"]].map(([action, label]) => <button className="society-workflow-action" key={action} onClick={() => { const staffId = document.getElementById("attendance-staff").value; if (staffId) act(securityApi[action], { staffId, attendanceDate: localDate() }); }}>{label}</button>)}<button className="society-add-button" onClick={() => setForm("attendance")}>Add attendance</button></>}
-                {tab === "rosters" && <button className="society-add-button" onClick={() => setForm("shift")}><Plus size={16}/> Add shift</button>}
-                {Object.hasOwn(configs, { staff: "staff", rosters: "roster", tasks: "task", patrols: "patrol", incidents: "incident", emergencies: "emergency" }[tab]) && <button className="society-add-button" onClick={() => setForm({ staff: "staff", rosters: "roster", tasks: "task", patrols: "patrol", incidents: "incident", emergencies: "emergency" }[tab])}><Plus size={16}/> Add {tab === "staff" ? "staff" : tab === "rosters" ? "roster" : tab.slice(0, -1)}</button>}
-                {tab === "patrols" && <button className="society-workflow-action" onClick={() => setForm("checkpoint")}>+  Add checkpoint</button>}
-            </div>
-            {tab === "staff" && <StaffExtras data={data} act={act} setForm={setForm} setEditRecord={setEditRecord}/ >}
-            {tab === "rosters" && <section className="security-shifts"><h3>Shift definitions</h3>{(data.shifts || []).map((shift) => <article key={shift.id}><strong>{shift.shiftName}</strong><span>{shift.startTime}–{shift.endTime} · {titleCase(shift.shiftType)}</span><em>{titleCase(shift.status)}</em><button onClick={() => act(shift.status === "ACTIVE" ? securityApi.deactivateShift : securityApi.activateShift, shift.id)}>{shift.status === "ACTIVE" ? "Deactivate" : "Activate"}</button><button onClick={() => setEditRecord({ item: shift, tab: "shifts" })}>Edit</button><button onClick={() => window.confirm("Delete this shift?") && act(securityApi.deleteShift, shift.id)}>Delete</button></article>)}{!data.shifts?.length && <small>No shifts configured.</small>}</section>}
-            {tab === "patrols" && <section className="security-shifts"><h3>Checkpoint register</h3>{(data.checkpoints || []).map((checkpoint) => <article key={checkpoint.id}><strong>{checkpoint.checkpointCode} · {checkpoint.checkpointName}</strong><span>{checkpoint.locationName} · {titleCase(checkpoint.verificationMethod)}</span><em>{titleCase(checkpoint.status)}</em><button onClick={() => act(checkpoint.status === "ACTIVE" ? (id) => securityApi.updateResource("checkpoints", id, { status: "INACTIVE" }) : (id) => securityApi.updateResource("checkpoints", id, { status: "ACTIVE" }), checkpoint.id)}>{checkpoint.status === "ACTIVE" ? "Deactivate" : "Activate"}</button><button onClick={() => setEditRecord({ item: checkpoint, tab: "checkpoints" })}>Edit</button><button onClick={() => window.confirm("Delete this checkpoint?") && act(securityApi.deleteCheckpoint, checkpoint.id)}>Delete</button></article>)}{!data.checkpoints?.length && <small>No checkpoints configured.</small>}</section>}
-            {loading ? <div className="society-loading">Loading security records…</div> : filtered.length === 0 ? <div className="society-empty"><h3>No records found</h3><p>Create a record or adjust your search.</p></div> : <div className="society-table-wrap"><table className="society-table"><thead><tr>{(headings[tab] || []).map((heading) => <th key={heading}>{heading}</th>)}<th>Actions</th></tr></thead><tbody>{filtered.map((item) => <tr key={item.id}>{cells(item).map((value, index) => <td key={index}>{value}</td>)}<td><div className="society-row-actions">{actionsFor(item)}{tab !== "audit" && <button onClick={() => setEditRecord({ item, tab })}>Edit</button>}{(tab !== "audit" || resourceFor === "security-audits") && <button className="society-delete-action" onClick={() => window.confirm(`Delete this ${tabs.find(([key])=>key===tab)?.[1].toLowerCase()} record?`) && act(resourceFor === "staff" ? securityApi.deleteStaff : (id) => securityApi.deleteResource(resourceFor,id), item.id)}>Delete</button>}</div></td></tr>)}</tbody></table></div>}
-        </section>}
-        {form && <div className="society-modal-layer" onMouseDown={(event) => { if (event.target === event.currentTarget) setForm(""); }}><section className="society-form-modal"><header className="security-modal-header"><div><h2>{configs[form]?.title}</h2><p>Enter the record details below.</p></div><button aria-label="Close" onClick={() => setForm("")}><X size={18}/></button></header><form onSubmit={save}><div className="security-form-grid">{(configs[form]?.fields || []).map(([name, label, type = "text", options]) => <label key={name}>{label}{type === "select" ? <select name={name} required={name !== "shiftType"}><option value="">Select {label.toLowerCase()}</option>{options.map((option) => <option key={option} value={option}>{titleCase(option)}</option>)}</select> : type === "staff" ? <select name={name} required><option value="">Select staff member</option>{staff.map((person) => <option key={person.id} value={person.id}>{person.firstName} {person.lastName} · {person.employeeCode}</option>)}</select> : type === "unit" ? <select name={name} required disabled={!units.length}><option value="">{units.length ? "Select unit" : "No units available"}</option>{units.map((unit) => <option key={unit.id} value={unit.id}>{unit.unitNumber || unit.name || unit.id}</option>)}</select> : type === "shift" ? <select name={name} required><option value="">Select shift</option>{(data.shifts || []).map((shift) => <option key={shift.id} value={shift.id}>{shift.shiftName} · {shift.startTime}–{shift.endTime}</option>)}</select> : type === "textarea" ? <textarea name={name} rows="3" required={name === "description"}/> : <input name={name} type={type} required={!(["lastName", "email", "endDate", "dueDate", "location", "gpsLatitude", "gpsLongitude", "gpsRadiusMeters", "breakMinutes", "graceMinutes", "checkInTime", "checkOutTime", "workingMinutes", "overtimeMinutes", "remarks"].includes(name))}/>}</label>)}</div><footer className="security-modal-footer"><button type="button" onClick={() => setForm("")}>Cancel</button><button className="society-add-button" disabled={busy}>{busy ? "Saving…" : "Save record"}</button></footer></form></section></div>}
-        {formError && form === "document" && <div className="security-upload-error" role="alert">{formError}</div>}
-        {editRecord && <RecordEditModal record={editRecord.item} tab={editRecord.tab} staff={staff} units={units} onClose={() => setEditRecord(null)} onSave={async (id, sectionName, patchData) => { const resource = { staff: "staff", attendance: "staff-attendance", rosters: "rosters", tasks: "staff-tasks", patrols: "patrols", incidents: "incidents", emergencies: "emergencies", shifts: "shifts", checkpoints: "checkpoints", documents: "staff-documents", assignments: "staff-unit-assignments" }[sectionName]; await act((key, body) => securityApi.updateResource(resource, key, body), id, patchData); setEditRecord(null); }}/ >}
-        {workflow && <SecurityWorkflowDialog workflow={workflow} staff={staff} checkpoints={data.checkpoints || []} patrolCheckpoints={workflow.checkpoints || []} busy={busy} onClose={() => setWorkflow(null)} onSubmit={async (action, payload, checkpointId) => { const { type, item } = workflow; if (type === "patrols") { if (action === "verify") await act(securityApi.verifyCheckpoint, item.id, checkpointId, payload); else if (action === "missed") await act(securityApi.missCheckpoint, item.id, checkpointId, payload); else if (action === "add-checkpoint") await act(securityApi.addPatrolCheckpoint, item.id, { checkpointId }); else await act(securityApi.patrolAction, item.id, action); } else if (type === "tasks") await act(securityApi.taskAction, item.id, action, payload); else if (type === "rosters") await act(securityApi.rosterAction, item.id, action); else await act(type === "incidents" ? securityApi.incidentAction : securityApi.emergencyAction, item.id, action, payload); setWorkflow(null); }}/ >}
-    </section>;
+  const { hasPermission, user } = useAuth();
+  const { societyId } = useSociety();
+  const [tab, setTab] = useState('gates');
+  const [dialog, setDialog] = useState(null);
+  const [selected, setSelected] = useState(null);
+  const [deviceEvents, setDeviceEvents] = useState(null);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  const gates = useFetch(() => societyId ? api.listGates({ societyId }) : Promise.resolve([]), [societyId]);
+  const guards = useFetch(() => api.listGuards({}), []);
+  const cards = useFetch(() => societyId ? api.listAccessCards({ societyId }) : Promise.resolve([]), [societyId]);
+  const devices = useFetch(() => Promise.resolve(null), []);
+ const users = useFetch(
+  () => societyId ? api.listUsers({ limit: 100 }) : Promise.resolve(null),
+  [societyId]
+);
+  const visitorProfiles = useFetch(() => societyId ? api.listVisitorProfiles({ societyId }) : Promise.resolve([]), [societyId]);
+  useEffect(() => {
+  if (tab === 'deliveries' && societyId) {
+    visitorProfiles.reload();
+  }
+}, [tab, societyId]);
+
+  const vendors = useFetch(() => societyId ? api.listVendors({ societyId, limit: 100 }) : Promise.resolve([]), [societyId]);
+  const { units } = useUnits();
+
+  const gateRows = list(gates.data);
+  const guardRows = list(guards.data);
+  const cardRows = list(cards.data);
+  const userRows = list(users.data);
+  const vendorRows = list(vendors.data);
+  const unitRows = list(units);
+  const userNames = Object.fromEntries(userRows.map((u) => [u.id, `${u.first_name || u.firstName || ''} ${u.last_name || u.lastName || ''}`.trim() || u.email || u.id]));
+  const vendorNames = Object.fromEntries(vendorRows.map((v) => [v.id, v.legal_name || v.name || v.id]));
+  const unitNames = Object.fromEntries(unitRows.map((u) => [u.id, u.unitNumber || u.unit_number || u.name || u.id]));
+
+  const refresh = () => { gates.reload(); guards.reload(); cards.reload(); };
+  const run = async (action, success) => {
+    setError(''); setNotice('');
+    try { await action(); setNotice(success); setDialog(null); setSelected(null); refresh(); }
+    catch (e) { setError(getErrorMessage(e)); }
+  };
+
+  const removeGate = (id) => run(() => api.deleteGate(id), 'Gate deleted.');
+  const removeGuard = (id) => run(() => api.deleteGuard(id), 'Security guard deleted.');
+  const revokeCard = (id) => run(() => api.revokeAccessCard(id), 'Access card revoked.');
+
+  const openDeviceEvents = async (device) => {
+    setSelected(device); setDeviceEvents(null); setError('');
+    try { setDeviceEvents(await api.listDeviceEvents(device.id)); setDialog('device-events'); }
+    catch (e) { setError(getErrorMessage(e)); }
+  };
+
+  const deviceRowsForGate = selected?.id ? devices.data || [] : [];
+
+  if (!societyId) return <PageContainer title="Security & Gate Operations" subtitle="Gates, guards, credentials and device operations."><SocietyIdPrompt /></PageContainer>;
+
+  return <PageContainer title="Security, Gate & Visitor Operations" subtitle="Manage physical access, visitors, deliveries and gate activity.">
+    <div className="tabs-bar">
+      <div className="tabs">
+        <button className={`tab ${tab === 'gates' ? 'active' : ''}`} type="button" onClick={() => setTab('gates')}>Gates & Devices</button>
+        <button className={`tab ${tab === 'visitors' ? 'active' : ''}`} type="button" onClick={() => setTab('visitors')}>Visitors</button>
+        <button className={`tab ${tab === 'deliveries' ? 'active' : ''}`} type="button" onClick={() => setTab('deliveries')}>Deliveries</button>
+      </div>
+    </div>
+    {notice && <Alert variant="success">{notice}</Alert>}
+    {error && !dialog && <Alert>{error}</Alert>}
+
+    {tab === 'gates' && <GatesPanel societyId={societyId} gates={gateRows} guards={guardRows} cards={cardRows} userNames={userNames} vendorNames={vendorNames} onRefresh={refresh} onRun={run} onDeleteGate={removeGate} onDeleteGuard={removeGuard} onRevokeCard={revokeCard} dialog={dialog} setDialog={setDialog} selected={selected} setSelected={setSelected} deviceEvents={deviceEvents} openDeviceEvents={openDeviceEvents} />}
+    {tab === 'visitors' && <VisitorsPage societyId={societyId} currentUser={user} gates={gateRows} unitNames={unitNames} userNames={userNames} gateNames={Object.fromEntries(gateRows.map((g) => [g.id, g.name]))} />}
+    {tab === 'deliveries' && <DeliveriesPage societyId={societyId} currentUser={user} profiles={list(visitorProfiles.data)} unitNames={unitNames} userNames={userNames} />}
+  </PageContainer>;
 }
 
-function RecordEditModal({ record, tab, staff, units, onClose, onSave }) {
-    const editable = Object.fromEntries(Object.entries(record).filter(([key, value]) => !["id", "createdAt", "updatedAt", "deletedAt"].includes(key) && (value == null || ["string", "number", "boolean"].includes(typeof value))));
-    const [values, setValues] = useState(editable); const [error, setError] = useState("");
-    const submit = async (event) => { event.preventDefault(); const payload = Object.fromEntries(Object.entries(values).map(([key, value]) => [key, value === "" ? null : value])); try { await onSave(record.id, tab, payload); } catch (err) { setError(err.response?.data?.message || "Could not save this record."); } };
-    return <div className="society-modal-layer" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="society-form-modal"><header className="security-modal-header"><div><h2>Edit {titleCase(tab)} record</h2><p>Update record details and save your changes.</p></div><button aria-label="Close" onClick={onClose}><X size={18}/></button></header><form onSubmit={submit}><div className="security-form-grid">{Object.entries(values).map(([key, value]) => <label key={key}>{titleCase(key)}{tab === "assignments" && key === "unitId" ? <select value={value ?? ""} onChange={(event) => setValues((current) => ({ ...current, [key]: event.target.value }))}>{units.map((unit) => <option key={unit.id} value={unit.id}>{unit.unitNumber || unit.name || unit.id}</option>)}</select> : tab === "assignments" && key === "staffId" ? <select value={value ?? ""} onChange={(event) => setValues((current) => ({ ...current, [key]: event.target.value }))}>{staff.map((person) => <option key={person.id} value={person.id}>{person.firstName} {person.lastName} � {person.employeeCode}</option>)}</select> : <input value={value ?? ""} onChange={(event) => setValues((current) => ({ ...current, [key]: event.target.value }))}/>}</label>)}</div>{error && <p className="security-form-error" role="alert">{error}</p>}<footer className="security-modal-footer"><button type="button" onClick={onClose}>Cancel</button><button className="society-add-button">Save changes</button></footer></form></section></div>;
-}
+function GatesPanel({ societyId, gates, guards, cards, userNames, vendorNames, onRefresh, onRun, onDeleteGate, onDeleteGuard, onRevokeCard, dialog, setDialog, selected, setSelected, deviceEvents, openDeviceEvents }) {
+  const { hasPermission } = useAuth();
+  const [gateDevices, setGateDevices] = useState([]);
+  const [gateForDevices, setGateForDevices] = useState(null);
+  const [formError, setFormError] = useState('');
+  const [cardDetail, setCardDetail] = useState(null);
+  const [guardDetail, setGuardDetail] = useState(null);
+  const [deviceDetail, setDeviceDetail] = useState(null);
+  const [deviceDialog, setDeviceDialog] = useState(null);
+  const [eventForm, setEventForm] = useState({ externalEventId: '', eventType: '', payload: '{}' });
+  const [eventSaving, setEventSaving] = useState(false);
 
-function SecurityWorkflowDialog({ workflow, staff, checkpoints, patrolCheckpoints, busy, onClose, onSubmit }) {
-    const { type, item } = workflow;
-    const [action, setAction] = useState(type === "patrols" ? "verify" : type === "tasks" ? "start" : type === "rosters" ? "confirm" : "acknowledge");
-    const [gps, setGps] = useState(null); const [error, setError] = useState("");
-    const actionOptions = type === "patrols" ? [["verify", "Verify checkpoint"], ["missed", "Mark checkpoint missed"], ["add-checkpoint", "Add checkpoint to patrol"], ["start", "Start patrol"], ["complete", "Complete patrol"], ["cancel", "Cancel patrol"]] : type === "tasks" ? [["start", "Start task"], ["complete", "Complete task"], ["overdue", "Mark overdue"], ["cancel", "Cancel task"]] : type === "rosters" ? [["confirm", "Confirm roster"], ["complete", "Complete roster"], ["cancel", "Cancel roster"]] : type === "incidents" ? [["acknowledge", "Acknowledge"], ["assign", "Assign staff"], ["investigate", "Start investigation"], ["resolve", "Resolve incident"], ["close", "Close incident"], ["reject", "Reject report"]] : [["acknowledge", "Acknowledge"], ["assign", "Assign staff"], ["respond", "Start response"], ["external-contacts", "Update external contacts"], ["resolve", "Resolve emergency"], ["close", "Close emergency"], ["cancel", "Cancel emergency"], ["false-alarm", "Mark false alarm"]];
-    const submit = async (event) => {
-        event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget).entries()); let payload = {};
-        if (action === "assign") payload = { staffId: values.staffId };
-        if (action === "investigate") payload = { investigationNotes: values.notes };
-        if (action === "resolve") payload = { resolutionDetails: values.notes };
-        if (action === "respond") payload = { responseNotes: values.notes };
-        if (["cancel", "false-alarm", "missed"].includes(action)) payload = { remarks: values.notes };
-        if (action === "external-contacts") payload = { policeContacted: values.police === "on", ambulanceContacted: values.ambulance === "on", fireBrigadeContacted: values.fire === "on" };
-        if (action === "verify") payload = { verificationMethod: values.method, verificationReference: values.reference, remarks: values.notes, ...(gps || {}) };
-        try { await onSubmit(action, payload, values.checkpointId); } catch (err) { setError(err.response?.data?.message || "Could not complete this action."); }
-    };
-    const captureGps = () => { if (!navigator.geolocation) { setError("This browser does not support location access."); return; } navigator.geolocation.getCurrentPosition((position) => { setGps({ latitude: position.coords.latitude, longitude: position.coords.longitude }); setError(""); }, () => setError("Location permission was denied.")); };
-    const needsNotes = ["investigate", "resolve", "respond", "cancel", "false-alarm", "missed", "verify"].includes(action);
-    return <div className="society-modal-layer" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="society-form-modal security-workflow-modal"><header className="security-modal-header"><div><div className="society-eyebrow"><span className="society-eyebrow-dot"/>{titleCase(type)}</div><h2>{item.title || item.patrolName || "Manage record"}</h2><p>{item.location || item.locationName || item.incidentNumber || item.emergencyNumber || "Select an action for this record."}</p></div><button aria-label="Close" onClick={onClose}><X size={18}/></button></header><form onSubmit={submit}><div className="security-workflow-body"><label className="security-field">Action<select value={action} onChange={(event) => { setAction(event.target.value); setError(""); }}>{actionOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-        {action === "assign" && <label className="security-field">Assign to<select name="staffId" required><option value="">Choose staff member</option>{staff.map((person) => <option key={person.id} value={person.id}>{person.firstName} {person.lastName} · {person.employeeCode}</option>)}</select></label>}
-        {["verify", "missed"].includes(action) && <label className="security-field">Checkpoint<select name="checkpointId" required><option value="">Choose checkpoint</option>{patrolCheckpoints.map((stop) => <option key={stop.id} value={stop.checkpointId || stop.id}>{stop.checkpointName || stop.checkpoint?.checkpointName || stop.locationName || stop.id}</option>)}</select></label>}
-        {action === "add-checkpoint" && <label className="security-field">Checkpoint<select name="checkpointId" required><option value="">Choose checkpoint</option>{checkpoints.map((stop) => <option key={stop.id} value={stop.id}>{stop.checkpointName} · {stop.locationName}</option>)}</select></label>}
-        {action === "verify" && <><label className="security-field">Verification method<select name="method"><option>QR</option><option>NFC</option><option>GPS</option></select></label><button type="button" className="security-location-button" onClick={captureGps}><MapPin size={15}/>{gps ? "Location captured" : "Use current GPS location"}</button><label className="security-field">QR / NFC reference<input name="reference" placeholder="Enter scanned or tag reference"/></label></>}
-        {action === "external-contacts" && <div className="security-checkboxes">{[["police", "Police contacted"], ["ambulance", "Ambulance contacted"], ["fire", "Fire brigade contacted"]].map(([name, label]) => <label key={name}><input type="checkbox" name={name}/>{label}</label>)}</div>}
-        {needsNotes && <label className="security-field">{action === "resolve" ? "Resolution details" : action === "investigate" ? "Investigation notes" : action === "respond" ? "Response notes" : action === "verify" ? "Visit notes" : "Reason / remarks"}<textarea name="notes" rows="3" required={action !== "verify"}/></label>}{error && <p className="security-form-error" role="alert">{error}</p>}</div><footer className="security-modal-footer"><button type="button" onClick={onClose}>Cancel</button><button className="society-add-button" disabled={busy}>{busy ? "Applying…" : "Apply action"}</button></footer></form></section></div>;
-}
+  const showGateDevices = async (gate) => {
+    setGateForDevices(gate); setFormError('');
+    try { setGateDevices(await api.listGateDevices(gate.id)); setDeviceDialog('list'); }
+    catch (e) { setFormError(getErrorMessage(e)); }
+  };
+  const refreshDevices = async () => { if (gateForDevices) setGateDevices(await api.listGateDevices(gateForDevices.id)); };
 
-function StaffExtras({ data, act, setForm, setEditRecord }) {
-    const staff = data.staff || [];
-    const units = data.units || [];
+  const submitDeviceEvent = async (e) => {
+    e.preventDefault(); setEventSaving(true); setFormError('');
+    try { const payload = JSON.parse(eventForm.payload || '{}'); await api.ingestDeviceEvent(selected.id, { externalEventId: eventForm.externalEventId || null, eventType: eventForm.eventType, payload }); setEventForm({ externalEventId: '', eventType: '', payload: '{}' }); await refreshDevices(); setDeviceDialog('list'); }
+    catch (err) { setFormError(err instanceof SyntaxError ? 'Payload must be valid JSON.' : getErrorMessage(err)); }
+    finally { setEventSaving(false); }
+  };
 
-    const getStaffName = (staffId) => {
-        const person = staff.find(
-            (item) => String(item.id) === String(staffId)
-        );
+  const gateColumns = [
+    { key: 'name', header: 'Gate', render: (g) => <><span className="cell-title">{g.name}</span><span className="cell-sub">{g.location || 'No location'}</span></> },
+    { key: 'type', header: 'Type', render: (g) => label(g.gate_type) },
+    { key: 'status', header: 'Status', render: (g) => <SecurityBadge value={g.status} /> },
+    { key: 'actions', header: 'Actions', render: (g) => <div className="row-actions">
+      {hasPermission('GATE_UPDATE') && <button className="btn btn-secondary btn-sm" onClick={() => { setSelected(g); setDialog('edit-gate'); }}>Edit</button>}
+      {hasPermission('GATE_DEVICE_READ') && <button className="btn btn-secondary btn-sm" onClick={() => showGateDevices(g)}>Devices</button>}
+      {hasPermission('GATE_DELETE') && <button className="btn btn-danger btn-sm" onClick={() => onDeleteGate(g.id)}>Delete</button>}
+    </div> },
+  ];
 
-        return person
-            ? `${person.firstName || ""} ${person.lastName || ""}`.trim()
-            : "Unknown staff";
-    };
+  const guardColumns = [
+    { key: 'user', header: 'User', render: (g) => <span>{[g.user_first_name, g.user_last_name].filter(Boolean).join(' ') || g.user_email || userNames[g.user_id] || g.user_id}</span> },
+    { key: 'employee', header: 'Employee code', render: (g) => g.employee_code || '-' },
+    { key: 'agency', header: 'Agency', render: (g) => g.agency_vendor_id ? vendorNames[g.agency_vendor_id] || g.agency_vendor_id.slice(0, 8) : '-' },
+    { key: 'status', header: 'Status', render: (g) => <SecurityBadge value={g.status} /> },
+    { key: 'actions', header: 'Actions', render: (g) => <div className="row-actions">
+      {hasPermission('SECURITY_GUARD_UPDATE') && <button className="btn btn-secondary btn-sm" onClick={() => { setSelected(g); setDialog('edit-guard'); }}>Edit</button>}
+      {hasPermission('SECURITY_GUARD_READ') && <button className="btn btn-secondary btn-sm" onClick={async () => { try { setGuardDetail(await api.getGuard(g.id)); setDialog('guard-detail'); } catch (e) { setFormError(getErrorMessage(e)); } }}>View</button>}
+      {hasPermission('SECURITY_GUARD_DELETE') && <button className="btn btn-danger btn-sm" onClick={() => onDeleteGuard(g.id)}>Delete</button>}
+    </div> },
+  ];
 
-    const getUnitName = (unitId) => {
-        const unit = units.find(
-            (item) => String(item.id) === String(unitId)
-        );
+  const cardColumns = [
+    { key: 'credential', header: 'Credential', render: (c) => <><span className="cell-title">{c.credential_no}</span><span className="cell-sub">{label(c.credential_type)}</span></> },
+    { key: 'holder', header: 'Holder', render: (c) => <span>{[c.holder_first_name, c.holder_last_name].filter(Boolean).join(' ') || c.holder_email || userNames[c.holder_user_id] || c.holder_user_id}</span> },
+    { key: 'valid', header: 'Valid until', render: (c) => formatDateTime(c.valid_until) },
+    { key: 'status', header: 'Status', render: (c) => <SecurityBadge value={c.status} /> },
+    { key: 'actions', header: 'Actions', render: (c) => <div className="row-actions">
+      {hasPermission('ACCESS_CARD_READ') && <button className="btn btn-secondary btn-sm" onClick={async () => { try { setCardDetail(await api.getAccessCard(c.id)); setDialog('card-detail'); } catch (e) { setFormError(getErrorMessage(e)); } }}>View</button>}
+      {hasPermission('ACCESS_CARD_UPDATE') && c.status !== 'REVOKED' && <button className="btn btn-danger btn-sm" onClick={() => onRevokeCard(c.id)}>Revoke</button>}
+    </div> },
+  ];
 
-        return unit?.unitNumber || unit?.name || "Unknown unit";
-    };
-    return (
-        <div className="security-subpanels">
-            <section>
-                <h3>
-                    Unit mapping
-                    <button onClick={() => setForm("assignment")}>
-                        Add mapping
-                    </button>
-                </h3>
+  return <>
+    <div className="section-head"><div><h2 className="section-title">Gates</h2><p className="muted section-hint">Society entry points and their hardware.</p></div>
+      {hasPermission('GATE_CREATE') && <button className="btn btn-primary" onClick={() => setDialog('new-gate')}>New gate</button>}</div>
+    <DataTable columns={gateColumns} rows={gates} emptyTitle="No gates" emptyMessage="Create a gate before registering devices." />
+    <div className="section">
+      <div className="section-head"><div><h2 className="section-title">Security guards</h2><p className="muted section-hint">Guards are linked to existing user accounts.</p></div>
+        {hasPermission('SECURITY_GUARD_CREATE') && <button className="btn btn-primary" onClick={() => setDialog('new-guard')}>Add guard</button>}</div>
+      <DataTable columns={guardColumns} rows={guards} emptyTitle="No guards" emptyMessage="Add a security guard linked to a user." />
+    </div>
+    <div className="section">
+      <div className="section-head"><div><h2 className="section-title">Access cards</h2><p className="muted section-hint">Credentials are issued to existing users.</p></div>
+        {hasPermission('ACCESS_CARD_CREATE') && <button className="btn btn-primary" onClick={() => setDialog('new-card')}>Issue access card</button>}</div>
+      <DataTable columns={cardColumns} rows={cards} emptyTitle="No access cards" emptyMessage="Issue a credential to an existing user." />
+    </div>
 
-                <div>
-                    {(data.assignments || []).map((item) => (
-                        <p key={item.id}>
-                            <strong>
-                                {item.staff
-                                    ? `${item.staff.firstName || ""} ${item.staff.lastName || ""}`.trim()
-                                    : getStaffName(item.staffId)}
-                            </strong>
+    {dialog === 'new-gate' && <Modal title="Create gate" onClose={() => setDialog(null)}><GateForm societyId={societyId} gates={gates} onSubmit={(p) => onRun(() => api.createGate(p), 'Gate created.')} onCancel={() => setDialog(null)} /></Modal>}
+    {dialog === 'edit-gate' && <Modal title="Edit gate" onClose={() => setDialog(null)}><GateForm societyId={societyId} value={selected} gates={gates} onSubmit={(p) => onRun(() => api.updateGate(selected.id, p), 'Gate updated.')} onCancel={() => setDialog(null)} /></Modal>}
+    {dialog === 'new-guard' && <Modal title="Add security guard" onClose={() => setDialog(null)}><GuardForm guards={guards} onSubmit={(p) => onRun(() => api.createGuard(p), 'Security guard added.')} onCancel={() => setDialog(null)} /></Modal>}
+    {dialog === 'edit-guard' && <Modal title="Edit security guard" onClose={() => setDialog(null)}><GuardForm value={selected} guards={guards} onSubmit={(p) => onRun(() => api.updateGuard(selected.id, p), 'Security guard updated.')} onCancel={() => setDialog(null)} /></Modal>}
+    {dialog === 'guard-detail' && <Modal title="Security guard" onClose={() => setDialog(null)}><dl className="details"><dt>User</dt><dd>{[guardDetail?.user_first_name, guardDetail?.user_last_name].filter(Boolean).join(' ') || guardDetail?.user_email || userNames[guardDetail?.user_id] || guardDetail?.user_id}</dd><dt>Employee code</dt><dd>{guardDetail?.employee_code || '-'}</dd><dt>Agency</dt><dd>{guardDetail?.agency_vendor_name || (guardDetail?.agency_vendor_id ? (vendorNames[guardDetail.agency_vendor_id] || guardDetail.agency_vendor_id) : '-')}</dd><dt>Status</dt><dd><SecurityBadge value={guardDetail?.status} /></dd></dl></Modal>}
+    {dialog === 'new-card' && <Modal title="Issue access card" onClose={() => setDialog(null)}><CardForm societyId={societyId} cards={cards} onSubmit={(p) => onRun(() => api.issueAccessCard(p), 'Access card issued.')} onCancel={() => setDialog(null)} /></Modal>}
+    {dialog === 'card-detail' && <Modal title="Access card" onClose={() => setDialog(null)}><dl className="details"><dt>Credential</dt><dd>{cardDetail?.credential_no}</dd><dt>Type</dt><dd>{label(cardDetail?.credential_type)}</dd><dt>Holder</dt><dd>{[cardDetail?.holder_first_name, cardDetail?.holder_last_name].filter(Boolean).join(' ') || cardDetail?.holder_email || userNames[cardDetail?.holder_user_id] || cardDetail?.holder_user_id}</dd><dt>Status</dt><dd><SecurityBadge value={cardDetail?.status} /></dd><dt>Valid from</dt><dd>{formatDateTime(cardDetail?.valid_from)}</dd><dt>Valid until</dt><dd>{formatDateTime(cardDetail?.valid_until)}</dd></dl></Modal>}
 
-                            <span>
-                                {item.unit
-                                    ? item.unit.unitNumber || item.unit.name
-                                    : getUnitName(item.unitId)}
-                            </span>
+    <div className="section">
+      <div className="section-head"><div><h2 className="section-title">Gate devices</h2><p className="muted section-hint">Select a gate to manage its devices and event log.</p></div></div>
+      <div className="security-device-grid">{gates.map((g) => <button key={g.id} type="button" className="security-device-card" onClick={() => showGateDevices(g)}><strong>{g.name}</strong><span>{g.location || 'No location'}</span></button>)}</div>
+    </div>
 
-                            <span className="security-extra-status">
-                                {titleCase(item.status)}
-                            </span>
+    {deviceDialog === 'list' && <Modal title={`${gateForDevices?.name || 'Gate'} devices`} onClose={() => setDeviceDialog(null)}>
+      <div className="section-head"><p className="muted section-hint">Devices registered for this gate.</p>{hasPermission('GATE_DEVICE_CREATE') && <button className="btn btn-primary btn-sm" onClick={() => setDeviceDialog('new')}>Register device</button>}</div>
+      <DataTable columns={[
+        { key: 'device', header: 'Device', render: (d) => <><span className="cell-title">{label(d.device_type)}</span><span className="cell-sub">{d.serial_no}</span></> },
+        { key: 'status', header: 'Status', render: (d) => <SecurityBadge value={d.status} /> },
+        { key: 'ip', header: 'IP', render: (d) => d.ip_address || '-' },
+        { key: 'actions', header: 'Actions', render: (d) => <div className="row-actions">
+          {hasPermission('GATE_DEVICE_UPDATE') && <button className="btn btn-secondary btn-sm" onClick={() => { setSelected(d); setDeviceDialog('edit'); }}>Edit</button>}
+          {hasPermission('DEVICE_EVENT_READ') && <button className="btn btn-secondary btn-sm" onClick={() => openDeviceEvents(d)}>Events</button>}
+          {hasPermission('DEVICE_EVENT_CREATE') && <button className="btn btn-secondary btn-sm" onClick={() => { setSelected(d); setDeviceDialog('event'); }}>Record event</button>}
+          {hasPermission('GATE_DEVICE_READ') && <button className="btn btn-secondary btn-sm" onClick={async () => { try { setSelected(await api.getGateDevice(d.id)); setDeviceDialog('detail'); } catch (e) { setFormError(getErrorMessage(e)); } }}>View</button>}
+        </div> },
+      ]} rows={gateDevices} emptyTitle="No devices" emptyMessage="Register the first device for this gate." />
+    </Modal>}
 
-                            <button
-                                onClick={() =>
-                                    act(
-                                        securityApi.assignmentAction,
-                                        item.id,
-                                        item.status === "ACTIVE"
-                                            ? "deactivate"
-                                            : "activate"
-                                    )
-                                }
-                            >
-                                {item.status === "ACTIVE" ? "End" : "Activate"}
-                            </button>
-
-                            <button
-                                onClick={() =>
-                                    setEditRecord({
-                                        item,
-                                        tab: "assignments"
-                                    })
-                                }
-                            >
-                                Edit
-                            </button>
-
-                            <button
-                                onClick={() =>
-                                    window.confirm(
-                                        "Delete this unit assignment?"
-                                    ) &&
-                                    act(
-                                        securityApi.deleteAssignment,
-                                        item.id
-                                    )
-                                }
-                            >
-                                Delete
-                            </button>
-                        </p>
-                    ))}
-
-                    {!data.assignments?.length && (
-                        <small>No unit mappings yet.</small>
-                    )}
-                </div>
-            </section>
-        <section>
-            <h3>Staff documents <button onClick={() => setForm("document")}>Upload document</button></h3>
-            <div>{(data.documents || []).map((item) => <article className="security-document-row" key={item.id}>
-                <span className="security-document-icon"><FileText size={17}/></span>
-                <div className="security-document-info"><strong>{titleCase(item.documentType)}</strong><small>{item.fileName || item.documentPath?.split("/").pop() || "Staff file"} · {item.staff?.firstName || item.staffId}</small></div>
-                <span className={`security-status-pill ${String(item.verificationStatus || item.status || "pending").toLowerCase()}`}>{titleCase(item.verificationStatus || item.status || "PENDING")}</span>
-                <div className="security-document-actions"><a href={documentUrl(item.documentPath)} target="_blank" rel="noreferrer" title="Open document">Open</a><button onClick={() => act(securityApi.verifyDocument, item.id)}>Verify</button><button onClick={() => act(securityApi.rejectDocument, item.id, { remarks: "Rejected from security console" })}>Reject</button><button onClick={() => setEditRecord({ item, tab: "documents" })}>Edit</button><button onClick={() => window.confirm("Delete this document record?") && act(securityApi.deleteDocument, item.id)}>Delete</button></div>
-            </article>)}{!data.documents?.length && <small>No documents have been uploaded.</small>}</div>
-        </section>
-    </div>);
+    {deviceDialog === 'new' && <Modal title="Register gate device" onClose={() => setDeviceDialog('list')}><DeviceForm gates={gates} onSubmit={(p) => onRun(async () => { await api.createGateDevice(p); setGateDevices(await api.listGateDevices(gateForDevices.id)); setDeviceDialog('list'); }, 'Gate device registered.')} onCancel={() => setDeviceDialog('list')} /></Modal>}
+    {deviceDialog === 'edit' && <Modal title="Update gate device" onClose={() => setDeviceDialog('list')}><DeviceForm gates={gates} value={selected} onSubmit={(p) => onRun(async () => { await api.updateGateDevice(selected.id, p); setGateDevices(await api.listGateDevices(gateForDevices.id)); setDeviceDialog('list'); }, 'Gate device updated.')} onCancel={() => setDeviceDialog('list')} /></Modal>}
+    {deviceDialog === 'detail' && <Modal title="Gate device" onClose={() => setDeviceDialog('list')}><dl className="details"><dt>Type</dt><dd>{label(selected?.device_type)}</dd><dt>Serial</dt><dd>{selected?.serial_no}</dd><dt>IP</dt><dd>{selected?.ip_address || '-'}</dd><dt>Status</dt><dd><SecurityBadge value={selected?.status} /></dd><dt>Last seen</dt><dd>{formatDateTime(selected?.last_seen_at)}</dd></dl></Modal>}
+    {deviceDialog === 'event' && <Modal title="Record device event" onClose={() => setDeviceDialog('list')}><form onSubmit={submitDeviceEvent}><ErrorBox error={formError} /><TextField id="externalEventId" label="External event ID" value={eventForm.externalEventId} onChange={(e) => setEventForm((f) => ({ ...f, externalEventId: e.target.value }))} /><TextField id="eventType" label="Event type" value={eventForm.eventType} onChange={(e) => setEventForm((f) => ({ ...f, eventType: e.target.value }))} required /><div className="field"><label htmlFor="devicePayload">Payload JSON</label><textarea id="devicePayload" className="input" rows="5" value={eventForm.payload} onChange={(e) => setEventForm((f) => ({ ...f, payload: e.target.value }))} /></div><FormActions saving={eventSaving} onCancel={() => setDeviceDialog('list')} submitLabel="Record event" /></form></Modal>}
+    {dialog === 'device-events' && <Modal title="Device event log" onClose={() => setDialog(null)}><DataTable columns={[{ key: 'type', header: 'Event', render: (e) => e.event_type }, { key: 'external', header: 'External ID', render: (e) => e.external_event_id || '-' }, { key: 'at', header: 'Event at', render: (e) => formatDateTime(e.event_at) }, { key: 'status', header: 'Status', render: (e) => <SecurityBadge value={e.status} /> }]} rows={deviceEvents || []} emptyTitle="No device events" emptyMessage="No events recorded for this device." /></Modal>}
+  </>;
 }

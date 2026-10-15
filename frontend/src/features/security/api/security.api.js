@@ -1,80 +1,82 @@
-import axiosClient from "../../../lib/axios";
+import api from '../../../lib/axios';
 
-const societyParams = () => {
-    const societyId = String(localStorage.getItem("selectedSocietyId") || "").replace(/^:+/, "").trim();
-    return societyId ? { params: { societyId } } : {};
-};
+const unwrap = (response) => response.data.data;
+const clean = (params = {}) =>
+  Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v !== null && v !== undefined));
 
-const securityApi = {
-    updateResource: async (resource, id, data) => (await axiosClient.put(`/${resource}/${id}`, data)).data,
-    deleteResource: async (resource, id) => (await axiosClient.delete(`/${resource}/${id}`)).data,
-    updateAttendance: async (id, data) => (await axiosClient.put(`/staff-attendance/${id}`, data)).data,
-    createAttendance: async (data) => (await axiosClient.post("/staff-attendance", data)).data,
-    updateDocument: async (id, data) => (await axiosClient.put(`/staff-documents/${id}`, data)).data,
-    deleteDocument: async (id) => (await axiosClient.delete(`/staff-documents/${id}`)).data,
-    getStaff: async () => (await axiosClient.get("/staff", societyParams())).data,
-    createStaff: async (data) => (await axiosClient.post("/staff", data)).data,
-    deleteStaff: async (id) => (await axiosClient.delete(`/staff/${id}`)).data,
-    updateStaff: async (id, data) => (await axiosClient.put(`/staff/${id}`, data)).data,
-    activateStaff: async (id) => (await axiosClient.post(`/staff/${id}/activate`)).data,
-    deactivateStaff: async (id) => (await axiosClient.post(`/staff/${id}/deactivate`)).data,
-    getAssignments: async () => {
-        const staff = (await axiosClient.get("/staff", societyParams())).data;
-        const records = Array.isArray(staff?.data) ? staff.data : [];
-        const responses = await Promise.all(records.map((person) => axiosClient.get(`/staff-unit-assignments/staff/${person.id}`)));
-        return { data: responses.flatMap((response) => Array.isArray(response.data?.data) ? response.data.data : []) };
-    },
-    createAssignment: async (data) => (await axiosClient.post("/staff-unit-assignments", data)).data,
-    deleteAssignment: async (id) => (await axiosClient.delete(`/staff-unit-assignments/${id}`)).data,
-    assignmentAction: async (id, action) => (await axiosClient.post(`/staff-unit-assignments/${id}/${action}`)).data,
-    getDocuments: async () => {
-        const staff = (await axiosClient.get("/staff", societyParams())).data;
-        const records = Array.isArray(staff?.data) ? staff.data : [];
-        const responses = await Promise.all(records.map((person) => axiosClient.get(`/staff-documents/staff/${person.id}`)));
-        return { data: responses.flatMap((response) => Array.isArray(response.data?.data) ? response.data.data : []) };
-    },
-    createDocument: async (data) => (await axiosClient.post("/staff-documents", data)).data,
-    uploadDocument: async (data) => (await axiosClient.post("/staff-documents", data, { headers: { "Content-Type": "multipart/form-data" } })).data,
-    verifyDocument: async (id) => (await axiosClient.post(`/staff-documents/${id}/verify`)).data,
-    rejectDocument: async (id, data) => (await axiosClient.post(`/staff-documents/${id}/reject`, data)).data,
-    getAttendance: async () => {
-        const staff = (await axiosClient.get("/staff", societyParams())).data;
-        const records = Array.isArray(staff?.data) ? staff.data : [];
-        const responses = await Promise.all(records.map((person) => axiosClient.get(`/staff-attendance/staff/${person.id}`)));
-        return { data: responses.flatMap((response) => Array.isArray(response.data?.data) ? response.data.data : []) };
-    },
-    checkIn: async (data) => (await axiosClient.post("/staff-attendance/check-in", data)).data,
-    checkOut: async (data) => (await axiosClient.post("/staff-attendance/check-out", data)).data,
-    markAbsent: async (data) => (await axiosClient.post("/staff-attendance/mark-absent", data)).data,
-    markLeave: async (data) => (await axiosClient.post("/staff-attendance/mark-leave", data)).data,
-    getShifts: async () => (await axiosClient.get("/shifts", societyParams())).data,
-    createShift: async (data) => (await axiosClient.post("/shifts", data)).data,
-    activateShift: async (id) => (await axiosClient.post(`/shifts/${id}/activate`)).data,
-    deactivateShift: async (id) => (await axiosClient.post(`/shifts/${id}/deactivate`)).data,
-    deleteShift: async (id) => (await axiosClient.delete(`/shifts/${id}`)).data,
-    getRosters: async () => (await axiosClient.get("/rosters", societyParams())).data,
-    createRoster: async (data) => (await axiosClient.post("/rosters", data)).data,
-    rosterAction: async (id, action) => (await axiosClient.post(`/rosters/${id}/${action}`)).data,
-    getTasks: async () => (await axiosClient.get("/staff-tasks", societyParams())).data,
-    createTask: async (data) => (await axiosClient.post("/staff-tasks", data)).data,
-    taskAction: async (id, action, data = {}) => (await axiosClient.post(`/staff-tasks/${id}/${action}`, data)).data,
-    getCheckpoints: async () => (await axiosClient.get("/checkpoints", societyParams())).data,
-    createCheckpoint: async (data) => (await axiosClient.post("/checkpoints", data)).data,
-    deleteCheckpoint: async (id) => (await axiosClient.delete(`/checkpoints/${id}`)).data,
-    getPatrols: async () => (await axiosClient.get("/patrols", societyParams())).data,
-    createPatrol: async (data) => (await axiosClient.post("/patrols", data)).data,
-    patrolAction: async (id, action) => (await axiosClient.post(`/patrols/${id}/${action}`)).data,
-    getPatrolCheckpoints: async (id) => (await axiosClient.get(`/patrols/${id}/checkpoints`)).data,
-    addPatrolCheckpoint: async (id, data) => (await axiosClient.post(`/patrols/${id}/checkpoints`, data)).data,
-    verifyCheckpoint: async (id, checkpointId, data) => (await axiosClient.post(`/patrols/${id}/checkpoints/${checkpointId}/verify`, data)).data,
-    missCheckpoint: async (id, checkpointId, data) => (await axiosClient.post(`/patrols/${id}/checkpoints/${checkpointId}/missed`, data)).data,
-    getIncidents: async () => (await axiosClient.get("/incidents", societyParams())).data,
-    createIncident: async (data) => (await axiosClient.post("/incidents", data)).data,
-    incidentAction: async (id, action, data = {}) => (await axiosClient.post(`/incidents/${id}/${action}`, data)).data,
-    getEmergencies: async () => (await axiosClient.get("/emergencies", societyParams())).data,
-    createEmergency: async (data) => (await axiosClient.post("/emergencies", data)).data,
-    emergencyAction: async (id, action, data = {}) => (await axiosClient.post(`/emergencies/${id}/${action}`, data)).data,
-    getAudits: async () => (await axiosClient.get("/security-audits", societyParams())).data
-};
+// Reference data used by Phase 9 forms.
+export const listUsers = (params) => api.get('/users', { params: clean(params) }).then(unwrap);
+export const listVendors = (params) => api.get('/vendors', { params: clean(params) }).then(unwrap);
 
-export default securityApi;
+// Gates
+export const listGates = () => api.get('/gates').then(unwrap);
+export const getGate = (id) => api.get(`/gates/${id}`).then(unwrap);
+export const createGate = (payload) => api.post('/gates', payload).then(unwrap);
+export const updateGate = (id, payload) => api.put(`/gates/${id}`, payload).then(unwrap);
+export const deleteGate = (id) => api.delete(`/gates/${id}`).then(unwrap);
+export const listGateDevices = (gateId) => api.get(`/gates/${gateId}/devices`).then(unwrap);
+
+// Guards
+export const createGuard = (payload) => api.post('/gates/guards', payload).then(unwrap);
+export const listGuards = (params) => api.get('/gates/guards', { params: clean(params) }).then(unwrap);
+export const getGuard = (id) => api.get(`/gates/guards/${id}`).then(unwrap);
+export const updateGuard = (id, payload) => api.patch(`/gates/guards/${id}`, payload).then(unwrap);
+export const deleteGuard = (id) => api.delete(`/gates/guards/${id}`).then(unwrap);
+
+// Access cards
+export const issueAccessCard = (payload) => api.post('/gates/access-cards', payload).then(unwrap);
+export const listAccessCards = (params) => api.get('/gates/access-cards', { params: clean(params) }).then(unwrap);
+export const getAccessCard = (id) => api.get(`/gates/access-cards/${id}`).then(unwrap);
+export const revokeAccessCard = (id) => api.patch(`/gates/access-cards/${id}/revoke`).then(unwrap);
+
+// Devices / device events
+export const createGateDevice = (payload) => api.post('/gates/devices', payload).then(unwrap);
+export const getGateDevice = (id) => api.get(`/gates/devices/${id}`).then(unwrap);
+export const updateGateDevice = (id, payload) => api.patch(`/gates/devices/${id}`, payload).then(unwrap);
+export const ingestDeviceEvent = (id, payload) => api.post(`/gates/devices/${id}/events`, payload).then(unwrap);
+export const listDeviceEvents = (id) => api.get(`/gates/devices/${id}/events`).then(unwrap);
+
+// Visitor profiles
+export const createVisitorProfile = (payload) => api.post('/visitors/profiles', payload).then(unwrap);
+export const listVisitorProfiles = (params) => api.get('/visitors/profiles', { params: clean(params) }).then(unwrap);
+export const getVisitorProfile = (id) => api.get(`/visitors/profiles/${id}`).then(unwrap);
+export const updateVisitorProfile = (id, payload) => api.patch(`/visitors/profiles/${id}`, payload).then(unwrap);
+export const setBlacklistStatus = (id, blacklistStatus) =>
+  api.patch(`/visitors/profiles/${id}/blacklist`, { blacklistStatus }).then(unwrap);
+
+// Visitor invites
+export const createVisitorInvite = (payload) => api.post('/visitors/invites', payload).then(unwrap);
+export const listVisitorInvites = (params) => api.get('/visitors/invites', { params: clean(params) }).then(unwrap);
+export const getVisitorInvite = (id) => api.get(`/visitors/invites/${id}`).then(unwrap);
+export const decideVisitorInvite = (id, status) =>
+  api.patch(`/visitors/invites/${id}/decide`, { status }).then(unwrap);
+
+// Visitor passes
+export const createVisitorPass = (payload) => api.post('/visitors/passes', payload).then(unwrap);
+export const listVisitorPasses = (params) => api.get('/visitors/passes', { params: clean(params) }).then(unwrap);
+export const getVisitorPass = (id) => api.get(`/visitors/passes/${id}`).then(unwrap);
+export const recordArrival = (id) => api.patch(`/visitors/passes/${id}/arrival`).then(unwrap);
+export const recordEntry = (id, capturedBy) => api.patch(`/visitors/passes/${id}/entry`, { capturedBy }).then(unwrap);
+export const recordExit = (id, capturedBy) => api.patch(`/visitors/passes/${id}/exit`, { capturedBy }).then(unwrap);
+export const cancelVisitorPass = (id) => api.patch(`/visitors/passes/${id}/cancel`).then(unwrap);
+export const triggerOverstay = (id, durationMinutes) =>
+  api.post(`/visitors/passes/${id}/overstay`, { durationMinutes }).then(unwrap);
+
+// Visitor audit / overstay
+export const listGateEvents = (params) => api.get('/visitors/gate-events', { params: clean(params) }).then(unwrap);
+export const listOverstayAlerts = (params) => api.get('/visitors/overstay-alerts', { params: clean(params) }).then(unwrap);
+export const acknowledgeOverstayAlert = (id, status) =>
+  api.patch(`/visitors/overstay-alerts/${id}`, { status }).then(unwrap);
+
+// Deliveries
+export const listDeliveries = (params) => api.get('/deliveries', { params: clean(params) }).then(unwrap);
+export const createDelivery = (payload) => api.post('/deliveries', payload).then(unwrap);
+export const getDelivery = (id) => api.get(`/deliveries/${id}`).then(unwrap);
+export const updateDeliveryStatus = (id, payload) => api.patch(`/deliveries/${id}/status`, payload).then(unwrap);
+
+// Parcels
+export const listParcels = (params) => api.get('/deliveries/parcels', { params: clean(params) }).then(unwrap);
+export const createParcel = (payload) => api.post('/deliveries/parcels', payload).then(unwrap);
+export const getParcel = (id) => api.get(`/deliveries/parcels/${id}`).then(unwrap);
+export const updateParcelStatus = (id, status, collectedBy) =>
+  api.patch(`/deliveries/parcels/${id}/status`, { status, collectedBy }).then(unwrap);

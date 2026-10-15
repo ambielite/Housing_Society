@@ -1,5 +1,4 @@
-import { createContext } from "react";
+﻿import { createContext } from 'react';
 
-const SocietyContext = createContext(null);
-
+export const SocietyContext = createContext(null);
 export default SocietyContext;

@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { Plus, Receipt, Search } from "lucide-react";
 import billingApi from "../api/billing.api";
 import billingConfigApi from "../api/billingConfig.api";
 import BillingForm from "../components/BillingForm";
-import axiosClient from "../../../lib/axios";
+import axiosClient from "../../../lib/legacyAxios";
 
 const rowsFrom = (response) => {
     const rows = Array.isArray(response) ? response : response?.data || response?.records || [];

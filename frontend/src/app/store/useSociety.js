@@ -1,4 +1,8 @@
-import { useContext } from "react";
-import SocietyContext from "./society.context";
+﻿import { useContext } from 'react';
+import { SocietyContext } from './society.context';
 
-export const useSociety = () => useContext(SocietyContext);
+export function useSociety() {
+  return useContext(SocietyContext);
+}
+
+export default useSociety;

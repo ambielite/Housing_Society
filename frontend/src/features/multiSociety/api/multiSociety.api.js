@@ -1,4 +1,4 @@
-import axiosClient from "../../../lib/axios";
+﻿import axiosClient from "../../../lib/legacyAxios";
 
 const payload = async (request) => (await request).data;
 const multiSocietyApi = {

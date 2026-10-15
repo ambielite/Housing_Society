@@ -1,4 +1,4 @@
-import axiosClient from "../../../lib/axios";
+﻿import axiosClient from "../../../lib/legacyAxios";
 
 const societyId = () => String(localStorage.getItem("selectedSocietyId") || "").replace(/^:+/, "").trim();
 const params = (extra = {}) => ({ params: { ...(societyId() ? { societyId: societyId() } : {}), ...extra } });

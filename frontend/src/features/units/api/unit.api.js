@@ -1,4 +1,4 @@
-import axiosClient from "../../../lib/axios";
+﻿import axiosClient from "../../../lib/legacyAxios";
 
 const unitApi = {
     getAll: async () => (await axiosClient.get("/units")).data,
