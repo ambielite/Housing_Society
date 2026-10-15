@@ -1,58 +1,54 @@
 :root[data-theme='dark'] {
-  /* --- same tokens as the main dashboard --- */
-  --bg-primary: #050806;
-  --surface: #101713;
-  --surface-hover: #251e19;
-
-  --text-primary: #ffffff;
-  --text-secondary: #ffffff;
-  --text-muted: #ffffff;
-
-  --border-color: #26372d;
-
-  --primary: #78c994;
-
-  --topbar-bg: #103522;
-  --topbar-border: #28553d;
-  --topbar-text: #f5f7fc;
-  --topbar-muted: #ffffff;
-  --topbar-control-bg: #1d5038;
-  --topbar-control-border: #3a684e;
-  --topbar-control-hover: #27d2d2;
-
-  --sidebar-bg: #103522;
-  --sidebar-border: #28543a;
-  --sidebar-text: #f3fff6;
-  --sidebar-muted: #ffffff;
-  --sidebar-hover: #27d2d2;
-  --sidebar-active: #2b8050;
-
-  /* --- extra tokens used by the Users / Roles / auth screens --- */
-  --surface-2: #1b2a40;
-  --muted: #b7c4bc;
-  --card-border: #26372d;
-  --field-border: #26372d;
-  --input-bg: #0b1220;
-  --thead-bg: #162338;
-  --th-color: #c7d2e0;
-  --td-color: #ffffff;
-  --row-divider: #26372d;
-  --row-hover: #17263b;
-  --shadow: none;
-
-  --action: #315ee8;
-  --action-hover: #4a72ef;
-  --action-soft: #1b2a40;
-
-  --btn2-bg: #1b2a40;
-  --btn2-text: #ffffff;
-  --btn2-hover: #263a57;
-
-  --danger: #ff8f84;
-  --danger-solid: #c8372d;
-  --danger-bg: #3a1f1c;
-  --success: #6fd39b;
-  --success-bg: #163024;
-  --warning-bg: #3a3116;
-  --warning-text: #f5d98a;
+  color-scheme: dark;
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --bg-primary: #0d111b;
+  --surface: #151b28;
+  --surface-2: #1c2433;
+  --surface-hover: #222c3d;
+  --text-primary: #edf1fa;
+  --text-secondary: #c2cada;
+  --text-muted: #9aa6bb;
+  --muted: #9aa6bb;
+  --border-color: #2a3547;
+  --card-border: #2a3547;
+  --field-border: #39465c;
+  --input-bg: #111827;
+  --thead-bg: #1b2433;
+  --th-color: #b7c2d5;
+  --td-color: #d4dbea;
+  --row-divider: #2a3547;
+  --row-hover: #1b2433;
+  --shadow: 0 8px 22px rgba(0, 0, 0, 0.22);
+  --primary: #818cf8;
+  --action: #818cf8;
+  --action-hover: #6f7af0;
+  --action-soft: #262b4b;
+  --btn2-bg: #1c2433;
+  --btn2-text: #d4dbea;
+  --btn2-hover: #263146;
+  --topbar-bg: #111827;
+  --topbar-border: #2a3547;
+  --topbar-text: #edf1fa;
+  --topbar-muted: #9aa6bb;
+  --topbar-control-bg: #1c2433;
+  --topbar-control-border: #39465c;
+  --topbar-control-hover: #262b4b;
+  --sidebar-bg: #111827;
+  --sidebar-border: #2a3547;
+  --sidebar-text: #c2cada;
+  --sidebar-muted: #9aa6bb;
+  --sidebar-hover: #1c2433;
+  --sidebar-active: #302e63;
+  --danger: #fda29b;
+  --danger-solid: #d92d20;
+  --danger-bg: #3b2024;
+  --success: #75e0a7;
+  --success-bg: #17352b;
+  --warning-bg: #3a301d;
+  --warning-text: #fdb022;
+  --radius-sm: 7px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --motion-fast: 150ms ease;
+  --motion-standard: 220ms ease;
 }

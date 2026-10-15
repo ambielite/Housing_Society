@@ -1,0 +1,242 @@
+/* Shared visual rules for pages from both frontend modules. */
+html { background: var(--bg-primary); color-scheme: light; }
+html[data-theme='dark'] { color-scheme: dark; }
+body {
+  font-family: var(--font-sans);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color var(--motion-standard), color var(--motion-standard);
+}
+button, input, select, textarea { font-family: inherit; }
+button, a, input, select, textarea,
+.card, .data-card, .table-card, .society-stat-card, .society-list-panel,
+.dashboard-panel, .stat-card, .security-card {
+  transition-duration: var(--motion-fast);
+  transition-timing-function: ease;
+}
+button, a, .card, .data-card, .table-card, .society-stat-card,
+.society-list-panel, .dashboard-panel, .stat-card, .security-card {
+  transition-property: color, background-color, border-color, box-shadow, transform;
+}
+
+/* One primary action color and one secondary action treatment everywhere. */
+.btn-primary, .primary-button, .society-add-button, .society-workflow-action,
+.dashboard-refresh-button, .assets-view-toggle button.active,
+.security-manage-button, .security-location-button,
+.reports-tabs button.active, .reports-subtabs button.active,
+.society-inline-actions .btn-primary {
+  background: var(--action);
+  border-color: var(--action);
+  color: #fff;
+}
+.btn-primary:hover:not(:disabled), .primary-button:hover:not(:disabled),
+.society-add-button:hover:not(:disabled), .society-workflow-action:hover:not(:disabled),
+.dashboard-refresh-button:hover:not(:disabled),
+.security-manage-button:hover:not(:disabled), .security-location-button:hover:not(:disabled) {
+  background: var(--action-hover);
+  border-color: var(--action-hover);
+  color: #fff;
+  transform: translateY(-1px);
+}
+.btn-secondary, .secondary-button, .society-refresh-button, .society-icon-action,
+.moveinout-text-action, .icon-button, .table-action-button {
+  background: var(--btn2-bg);
+  border-color: var(--field-border);
+  color: var(--btn2-text);
+}
+.btn-secondary:hover:not(:disabled), .secondary-button:hover:not(:disabled),
+.society-refresh-button:hover:not(:disabled), .society-icon-action:hover:not(:disabled),
+.moveinout-text-action:hover:not(:disabled), .icon-button:hover:not(:disabled),
+.table-action-button:hover:not(:disabled) {
+  background: var(--btn2-hover);
+  border-color: var(--action);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+}
+.btn-danger, .danger-button { background: var(--danger-solid); border-color: var(--danger-solid); color: #fff; }
+.btn-danger:hover:not(:disabled), .danger-button:hover:not(:disabled) { filter: brightness(.94); transform: translateY(-1px); }
+button:disabled, [role='button'][aria-disabled='true'] { cursor: not-allowed; }
+
+/* Align fields, focus rings, cards and tables with the active theme. */
+input:not([type='checkbox']):not([type='radio']), select, textarea,
+.input, .society-search, .search-box, .search-box input,
+.society-inline-form input, .society-inline-form select, .society-inline-form textarea {
+  color: var(--text-primary);
+}
+input:not([type='checkbox']):not([type='radio']), select, textarea,
+.input, .society-search, .search-box,
+.society-inline-form input, .society-inline-form select, .society-inline-form textarea {
+  border-color: var(--field-border);
+  background-color: var(--input-bg);
+}
+input::placeholder, textarea::placeholder, .society-search input::placeholder { color: var(--text-muted); }
+input:focus, select:focus, textarea:focus, .input:focus, .society-search:focus-within {
+  border-color: var(--action);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--action) 18%, transparent);
+  outline: none;
+}
+.sidebar, .topbar { background: var(--topbar-bg); border-color: var(--topbar-border); }
+.sidebar { background: var(--sidebar-bg); }
+.nav-item { color: var(--sidebar-text); }
+.nav-item:hover { background: var(--sidebar-hover); color: var(--text-primary); }
+.nav-item.active { background: var(--sidebar-active); color: var(--action); }
+.logout-button:hover { background: var(--sidebar-hover); color: var(--text-primary); }
+.logo-mark { background: var(--action); }
+.main-wrapper, .main-content, .society-dashboard, .assets-page { background: var(--bg-primary); color: var(--text-primary); }
+
+.card, .data-card, .table-card, .dashboard-panel, .stat-card, .society-stat-card,
+.society-list-panel, .society-table-wrap, .society-form-modal, .society-confirm-modal,
+.society-list-panel .society-table, .security-card, .asset-panel {
+  border-color: var(--card-border);
+  background-color: var(--surface);
+  color: var(--text-primary);
+  box-shadow: var(--shadow);
+}
+.table thead, .society-table thead { background: var(--thead-bg); }
+.table th, .society-table th { color: var(--th-color); border-color: var(--row-divider); }
+.table td, .society-table td { color: var(--td-color); border-color: var(--row-divider); }
+.table tbody tr:hover, .society-table tbody tr:hover { background: var(--row-hover); }
+.society-form-header, .society-form-footer { background: var(--surface); border-color: var(--border-color); }
+.society-form-body, .society-inline-form { background: var(--surface-2); border-color: var(--border-color); }
+.society-form-header h2, .society-list-heading h2, .society-name-cell strong,
+.society-empty h3, .society-inline-form .form-group label { color: var(--text-primary); }
+.society-form-header p, .society-list-heading p, .society-count, .society-name-cell small,
+.society-region, .society-loading, .society-empty, .society-empty p,
+.society-inline-form .form-group label, .society-search kbd { color: var(--text-muted); }
+.society-search input { color: var(--text-primary); }
+.society-error { border-color: color-mix(in srgb, var(--danger) 35%, transparent); background: var(--danger-bg); color: var(--danger); }
+.society-error button { border-color: color-mix(in srgb, var(--danger) 35%, transparent); background: var(--surface); color: var(--danger); }
+.society-stat-icon, .society-empty-icon, .stat-icon { background: var(--action-soft); color: var(--action); border-color: var(--border-color); }
+.society-eyebrow-dot, .society-region-dot { background: var(--action); }
+.society-tab.active, .security-tabs button.active, .assets-page .assets-view-toggle button.active,
+.reports-tabs button.active, .reports-subtabs button.active {
+  color: var(--action);
+  border-color: var(--action);
+}
+.menu, .dropdown-menu { color: var(--text-primary); background: var(--surface); border-color: var(--border-color); }
+
+/* Hard-coded legacy colors are normalized for the dark palette as well. */
+:root[data-theme='dark'] .society-name-cell strong,
+:root[data-theme='dark'] .society-empty h3,
+:root[data-theme='dark'] .society-form-header h2,
+:root[data-theme='dark'] .society-list-heading h2,
+:root[data-theme='dark'] .society-inline-form .form-group label,
+:root[data-theme='dark'] .society-region,
+:root[data-theme='dark'] .society-table td,
+:root[data-theme='dark'] .society-table th,
+:root[data-theme='dark'] .society-search input,
+:root[data-theme='dark'] .society-form-body,
+:root[data-theme='dark'] .society-form-header,
+:root[data-theme='dark'] .society-form-footer,
+:root[data-theme='dark'] .society-list-panel,
+:root[data-theme='dark'] .society-stat-card,
+:root[data-theme='dark'] .society-table-wrap,
+:root[data-theme='dark'] .society-confirm-modal,
+:root[data-theme='dark'] .society-form-modal,
+:root[data-theme='dark'] .data-card,
+:root[data-theme='dark'] .asset-panel,
+:root[data-theme='dark'] .search-box input,
+:root[data-theme='dark'] .society-refresh-button,
+:root[data-theme='dark'] .society-icon-action,
+:root[data-theme='dark'] .moveinout-text-action,
+:root[data-theme='dark'] .dashboard-refresh-button {
+  color: var(--text-primary);
+}
+:root[data-theme='dark'] .security-tabs,
+:root[data-theme='dark'] .reports-tabs,
+:root[data-theme='dark'] .reports-subtabs,
+:root[data-theme='dark'] .assets-page .assets-view-toggle,
+:root[data-theme='dark'] .assets-page .assets-reminder-actions,
+:root[data-theme='dark'] .assets-page .assets-quick-card,
+:root[data-theme='dark'] .assets-page .assets-alert-list > div button,
+:root[data-theme='dark'] .security-page .society-row-actions button,
+:root[data-theme='dark'] .security-document-actions button,
+:root[data-theme='dark'] .security-document-actions a,
+:root[data-theme='dark'] .security-manage-button,
+:root[data-theme='dark'] .security-location-button,
+:root[data-theme='dark'] .dashboard-task-list li,
+:root[data-theme='dark'] .dashboard-task-list li > button,
+:root[data-theme='dark'] .reports-filters,
+:root[data-theme='dark'] .reports-report-heading,
+:root[data-theme='dark'] .reports-definition,
+:root[data-theme='dark'] .reports-empty-card,
+:root[data-theme='dark'] .multi-society-org,
+:root[data-theme='dark'] .multi-society-node,
+:root[data-theme='dark'] .multi-society-cluster,
+:root[data-theme='dark'] .multi-society-quick-grid button,
+:root[data-theme='dark'] .multi-society-chip-list span,
+:root[data-theme='dark'] .form-section {
+  border-color: var(--border-color);
+  background-color: var(--surface);
+  color: var(--text-primary);
+}
+:root[data-theme='dark'] .assets-page .assets-quick-card span,
+:root[data-theme='dark'] .assets-page .assets-quick-card strong,
+:root[data-theme='dark'] .assets-page .assets-alert-list > div strong,
+:root[data-theme='dark'] .reports-tabs button,
+:root[data-theme='dark'] .reports-subtabs button,
+:root[data-theme='dark'] .reports-report-heading,
+:root[data-theme='dark'] .reports-definition,
+:root[data-theme='dark'] .multi-society-node strong,
+:root[data-theme='dark'] .multi-society-cluster strong,
+:root[data-theme='dark'] .multi-society-node,
+:root[data-theme='dark'] .multi-society-quick-grid button,
+:root[data-theme='dark'] .multi-society-chip-list span,
+:root[data-theme='dark'] .multi-society-hierarchy-line strong,
+:root[data-theme='dark'] .security-page .society-row-actions button,
+:root[data-theme='dark'] .community-page .community-form-grid label,
+:root[data-theme='dark'] .community-page .community-form-grid input,
+:root[data-theme='dark'] .community-page .community-form-grid select,
+:root[data-theme='dark'] .community-page .community-form-grid textarea {
+  color: var(--text-primary);
+}
+:root[data-theme='dark'] .assets-page .assets-quick-card > svg,
+:root[data-theme='dark'] .dashboard-task-icon,
+:root[data-theme='dark'] .dashboard-panel-heading .dashboard-task-count {
+  background: var(--action-soft);
+  color: var(--action);
+}
+:root[data-theme='dark'] .assets-page .assets-view-toggle button.active,
+:root[data-theme='dark'] .security-tabs button.active,
+:root[data-theme='dark'] .reports-tabs button.active,
+:root[data-theme='dark'] .reports-subtabs button.active {
+  border-color: var(--action);
+  background: var(--action-soft);
+  color: var(--action);
+}
+:root[data-theme='dark'] .assets-page .society-toolbar .society-workflow-action,
+:root[data-theme='dark'] .assets-page .assets-reminder-actions .society-workflow-action,
+:root[data-theme='dark'] .assets-page .society-row-actions .assets-row-action,
+:root[data-theme='dark'] .assets-page .society-row-actions a,
+:root[data-theme='dark'] .reports-export,
+:root[data-theme='dark'] .multi-society-access-filter input,
+:root[data-theme='dark'] .multi-society-report-controls select,
+:root[data-theme='dark'] .multi-society-access-check select,
+:root[data-theme='dark'] .community-page .community-form-grid input,
+:root[data-theme='dark'] .community-page .community-form-grid select,
+:root[data-theme='dark'] .community-page .community-form-grid textarea {
+  border-color: var(--field-border);
+  background: var(--input-bg);
+  color: var(--text-primary);
+}
+:root[data-theme='dark'] .society-toolbar .society-workflow-action,
+:root[data-theme='dark'] .assets-page .assets-row-action:hover,
+:root[data-theme='dark'] .reports-export:hover:not(:disabled),
+:root[data-theme='dark'] .multi-society-quick-grid button:hover {
+  background: var(--action-soft);
+  border-color: var(--action);
+  color: var(--action);
+}
+:root[data-theme='dark'] .society-stat-icon-green { background: #17352b; color: #75e0a7; border-color: #285843; }
+:root[data-theme='dark'] .society-stat-icon-violet { background: #302e63; color: #c4b5fd; border-color: #484581; }
+:root[data-theme='dark'] .society-stat-icon-blue { background: #1d3151; color: #93c5fd; border-color: #304b70; }
+:root[data-theme='dark'] .moveinout-status-success { border-color: #285843; background: #17352b; color: #75e0a7; }
+:root[data-theme='dark'] .moveinout-status-pending { border-color: #66501f; background: #3a301d; color: #fdb022; }
+:root[data-theme='dark'] .moveinout-status-danger { border-color: #74363b; background: #3b2024; color: #fda29b; }
+:root[data-theme='dark'] .moveinout-status-neutral { border-color: var(--border-color); background: var(--surface-2); color: var(--text-secondary); }
+:root[data-theme='dark'] .society-registration { color: #75e0a7; }
+:root[data-theme='dark'] .society-delete-action, :root[data-theme='dark'] .icon-button.danger { color: #fda29b; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
