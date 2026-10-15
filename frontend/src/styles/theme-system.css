@@ -78,9 +78,9 @@ input:focus, select:focus, textarea:focus, .input:focus, .society-search:focus-w
 .sidebar, .topbar { background: var(--topbar-bg); border-color: var(--topbar-border); }
 .sidebar { background: var(--sidebar-bg); }
 .nav-item { color: var(--sidebar-text); }
-.nav-item:hover { background: var(--sidebar-hover); color: var(--text-primary); }
-.nav-item.active { background: var(--sidebar-active); color: var(--action); }
-.logout-button:hover { background: var(--sidebar-hover); color: var(--text-primary); }
+.nav-item:hover { background: var(--sidebar-hover); color: var(--sidebar-text); }
+.nav-item.active { background: var(--sidebar-active); color: #fff; }
+.logout-button:hover { background: var(--sidebar-hover); color: var(--sidebar-text); }
 .logo-mark { background: var(--action); }
 .main-wrapper, .main-content, .society-dashboard, .assets-page { background: var(--bg-primary); color: var(--text-primary); }
 
