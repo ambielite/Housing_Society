@@ -1,5 +1,3 @@
-import { createContext } from "react";
+import { createContext } from 'react';
 
-const SocietyContext = createContext(null);
-
-export default SocietyContext;
+export const SocietyContext = createContext(null);

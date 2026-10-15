@@ -1,59 +1,52 @@
-import { useState } from "react";
-import SocietyContext from "./society.context";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { SocietyContext } from './society.context';
+import useAuth from '../providers/useAuth';
+import { societyStorage } from '../../lib/axios';
 
-const normalizeSocietyId = (value) => String(value ?? "").replace(/^:+/, "").trim();
+// ---- UI state (mobile sidebar) ------------------------------------------
+const UiContext = createContext(null);
 
-const readStoredSociety = () => {
-    try {
-        const storedSociety = localStorage.getItem("selectedSociety");
-        const parsedSociety = storedSociety ? JSON.parse(storedSociety) : null;
-        const societyId = normalizeSocietyId(parsedSociety?.id ?? parsedSociety?.societyId);
+export function UiProvider({ children }) {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const value = useMemo(
+    () => ({
+      sidebarOpen,
+      openSidebar: () => setSidebarOpen(true),
+      closeSidebar: () => setSidebarOpen(false),
+      toggleSidebar: () => setSidebarOpen((open) => !open),
+    }),
+    [sidebarOpen]
+  );
+  return <UiContext.Provider value={value}>{children}</UiContext.Provider>;
+}
 
-        if (!parsedSociety || !societyId) {
-            localStorage.removeItem("selectedSociety");
-            localStorage.removeItem("selectedSocietyId");
-            return null;
-        }
+export function useUi() {
+  const context = useContext(UiContext);
+  if (!context) throw new Error('useUi must be used inside <UiProvider>');
+  return context;
+}
 
-        const nextSociety = { ...parsedSociety, id: societyId };
-        localStorage.setItem("selectedSociety", JSON.stringify(nextSociety));
-        localStorage.setItem("selectedSocietyId", societyId);
+// ---- Active society -------------------------------------------------------
+// Defaults to the logged-in user's own society. setSocietyId() is for the
+// future multi-society switcher; it is sent to the API as x-society-id.
+export function SocietyProvider({ children }) {
+  const { user } = useAuth();
+  const [override, setOverride] = useState(() => societyStorage.get());
 
-        return nextSociety;
-    } catch {
-        localStorage.removeItem("selectedSociety");
-        localStorage.removeItem("selectedSocietyId");
-        return null;
-    }
-};
+  useEffect(() => {
+    if (!user) setOverride(null);
+  }, [user]);
 
-export const SocietyProvider = ({ children }) => {
-    const [selectedSociety, setSelectedSociety] = useState(readStoredSociety);
+  const setSocietyId = useCallback((id) => {
+    if (id) societyStorage.set(id);
+    else societyStorage.clear();
+    setOverride(id || null);
+  }, []);
 
-    const selectSociety = (society) => {
-        const safeSociety = society && (society.id || society.societyId) ? { ...society, id: normalizeSocietyId(society.id ?? society.societyId) } : null;
+  const value = useMemo(
+    () => ({ societyId: override || user?.society_id || null, setSocietyId }),
+    [override, user, setSocietyId]
+  );
 
-        if (!safeSociety || !safeSociety.id) {
-            setSelectedSociety(null);
-            localStorage.removeItem("selectedSociety");
-            localStorage.removeItem("selectedSocietyId");
-            return;
-        }
-
-        setSelectedSociety(safeSociety);
-        localStorage.setItem("selectedSociety", JSON.stringify(safeSociety));
-        localStorage.setItem("selectedSocietyId", safeSociety.id);
-    };
-
-    const clearSociety = () => {
-        setSelectedSociety(null);
-        localStorage.removeItem("selectedSociety");
-        localStorage.removeItem("selectedSocietyId");
-    };
-
-    return (
-        <SocietyContext.Provider value={{ selectedSociety, selectSociety, clearSociety }}>
-            {children}
-        </SocietyContext.Provider>
-    );
-};
+  return <SocietyContext.Provider value={value}>{children}</SocietyContext.Provider>;
+}
