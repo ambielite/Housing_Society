@@ -142,6 +142,10 @@ export default function Sidebar() {
   const visibleItems = NAV_ITEMS
     .map((item) => ({ ...item, children: item.children?.filter((child) => canSee(child, hasAnyPermission)) }))
     .filter((item) => canSee(item, hasAnyPermission) || item.children?.length);
+  const orderedItems = [
+    ...visibleItems.filter((item) => item.children?.length),
+    ...visibleItems.filter((item) => !item.children?.length),
+  ];
 
   useEffect(() => {
     const activeGroup = NAV_ITEMS.find((item) =>
@@ -165,7 +169,7 @@ export default function Sidebar() {
         </div>
 
         <nav className="sidebar-nav" aria-label="Main">
-          {visibleItems.map((item) => {
+          {orderedItems.map((item) => {
             const Icon = item.icon;
             const children = item.children || [];
             const hasChildren = children.length > 0;
