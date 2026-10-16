@@ -21,8 +21,8 @@ const ownerUnitApi = {
         return response.data;
     },
 
-    create: async (data) => {
-        const response = await axiosClient.post("/owner-units", data);
+    create: async (data, config) => {
+        const response = await axiosClient.post("/owner-units", data, config);
         return response.data;
     },
 

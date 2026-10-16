@@ -1,4 +1,5 @@
 import {
+    useCallback,
     useEffect,
     useMemo,
     useState
@@ -16,6 +17,11 @@ import {
 } from "lucide-react";
 
 import residentApi from "../api/resident.api";
+import ownerUnitApi from "../api/ownerUnit.api";
+import occupancyApi from "../api/occupancy.api";
+import unitApi from "../../units/api/unit.api";
+import floorApi from "../../floors/api/floor.api";
+import towerApi from "../../towers/api/tower.api";
 import ResidentForm from "../components/ResidentForm";
 
 
@@ -38,6 +44,9 @@ const ResidentListPage = () => {
 
     const [residents, setResidents] =
         useState([]);
+
+    const [residentUnits, setResidentUnits] =
+        useState({});
 
     const [loading, setLoading] =
         useState(true);
@@ -63,7 +72,7 @@ const ResidentListPage = () => {
     };
 
 
-    const loadResidents = async () => {
+    const loadResidents = useCallback(async () => {
 
         try {
 
@@ -72,10 +81,60 @@ const ResidentListPage = () => {
 
             const response =
                 await residentApi.getAll();
+            const residentRows = rowsFrom(response);
+            setResidents(residentRows);
 
-            setResidents(
-                rowsFrom(response)
-            );
+            // Load the resident-to-unit relationships and resolve their tower
+            // names for display. Keep this secondary so a metadata error does
+            // not prevent the resident directory from loading.
+            const [ownersResult, unitsResult, floorsResult, towersResult] = await Promise.allSettled([
+                ownerUnitApi.getAll(),
+                unitApi.getAll(),
+                floorApi.getAll(),
+                towerApi.getAll()
+            ]);
+            if ([ownersResult, unitsResult, floorsResult, towersResult].every((result) => result.status === "fulfilled")) {
+                const owners = rowsFrom(ownersResult.value).filter((item) => item.status === "ACTIVE");
+                const unitsById = new Map(rowsFrom(unitsResult.value).map((item) => [item.id, item]));
+                const floorsById = new Map(rowsFrom(floorsResult.value).map((item) => [item.id, item]));
+                const towersById = new Map(rowsFrom(towersResult.value).map((item) => [item.id, item]));
+                const assignments = {};
+
+                owners.forEach((owner) => {
+                    const unit = unitsById.get(owner.unitId);
+                    const floor = unit && floorsById.get(unit.floorId);
+                    const tower = floor && towersById.get(floor.towerId);
+                    if (!unit) return;
+                    (assignments[owner.ownerId] ||= []).push({
+                        unitNumber: unit.unitNumber,
+                        towerName: tower?.name
+                    });
+                });
+
+                const tenantResidents = residentRows.filter((resident) => resident.role === "TENANT");
+                const tenantOccupancies = await Promise.allSettled(tenantResidents.map((resident) =>
+                    occupancyApi.getByResident(resident.id)
+                ));
+                tenantOccupancies.forEach((result, index) => {
+                    if (result.status !== "fulfilled") return;
+                    const resident = tenantResidents[index];
+                    rowsFrom(result.value)
+                        .filter((occupancy) => occupancy.isCurrent)
+                        .forEach((occupancy) => {
+                            const unit = unitsById.get(occupancy.unitId);
+                            const floor = unit && floorsById.get(unit.floorId);
+                            const tower = floor && towersById.get(floor.towerId);
+                            if (!unit) return;
+                            (assignments[resident.id] ||= []).push({
+                                unitNumber: unit.unitNumber,
+                                towerName: tower?.name
+                            });
+                        });
+                });
+                setResidentUnits(assignments);
+            } else {
+                setResidentUnits({});
+            }
 
         } catch (err) {
 
@@ -95,54 +154,14 @@ const ResidentListPage = () => {
 
         }
 
-    };
+    }, []);
 
 
     useEffect(() => {
 
-        let isMounted = true;
+        loadResidents();
 
-        residentApi.getAll()
-
-            .then((response) => {
-
-                if (!isMounted) {
-                    return;
-                }
-
-                setResidents(
-                    rowsFrom(response)
-                );
-
-            })
-
-            .catch((err) => {
-
-                if (isMounted) {
-
-                    setError(
-                        err.response?.data?.message ||
-                        "Could not load residents. Please try again."
-                    );
-
-                }
-
-            })
-
-            .finally(() => {
-
-                if (isMounted) {
-                    setLoading(false);
-                }
-
-            });
-
-
-        return () => {
-            isMounted = false;
-        };
-
-    }, []);
+    }, [loadResidents]);
 
 
     useEffect(() => {
@@ -685,6 +704,11 @@ const ResidentListPage = () => {
                                                                 {resident.email ||
                                                                     "Email not added"}
                                                             </small>
+                                                            {(residentUnits[resident.id] || []).map((assignment, index) => (
+                                                                <small key={`${resident.id}-${assignment.unitNumber}-${index}`}>
+                                                                    {assignment.towerName ? `${assignment.towerName} · ` : ""}Unit {assignment.unitNumber || "—"}
+                                                                </small>
+                                                            ))}
 
                                                         </span>
 
@@ -852,6 +876,7 @@ const ResidentListPage = () => {
                         resident={
                             editingResident
                         }
+                        residents={residents}
                         onClose={
                             closeForm
                         }

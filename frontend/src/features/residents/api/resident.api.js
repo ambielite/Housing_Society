@@ -21,10 +21,11 @@ const residentApi = {
         return response.data;
     },
 
-    create: async (data) => {
+    create: async (data, config) => {
         const response = await axiosClient.post(
             "/residents",
-            data
+            data,
+            config
         );
 
         return response.data;

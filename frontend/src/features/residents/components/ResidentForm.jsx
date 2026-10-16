@@ -2,7 +2,12 @@ import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 
 import societyApi from "../../societies/api/society.api";
+import towerApi from "../../towers/api/tower.api";
+import floorApi from "../../floors/api/floor.api";
+import unitApi from "../../units/api/unit.api";
+import ownerUnitApi from "../api/ownerUnit.api";
 import residentApi from "../api/resident.api";
+import occupancyApi from "../api/occupancy.api";
 
 const RESIDENT_ROLES = [
     ["PRIMARY_OWNER", "Primary owner"],
@@ -25,8 +30,15 @@ const rowsFrom = (response) => {
     return Array.isArray(rows) ? rows : [];
 };
 
+const unitRowsFrom = (response) => {
+    const rows = Array.isArray(response) ? response : response?.data || response?.units;
+    return Array.isArray(rows) ? rows : [];
+};
+
 const initialValues = (resident) => ({
     societyId: resident?.societyId || "",
+    towerId: "",
+    unitId: "",
     firstName: resident?.firstName || "",
     middleName: resident?.middleName || "",
     lastName: resident?.lastName || "",
@@ -42,12 +54,21 @@ const initialValues = (resident) => ({
     remarks: resident?.remarks || ""
 });
 
-const ResidentForm = ({ resident, onClose, onSuccess }) => {
+const normalizeName = (value) => value.trim().replace(/\s+/g, " ").toLocaleLowerCase();
+
+const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
     const [values, setValues] = useState(() => initialValues(resident));
     const [societies, setSocieties] = useState([]);
+    const [towers, setTowers] = useState([]);
+    const [towerFloors, setTowerFloors] = useState([]);
+    const [units, setUnits] = useState([]);
     const [loadingSocieties, setLoadingSocieties] = useState(true);
+    const [loadingUnits, setLoadingUnits] = useState(false);
+    const [loadingTowers, setLoadingTowers] = useState(false);
+    const [loadingTowerFloors, setLoadingTowerFloors] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
+    const [createdResidentId, setCreatedResidentId] = useState("");
 
     useEffect(() => {
         let isMounted = true;
@@ -68,14 +89,106 @@ const ResidentForm = ({ resident, onClose, onSuccess }) => {
         return () => { isMounted = false; };
     }, []);
 
+    useEffect(() => {
+        let isMounted = true;
+        setUnits([]);
+        setTowers([]);
+        setTowerFloors([]);
+        if (!values.societyId) {
+            setLoadingUnits(false);
+            setLoadingTowers(false);
+            return () => { isMounted = false; };
+        }
+
+        setLoadingUnits(true);
+        setLoadingTowers(true);
+        const societyConfig = { headers: { "x-society-id": values.societyId } };
+        Promise.all([
+            unitApi.getAll(societyConfig),
+            towerApi.getBySociety(values.societyId, societyConfig)
+        ])
+            .then(([unitResponse, towerResponse]) => {
+                if (!isMounted) return;
+                setUnits(unitRowsFrom(unitResponse));
+                setTowers(rowsFrom(towerResponse));
+            })
+            .catch((err) => {
+                if (isMounted) setError(err.response?.data?.message || "Could not load towers and units for this society.");
+            })
+            .finally(() => {
+                if (isMounted) {
+                    setLoadingUnits(false);
+                    setLoadingTowers(false);
+                }
+            });
+
+        return () => { isMounted = false; };
+    }, [values.societyId]);
+
+    useEffect(() => {
+        let isMounted = true;
+        setTowerFloors([]);
+        if (!values.towerId) {
+            setLoadingTowerFloors(false);
+            return () => { isMounted = false; };
+        }
+
+        setLoadingTowerFloors(true);
+        floorApi.getByTower(values.towerId, {
+            headers: { "x-society-id": values.societyId }
+        })
+            .then((response) => {
+                if (isMounted) setTowerFloors(unitRowsFrom(response));
+            })
+            .catch((err) => {
+                if (isMounted) setError(err.response?.data?.message || "Could not load floors for this tower.");
+            })
+            .finally(() => {
+                if (isMounted) setLoadingTowerFloors(false);
+            });
+
+        return () => { isMounted = false; };
+    }, [values.towerId, values.societyId]);
+
+    const towerFloorIds = new Set(towerFloors.map((floor) => floor.id));
+    const visibleUnits = values.towerId
+        ? units.filter((unit) => towerFloorIds.has(unit.floorId))
+        : units;
+
     const update = (event) => {
         const { name, value, type, checked } = event.target;
-        setValues((current) => ({ ...current, [name]: type === "checkbox" ? checked : value }));
+        setValues((current) => ({
+            ...current,
+            [name]: type === "checkbox" ? checked : value,
+            ...(name === "societyId" ? { towerId: "", unitId: "" } : {}),
+            ...(name === "towerId" ? { unitId: "" } : {}),
+            ...(name === "role" && !["PRIMARY_OWNER", "CO_OWNER", "TENANT"].includes(value) ? { unitId: "" } : {})
+        }));
     };
 
     const submit = async (event) => {
         event.preventDefault();
         setError("");
+
+        const submittedName = normalizeName([
+            values.firstName,
+            values.middleName,
+            values.lastName
+        ].filter(Boolean).join(" "));
+        const duplicateName = residents.some((existing) => {
+            if (existing.id === resident?.id || existing.societyId !== values.societyId) return false;
+            const existingName = normalizeName(existing.displayName || [
+                existing.firstName,
+                existing.middleName,
+                existing.lastName
+            ].filter(Boolean).join(" "));
+            return existingName === submittedName;
+        });
+
+        if (duplicateName) {
+            setError("A resident with this name already exists in this society.");
+            return;
+        }
 
         const payload = {
             ...values,
@@ -91,13 +204,49 @@ const ResidentForm = ({ resident, onClose, onSuccess }) => {
             remarks: values.remarks.trim() || null
         };
 
+        let residentId = createdResidentId;
+        const societyConfig = { headers: { "x-society-id": values.societyId } };
         try {
             setSaving(true);
-            if (resident?.id) await residentApi.update(resident.id, payload);
-            else await residentApi.create(payload);
+            if (resident?.id) {
+                await residentApi.update(resident.id, payload);
+            } else {
+                if (!residentId) {
+                    const result = await residentApi.create(payload, societyConfig);
+                    const createdResident = result?.data || result?.resident || result;
+                    residentId = createdResident.id;
+                    setCreatedResidentId(residentId);
+                }
+                if (values.unitId) {
+                    const effectiveFrom = new Date().toISOString().slice(0, 10);
+                    if (values.role === "TENANT") {
+                        await occupancyApi.create({
+                            societyId: values.societyId,
+                            unitId: values.unitId,
+                            residentId,
+                            occupancyType: "TENANT",
+                            startDate: effectiveFrom
+                        }, societyConfig);
+                    } else {
+                        await ownerUnitApi.create({
+                            societyId: values.societyId,
+                            ownerId: residentId,
+                            unitId: values.unitId,
+                            ownershipType: values.role,
+                            ownershipPercentage: null,
+                            effectiveFrom,
+                            status: "ACTIVE"
+                        }, societyConfig);
+                    }
+                }
+                setCreatedResidentId("");
+            }
             await onSuccess();
         } catch (err) {
-            setError(err.response?.data?.message || "Could not save resident. Please try again.");
+            const message = err.response?.data?.message || "Could not save resident. Please try again.";
+            setError(residentId
+                ? `Resident was created, but the unit assignment failed: ${message} You can retry the assignment or clear the unit selection and save.`
+                : message);
         } finally {
             setSaving(false);
         }
@@ -133,6 +282,30 @@ const ResidentForm = ({ resident, onClose, onSuccess }) => {
                                     </select>
                                 )}
                             </div>
+                            {!resident && <div className="form-group form-group-full">
+                                <label htmlFor="resident-tower">Tower (optional)</label>
+                                <select id="resident-tower" name="towerId" value={values.towerId} onChange={update} disabled={!values.societyId || loadingTowers}>
+                                    <option value="">{loadingTowers ? "Loading towers…" : "No tower selected"}</option>
+                                    {towers.map((tower) => <option key={tower.id} value={tower.id}>{tower.name || tower.towerName || tower.id}</option>)}
+                                </select>
+                                {values.towerId && <small className="field-hint">Selected tower: {towers.find((tower) => tower.id === values.towerId)?.name || "Tower"}</small>}
+                                <small className="field-hint">Optional. Selecting a tower filters the unit list below.</small>
+                            </div>}
+                            {!resident && <div className="form-group form-group-full">
+                                <label htmlFor="resident-unit">Unit (optional)</label>
+                                <select id="resident-unit" name="unitId" value={values.unitId} onChange={update} disabled={!values.societyId || loadingUnits || loadingTowerFloors || (Boolean(values.role) && !["PRIMARY_OWNER", "CO_OWNER", "TENANT"].includes(values.role))}>
+                                    <option value="">
+                                        {loadingUnits || loadingTowerFloors
+                                            ? "Loading units…"
+                                            : visibleUnits.length === 0
+                                                ? values.towerId ? "No units in this tower" : "No units in this society"
+                                                : "No unit / not assigned"}
+                                    </option>
+                                    {visibleUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.unitNumber || unit.name || unit.id}</option>)}
+                                </select>
+                                {values.unitId && <small className="field-hint">Selected unit: {visibleUnits.find((unit) => unit.id === values.unitId)?.unitNumber || "Unit"}{values.towerId ? ` · Tower: ${towers.find((tower) => tower.id === values.towerId)?.name || "Tower"}` : ""}</small>}
+                                <small className="field-hint">Optional. Choose a resident role to assign the selected unit; unit assignments are supported for owners and tenants.</small>
+                            </div>}
                             <div className="form-group"><label htmlFor="resident-first-name">First name<span className="required">*</span></label><input id="resident-first-name" name="firstName" value={values.firstName} onChange={update} maxLength={100} autoComplete="given-name" required /></div>
                             <div className="form-group"><label htmlFor="resident-middle-name">Middle name</label><input id="resident-middle-name" name="middleName" value={values.middleName} onChange={update} maxLength={100} /></div>
                             <div className="form-group"><label htmlFor="resident-last-name">Last name<span className="required">*</span></label><input id="resident-last-name" name="lastName" value={values.lastName} onChange={update} maxLength={100} autoComplete="family-name" required /></div>
