@@ -15,12 +15,21 @@ const isVendorOnly = isVendorScoped;
 // --- vendors ---------------------------------------------------------------
 
 const assertVendorScope = async (vendorId, actingUser) => {
-  if (!isVendorOnly(actingUser)) return;
-  const ids = getVendorIds(actingUser);
-  if (!ids.includes(vendorId)) throw new ApiError(404, 'Vendor not found');
+  const vendor = await repository.findById(vendorId);
+  if (!vendor) throw new ApiError(404, 'Vendor not found');
+  if (actingUser?.societyId && vendor.society_id !== actingUser.societyId) {
+    throw new ApiError(404, 'Vendor not found');
+  }
+  if (isVendorOnly(actingUser) && !getVendorIds(actingUser).includes(vendorId)) {
+    throw new ApiError(404, 'Vendor not found');
+  }
+  return vendor;
 };
 
-const createVendor = async (payload) => {
+const createVendor = async (payload, actingUser) => {
+  if (!actingUser?.societyId || payload.societyId !== actingUser.societyId) {
+    throw new ApiError(403, 'Select a society you are authorized to manage');
+  }
   if (payload.userId) {
     const user = await usersRepository.findById(payload.userId);
     if (!user) throw new ApiError(404, 'User not found');
@@ -42,12 +51,16 @@ const listVendors = async (query, actingUser) => {
   const { page, limit, offset } = getPagination(query);
 
   const scopedQuery = { ...query };
+  if (scopedQuery.societyId && scopedQuery.societyId !== actingUser?.societyId) {
+    throw new ApiError(403, 'Vendor list is limited to the active society');
+  }
+  scopedQuery.societyId = actingUser?.societyId || scopedQuery.societyId;
   if (isVendorOnly(actingUser)) {
     const ids = getVendorIds(actingUser);
     const vendors = [];
     for (const id of ids) {
       const vendor = await repository.findById(id);
-      if (vendor) vendors.push(vendor);
+      if (vendor && (!actingUser?.societyId || vendor.society_id === actingUser.societyId)) vendors.push(vendor);
     }
     return { vendors, pagination: { page: 1, limit, total: vendors.length, totalPages: 1 } };
   }
@@ -68,6 +81,9 @@ const listVendors = async (query, actingUser) => {
 const getVendor = async (id, actingUser) => {
   const vendor = await repository.findById(id);
   if (!vendor) {
+    throw new ApiError(404, 'Vendor not found');
+  }
+  if (actingUser?.societyId && vendor.society_id !== actingUser.societyId) {
     throw new ApiError(404, 'Vendor not found');
   }
   if (isVendorOnly(actingUser) && !getVendorIds(actingUser).includes(vendor.id)) {

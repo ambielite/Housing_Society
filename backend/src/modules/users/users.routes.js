@@ -17,6 +17,8 @@ router.use(authenticate);
 router.get('/', authorize('USER_READ'), validate(listUsersQuerySchema, 'query'), controller.listUsers);
 router.post('/', authorize('USER_CREATE'), validate(createUserSchema), controller.createUser);
 
+router.get('/me/societies', controller.listMySocieties);
+
 router.get('/:userId', authorize('USER_READ'), controller.getUser);
 router.patch('/:userId', authorize('USER_UPDATE'), validate(updateProfileSchema), controller.updateProfile);
 router.patch('/:userId/status', authorize('USER_UPDATE'), validate(updateStatusSchema), controller.updateStatus);

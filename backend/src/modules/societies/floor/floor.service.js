@@ -1,8 +1,15 @@
 const floorRepository = require("./floor.repository");
+const towerRepository = require("../tower/tower.repository");
 
 
 // Create Floor
-const createFloor = async (floorData) => {
+const createFloor = async (floorData, societyId) => {
+
+    if (!await towerRepository.findById(floorData.towerId, societyId)) {
+        const error = new Error("Tower not found in the selected society");
+        error.statusCode = 404;
+        throw error;
+    }
 
     const existingFloor =
         await floorRepository.findByTowerAndNumber(
@@ -33,18 +40,18 @@ const createFloor = async (floorData) => {
 
 
 // Get All Floors
-const getAllFloors = async () => {
+const getAllFloors = async (societyId) => {
 
-    return await floorRepository.findAll();
+    return await floorRepository.findAll(societyId);
 
 };
 
 
 // Get Floor by ID
-const getFloorById = async (id) => {
+const getFloorById = async (id, societyId) => {
 
     const floor =
-        await floorRepository.findById(id);
+        await floorRepository.findById(id, societyId);
 
 
     if (!floor) {
@@ -65,11 +72,13 @@ const getFloorById = async (id) => {
 
 // Get Floors by Tower
 const getFloorsByTower = async (
-    towerId
+    towerId,
+    societyId
 ) => {
 
     return await floorRepository.findByTowerId(
-        towerId
+        towerId,
+        societyId
     );
 
 };
@@ -78,11 +87,12 @@ const getFloorsByTower = async (
 // Update Floor
 const updateFloor = async (
     id,
-    floorData
+    floorData,
+    societyId
 ) => {
 
     const existingFloor =
-        await floorRepository.findById(id);
+        await floorRepository.findById(id, societyId);
 
 
     if (!existingFloor) {
@@ -93,6 +103,12 @@ const updateFloor = async (
 
         error.statusCode = 404;
 
+        throw error;
+    }
+
+    if (floorData.towerId && !await towerRepository.findById(floorData.towerId, societyId)) {
+        const error = new Error("Tower not found in the selected society");
+        error.statusCode = 404;
         throw error;
     }
 
@@ -132,16 +148,17 @@ const updateFloor = async (
 
     return await floorRepository.update(
         id,
-        floorData
+        floorData,
+        societyId
     );
 };
 
 
 // Deactivate Floor
-const deactivateFloor = async (id) => {
+const deactivateFloor = async (id, societyId) => {
 
     const floor =
-        await floorRepository.deactivate(id);
+        await floorRepository.deactivate(id, societyId);
 
 
     if (!floor) {

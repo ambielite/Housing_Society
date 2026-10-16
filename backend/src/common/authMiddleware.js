@@ -11,11 +11,8 @@ const vendorsRepository = require('../modules/vendors/vendors.repository');
  * trusts a client-supplied identity), resolves the active society context,
  * and attaches req.user = { id, email, societyId, roles[], permissions[] }.
  *
- * Society context resolution: an optional `x-society-id` header lets a
- * multi-society admin pick which society they are acting in for this
- * request; it falls back to the user's own society_id. This header is
- * never trusted for *authorization* by itself - it only narrows which
- * roles/permissions (already tied to the authenticated user) apply.
+ * An optional `x-society-id` selects the active society, but is accepted only
+ * when the authenticated user has a current direct or hierarchical grant.
  */
 const authenticate = asyncHandler(async (req, res, next) => {
   const header = req.headers.authorization;
@@ -39,7 +36,37 @@ const authenticate = asyncHandler(async (req, res, next) => {
     throw new ApiError(403, 'User account is not active');
   }
 
-  const societyId = req.headers['x-society-id'] || user.society_id || null;
+  const headerSocietyId = req.headers['x-society-id'] || null;
+  const explicitSocietyIds = [req.params?.societyId, req.query?.societyId, req.body?.societyId].filter(Boolean);
+  let societyId = headerSocietyId || explicitSocietyIds[0] || user.society_id || null;
+  if (!societyId) {
+    const isSuperAdmin = (await rbacRepository.getUserRoles(user.id, null)).some((role) => role.code === 'SUPER_ADMIN');
+    const accessible = await usersRepository.listAccessibleSocieties(user.id, isSuperAdmin);
+    societyId = accessible[0]?.id || null;
+  }
+  if (explicitSocietyIds.some((id) => id !== societyId)) {
+    throw new ApiError(403, 'Request society must match the selected society');
+  }
+  if (societyId && (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(societyId) ||
+    !await usersRepository.hasSocietyAccess(user.id, societyId)
+  )) {
+    throw new ApiError(403, 'You do not have access to the selected society');
+  }
+
+  // Expose a consistent active-society filter to both API generations. Older
+  // controllers read req.query/body directly instead of req.user.societyId.
+  if (societyId) {
+    Object.defineProperty(req, 'query', {
+      configurable: true,
+      writable: true,
+      value: { ...req.query, societyId: req.query?.societyId || societyId },
+    });
+    const isCreatingSociety = req.method === 'POST' && req.originalUrl?.split('?')[0].replace(/\/$/, '') === '/api/societies';
+    if (!isCreatingSociety && req.body && typeof req.body === 'object' && !Array.isArray(req.body)) {
+      req.body.societyId ||= societyId;
+    }
+  }
 
   const [roles, permissions] = await Promise.all([
     rbacRepository.getUserRoles(user.id, societyId),

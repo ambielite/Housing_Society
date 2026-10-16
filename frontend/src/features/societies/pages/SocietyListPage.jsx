@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Building2, CheckCircle2, Edit, MapPin, Plus,
     RefreshCw, Search, Trash2
@@ -13,44 +13,29 @@ const SocietyPage = () => {
     const [search, setSearch] = useState("");
     const [showForm, setShowForm] = useState(false);
     const [editingSociety, setEditingSociety] = useState(null);
+    const loadRequest = useRef(0);
     const closeForm = () => { setShowForm(false); setEditingSociety(null); };
 
-    const loadSocieties = async () => {
+    const loadSocieties = useCallback(async () => {
+        const requestId = ++loadRequest.current;
         try {
             setLoading(true);
             setError("");
             const response = await societyApi.getAll();
+            if (requestId !== loadRequest.current) return;
             const list = Array.isArray(response) ? response : response?.data || response?.societies || [];
             setSocieties(Array.isArray(list) ? list : []);
         } catch (err) {
+            if (requestId !== loadRequest.current) return;
             setError(err.response?.data?.message || "Could not load societies. Please try again.");
         } finally {
-            setLoading(false);
+            if (requestId === loadRequest.current) setLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
-        let isMounted = true;
-
-        societyApi.getAll()
-            .then((response) => {
-                if (!isMounted) return;
-                const list = Array.isArray(response)
-                    ? response
-                    : response?.data || response?.societies || [];
-                setSocieties(Array.isArray(list) ? list : []);
-            })
-            .catch((err) => {
-                if (isMounted) {
-                    setError(err.response?.data?.message || "Could not load societies. Please try again.");
-                }
-            })
-            .finally(() => {
-                if (isMounted) setLoading(false);
-            });
-
-        return () => { isMounted = false; };
-    }, []);
+        void loadSocieties();
+    }, [loadSocieties]);
 
     useEffect(() => {
         if (!showForm) return undefined;

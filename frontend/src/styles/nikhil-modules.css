@@ -162,6 +162,16 @@ a {
     margin: 5px 0 5px 24px;
     padding-left: 10px;
     border-left: 1px solid var(--sidebar-border);
+    animation: sidebar-subnav-enter 160ms ease-out;
+}
+
+@keyframes sidebar-subnav-enter {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sidebar-subnav { animation: none; }
 }
 
 .sidebar-subnav-item {

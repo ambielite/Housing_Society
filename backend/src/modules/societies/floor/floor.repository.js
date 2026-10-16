@@ -1,4 +1,5 @@
 const Floor = require("./floor.model");
+const Tower = require("../tower/tower.model");
 
 
 // Create Floor
@@ -8,8 +9,9 @@ const create = async (floorData) => {
 
 
 // Get all Floors
-const findAll = async () => {
+const findAll = async (societyId) => {
     return await Floor.findAll({
+        include: [{ model: Tower, as: "tower", attributes: [], where: { societyId }, required: true }],
         order: [
             ["floorNumber", "ASC"]
         ]
@@ -18,17 +20,21 @@ const findAll = async () => {
 
 
 // Get Floor by ID
-const findById = async (id) => {
-    return await Floor.findByPk(id);
+const findById = async (id, societyId) => {
+    return await Floor.findOne({
+        where: { id },
+        include: [{ model: Tower, as: "tower", attributes: [], where: { societyId }, required: true }],
+    });
 };
 
 
 // Get Floors by Tower
-const findByTowerId = async (towerId) => {
+const findByTowerId = async (towerId, societyId) => {
     return await Floor.findAll({
         where: {
             towerId
         },
+        include: [{ model: Tower, as: "tower", attributes: [], where: { societyId }, required: true }],
 
         order: [
             ["floorNumber", "ASC"]
@@ -54,9 +60,13 @@ const findByTowerAndNumber = async (
 // Update Floor
 const update = async (
     id,
-    floorData
+    floorData,
+    societyId
 ) => {
-    const floor = await Floor.findByPk(id);
+    const floor = await Floor.findOne({
+        where: { id },
+        include: [{ model: Tower, as: "tower", attributes: [], where: { societyId }, required: true }],
+    });
 
     if (!floor) {
         return null;
@@ -69,8 +79,11 @@ const update = async (
 
 
 // Deactivate Floor
-const deactivate = async (id) => {
-    const floor = await Floor.findByPk(id);
+const deactivate = async (id, societyId) => {
+    const floor = await Floor.findOne({
+        where: { id },
+        include: [{ model: Tower, as: "tower", attributes: [], where: { societyId }, required: true }],
+    });
 
     if (!floor) {
         return null;

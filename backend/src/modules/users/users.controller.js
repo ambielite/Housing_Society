@@ -13,7 +13,12 @@ const getUser = asyncHandler(async (req, res) => {
 });
 
 const createUser = asyncHandler(async (req, res) => {
-  const user = await service.createUser(req.body);
+  // A user created from the admin panel belongs to the authenticated active
+  // society even if an older frontend omits societyId from its payload.
+  const user = await service.createUser({
+    ...req.body,
+    societyId: req.body.societyId || req.user.societyId || null,
+  });
   return ApiResponse.success(res, user, 'User created successfully', 201);
 });
 
@@ -42,6 +47,14 @@ const getLoginHistory = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, history);
 });
 
+const listMySocieties = asyncHandler(async (req, res) => {
+  const societies = await service.listAccessibleSocieties(
+    req.user.id,
+    req.user.roles.includes('SUPER_ADMIN')
+  );
+  return ApiResponse.success(res, societies, 'Accessible societies fetched successfully');
+});
+
 module.exports = {
   listUsers,
   getUser,
@@ -51,4 +64,5 @@ module.exports = {
   archiveUser,
   forceLogout,
   getLoginHistory,
+  listMySocieties,
 };

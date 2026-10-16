@@ -26,6 +26,9 @@ const listUsers = async (query) => {
   };
 };
 
+const listAccessibleSocieties = async (userId, isSuperAdmin) =>
+  repository.listAccessibleSocieties(userId, isSuperAdmin);
+
 const getUserById = async (id) => {
   const user = await repository.findById(id);
   if (!user) {
@@ -97,6 +100,7 @@ const getLoginHistory = async (id) => {
 
 module.exports = {
   listUsers,
+  listAccessibleSocieties,
   getUserById,
   createUser,
   updateProfile,

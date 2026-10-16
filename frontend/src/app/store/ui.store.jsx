@@ -30,12 +30,15 @@ export function useUi() {
 // Defaults to the logged-in user's own society. setSocietyId() is for the
 // future multi-society switcher; it is sent to the API as x-society-id.
 export function SocietyProvider({ children }) {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const [override, setOverride] = useState(() => societyStorage.get());
 
   useEffect(() => {
-    if (!user) setOverride(null);
-  }, [user]);
+    // Keep the saved selection while AuthProvider verifies a restored session.
+    // AuthProvider clears societyStorage on logout, so only clear stale React
+    // state once loading has finished and there is no signed-in user.
+    if (!user && !isLoading) setOverride(null);
+  }, [user, isLoading]);
 
   const setSocietyId = useCallback((id) => {
     if (id) societyStorage.set(id);

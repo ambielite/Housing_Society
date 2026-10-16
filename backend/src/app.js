@@ -8,6 +8,9 @@ const { pool } = require("./config/db");
 const sequelize = require("./config/database");
 const sujalApiRoutes = require("./routes");
 const { notFoundHandler, errorHandler } = require("./common/errorHandler");
+const { authenticate } = require("./common/authMiddleware");
+const ApiError = require("./common/ApiError");
+const { authorizeLegacyRequest } = require("./common/legacyAuthorization");
 
 app.use(requestId);
 app.use(helmet());
@@ -63,6 +66,21 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// All legacy Nikhil module routes are mounted directly under /api and do not
+// carry per-route authentication. Protect that API surface while preserving
+// the public login/refresh routes in the versioned /api/v1 API.
+app.use("/api", (req, res, next) => {
+    if (req.path === "/v1" || req.path.startsWith("/v1/")) return next();
+    return authenticate(req, res, (error) => {
+        if (error) return next(error);
+        const requestedSocietyId = req.query.societyId || req.body?.societyId;
+        if (requestedSocietyId && requestedSocietyId !== req.user.societyId) {
+            return next(new ApiError(403, "Request society must match the active society"));
+        }
+        return authorizeLegacyRequest(req, res, next);
+    });
+});
 
 app.use(
     "/uploads",

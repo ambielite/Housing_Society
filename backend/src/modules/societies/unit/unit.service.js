@@ -1,8 +1,15 @@
 const unitRepository = require("./unit.repository");
+const floorRepository = require("../floor/floor.repository");
 
 
 // Create Unit
-const createUnit = async (unitData) => {
+const createUnit = async (unitData, societyId) => {
+
+    if (!await floorRepository.findById(unitData.floorId, societyId)) {
+        const error = new Error("Floor not found in the selected society");
+        error.statusCode = 404;
+        throw error;
+    }
 
     const unitNumber =
         unitData.unitNumber.trim();
@@ -64,18 +71,18 @@ const createUnit = async (unitData) => {
 
 
 // Get All Units
-const getAllUnits = async () => {
+const getAllUnits = async (societyId) => {
 
-    return await unitRepository.findAll();
+    return await unitRepository.findAll(societyId);
 
 };
 
 
 // Get Unit by ID
-const getUnitById = async (id) => {
+const getUnitById = async (id, societyId) => {
 
     const unit =
-        await unitRepository.findById(id);
+        await unitRepository.findById(id, societyId);
 
 
     if (!unit) {
@@ -96,11 +103,13 @@ const getUnitById = async (id) => {
 
 // Get Units by Floor
 const getUnitsByFloor = async (
-    floorId
+    floorId,
+    societyId
 ) => {
 
     return await unitRepository.findByFloorId(
-        floorId
+        floorId,
+        societyId
     );
 
 };
@@ -109,11 +118,12 @@ const getUnitsByFloor = async (
 // Update Unit
 const updateUnit = async (
     id,
-    unitData
+    unitData,
+    societyId
 ) => {
 
     const existingUnit =
-        await unitRepository.findById(id);
+        await unitRepository.findById(id, societyId);
 
 
     if (!existingUnit) {
@@ -124,6 +134,12 @@ const updateUnit = async (
 
         error.statusCode = 404;
 
+        throw error;
+    }
+
+    if (unitData.floorId && !await floorRepository.findById(unitData.floorId, societyId)) {
+        const error = new Error("Floor not found in the selected society");
+        error.statusCode = 404;
         throw error;
     }
 
@@ -198,16 +214,17 @@ const updateUnit = async (
 
     return await unitRepository.update(
         id,
-        unitData
+        unitData,
+        societyId
     );
 };
 
 
 // Deactivate Unit
-const deactivateUnit = async (id) => {
+const deactivateUnit = async (id, societyId) => {
 
     const unit =
-        await unitRepository.deactivate(id);
+        await unitRepository.deactivate(id, societyId);
 
 
     if (!unit) {

@@ -39,7 +39,7 @@ const getAllTowers = async (
     try {
 
         const towers =
-            await towerService.getAllTowers();
+            await towerService.getAllTowers(req.user.societyId);
 
         res.status(200).json({
             success: true,
@@ -66,7 +66,8 @@ const getTowerById = async (
 
         const tower =
             await towerService.getTowerById(
-                req.params.id
+                req.params.id,
+                req.user.societyId
             );
 
         res.status(200).json({
@@ -93,7 +94,8 @@ const getTowersBySociety = async (
 
         const towers =
             await towerService.getTowersBySociety(
-                req.params.societyId
+                req.params.societyId,
+                req.user.societyId
             );
 
         res.status(200).json({
@@ -122,7 +124,8 @@ const updateTower = async (
         const tower =
             await towerService.updateTower(
                 req.params.id,
-                req.body
+                req.body,
+                req.user.societyId
             );
 
         res.status(200).json({
@@ -150,7 +153,8 @@ const deactivateTower = async (
 
         const tower =
             await towerService.deactivateTower(
-                req.params.id
+                req.params.id,
+                req.user.societyId
             );
 
         res.status(200).json({

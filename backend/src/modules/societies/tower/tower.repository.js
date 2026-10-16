@@ -8,8 +8,9 @@ const create = async (towerData) => {
 
 
 // Get all towers
-const findAll = async () => {
+const findAll = async (societyId) => {
     return await Tower.findAll({
+        where: { societyId },
         order: [
             ["createdAt", "DESC"]
         ]
@@ -18,8 +19,8 @@ const findAll = async () => {
 
 
 // Get Tower by ID
-const findById = async (id) => {
-    return await Tower.findByPk(id);
+const findById = async (id, societyId) => {
+    return await Tower.findOne({ where: { id, societyId } });
 };
 
 
@@ -52,8 +53,8 @@ const findBySocietyAndName = async (
 
 
 // Update Tower
-const update = async (id, towerData) => {
-    const tower = await Tower.findByPk(id);
+const update = async (id, towerData, societyId) => {
+    const tower = await Tower.findOne({ where: { id, societyId } });
 
     if (!tower) {
         return null;
@@ -66,8 +67,8 @@ const update = async (id, towerData) => {
 
 
 // Soft delete / deactivate
-const deactivate = async (id) => {
-    const tower = await Tower.findByPk(id);
+const deactivate = async (id, societyId) => {
+    const tower = await Tower.findOne({ where: { id, societyId } });
 
     if (!tower) {
         return null;

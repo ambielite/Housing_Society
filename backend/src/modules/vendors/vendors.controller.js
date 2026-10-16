@@ -4,7 +4,7 @@ const asyncHandler = require('../../common/asyncHandler');
 
 // --- vendors ---
 const createVendor = asyncHandler(async (req, res) => {
-  const vendor = await service.createVendor(req.body);
+  const vendor = await service.createVendor(req.body, req.user);
   return ApiResponse.success(res, vendor, 'Vendor created successfully', 201);
 });
 

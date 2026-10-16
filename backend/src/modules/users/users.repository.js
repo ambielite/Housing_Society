@@ -15,6 +15,79 @@ const findById = async (id) => {
   return result.rows[0] || null;
 };
 
+const listAccessibleSocieties = async (userId, isSuperAdmin = false) => {
+  if (isSuperAdmin) {
+    const result = await db.query('SELECT id, name FROM societies ORDER BY name, id');
+    return result.rows;
+  }
+
+  const result = await db.query(
+    `WITH accessible_societies AS (
+       SELECT society_id AS id FROM users WHERE id = $1 AND society_id IS NOT NULL
+       UNION
+       SELECT usa.society_id AS id
+       FROM user_society_access usa
+       WHERE usa.user_id = $1
+         AND usa.active_from <= now()
+         AND (usa.active_until IS NULL OR usa.active_until > now())
+       UNION
+       SELECT msa.society_id AS id
+       FROM multi_society_access msa
+       WHERE msa.user_id = $1 AND msa.status = 'ACTIVE'
+         AND msa.access_level = 'SOCIETY' AND msa.society_id IS NOT NULL
+         AND (msa.start_date IS NULL OR msa.start_date <= CURRENT_DATE)
+         AND (msa.end_date IS NULL OR msa.end_date >= CURRENT_DATE)
+       UNION
+       SELECT s.id
+       FROM multi_society_access msa
+       JOIN societies s ON (
+         (msa.access_level = 'ORGANIZATION' AND s.organization_id = msa.organization_id)
+         OR (msa.access_level = 'CLUSTER' AND s.cluster_id = msa.cluster_id)
+       )
+       WHERE msa.user_id = $1 AND msa.status = 'ACTIVE'
+         AND (msa.start_date IS NULL OR msa.start_date <= CURRENT_DATE)
+         AND (msa.end_date IS NULL OR msa.end_date >= CURRENT_DATE)
+     )
+     SELECT s.id, s.name
+     FROM societies s JOIN accessible_societies a ON a.id = s.id
+     ORDER BY s.name, s.id`,
+    [userId]
+  );
+  return result.rows;
+};
+
+const hasSocietyAccess = async (userId, societyId) => {
+  const result = await db.query(
+    `SELECT EXISTS (
+       SELECT 1 FROM users WHERE id = $1 AND society_id = $2
+       UNION ALL
+       SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id
+       WHERE ur.user_id = $1 AND ur.society_id IS NULL AND r.code = 'SUPER_ADMIN'
+       UNION ALL
+       SELECT 1 FROM user_society_access
+       WHERE user_id = $1 AND society_id = $2
+         AND active_from <= now() AND (active_until IS NULL OR active_until > now())
+       UNION ALL
+       SELECT 1 FROM multi_society_access
+       WHERE user_id = $1 AND society_id = $2 AND access_level = 'SOCIETY'
+         AND status = 'ACTIVE'
+         AND (start_date IS NULL OR start_date <= CURRENT_DATE)
+         AND (end_date IS NULL OR end_date >= CURRENT_DATE)
+       UNION ALL
+       SELECT 1 FROM multi_society_access msa
+       JOIN societies s ON (
+         (msa.access_level = 'ORGANIZATION' AND s.organization_id = msa.organization_id)
+         OR (msa.access_level = 'CLUSTER' AND s.cluster_id = msa.cluster_id)
+       )
+       WHERE msa.user_id = $1 AND s.id = $2 AND msa.status = 'ACTIVE'
+         AND (msa.start_date IS NULL OR msa.start_date <= CURRENT_DATE)
+         AND (msa.end_date IS NULL OR msa.end_date >= CURRENT_DATE)
+     ) AS allowed`,
+    [userId, societyId]
+  );
+  return result.rows[0]?.allowed === true;
+};
+
 const createUser = async ({ societyId, email, phone, passwordHash, firstName, lastName, status }) => {
   const result = await db.query(
     `INSERT INTO users (society_id, email, phone, password_hash, first_name, last_name, status)
@@ -62,8 +135,18 @@ const listUsers = async ({ societyId, status, search, limit, offset }) => {
   let idx = 1;
 
   if (societyId) {
-    conditions.push(`society_id = $${idx++}`);
+    conditions.push(`(
+      users.society_id = $${idx}
+      OR EXISTS (
+        SELECT 1 FROM user_society_access usa
+        WHERE usa.user_id = users.id
+          AND usa.society_id = $${idx}
+          AND usa.active_from <= now()
+          AND (usa.active_until IS NULL OR usa.active_until > now())
+      )
+    )`);
     params.push(societyId);
+    idx += 1;
   }
   if (status) {
     conditions.push(`status = $${idx++}`);
@@ -93,6 +176,8 @@ const listUsers = async ({ societyId, status, search, limit, offset }) => {
 module.exports = {
   findByEmail,
   findById,
+  listAccessibleSocieties,
+  hasSocietyAccess,
   createUser,
   updateProfile,
   updateStatus,

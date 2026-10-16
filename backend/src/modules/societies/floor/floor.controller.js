@@ -12,7 +12,8 @@ const createFloor = async (
 
         const floor =
             await floorService.createFloor(
-                req.body
+                req.body,
+                req.user.societyId
             );
 
 
@@ -40,7 +41,7 @@ const getAllFloors = async (
     try {
 
         const floors =
-            await floorService.getAllFloors();
+            await floorService.getAllFloors(req.user.societyId);
 
 
         res.status(200).json({
@@ -68,7 +69,8 @@ const getFloorById = async (
 
         const floor =
             await floorService.getFloorById(
-                req.params.id
+                req.params.id,
+                req.user.societyId
             );
 
 
@@ -96,7 +98,8 @@ const getFloorsByTower = async (
 
         const floors =
             await floorService.getFloorsByTower(
-                req.params.towerId
+                req.params.towerId,
+                req.user.societyId
             );
 
 
@@ -126,7 +129,8 @@ const updateFloor = async (
         const floor =
             await floorService.updateFloor(
                 req.params.id,
-                req.body
+                req.body,
+                req.user.societyId
             );
 
 
@@ -155,7 +159,8 @@ const deactivateFloor = async (
 
         const floor =
             await floorService.deactivateFloor(
-                req.params.id
+                req.params.id,
+                req.user.societyId
             );
 
 

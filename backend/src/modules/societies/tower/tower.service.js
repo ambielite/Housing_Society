@@ -42,18 +42,18 @@ const createTower = async (towerData) => {
 
 
 // Get all Towers
-const getAllTowers = async () => {
+const getAllTowers = async (societyId) => {
 
-    return await towerRepository.findAll();
+    return await towerRepository.findAll(societyId);
 
 };
 
 
 // Get Tower by ID
-const getTowerById = async (id) => {
+const getTowerById = async (id, societyId) => {
 
     const tower =
-        await towerRepository.findById(id);
+        await towerRepository.findById(id, societyId);
 
     if (!tower) {
 
@@ -71,7 +71,9 @@ const getTowerById = async (id) => {
 
 
 // Get Towers by Society
-const getTowersBySociety = async (societyId) => {
+const getTowersBySociety = async (societyId, activeSocietyId) => {
+
+    if (societyId !== activeSocietyId) return [];
 
     return await towerRepository.findBySocietyId(
         societyId
@@ -83,11 +85,12 @@ const getTowersBySociety = async (societyId) => {
 // Update Tower
 const updateTower = async (
     id,
-    towerData
+    towerData,
+    societyId
 ) => {
 
     const existingTower =
-        await towerRepository.findById(id);
+        await towerRepository.findById(id, societyId);
 
     if (!existingTower) {
 
@@ -142,16 +145,17 @@ const updateTower = async (
 
     return await towerRepository.update(
         id,
-        towerData
+        towerData,
+        societyId
     );
 };
 
 
 // Deactivate Tower
-const deactivateTower = async (id) => {
+const deactivateTower = async (id, societyId) => {
 
     const tower =
-        await towerRepository.deactivate(id);
+        await towerRepository.deactivate(id, societyId);
 
     if (!tower) {
 

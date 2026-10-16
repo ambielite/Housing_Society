@@ -12,7 +12,8 @@ const createUnit = async (
 
         const unit =
             await unitService.createUnit(
-                req.body
+                req.body,
+                req.user.societyId
             );
 
 
@@ -40,7 +41,7 @@ const getAllUnits = async (
     try {
 
         const units =
-            await unitService.getAllUnits();
+            await unitService.getAllUnits(req.user.societyId);
 
 
         res.status(200).json({
@@ -68,7 +69,8 @@ const getUnitById = async (
 
         const unit =
             await unitService.getUnitById(
-                req.params.id
+                req.params.id,
+                req.user.societyId
             );
 
 
@@ -96,7 +98,8 @@ const getUnitsByFloor = async (
 
         const units =
             await unitService.getUnitsByFloor(
-                req.params.floorId
+                req.params.floorId,
+                req.user.societyId
             );
 
 
@@ -126,7 +129,8 @@ const updateUnit = async (
         const unit =
             await unitService.updateUnit(
                 req.params.id,
-                req.body
+                req.body,
+                req.user.societyId
             );
 
 
@@ -155,7 +159,8 @@ const deactivateUnit = async (
 
         const unit =
             await unitService.deactivateUnit(
-                req.params.id
+                req.params.id,
+                req.user.societyId
             );
 
 

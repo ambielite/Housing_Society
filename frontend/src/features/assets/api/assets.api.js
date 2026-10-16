@@ -1,7 +1,8 @@
-import { legacyApi as axiosClient } from "../../../lib/axios";
+import { legacyApi as axiosClient, societyStorage } from "../../../lib/axios";
+import { createVendor as createSharedVendor, deleteVendor as deleteSharedVendor, listVendors, updateVendor as updateSharedVendor, updateVendorStatus } from "../../vendors/api/vendors.api";
 
 const societyParams = () => {
-    const societyId = String(localStorage.getItem("selectedSocietyId") || "").replace(/^:+/, "").trim();
+    const societyId = String(societyStorage.get() || "").replace(/^:+/, "").trim();
     return societyId ? { params: { societyId } } : {};
 };
 const request = async (promise) => (await promise).data;
@@ -17,13 +18,13 @@ const assetsApi = {
     updateCategory: (id, data) => request(axiosClient.put(`/asset-categories/${id}`, data)),
     categoryAction: (id, action) => request(axiosClient.post(`/asset-categories/${id}/${action}`)),
     deleteCategory: (id) => request(axiosClient.delete(`/asset-categories/${id}`)),
-    getDocuments: () => request(axiosClient.get("/asset-documents")),
+    getDocuments: () => request(axiosClient.get("/asset-documents", societyParams())),
     createDocument: (data) => request(axiosClient.post("/asset-documents", data, { headers: { "Content-Type": "multipart/form-data" } })),
     updateDocument: (id, data) => request(axiosClient.put(`/asset-documents/${id}`, data)),
     documentAction: (id, action) => request(axiosClient.post(`/asset-documents/${id}/${action}`)),
     updateExpiredDocuments: () => request(axiosClient.post("/asset-documents/update-expired")),
     deleteDocument: (id) => request(axiosClient.delete(`/asset-documents/${id}`)),
-    getMaintenance: () => request(axiosClient.get("/asset-maintenance")),
+    getMaintenance: () => request(axiosClient.get("/asset-maintenance", societyParams())),
     createMaintenance: (data) => request(axiosClient.post("/asset-maintenance", data)),
     updateMaintenance: (id, data) => request(axiosClient.put(`/asset-maintenance/${id}`, data)),
     maintenanceAction: (id, action, data = {}) => request(axiosClient.post(`/asset-maintenance/${id}/${action}`, data)),
@@ -34,7 +35,7 @@ const assetsApi = {
     updateInventory: (id, data) => request(axiosClient.put(`/inventory/${id}`, data)),
     inventoryAction: (id, action) => request(axiosClient.post(`/inventory/${id}/${action}`)),
     deleteInventory: (id) => request(axiosClient.delete(`/inventory/${id}`)),
-    getTransactions: () => request(axiosClient.get("/stock-transactions")),
+    getTransactions: () => request(axiosClient.get("/stock-transactions", societyParams())),
     createTransaction: (kind, data) => request(axiosClient.post(`/stock-transactions/${kind}`, data)),
     deleteTransaction: (id) => request(axiosClient.delete(`/stock-transactions/${id}`)),
     getAmcs: () => request(axiosClient.get("/amcs", societyParams())),
@@ -42,11 +43,27 @@ const assetsApi = {
     amcAction: (id, action, data = {}) => request(axiosClient.post(`/amcs/${id}/${action}`, data)),
     updateExpiredAmcs: () => request(axiosClient.post("/amcs/update-expired")),
     deleteAmc: (id) => request(axiosClient.delete(`/amcs/${id}`)),
-    getVendors: () => request(axiosClient.get("/vendors", societyParams())),
-    createVendor: (data) => request(axiosClient.post("/vendors", data)),
-    updateVendor: (id, data) => request(axiosClient.put(`/vendors/${id}`, data)),
-    vendorAction: (id, action) => request(axiosClient.post(`/vendors/${id}/${action}`)),
-    deleteVendor: (id) => request(axiosClient.delete(`/vendors/${id}`)),
+    getVendors: async () => {
+        const result = await listVendors({ ...societyParams().params, limit: 100 });
+        const vendors = Array.isArray(result) ? result : result?.vendors || [];
+        return { vendors: vendors.map((vendor) => ({
+            ...vendor,
+            legalName: vendor.legal_name || vendor.legalName,
+            companyName: vendor.legal_name || vendor.legalName || vendor.trade_name || vendor.tradeName,
+            tradeName: vendor.trade_name || vendor.tradeName,
+            contactEmail: vendor.contact_email || vendor.contactEmail,
+            phone: vendor.phone,
+        })) };
+    },
+    createVendor: (data) => createSharedVendor({ ...data, societyId: societyStorage.get() }),
+    updateVendor: (id, data) => {
+        const { societyId: _societyId, ...vendorData } = data;
+        return updateSharedVendor(id, vendorData);
+    },
+    vendorAction: (id, action) => ["activate", "deactivate", "blacklist"].includes(action)
+        ? updateVendorStatus(id, action === "activate" ? "ACTIVE" : action === "blacklist" ? "BLACKLISTED" : "SUSPENDED")
+        : Promise.reject(new Error(`Unsupported vendor action: ${action}`)),
+    deleteVendor: (id) => deleteSharedVendor(id),
     getSchedules: () => request(axiosClient.get("/maintenance-schedules", societyParams())),
     createSchedule: (data) => request(axiosClient.post("/maintenance-schedules", data)),
     updateSchedule: (id, data) => request(axiosClient.put(`/maintenance-schedules/${id}`, data)),
@@ -56,7 +73,7 @@ const assetsApi = {
     createWorkOrder: (data) => request(axiosClient.post("/work-orders", data)),
     workOrderAction: (id, action, data = {}) => request(axiosClient.post(`/work-orders/${id}/${action}`, data)),
     deleteWorkOrder: (id) => request(axiosClient.delete(`/work-orders/${id}`)),
-    getQrTags: () => request(axiosClient.get("/asset-qr")),
+    getQrTags: () => request(axiosClient.get("/asset-qr", societyParams())),
     createQr: (data) => request(axiosClient.post("/asset-qr", data)),
     scanQr: (qrValue) => request(axiosClient.post("/asset-qr/scan", { qrValue })),
     qrAction: (id, action) => request(axiosClient.post(`/asset-qr/${id}/${action}`)),

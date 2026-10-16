@@ -1,4 +1,6 @@
 const Society = require("./society.model");
+const sequelize = require("../../../config/database");
+const { Op } = require("sequelize");
 
 const findAllSocieties = async () => {
     return await Society.findAll({
@@ -6,12 +8,29 @@ const findAllSocieties = async () => {
     });
 };
 
+const findSocietiesByIds = async (ids) => {
+    if (!ids.length) return [];
+    return Society.findAll({ where: { id: { [Op.in]: ids } }, order: [["created_at", "DESC"]] });
+};
+
 const findSocietyById = async (id) => {
     return await Society.findByPk(id);
 };
 
-const createSociety = async (data) => {
-    return await Society.create(data);
+const createSociety = async (data, createdBy) => {
+    return sequelize.transaction(async (transaction) => {
+        const society = await Society.create(data, { transaction });
+        if (createdBy) {
+            await sequelize.query(
+                `INSERT INTO user_society_access (user_id, society_id, access_level)
+                 VALUES (:userId, :societyId, 'ADMIN')
+                 ON CONFLICT (user_id, society_id)
+                 DO UPDATE SET active_from = now(), active_until = NULL`,
+                { replacements: { userId: createdBy, societyId: society.id }, transaction }
+            );
+        }
+        return society;
+    });
 };
 
 const updateSociety = async (id, data) => {
@@ -40,6 +59,7 @@ const deleteSociety = async (id) => {
 
 module.exports = {
     findAllSocieties,
+    findSocietiesByIds,
     findSocietyById,
     createSociety,
     updateSociety,

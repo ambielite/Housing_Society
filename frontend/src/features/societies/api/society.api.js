@@ -21,6 +21,8 @@ const societyApi = {
             data
         );
 
+        window.dispatchEvent(new Event("housing:societies-updated"));
+
         return response.data;
     },
 

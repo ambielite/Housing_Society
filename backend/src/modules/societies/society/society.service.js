@@ -1,17 +1,20 @@
 const societyRepository = require("./society.repository");
+const usersRepository = require("../../users/users.repository");
 
-const createSociety = async (data) => {
+const createSociety = async (data, createdBy) => {
 
     const existingSocieties =
         await societyRepository.findAllSocieties();
 
     // your business logic here
 
-    return await societyRepository.createSociety(data);
+    return await societyRepository.createSociety(data, createdBy);
 };
 
-const getAllSocieties = async () => {
-    return await societyRepository.findAllSocieties();
+const getAllSocieties = async (user) => {
+    if (user?.roles?.includes("SUPER_ADMIN")) return societyRepository.findAllSocieties();
+    const accessible = await usersRepository.listAccessibleSocieties(user.id, false);
+    return societyRepository.findSocietiesByIds(accessible.map((society) => society.id));
 };
 
 const getSocietyById = async (id) => {

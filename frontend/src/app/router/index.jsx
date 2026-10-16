@@ -119,15 +119,22 @@ export default function AppRoutes() {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/housing-dashboard" element={<HousingDashboardPage />} />
           <Route path="/change-password" element={<ChangePasswordPage />} />
-          <Route path="/societies" element={<SocietyListPage />} />
-          <Route path="/towers" element={<TowerListPage />} />
-          <Route path="/floors" element={<FloorListPage />} />
-          <Route path="/units" element={<UnitListPage />} />
-          <Route path="/residents" element={<ResidentListPage />} />
-          <Route path="/residents/list" element={<ResidentListPage />} />
-          <Route path="/residents/ownership" element={<ResidentHierarchyPage />} />
-          <Route path="/residents/verification" element={<ResidentVerificationPage />} />
-          <Route path="/residents/non-members" element={<NonMemberListPage />} />
+          <Route element={<ProtectedRoute permission="SOCIETY_READ" />}>
+            <Route path="/societies" element={<SocietyListPage />} />
+          </Route>
+          <Route element={<ProtectedRoute permission="TOWER_READ" />}><Route path="/towers" element={<TowerListPage />} /></Route>
+          <Route element={<ProtectedRoute permission="FLOOR_READ" />}><Route path="/floors" element={<FloorListPage />} /></Route>
+          <Route element={<ProtectedRoute permission="UNIT_READ" />}><Route path="/units" element={<UnitListPage />} /></Route>
+          <Route element={<ProtectedRoute permission="RESIDENT_READ" />}>
+            <Route path="/residents" element={<ResidentListPage />} />
+            <Route path="/residents/list" element={<ResidentListPage />} />
+          </Route>
+          <Route element={<ProtectedRoute permission="OWNER_UNIT_READ" />}><Route path="/residents/ownership" element={<ResidentHierarchyPage />} /></Route>
+          <Route element={<ProtectedRoute permission="RESIDENT_VERIFICATION_READ" />}>
+            <Route path="/residents/verification" element={<ResidentVerificationPage />} />
+            <Route path="/residents/non-members" element={<NonMemberListPage />} />
+          </Route>
+          <Route element={<ProtectedRoute permission={['MOVE_IN_READ', 'MOVE_OUT_READ', 'AGREEMENT_READ', 'AGREEMENT_RENEWAL_READ', 'AGREEMENT_REMINDER_READ']} />}>
           <Route path="/move-in-out" element={<MoveInOutPage />}>
             <Route index element={<MoveInOutDashboardPage />} />
             <Route path="move-ins" element={<MoveInListPage />} />
@@ -135,6 +142,8 @@ export default function AppRoutes() {
             <Route path="agreements" element={<AgreementListPage />} />
             <Route path="renewals" element={<AgreementLifecyclePage />} />
           </Route>
+          </Route>
+          <Route element={<ProtectedRoute permission={['ACCOUNT_READ', 'BILLING_READ', 'INVOICE_READ', 'PAYMENT_READ', 'FINANCIAL_REPORT_READ', 'JOURNAL_READ', 'LEDGER_ACCOUNT_READ', 'GENERAL_LEDGER_READ', 'TAX_READ', 'RECONCILIATION_READ', 'ACCOUNTING_EXPORT_READ', 'ACCOUNTING_PERIOD_READ']} />}>
           <Route path="/finance" element={<FinancePage />}>
             <Route index element={<FinanceDashboardPage />} />
             <Route path="dashboard" element={<FinanceDashboardPage />} />
@@ -150,18 +159,31 @@ export default function AppRoutes() {
             <Route path="exports" element={<FinanceExportsPage />} />
             <Route path="periods" element={<FinancePeriodsPage />} />
           </Route>
-          <Route path="/security-operations" element={<OperationsSecurityPage />} />
-          <Route path="/security-operations/:section" element={<OperationsSecurityPage />} />
-          <Route path="/assets" element={<AssetsPage />} />
-          <Route path="/assets/:section" element={<AssetsPage />} />
-          <Route path="/notifications" element={<NotificationsPage />} />
-          <Route path="/notifications/:section" element={<NotificationsPage />} />
-          <Route path="/community" element={<CommunityPage />} />
-          <Route path="/community/:section" element={<CommunityPage />} />
-          <Route path="/reports" element={<ReportsPage />} />
-          <Route path="/reports/:section" element={<ReportsPage />} />
-          <Route path="/multi-society" element={<MultiSocietyPage />} />
-          <Route path="/multi-society/:section" element={<MultiSocietyPage />} />
+          </Route>
+          <Route element={<ProtectedRoute permission={['STAFF_READ', 'PATROL_READ', 'INCIDENT_READ', 'EMERGENCY_READ', 'SECURITY_AUDIT_READ']} />}>
+            <Route path="/security-operations" element={<OperationsSecurityPage />} />
+            <Route path="/security-operations/:section" element={<OperationsSecurityPage />} />
+          </Route>
+          <Route element={<ProtectedRoute permission={['ASSET_READ', 'INVENTORY_READ', 'ASSET_MAINTENANCE_READ', 'AMC_READ', 'WORK_ORDER_READ', 'MAINTENANCE_SCHEDULE_READ', 'ASSET_DOCUMENT_READ', 'ASSET_QR_READ', 'ASSET_LIFECYCLE_READ', 'ASSET_CATEGORY_READ']} />}>
+            <Route path="/assets" element={<AssetsPage />} />
+            <Route path="/assets/:section" element={<AssetsPage />} />
+          </Route>
+          <Route element={<ProtectedRoute permission={['NOTIFICATION_READ', 'NOTIFICATION_TEMPLATE_READ', 'NOTIFICATION_PREFERENCE_READ', 'BROADCAST_READ']} />}>
+            <Route path="/notifications" element={<NotificationsPage />} />
+            <Route path="/notifications/:section" element={<NotificationsPage />} />
+          </Route>
+          <Route element={<ProtectedRoute permission={['COMMUNITY_GROUP_READ', 'COMMUNITY_FORUM_READ', 'COMMUNITY_EVENT_READ', 'COMMUNITY_MEETING_READ', 'COMMUNITY_GOVERNANCE_READ', 'COMMUNITY_VOTING_READ']} />}>
+            <Route path="/community" element={<CommunityPage />} />
+            <Route path="/community/:section" element={<CommunityPage />} />
+          </Route>
+          <Route element={<ProtectedRoute permission={['REPORT_DASHBOARD_READ', 'REPORT_FINANCE_READ', 'REPORT_OPERATIONS_READ', 'REPORT_SECURITY_READ', 'REPORT_APPROVAL_READ']} />}>
+            <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/reports/:section" element={<ReportsPage />} />
+          </Route>
+          <Route element={<ProtectedRoute permission={['ORGANIZATION_READ', 'CLUSTER_READ', 'MULTI_SOCIETY_READ']} />}>
+            <Route path="/multi-society" element={<MultiSocietyPage />} />
+            <Route path="/multi-society/:section" element={<MultiSocietyPage />} />
+          </Route>
           {/* Users */}
           <Route element={<ProtectedRoute permission="USER_READ" />}>
             <Route path="/users" element={<UserListPage />} />
