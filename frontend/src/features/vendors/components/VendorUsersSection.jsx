@@ -38,10 +38,10 @@ export default function VendorUsersSection({ vendorId, societyId }) {
  
 const candidates = useFetch(
   () =>
-    canManage
-      ? usersApi.listUsers({ limit: 100 })
+    canManage && societyId
+      ? usersApi.listUsers({ societyId, status: 'ACTIVE', limit: 100 })
       : Promise.resolve(null),
-  [canManage]
+  [canManage, societyId]
 );
 
 
@@ -65,14 +65,6 @@ const candidates = useFetch(
       (user) =>
         String(user.status || '').trim().toUpperCase() === 'ACTIVE'
     )
-    .filter((user) => {
-      const userSocietyId = user.society_id ?? user.societyId;
-
-      return (
-        !userSocietyId ||
-        String(userSocietyId) === String(societyId)
-      );
-    })
     .filter((user) => {
       const id = getUserId(user);
 
