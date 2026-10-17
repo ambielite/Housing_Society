@@ -30,6 +30,7 @@ const AgreementLifecyclePage = () => {
     const [loading, setLoading] = useState(true);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
+    const [notice, setNotice] = useState("");
     const [showRenewalForm, setShowRenewalForm] = useState(false);
     const [showConfigForm, setShowConfigForm] = useState(false);
     const [renewalValues, setRenewalValues] = useState({ agreementId: "", proposedStartDate: "", proposedExpiryDate: "" });
@@ -59,6 +60,11 @@ const AgreementLifecyclePage = () => {
     };
 
     useEffect(() => { loadData(); }, []);
+
+    const getAgreementLabel = (agreementId, fallbackReference) =>
+        agreements.find((agreement) => String(agreement.id) === String(agreementId))?.agreementReference
+        || fallbackReference
+        || "Agreement";
 
     const runRenewalAction = async (renewal, action) => {
         const currentUserId = user?.id || user?.userId || user?.user?.id;
@@ -106,8 +112,25 @@ const AgreementLifecyclePage = () => {
 
     const runReminderAction = async (action, id) => {
         try {
-            setBusy(true); setError("");
-            if (action === "generate") await agreementReminderApi.generateAll();
+            setBusy(true); setError(""); setNotice("");
+            let generationNotice = "";
+            if (action === "generate") {
+                const response = await agreementReminderApi.generateAll();
+                const results = rowsFrom(response);
+                const scheduleCount = results.reduce((count, result) => count + (Array.isArray(result.reminders) ? result.reminders.length : 0), 0);
+                const activeAgreements = agreements.filter((agreement) => ["ACTIVE", "EXPIRING_SOON", "RENEWAL_INITIATED"].includes(agreement.status));
+                const eligibleAgreements = activeAgreements.filter((agreement) => configs.some((config) => config.enabled && config.societyId === agreement.societyId));
+
+                if (scheduleCount > 0) {
+                    generationNotice = `Reminder generation finished: ${scheduleCount} schedule(s) available across ${eligibleAgreements.length} eligible active agreement(s).`;
+                } else if (!activeAgreements.length) {
+                    generationNotice = "No reminders generated. Activate an agreement first; drafts and agreements awaiting approval are not included.";
+                } else if (!eligibleAgreements.length) {
+                    generationNotice = "No reminders generated. Add or enable reminder rules for the societies with active agreements.";
+                } else {
+                    generationNotice = "No reminder schedules were returned. Check the backend log and confirm the agreement expiry dates and reminder rules.";
+                }
+            }
             else if (action === "process") await agreementReminderApi.process(id);
             else if (action === "process-notification") await agreementNotificationApi.process(id);
             else if (action === "read") await agreementNotificationApi.markRead(id);
@@ -115,6 +138,7 @@ const AgreementLifecyclePage = () => {
             else if (action === "delete-reminder") await agreementReminderApi.delete(id);
             else if (action === "delete-notification") await agreementNotificationApi.delete(id);
             await loadData();
+            if (generationNotice) setNotice(generationNotice);
         } catch (err) { setError(err.response?.data?.message || err.message || "Could not update reminder activity."); }
         finally { setBusy(false); }
     };
@@ -122,6 +146,7 @@ const AgreementLifecyclePage = () => {
     return <section className="society-dashboard">
         <header className="society-heading"><div><div className="society-eyebrow"><span className="society-eyebrow-dot" /> AGREEMENT LIFECYCLE</div><h1>Renewals & reminders</h1><p>Manage renewal requests, expiry schedules, and resident notifications.</p></div><button className="society-refresh-button" onClick={loadData} disabled={loading}><RefreshCw size={16} className={loading ? "society-spinning" : ""} /> Refresh</button></header>
         {error && <div className="society-error" role="alert">{error}<button onClick={loadData}>Try again</button></div>}
+        {notice && <div className="multi-society-notice" role="status">{notice}</div>}
         <div className="society-lifecycle-grid">
             <section className="society-list-panel">
                 <div className="society-list-heading"><div><h2><CalendarClock size={17} /> Agreement renewals</h2><p>Submit, review, approve, reject, and complete renewals.</p></div><button className="society-add-button" onClick={() => setShowRenewalForm((value) => !value)}><Plus size={16} /> New renewal</button></div>
@@ -134,8 +159,8 @@ const AgreementLifecyclePage = () => {
                 <div className="society-table-wrap"><table className="society-table"><thead><tr><th>Society</th><th>Type</th><th>Days before expiry</th><th>Actions</th></tr></thead><tbody>{configs.map((config) => <tr key={config.id}><td>{societies.find((society) => society.id === config.societyId)?.name || config.societyId}</td><td>{config.reminderType}</td><td>{config.daysBeforeExpiry}</td><td><button className="society-icon-action society-delete-action" title="Delete reminder rule" onClick={() => runReminderAction("delete-config", config.id)} disabled={busy}><Trash2 size={16} /></button></td></tr>)}</tbody></table>{!configs.length && <div className="society-empty"><h3>No reminder rules configured</h3></div>}</div>
             </section>
         </div>
-        <section className="society-list-panel society-lifecycle-panel"><div className="society-list-heading"><div><h2>Scheduled reminders</h2><p>Generate upcoming reminders and process queued notices.</p></div><button className="society-workflow-action" onClick={() => runReminderAction("generate")} disabled={busy}>Generate reminders</button></div><div className="society-table-wrap"><table className="society-table"><thead><tr><th>Agreement</th><th>Type</th><th>Due</th><th>Status</th><th>Action</th></tr></thead><tbody>{reminders.map((reminder) => <tr key={reminder.id}><td>{reminder.agreementId}</td><td>{reminder.reminderType || reminder.type || "Reminder"}</td><td>{formatDateValue(reminder.scheduledAt || reminder.reminderDate)}</td><td>{reminder.status || "PENDING"}</td><td><div className="society-row-actions"><button className="society-workflow-action" disabled={busy || reminder.status === "SENT"} onClick={() => runReminderAction("process", reminder.id)}>Process</button><button className="society-icon-action society-delete-action" disabled={busy} title="Delete reminder" onClick={() => runReminderAction("delete-reminder", reminder.id)}><Trash2 size={16} /></button></div></td></tr>)}</tbody></table>{!reminders.length && <div className="society-empty"><h3>No scheduled reminders</h3></div>}</div></section>
-        <section className="society-list-panel society-lifecycle-panel"><div className="society-list-heading"><div><h2>Agreement notifications</h2><p>Process delivery and mark notices as read.</p></div><span className="society-count">{notifications.length} notifications</span></div><div className="society-table-wrap"><table className="society-table"><thead><tr><th>Agreement</th><th>Channel</th><th>Recipient</th><th>Status</th><th>Actions</th></tr></thead><tbody>{notifications.map((notice) => <tr key={notice.id}><td>{notice.agreementId || notice.agreementReference || "—"}</td><td>{notice.channel || notice.notificationType || "—"}</td><td>{notice.recipientName || notice.recipient || "—"}</td><td>{notice.deliveryStatus || notice.status || (notice.isRead ? "READ" : "PENDING")}</td><td><div className="society-row-actions"><button className="society-workflow-action" disabled={busy} onClick={() => runReminderAction("process-notification", notice.id)}>Process</button><button className="society-icon-action" title="Mark as read" disabled={busy} onClick={() => runReminderAction("read", notice.id)}><Check size={16} /></button><button className="society-icon-action society-delete-action" title="Delete notification" disabled={busy} onClick={() => runReminderAction("delete-notification", notice.id)}><Trash2 size={16} /></button></div></td></tr>)}</tbody></table>{!notifications.length && <div className="society-empty"><h3>No agreement notifications</h3></div>}</div></section>
+        <section className="society-list-panel society-lifecycle-panel"><div className="society-list-heading"><div><h2>Scheduled reminders</h2><p>Generate upcoming reminders and process queued notices.</p></div><button className="society-workflow-action" onClick={() => runReminderAction("generate")} disabled={busy}>{busy ? "Working…" : "Generate reminders"}</button></div><div className="society-table-wrap"><table className="society-table"><thead><tr><th>Agreement</th><th>Type</th><th>Due</th><th>Status</th><th>Action</th></tr></thead><tbody>{reminders.map((reminder) => <tr key={reminder.id}><td>{getAgreementLabel(reminder.agreementId, reminder.agreementReference)}</td><td>{reminder.reminderType || reminder.type || "Reminder"}</td><td>{formatDateValue(reminder.scheduledAt || reminder.reminderDate)}</td><td>{reminder.status || "PENDING"}</td><td><div className="society-row-actions"><button className="society-workflow-action" disabled={busy || reminder.status === "SENT"} onClick={() => runReminderAction("process", reminder.id)}>Process</button><button className="society-icon-action society-delete-action" disabled={busy} title="Delete reminder" onClick={() => runReminderAction("delete-reminder", reminder.id)}><Trash2 size={16} /></button></div></td></tr>)}</tbody></table>{!reminders.length && <div className="society-empty"><h3>No scheduled reminders</h3></div>}</div></section>
+        <section className="society-list-panel society-lifecycle-panel"><div className="society-list-heading"><div><h2>Agreement notifications</h2><p>Process delivery and mark notices as read.</p></div><span className="society-count">{notifications.length} notifications</span></div><div className="society-table-wrap"><table className="society-table"><thead><tr><th>Agreement</th><th>Channel</th><th>Recipient</th><th>Status</th><th>Actions</th></tr></thead><tbody>{notifications.map((notice) => <tr key={notice.id}><td>{getAgreementLabel(notice.agreementId, notice.agreementReference)}</td><td>{notice.channel || notice.notificationType || "—"}</td><td>{notice.recipientName || notice.recipient || "—"}</td><td>{notice.deliveryStatus || notice.status || (notice.isRead ? "READ" : "PENDING")}</td><td><div className="society-row-actions"><button className="society-workflow-action" disabled={busy} onClick={() => runReminderAction("process-notification", notice.id)}>Process</button><button className="society-icon-action" title="Mark as read" disabled={busy} onClick={() => runReminderAction("read", notice.id)}><Check size={16} /></button><button className="society-icon-action society-delete-action" title="Delete notification" disabled={busy} onClick={() => runReminderAction("delete-notification", notice.id)}><Trash2 size={16} /></button></div></td></tr>)}</tbody></table>{!notifications.length && <div className="society-empty"><h3>No agreement notifications</h3></div>}</div></section>
     </section>;
 };
 

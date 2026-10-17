@@ -15,6 +15,15 @@ const findById = async (id) => {
   return result.rows[0] || null;
 };
 
+const findNamesByIds = async (ids) => {
+  if (!ids.length) return [];
+  const result = await db.query(
+    'SELECT id, first_name, last_name FROM users WHERE id = ANY($1::uuid[])',
+    [ids]
+  );
+  return result.rows;
+};
+
 const listAccessibleSocieties = async (userId, isSuperAdmin = false) => {
   if (isSuperAdmin) {
     const result = await db.query('SELECT id, name FROM societies ORDER BY name, id');
@@ -176,6 +185,7 @@ const listUsers = async ({ societyId, status, search, limit, offset }) => {
 module.exports = {
   findByEmail,
   findById,
+  findNamesByIds,
   listAccessibleSocieties,
   hasSocietyAccess,
   createUser,

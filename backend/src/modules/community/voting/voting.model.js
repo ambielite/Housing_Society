@@ -118,6 +118,65 @@ const CommunityVoting = sequelize.define(
             field: "quorum_required"
         },
 
+        eligibilityRules: {
+            type: DataTypes.JSONB,
+            allowNull: false,
+            defaultValue: {},
+            field: "eligibility_rules"
+        },
+
+        legalBasis: {
+            type: DataTypes.TEXT,
+            allowNull: true,
+            field: "legal_basis"
+        },
+
+        rulesApproved: {
+            type: DataTypes.BOOLEAN,
+            allowNull: false,
+            defaultValue: false,
+            field: "rules_approved"
+        },
+
+        rulesApprovedBy: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            field: "rules_approved_by"
+        },
+
+        rulesApprovedAt: {
+            type: DataTypes.DATE,
+            allowNull: true,
+            field: "rules_approved_at"
+        },
+
+        candidateApprovalRequired: {
+            type: DataTypes.BOOLEAN,
+            allowNull: false,
+            defaultValue: true,
+            field: "candidate_approval_required"
+        },
+
+        identityVerificationRequired: {
+            type: DataTypes.BOOLEAN,
+            allowNull: false,
+            defaultValue: false,
+            field: "identity_verification_required"
+        },
+
+        otpRequired: {
+            type: DataTypes.BOOLEAN,
+            allowNull: false,
+            defaultValue: true,
+            field: "otp_required"
+        },
+
+        resultsPublishedAt: {
+            type: DataTypes.DATE,
+            allowNull: true,
+            field: "results_published_at"
+        },
+
         quorumReached: {
             type: DataTypes.BOOLEAN,
             allowNull: false,

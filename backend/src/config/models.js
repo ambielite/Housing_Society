@@ -110,6 +110,8 @@ const CommunityVotingEligibility =  require("../modules/community/voting/votingE
 const CommunityVotingBallot =  require("../modules/community/voting/votingBallot.model");
 const CommunityVotingVote =  require("../modules/community/voting/votingVote.model");
 const CommunityGovernanceRule = require("../modules/community/voting/governanceRule.model");
+const CommunityVotingOtp = require("../modules/community/voting/votingOtp.model");
+const CommunityVotingAudit = require("../modules/community/voting/votingAudit.model");
 const Organization = require("../modules/multi-society/organization/organization.model");
 const Cluster = require("../modules/multi-society/cluster/cluster.model");
 const MultiSocietyAccess = require("../modules/multi-society/multi-society/multiSociety.model");
@@ -1131,24 +1133,6 @@ CommunityVotingBallot.belongsTo(
     }
 );
 
-CommunityVotingBallot.hasOne(
-    CommunityVotingVote,
-    {
-        foreignKey: "ballotId",
-        as: "vote",
-        onDelete: "CASCADE"
-    }
-);
-
-CommunityVotingVote.belongsTo(
-    CommunityVotingBallot,
-    {
-        foreignKey: "ballotId",
-        as: "ballot"
-    }
-);
-
-
 CommunityVotingOption.hasMany(
     CommunityVotingVote,
     {
@@ -1403,6 +1387,8 @@ module.exports = {
     CommunityVotingBallot,
     CommunityVotingVote,
     CommunityGovernanceRule,
+    CommunityVotingOtp,
+    CommunityVotingAudit,
     
     Organization,
     Cluster,

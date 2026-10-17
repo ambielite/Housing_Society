@@ -140,7 +140,7 @@ const approve = async (req, res) => {
         const nonMember =
             await service.approve(
                 req.params.id,
-                req.body.approvedBy,
+                req.user.id,
                 req.body.remarks
             );
 

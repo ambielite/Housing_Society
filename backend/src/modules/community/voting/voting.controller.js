@@ -13,7 +13,7 @@ const createVoting = async (req, res) => {
 
         const result =
             await service.createVoting(
-                req.body
+                { ...req.body, createdBy: req.user?.id }
             );
 
         res.status(201).json({
@@ -95,8 +95,8 @@ const addOption = async (req, res) => {
         const result =
             await service.addOption({
                 ...req.body,
-                votingId:
-                    req.params.id
+                votingId: req.params.id,
+                createdBy: req.user?.id
             });
 
         res.status(201).json({
@@ -155,7 +155,7 @@ const addEligibleVoter = async (req, res) => {
                 ...req.body,
                 votingId:
                     req.params.id
-            });
+            }, req.user?.id);
 
         res.status(201).json({
             success: true,
@@ -171,6 +171,20 @@ const addEligibleVoter = async (req, res) => {
         });
 
     }
+};
+
+const getEligibleVoters = async (req, res) => {
+    try {
+        const result = await service.getEligibleVoters(req.params.id);
+        res.json({ success: true, count: result.length, data: result });
+    } catch (error) { res.status(400).json({ success: false, message: error.message }); }
+};
+
+const getVotingAccounts = async (req, res) => {
+    try {
+        const result = await service.getVotingAccounts(req.params.id);
+        res.json({ success: true, count: result.length, data: result });
+    } catch (error) { res.status(400).json({ success: false, message: error.message }); }
 };
 
 
@@ -215,7 +229,8 @@ const openVoting = async (req, res) => {
 
         const result =
             await service.openVoting(
-                req.params.id
+                req.params.id,
+                req.user?.id
             );
 
         res.status(200).json({
@@ -274,7 +289,8 @@ const closeVoting = async (req, res) => {
 
         const result =
             await service.closeVoting(
-                req.params.id
+                req.params.id,
+                req.user?.id
             );
 
         res.status(200).json({
@@ -304,7 +320,8 @@ const countVotes = async (req, res) => {
 
         const result =
             await service.countVotes(
-                req.params.id
+                req.params.id,
+                req.user?.id
             );
 
         res.status(200).json({
@@ -335,7 +352,8 @@ const cancelVoting = async (req, res) => {
         const result =
             await service.cancelVoting(
                 req.params.id,
-                req.body.reason
+                req.body.reason,
+                req.user?.id
             );
 
         res.status(200).json({
@@ -418,7 +436,7 @@ const updateGovernanceRule = async (req, res) => {
         const result =
             await service.updateGovernanceRule(
                 req.params.id,
-                req.body
+                { ...req.body, updatedBy: req.user?.id }
             );
 
         res.status(200).json({
@@ -437,6 +455,65 @@ const updateGovernanceRule = async (req, res) => {
     }
 };
 
+const configureVoting = async (req, res) => {
+    try { res.json({ success: true, data: await service.updateVotingConfiguration(req.params.id, req.body, req.user?.id) }); }
+    catch (error) { res.status(400).json({ success: false, message: error.message }); }
+};
+
+const approveVotingRules = async (req, res) => {
+    try { res.json({ success: true, data: await service.approveRules(req.params.id, req.user?.id) }); }
+    catch (error) { res.status(400).json({ success: false, message: error.message }); }
+};
+
+const revokeVotingRules = async (req, res) => {
+    try { res.json({ success: true, data: await service.revokeRulesApproval(req.params.id, req.user?.id) }); }
+    catch (error) { res.status(400).json({ success: false, message: error.message }); }
+};
+
+const reviewCandidate = async (req, res) => {
+    try { res.json({ success: true, data: await service.reviewCandidate(req.params.id, req.params.optionId, { ...req.body, actorId: req.user?.id }) }); }
+    catch (error) { res.status(400).json({ success: false, message: error.message }); }
+};
+
+const verifyVoterIdentity = async (req, res) => {
+    try { res.json({ success: true, data: await service.verifyVoterIdentity(req.params.id, req.params.eligibilityId, req.body.verified, req.user?.id) }); }
+    catch (error) { res.status(400).json({ success: false, message: error.message }); }
+};
+
+const requestVoteOtp = async (req, res) => {
+    try { res.json({ success: true, data: await service.requestVoteOtp(req.params.id, req.user?.id) }); }
+    catch (error) { res.status(400).json({ success: false, message: error.message }); }
+};
+
+const verifyVoteOtp = async (req, res) => {
+    try { res.json({ success: true, data: await service.verifyVoteOtp(req.params.id, req.user?.id, req.body.code) }); }
+    catch (error) { res.status(400).json({ success: false, message: error.message }); }
+};
+
+const publishResults = async (req, res) => {
+    try { res.json({ success: true, data: await service.publishResults(req.params.id, req.user?.id) }); }
+    catch (error) { res.status(400).json({ success: false, message: error.message }); }
+};
+
+const exportReport = async (req, res) => {
+    try {
+        const csv = await service.exportReport(req.params.id);
+        res.setHeader("Content-Type", "text/csv; charset=utf-8");
+        res.setHeader("Content-Disposition", `attachment; filename="election-${req.params.id}-report.csv"`);
+        res.send(`\uFEFF${csv}`);
+    } catch (error) { res.status(400).json({ success: false, message: error.message }); }
+};
+
+const getAuditEvents = async (req, res) => {
+    try { res.json({ success: true, data: await service.getAuditEvents(req.params.id) }); }
+    catch (error) { res.status(400).json({ success: false, message: error.message }); }
+};
+
+const scheduleVoting = async (req, res) => {
+    try { res.json({ success: true, data: await service.scheduleVoting(req.params.id, req.user?.id) }); }
+    catch (error) { res.status(400).json({ success: false, message: error.message }); }
+};
+
 
 module.exports = {
     createVoting,
@@ -445,6 +522,8 @@ module.exports = {
     addOption,
     getOptions,
     addEligibleVoter,
+    getEligibleVoters,
+    getVotingAccounts,
     issueBallot,
     openVoting,
     castVote,
@@ -453,6 +532,17 @@ module.exports = {
     cancelVoting,
     createGovernanceRule,
     getGovernanceRules,
-    updateGovernanceRule
+    updateGovernanceRule,
+    configureVoting,
+    approveVotingRules,
+    revokeVotingRules,
+    reviewCandidate,
+    verifyVoterIdentity,
+    requestVoteOtp,
+    verifyVoteOtp,
+    publishResults,
+    exportReport,
+    getAuditEvents,
+    scheduleVoting
 };
 

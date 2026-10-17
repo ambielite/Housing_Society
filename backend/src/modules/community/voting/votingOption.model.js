@@ -38,6 +38,43 @@ const CommunityVotingOption = sequelize.define(
             allowNull: true
         },
 
+        candidateUserId: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            field: "candidate_user_id"
+        },
+
+        candidateBio: {
+            type: DataTypes.TEXT,
+            allowNull: true,
+            field: "candidate_bio"
+        },
+
+        candidateStatus: {
+            type: DataTypes.STRING(20),
+            allowNull: false,
+            defaultValue: "APPROVED",
+            field: "candidate_status"
+        },
+
+        candidateReviewedBy: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            field: "candidate_reviewed_by"
+        },
+
+        candidateReviewedAt: {
+            type: DataTypes.DATE,
+            allowNull: true,
+            field: "candidate_reviewed_at"
+        },
+
+        candidateRejectionReason: {
+            type: DataTypes.TEXT,
+            allowNull: true,
+            field: "candidate_rejection_reason"
+        },
+
         displayOrder: {
             type: DataTypes.INTEGER,
             allowNull: false,
