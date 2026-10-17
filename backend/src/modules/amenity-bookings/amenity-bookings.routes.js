@@ -5,6 +5,7 @@ const {
   createBookingSchema,
   listBookingsQuerySchema,
   confirmBookingSchema,
+  createBookingPaymentSchema,
   addGuestSchema,
 } = require('./amenity-bookings.validation');
 const { authenticate, authorize } = require('../../common/authMiddleware');
@@ -16,6 +17,8 @@ router.use(authenticate);
 router.get('/', authorize('AMENITY_BOOKING_READ'), validate(listBookingsQuerySchema, 'query'), controller.listBookings);
 router.post('/', authorize('AMENITY_BOOKING_CREATE'), validate(createBookingSchema), controller.createBooking);
 router.get('/:bookingId', authorize('AMENITY_BOOKING_READ'), controller.getBooking);
+router.get('/:bookingId/eligible-payments', authorize('AMENITY_BOOKING_UPDATE'), controller.listEligiblePayments);
+router.post('/:bookingId/payments', authorize('AMENITY_BOOKING_UPDATE', 'INVOICE_CREATE', 'PAYMENT_CREATE'), validate(createBookingPaymentSchema), controller.createFinancePayment);
 router.patch('/:bookingId/confirm', authorize('AMENITY_BOOKING_UPDATE'), validate(confirmBookingSchema), controller.confirmBooking);
 router.patch('/:bookingId/cancel', authorize('AMENITY_BOOKING_UPDATE'), controller.cancelBooking);
 router.patch('/:bookingId/no-show', authorize('AMENITY_BOOKING_UPDATE'), controller.markNoShow);

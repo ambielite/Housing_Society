@@ -15,6 +15,7 @@ export const addComment = (id,body) => api.post(`/tickets/${id}/comments`,body).
 export const listComments = (id) => api.get(`/tickets/${id}/comments`).then(unwrap);
 export const addAttachment = (id,body) => api.post(`/tickets/${id}/attachments`,body).then(unwrap);
 export const listAttachments = (id) => api.get(`/tickets/${id}/attachments`).then(unwrap);
+export const removeAttachment = (id,attachmentId) => api.delete(`/tickets/${id}/attachments/${attachmentId}`).then(unwrap);
 export const listHistory = (id) => api.get(`/tickets/${id}/status-history`).then(unwrap);
 export const addRating = (id,body) => api.post(`/tickets/${id}/rating`,body).then(unwrap);
 export const listPolicies = (params={}) => api.get('/helpdesk-setup/policies',{params:clean(params)}).then(unwrap);

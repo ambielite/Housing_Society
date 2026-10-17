@@ -173,8 +173,23 @@ const addAttachment = async ({ ticketId, documentId }) => {
 };
 
 const listAttachments = async (ticketId) => {
-  const result = await db.query('SELECT * FROM ticket_attachments WHERE ticket_id = $1', [ticketId]);
+  const result = await db.query(
+    `SELECT ta.*, d.title AS document_title, d.file_name AS document_file_name
+     FROM ticket_attachments ta
+     LEFT JOIN documents d ON d.id = ta.document_id
+     WHERE ta.ticket_id = $1
+     ORDER BY ta.created_at ASC`,
+    [ticketId]
+  );
   return result.rows;
+};
+
+const deleteAttachment = async (ticketId, attachmentId) => {
+  const result = await db.query(
+    'DELETE FROM ticket_attachments WHERE ticket_id = $1 AND id = $2 RETURNING id',
+    [ticketId, attachmentId]
+  );
+  return result.rows[0] || null;
 };
 
 // --- ticket_status_history ---------------------------------------------------------
@@ -230,6 +245,7 @@ module.exports = {
   listComments,
   addAttachment,
   listAttachments,
+  deleteAttachment,
   addStatusHistory,
   listStatusHistory,
   findRatingByTicketId,

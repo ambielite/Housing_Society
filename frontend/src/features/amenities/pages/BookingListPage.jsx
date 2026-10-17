@@ -91,7 +91,7 @@ export default function BookingListPage() {
       />
       {dialog && (
         <Modal title="New amenity booking" onClose={() => !saving && setDialog(false)} busy={saving}>
-          <BookingForm userId={user?.id} amenities={amenities.data || []} onSubmit={create} onCancel={() => setDialog(false)} saving={saving} error={error} />
+          <BookingForm userId={user?.id} societyId={societyId} amenities={amenities.data || []} onSubmit={create} onCancel={() => setDialog(false)} saving={saving} error={error} />
         </Modal>
       )}
     </PageContainer>

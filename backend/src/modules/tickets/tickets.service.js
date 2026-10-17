@@ -196,7 +196,7 @@ const assignTicket = async (ticketId, { assignedToUserId, assignedVendorId }, ve
   return assignment;
 };
 
-const unassignTicket = async (ticketId, vendorScope) => {
+const unassignTicket = async (ticketId, changedBy, vendorScope) => {
   const ticket = await repository.findById(ticketId);
   if (!ticket) throw new ApiError(404, 'Ticket not found');
   await assertVendorCanAccess(ticketId, vendorScope);
@@ -204,7 +204,18 @@ const unassignTicket = async (ticketId, vendorScope) => {
   if (!current) {
     throw new ApiError(400, 'This ticket has no active assignment');
   }
-  return repository.unassign(current.id);
+  const unassigned = await repository.unassign(current.id);
+  if (ticket.status === 'ASSIGNED') {
+    await repository.updateStatus(ticketId, 'OPEN');
+    await repository.addStatusHistory({
+      ticketId,
+      oldStatus: 'ASSIGNED',
+      newStatus: 'OPEN',
+      changedBy,
+      remarks: 'Automatically reopened after unassignment',
+    });
+  }
+  return unassigned;
 };
 
 const listAssignments = async (ticketId, vendorScope) => {
@@ -257,6 +268,15 @@ const listAttachments = async (ticketId, vendorScope) => {
   return repository.listAttachments(ticketId);
 };
 
+const deleteAttachment = async (ticketId, attachmentId, vendorScope) => {
+  const ticket = await repository.findById(ticketId);
+  if (!ticket) throw new ApiError(404, 'Ticket not found');
+  await assertVendorCanAccess(ticketId, vendorScope);
+  const deleted = await repository.deleteAttachment(ticketId, attachmentId);
+  if (!deleted) throw new ApiError(404, 'Attachment not found');
+  return deleted;
+};
+
 // --- status history ------------------------------------------------------------------
 
 const listStatusHistory = async (ticketId, vendorScope) => {
@@ -300,6 +320,7 @@ module.exports = {
   listComments,
   addAttachment,
   listAttachments,
+  deleteAttachment,
   listStatusHistory,
   addRating,
 };

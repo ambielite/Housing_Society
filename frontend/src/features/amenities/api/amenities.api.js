@@ -33,6 +33,8 @@ export const deleteBlockout = (id) => api.delete(`/amenities/blockouts/${id}`).t
 // Bookings
 export const listBookings = (params = {}) => api.get('/amenity-bookings', { params: clean(params) }).then(unwrap);
 export const getBooking = (id) => api.get(`/amenity-bookings/${id}`).then(unwrap);
+export const listEligiblePayments = (id) => api.get(`/amenity-bookings/${id}/eligible-payments`).then(unwrap);
+export const createBookingPayment = (id, payload) => api.post(`/amenity-bookings/${id}/payments`, payload).then(unwrap);
 export const createBooking = (payload) => api.post('/amenity-bookings', payload).then(unwrap);
 export const confirmBooking = (id, payload = {}) => api.patch(`/amenity-bookings/${id}/confirm`, payload).then(unwrap);
 export const cancelBooking = (id) => api.patch(`/amenity-bookings/${id}/cancel`).then(unwrap);

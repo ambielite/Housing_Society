@@ -2,6 +2,8 @@ const crypto = require('crypto');
 const ApiError = require('../../common/ApiError');
 const repository = require('./amenity-bookings.repository');
 const amenitiesRepository = require('../amenities/amenities.repository');
+const invoiceService = require('../financial/invoice/invoice.service');
+const paymentService = require('../financial/payment/payment.service');
 
 // Baseline from the spec: "Pending-payment window; baseline example is 5 minutes."
 const PENDING_PAYMENT_WINDOW_MINUTES = 5;
@@ -128,19 +130,143 @@ const getBooking = async (id) => {
   return { ...booking, guests };
 };
 
-/**
- * Confirms a booking (payment received). Until Phase 7 (Payments) is
- * confirmed live, paymentId is stored as a plain UUID placeholder.
- */
-const confirmBooking = async (id, paymentId) => {
+const getBookingSocietyId = async (booking) => {
+  const slot = await amenitiesRepository.findSlotById(booking.amenity_slot_id);
+  if (!slot) throw new ApiError(404, 'Amenity slot not found');
+  const amenity = await amenitiesRepository.findAmenityById(slot.amenity_id);
+  if (!amenity) throw new ApiError(404, 'Amenity not found');
+  return amenity.society_id;
+};
+
+const listEligiblePayments = async (id, activeSocietyId) => {
   const booking = await repository.findById(id);
-  if (!booking) {
+  if (!booking) throw new ApiError(404, 'Booking not found');
+  if (booking.status !== 'PENDING_PAYMENT') {
+    throw new ApiError(400, `Payments can only be linked to a pending booking (current status: ${booking.status})`);
+  }
+  const bookingSocietyId = await getBookingSocietyId(booking);
+  if (activeSocietyId && bookingSocietyId !== activeSocietyId) {
     throw new ApiError(404, 'Booking not found');
   }
+  if (Number(booking.amount) <= 0) return [];
+  return repository.listEligiblePayments({
+    bookingId: id,
+    societyId: bookingSocietyId,
+    unitId: booking.unit_id,
+    amount: booking.amount,
+  });
+};
+
+const createFinancePayment = async (id, activeSocietyId, { paymentMethod, paymentReference }) => {
+  const booking = await repository.findById(id);
+  if (!booking) throw new ApiError(404, 'Booking not found');
   if (booking.status !== 'PENDING_PAYMENT') {
-    throw new ApiError(400, `Cannot confirm a booking that is currently ${booking.status}`);
+    throw new ApiError(400, `A payment can only be recorded for a pending booking (current status: ${booking.status})`);
   }
-  return repository.updateStatus(id, 'CONFIRMED', paymentId);
+  if (Number(booking.amount) <= 0) throw new ApiError(400, 'This booking has no payment due');
+
+  const societyId = await getBookingSocietyId(booking);
+  if (activeSocietyId && societyId !== activeSocietyId) throw new ApiError(404, 'Booking not found');
+  if (!await amenitiesRepository.unitBelongsToSociety(booking.unit_id, societyId)) {
+    throw new ApiError(400, 'The booking unit does not belong to the amenity society');
+  }
+
+  const existingPayments = await repository.listBookingFinancePayments({ bookingId: id, societyId });
+  const activePayment = existingPayments.find((payment) => !['CANCELLED', 'FAILED'].includes(payment.status));
+  if (activePayment) return activePayment;
+
+  const today = await amenitiesRepository.getCurrentDate();
+  const invoiceResult = await invoiceService.createInvoice({
+    societyId,
+    unitId: booking.unit_id,
+    invoiceNumber: `AMN-${booking.booking_no}`,
+    billingPeriod: `AMENITY-${booking.booking_no}`,
+    invoiceDate: today,
+    dueDate: today,
+    idempotencyKey: `amenity-invoice-${id}`,
+    includePreviousBalance: false,
+    description: `Amenity booking ${booking.booking_no}`,
+    remarks: 'Generated from the amenity booking payment flow',
+    items: [{ description: `Amenity reservation ${booking.booking_no}`, quantity: 1, rate: Number(booking.amount), taxRate: 0 }],
+  });
+  const invoice = invoiceResult.invoice;
+  if (invoice.status === 'DRAFT') await invoiceService.issueInvoice(invoice.id);
+  if (invoice.status === 'CANCELLED' || invoice.status === 'PAID') {
+    throw new ApiError(409, `The linked amenity invoice is ${invoice.status.toLowerCase()}`);
+  }
+
+  const attempt = existingPayments.length + 1;
+  const result = await paymentService.createOfflinePayment({
+    societyId,
+    invoiceId: invoice.id,
+    unitId: booking.unit_id,
+    paymentMethod,
+    paymentReference: paymentReference || undefined,
+    amount: Number(booking.amount),
+    paymentDate: today,
+    idempotencyKey: `amenity-payment-${id}-${attempt}`,
+    metadata: { source: 'AMENITY_BOOKING', amenityBookingId: id, bookingNo: booking.booking_no },
+    remarks: `Payment for amenity booking ${booking.booking_no}`,
+  });
+  return result.payment;
+};
+
+/** Confirm only against a real, successful payment for this society, unit, and booking amount. */
+const confirmBooking = async (id, paymentId, activeSocietyId) => {
+  const client = await repository.getClient();
+  try {
+    await client.query('BEGIN');
+    const booking = await repository.findByIdForUpdate(client, id);
+    if (!booking) throw new ApiError(404, 'Booking not found');
+    if (booking.status !== 'PENDING_PAYMENT') {
+      throw new ApiError(400, `Cannot confirm a booking that is currently ${booking.status}`);
+    }
+    const bookingSocietyId = await getBookingSocietyId(booking);
+    if (activeSocietyId && bookingSocietyId !== activeSocietyId) {
+      throw new ApiError(404, 'Booking not found');
+    }
+
+    const amountCents = Math.round(Number(booking.amount) * 100);
+    if (amountCents > 0 && !paymentId) {
+      throw new ApiError(400, 'Select a verified or successful payment before confirming this paid booking');
+    }
+
+    if (paymentId) {
+      const paymentResult = await client.query('SELECT * FROM payments WHERE id = $1 FOR UPDATE', [paymentId]);
+      const payment = paymentResult.rows[0];
+      if (!payment) throw new ApiError(404, 'Payment record not found');
+      if (!['SUCCESS', 'VERIFIED'].includes(payment.status)) {
+        throw new ApiError(400, 'The selected payment has not been completed or verified');
+      }
+      if (payment.metadata?.source !== 'AMENITY_BOOKING' || payment.metadata?.amenityBookingId !== id) {
+        throw new ApiError(400, 'The selected Finance payment was not created for this booking');
+      }
+      if (payment.society_id !== bookingSocietyId) {
+        throw new ApiError(400, 'The selected payment belongs to a different society');
+      }
+      if (payment.unit_id !== booking.unit_id) {
+        throw new ApiError(400, 'The selected payment belongs to a different unit');
+      }
+      if (Math.round(Number(payment.amount) * 100) !== amountCents) {
+        throw new ApiError(400, 'The payment amount does not match the booking amount');
+      }
+      const linked = await client.query(
+        'SELECT id FROM amenity_bookings WHERE payment_id = $1 AND id <> $2 LIMIT 1',
+        [paymentId, id]
+      );
+      if (linked.rowCount) throw new ApiError(409, 'This payment is already linked to another booking');
+    }
+
+    const confirmed = await repository.confirmWithPayment(client, id, paymentId);
+    if (!confirmed) throw new ApiError(409, 'The booking was updated by another request. Refresh and try again.');
+    await client.query('COMMIT');
+    return confirmed;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 };
 
 /** Cancellation covers both resident-initiated cancellation and maintenance-triggered cancellation. */
@@ -204,6 +330,8 @@ module.exports = {
   createBooking,
   listBookings,
   getBooking,
+  listEligiblePayments,
+  createFinancePayment,
   confirmBooking,
   cancelBooking,
   markNoShow,

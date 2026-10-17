@@ -58,7 +58,7 @@ const deleteType = async (id) => {
 const createMeter = async ({ societyId, unitId, meterNo, utilityTypeId, installationDate }) => {
   const result = await db.query(
     `INSERT INTO meters (society_id, unit_id, meter_no, utility_type_id, installation_date)
-     VALUES ($1, $2, $3, $4, $5)
+     VALUES ($1, $2, $3, $4, $5::date)
      RETURNING *`,
     [societyId, unitId || null, meterNo, utilityTypeId, installationDate || null]
   );
@@ -100,7 +100,7 @@ const updateMeter = async (id, { unitId, meterNo, installationDate, status }) =>
     `UPDATE meters SET
        unit_id            = COALESCE($2, unit_id),
        meter_no           = COALESCE($3, meter_no),
-       installation_date  = COALESCE($4, installation_date),
+       installation_date  = COALESCE($4::date, installation_date),
        status             = COALESCE($5, status),
        updated_at         = now()
      WHERE id = $1

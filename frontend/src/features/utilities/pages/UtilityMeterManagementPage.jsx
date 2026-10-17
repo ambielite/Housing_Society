@@ -10,6 +10,9 @@ import SocietyIdPrompt from '../../../components/ui/SocietyIdPrompt';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
 import { getErrorMessage } from '../../../lib/axios';
+import unitApi from '../../units/api/unit.api';
+import floorApi from '../../floors/api/floor.api';
+import towerApi from '../../towers/api/tower.api';
 import * as utilityApi from '../api/utilityMeter.api';
 import {
   METER_STATUSES, READING_SOURCES, READING_STATUSES, UTILITY_TYPE_STATUSES, UTILITY_UNITS,
@@ -24,6 +27,7 @@ const TABS = [
   { key: 'types', label: 'Utility types', permission: 'UTILITY_TYPE_READ' },
 ];
 const unwrapList = (value, key) => Array.isArray(value) ? value : Array.isArray(value?.[key]) ? value[key] : [];
+const unwrapRows = (value) => Array.isArray(value) ? value : Array.isArray(value?.data) ? value.data : [];
 const today = () => new Date().toLocaleDateString('en-CA');
 
 function StatusPill({ value }) {
@@ -37,8 +41,8 @@ function Field({ label, children, hint }) {
 function TextInput({ label, value, onChange, type = 'text', required = false, placeholder, min, step, hint }) {
   return <Field label={label} hint={hint}><input className="input" type={type} value={value ?? ''} required={required} placeholder={placeholder} min={min} step={step} onChange={(e) => onChange(e.target.value)} /></Field>;
 }
-function Choice({ label, value, onChange, options, placeholder = 'Select…', required = false }) {
-  return <Field label={label}><select className="input" value={value ?? ''} required={required} onChange={(e) => onChange(e.target.value)}><option value="">{placeholder}</option>{options.map((o) => typeof o === 'string' ? <option key={o} value={o}>{prettyUtility(o)}</option> : <option key={o.value} value={o.value}>{o.label}</option>)}</select></Field>;
+function Choice({ label, value, onChange, options, placeholder = 'Select…', required = false, disabled = false }) {
+  return <Field label={label}><select className="input" value={value ?? ''} required={required} disabled={disabled} onChange={(e) => onChange(e.target.value)}><option value="">{placeholder}</option>{options.map((o) => typeof o === 'string' ? <option key={o} value={o}>{prettyUtility(o)}</option> : <option key={o.value} value={o.value}>{o.label}</option>)}</select></Field>;
 }
 function FormActions({ onCancel, saving, label = 'Save' }) {
   return <div className="form-actions"><button className="btn btn-secondary" type="button" onClick={onCancel} disabled={saving}>Cancel</button><button className="btn btn-primary" type="submit" disabled={saving}>{saving ? 'Saving…' : label}</button></div>;
@@ -57,14 +61,19 @@ function TypeForm({ initial, societyId, onSubmit, onCancel, saving }) {
     <FormActions onCancel={onCancel} saving={saving} label={initial ? 'Save changes' : 'Create utility type'} />
   </form>;
 }
-function MeterForm({ initial, societyId, types, onSubmit, onCancel, saving }) {
+function MeterForm({ initial, societyId, types, unitOptions, unitOptionsLoading, unitOptionsError, onSubmit, onCancel, saving }) {
   const [form, setForm] = useState({ meterNo: initial?.meter_no || initial?.meterNo || '', utilityTypeId: initial?.utility_type_id || initial?.utilityTypeId || '', unitId: initial?.unit_id || initial?.unitId || '', installationDate: String(initial?.installation_date || '').slice(0,10), status: initial?.status || 'ACTIVE' });
   const set = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+  const meterUnitOptions = form.unitId && !unitOptions.some((option) => option.value === form.unitId)
+    ? [{ value: form.unitId, label: 'Previously selected unit' }, ...unitOptions]
+    : unitOptions;
   return <form onSubmit={(e) => { e.preventDefault(); const payload = initial ? { meterNo: form.meterNo.trim(), unitId: form.unitId || null, installationDate: form.installationDate || null, status: form.status } : { societyId, meterNo: form.meterNo.trim(), utilityTypeId: form.utilityTypeId, ...(form.unitId ? { unitId: form.unitId } : {}), installationDate: form.installationDate || null }; onSubmit(payload); }}>
     <div className="form-grid">
       <TextInput label="Meter number" value={form.meterNo} onChange={(v) => set('meterNo', v)} required placeholder="e.g. EM-0001" />
       {!initial && <Choice label="Utility type" value={form.utilityTypeId} onChange={(v) => set('utilityTypeId', v)} required options={types.filter((t) => t.status !== 'INACTIVE').map((t) => ({ value: t.id, label: `${t.name} (${t.code})` }))} />}
-      <TextInput label="Unit ID (optional)" value={form.unitId} onChange={(v) => set('unitId', v)} placeholder="Leave empty for common-area meter" hint="Enter the existing unit UUID. Leave blank for a common-area meter." />
+      <Choice label="Unit (optional)" value={form.unitId} onChange={(v) => set('unitId', v)} placeholder={unitOptionsLoading ? 'Loading units…' : 'Common-area meter (no unit)'} options={meterUnitOptions} disabled={unitOptionsLoading} />
+      {unitOptionsError && <p className="field-hint">Could not load unit options: {unitOptionsError}</p>}
+      {!unitOptionsError && <p className="field-hint">Unit options include their tower name. Leave blank for a common-area meter.</p>}
       <TextInput label="Installation date" type="date" value={form.installationDate} onChange={(v) => set('installationDate', v)} />
       {initial && <Choice label="Status" value={form.status} onChange={(v) => set('status', v)} options={METER_STATUSES} />}
     </div>
@@ -129,6 +138,9 @@ export default function UtilityMeterManagementPage() {
   const { societyId } = useSociety();
   const [tab, setTab] = useState('meters');
   const [types, setTypes] = useState([]);
+  const [unitOptions, setUnitOptions] = useState([]);
+  const [unitOptionsLoading, setUnitOptionsLoading] = useState(false);
+  const [unitOptionsError, setUnitOptionsError] = useState('');
   const [meters, setMeters] = useState([]);
   const [readings, setReadings] = useState([]);
   const [tariffs, setTariffs] = useState([]);
@@ -190,6 +202,43 @@ export default function UtilityMeterManagementPage() {
 
   useEffect(() => { loadSetup(); }, [loadSetup]);
   useEffect(() => { loadTariffs(); }, [loadTariffs]);
+
+  useEffect(() => {
+    let isCurrent = true;
+    if (!societyId) {
+      setUnitOptions([]);
+      setUnitOptionsLoading(false);
+      setUnitOptionsError('');
+      return () => { isCurrent = false; };
+    }
+
+    setUnitOptionsLoading(true);
+    setUnitOptionsError('');
+    const societyConfig = { headers: { 'x-society-id': societyId } };
+    Promise.all([unitApi.getAll(societyConfig), floorApi.getAll(societyConfig), towerApi.getAll(societyConfig)])
+      .then(([unitResponse, floorResponse, towerResponse]) => {
+        if (!isCurrent) return;
+        const floorsById = new Map(unwrapRows(floorResponse).map((floor) => [floor.id, floor]));
+        const towersById = new Map(unwrapRows(towerResponse).map((tower) => [tower.id, tower]));
+        const options = unwrapRows(unitResponse)
+          .filter((unit) => unit.status !== 'INACTIVE')
+          .map((unit) => {
+            const floor = floorsById.get(unit.floorId);
+            const tower = floor && towersById.get(floor.towerId);
+            const unitName = unit.unitNumber || unit.name || 'Unit';
+            return { value: unit.id, label: tower?.name ? `${unitName} — ${tower.name}` : unitName };
+          });
+        setUnitOptions(options);
+      })
+      .catch((err) => {
+        if (isCurrent) setUnitOptionsError(getErrorMessage(err));
+      })
+      .finally(() => {
+        if (isCurrent) setUnitOptionsLoading(false);
+      });
+
+    return () => { isCurrent = false; };
+  }, [societyId]);
 
   const refresh = () => { loadSetup(); loadTariffs(); };
   const perform = async (operation, successMessage, after = refresh) => {
@@ -272,7 +321,9 @@ export default function UtilityMeterManagementPage() {
       return [
         ['Meter number', data.meter_no || data.meterNo || '—'],
         ['Utility type', typeById.get(utilityId)?.name || data.utility_type_name || data.utility_name || '—'],
-        ['Unit', data.unit_id || data.unitId ? (data.unit_id || data.unitId) : 'Common-area meter'],
+        ['Unit', (data.unit_id || data.unitId)
+          ? unitOptions.find((unit) => unit.value === (data.unit_id || data.unitId))?.label || 'Assigned unit (details unavailable)'
+          : 'Common-area meter'],
         ['Installation date', formatUtilityDate(data.installation_date || data.installationDate)],
         ['Status', prettyUtility(data.status || 'UNKNOWN')],
       ];
@@ -283,7 +334,7 @@ export default function UtilityMeterManagementPage() {
       if (key === 'unit_id') return ['Unit', value || 'Common-area meter'];
       return [prettyUtility(key), value && typeof value === 'object' ? JSON.stringify(value) : String(value ?? '—')];
     });
-  }, [detail, typeById]);
+  }, [detail, typeById, unitOptions]);
   const activeMeters = meters.filter((m) => m.status === 'ACTIVE').length;
   const pendingReadings = readings.filter((r) => ['SUBMITTED', 'ESTIMATED', 'PENDING'].includes(r.status)).length;
 
@@ -425,7 +476,7 @@ export default function UtilityMeterManagementPage() {
   };
   const clearFilters = () => { setSearch(''); setSelectedType(''); setMeterStatus(''); setSelectedMeter(''); setReadingStatus(''); setBills([]); setError(''); };
   const columnsMeters = [
-    { key: 'meter_no', header: 'Meter number', render: (r) => <><button className="um-link-button" onClick={() => setDetail({ title: 'Meter details', data: r })}>{r.meter_no}</button><span className="cell-sub">{r.unit_id ? `Unit ${r.unit_id}` : 'Common-area meter'}</span></> },
+    { key: 'meter_no', header: 'Meter number', render: (r) => <><button className="um-link-button" onClick={() => setDetail({ title: 'Meter details', data: r })}>{r.meter_no}</button><span className="cell-sub">{r.unit_id ? unitOptions.find((unit) => unit.value === r.unit_id)?.label || 'Unit not found in this society' : 'Common-area meter'}</span></> },
     { key: 'utility', header: 'Utility', render: (r) => typeById.get(r.utility_type_id)?.name || r.utility_type_name || '—' },
     { key: 'installed', header: 'Installed', render: (r) => formatUtilityDate(r.installation_date) },
     { key: 'status', header: 'Status', render: (r) => <StatusPill value={r.status} /> },
@@ -515,7 +566,7 @@ export default function UtilityMeterManagementPage() {
     {modal && <Modal title={({ type: modal.item ? 'Edit utility type' : 'New utility type', meter: modal.item ? 'Edit meter' : 'Register meter', tariff: modal.item ? 'Edit tariff' : 'Create tariff', reading: 'Submit meter reading', estimate: 'Estimated reading', bulk: 'Bulk meter readings', replace: 'Replace meter', adjust: 'Adjust estimated reading', linkBill: 'Link bill to billing' })[modal.kind]} onClose={() => !busy && setModal(null)} busy={busy}>
       {error && <Alert variant="error">{error}</Alert>}
       {modal.kind === 'type' && <TypeForm initial={modal.item} societyId={societyId} onSubmit={createOrUpdate} onCancel={() => setModal(null)} saving={busy} />}
-      {modal.kind === 'meter' && <MeterForm initial={modal.item} societyId={societyId} types={types} onSubmit={createOrUpdate} onCancel={() => setModal(null)} saving={busy} />}
+      {modal.kind === 'meter' && <MeterForm initial={modal.item} societyId={societyId} types={types} unitOptions={unitOptions} unitOptionsLoading={unitOptionsLoading} unitOptionsError={unitOptionsError} onSubmit={createOrUpdate} onCancel={() => setModal(null)} saving={busy} />}
       {modal.kind === 'tariff' && <TariffForm initial={modal.item} societyId={societyId} types={types} onSubmit={createOrUpdate} onCancel={() => setModal(null)} saving={busy} />}
       {['reading','estimate'].includes(modal.kind) && <ReadingForm meters={meters} types={types} initialMeterId={selectedMeter} mode={modal.kind} onSubmit={createOrUpdate} onCancel={() => setModal(null)} saving={busy} />}
       {modal.kind === 'bulk' && <BulkReadingForm meters={meters} onSubmit={createOrUpdate} onCancel={() => setModal(null)} saving={busy} />}

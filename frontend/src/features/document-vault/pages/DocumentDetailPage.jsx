@@ -9,7 +9,7 @@ import Modal from '../../../components/ui/Modal';
 import ConfirmDialog from '../../../components/ui/ConfirmDialog';
 import { FullPageLoader } from '../../../components/ui/Spinner';
 import * as vaultApi from '../api/documentVault.api';
-import { DOCUMENT_STATUSES, DOCUMENT_TYPES, ENTITY_TYPES, LINK_TYPES, PERMISSION_TYPES, SENSITIVITIES, VISIBILITIES, formatBytes, formatDate, pretty } from '../components/documentVaultOptions';
+import { DOCUMENT_STATUSES, DOCUMENT_TYPES, ENTITY_TYPES, LINK_TYPES, PERMISSION_TYPES, SENSITIVITIES, VISIBILITIES, formatBytes, formatDate, pretty, visibilityHelp } from '../components/documentVaultOptions';
 
 const rows = (data, key) => Array.isArray(data) ? data : (data?.[key] || []);
 const dateOnly = (value) => value ? String(value).slice(0, 10) : '';
@@ -143,14 +143,16 @@ export default function DocumentDetailPage() {
   const userName = (id) => {
     if (!id) return 'Unknown user';
     const u = userList.find((item) => item.id === id || item.user_id === id);
-    return u ? (u.full_name || u.name || u.email || 'User') : id;
+    if (!u) return 'Unknown user';
+    const name = [u.first_name, u.last_name].filter(Boolean).join(' ');
+    return u.full_name || u.name || name || u.email || 'Unknown user';
   };
   const roleName = (id) => { const r = roleList.find((item) => item.id === id); return r ? (r.name || r.code || 'Role') : id; };
 
   return (
     <PageContainer title={target.title || 'Document details'} subtitle={target.file_name || ''} actions={
       <>
-        {hasPermission('DOCUMENT_DOWNLOAD') && <button className="btn btn-primary" disabled={saving} onClick={download}>Download file</button>}
+        {(hasPermission('DOCUMENT_DOWNLOAD') || (target.visibility === 'PUBLIC' && target.sensitivity !== 'CONFIDENTIAL')) && <button className="btn btn-primary" disabled={saving} onClick={download}>Download file</button>}
         {hasPermission('DOCUMENT_UPDATE') && <button className="btn btn-secondary" onClick={() => setShowEdit(true)}>Edit details</button>}
         {hasPermission('DOCUMENT_VERSION_CREATE') && <button className="btn btn-secondary" onClick={() => setShowVersion(true)}>Upload new version</button>}
         {hasPermission('DOCUMENT_DELETE') && <button className="btn btn-danger" onClick={() => setConfirmDelete(true)}>Delete</button>}
@@ -168,7 +170,12 @@ export default function DocumentDetailPage() {
 
       {active === 'versions' && <section className="card section"><h2 className="section-title">Version history</h2>{rows(versions, 'versions').length ? <div className="stack-form">{rows(versions, 'versions').map((v) => <div className="perm-group" key={v.id}><strong>Version {v.version_no}</strong><p>{v.change_note || 'No change note provided'}</p><span className="cell-sub">Uploaded {formatDate(v.uploaded_at)} · Checksum: <span className="mono">{v.checksum}</span></span></div>)}</div> : <p className="muted">No version history available.</p>}</section>}
 
-      {active === 'downloads' && <section className="card section"><h2 className="section-title">Download history</h2>{rows(history, 'history').length ? <div className="table-wrap"><table className="data-table"><thead><tr><th>Downloaded by</th><th>Date and time</th><th>IP address</th></tr></thead><tbody>{rows(history, 'history').map((item) => <tr key={item.id}><td>{userName(item.downloaded_by || item.user_id || item.downloaded_by_user_id)}</td><td>{formatDate(item.downloaded_at || item.created_at)}</td><td>{item.ip_address || '-'}</td></tr>)}</tbody></table></div> : <p className="muted">No downloads recorded yet.</p>}</section>}
+      {active === 'downloads' && <section className="card section"><h2 className="section-title">Download history</h2>{rows(history, 'history').length ? <div className="table-wrap"><table className="data-table"><thead><tr><th>Downloaded by</th><th>Date and time</th><th>IP address</th></tr></thead><tbody>{rows(history, 'history').map((item) => {
+        const id = item.downloaded_by || item.user_id || item.downloaded_by_user_id;
+        const joinedName = [item.downloaded_by_first_name, item.downloaded_by_last_name].filter(Boolean).join(' ');
+        const displayName = joinedName || item.downloaded_by_email || userName(id);
+        return <tr key={item.id}><td>{displayName}</td><td>{formatDate(item.downloaded_at || item.created_at)}</td><td>{item.ip_address || '-'}</td></tr>;
+      })}</tbody></table></div> : <p className="muted">No downloads recorded yet.</p>}</section>}
 
       {active === 'access' && <section className="card section"><h2 className="section-title">Access permissions</h2>{hasPermission('DOCUMENT_PERMISSION_MANAGE') && <form className="stack-form section" onSubmit={grantAccess}>
         <h3>Grant access</h3>
@@ -187,7 +194,7 @@ export default function DocumentDetailPage() {
       {showEdit && <Modal title="Edit document details" onClose={() => !saving && setShowEdit(false)} busy={saving}><form className="stack-form" onSubmit={saveEdit}>
         {error && <Alert variant="error">{error}</Alert>}
         <label className="field">Title<input className="input" required maxLength={255} value={edit.title || ''} onChange={(e) => setEdit({ ...edit, title: e.target.value })} /></label>
-        <div className="form-grid"><label className="field">Document type<select className="input" value={edit.documentType} onChange={(e) => setEdit({ ...edit, documentType: e.target.value })}>{DOCUMENT_TYPES.map((v) => <option key={v}>{v}</option>)}</select></label><label className="field">Sensitivity<select className="input" value={edit.sensitivity} onChange={(e) => setEdit({ ...edit, sensitivity: e.target.value })}>{SENSITIVITIES.map((v) => <option key={v}>{v}</option>)}</select></label><label className="field">Visibility<select className="input" value={edit.visibility} onChange={(e) => setEdit({ ...edit, visibility: e.target.value })}>{VISIBILITIES.map((v) => <option key={v}>{v}</option>)}</select></label><label className="field">Status<select className="input" value={edit.status} onChange={(e) => setEdit({ ...edit, status: e.target.value })}>{DOCUMENT_STATUSES.map((v) => <option key={v}>{v}</option>)}</select></label><label className="field">Effective date<input className="input" type="date" value={edit.effectiveDate || ''} onChange={(e) => setEdit({ ...edit, effectiveDate: e.target.value })} /></label><label className="field">Expiry date<input className="input" type="date" min={edit.effectiveDate || undefined} value={edit.expiryDate || ''} onChange={(e) => setEdit({ ...edit, expiryDate: e.target.value })} /></label></div>
+        <div className="form-grid"><label className="field">Document type<select className="input" value={edit.documentType} onChange={(e) => setEdit({ ...edit, documentType: e.target.value })}>{DOCUMENT_TYPES.map((v) => <option key={v}>{v}</option>)}</select></label><label className="field">Sensitivity<select className="input" value={edit.sensitivity} onChange={(e) => setEdit({ ...edit, sensitivity: e.target.value })}>{SENSITIVITIES.map((v) => <option key={v}>{v}</option>)}</select></label><label className="field">Visibility<select className="input" value={edit.visibility} onChange={(e) => setEdit({ ...edit, visibility: e.target.value })}>{VISIBILITIES.map((v) => <option key={v}>{v}</option>)}</select><span className="field-hint">{visibilityHelp(edit.visibility)}</span></label><label className="field">Status<select className="input" value={edit.status} onChange={(e) => setEdit({ ...edit, status: e.target.value })}>{DOCUMENT_STATUSES.map((v) => <option key={v}>{v}</option>)}</select></label><label className="field">Effective date<input className="input" type="date" value={edit.effectiveDate || ''} onChange={(e) => setEdit({ ...edit, effectiveDate: e.target.value })} /></label><label className="field">Expiry date<input className="input" type="date" min={edit.effectiveDate || undefined} value={edit.expiryDate || ''} onChange={(e) => setEdit({ ...edit, expiryDate: e.target.value })} /></label></div>
         <div className="form-actions"><button className="btn btn-primary" disabled={saving || !edit.title?.trim()}>Save changes</button><button type="button" className="btn btn-secondary" onClick={() => setShowEdit(false)}>Cancel</button></div>
       </form></Modal>}
       {showVersion && <Modal title="Upload new version" onClose={() => !saving && setShowVersion(false)} busy={saving}><form className="stack-form" onSubmit={uploadVersion}>

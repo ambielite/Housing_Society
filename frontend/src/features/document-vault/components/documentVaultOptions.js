@@ -1,7 +1,13 @@
 export const FOLDER_TYPES = ['BYLAWS', 'RERA', 'AUDIT_REPORTS', 'AGM_MINUTES', 'CONTRACTS', 'POLICIES', 'OTHER'];
 export const DOCUMENT_TYPES = ['BYLAW', 'RERA_CERT', 'AUDIT_REPORT', 'AGM_MINUTES', 'CONTRACT', 'POLICY', 'OTHER'];
 export const SENSITIVITIES = ['PUBLIC', 'INTERNAL', 'CONFIDENTIAL'];
-export const VISIBILITIES = ['PUBLIC', 'COMMITTEE_ONLY', 'PRIVATE'];
+export const VISIBILITIES = ['PUBLIC', 'SOCIETY', 'COMMITTEE_ONLY', 'PRIVATE'];
+export const visibilityHelp = (value) => ({
+  PUBLIC: 'Any signed-in user assigned to this society can view and download it, even without a role.',
+  SOCIETY: 'Users with document read access in this society can view it.',
+  COMMITTEE_ONLY: 'Society admins, President/Secretary, Treasurers, the uploader, and explicitly shared users or roles can view it.',
+  PRIVATE: 'Only the uploader, society admins, or explicitly shared users or roles can view it.',
+}[value] || 'Choose who can view this document.');
 export const DOCUMENT_STATUSES = ['ACTIVE', 'ARCHIVED', 'DELETED'];
 export const FOLDER_STATUSES = ['ACTIVE', 'INACTIVE'];
 export const PERMISSION_TYPES = ['READ', 'DOWNLOAD', 'MANAGE'];

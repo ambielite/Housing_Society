@@ -76,11 +76,10 @@ router.post(
 );
 router.get(
   '/documents',
-  authorize('DOCUMENT_READ'),
   validate(listDocumentsQuerySchema, 'query'),
   controller.listDocuments
 );
-router.get('/documents/:documentId', authorize('DOCUMENT_READ'), controller.getDocument);
+router.get('/documents/:documentId', controller.getDocument);
 router.put(
   '/documents/:documentId',
   authorize('DOCUMENT_UPDATE'),
@@ -88,7 +87,7 @@ router.put(
   controller.updateDocument
 );
 router.delete('/documents/:documentId', authorize('DOCUMENT_DELETE'), controller.deleteDocument);
-router.get('/documents/:documentId/download', authorize('DOCUMENT_DOWNLOAD'), controller.downloadDocument);
+router.get('/documents/:documentId/download', controller.downloadDocument);
 router.get('/documents/:documentId/download-history', authorize('DOCUMENT_READ'), controller.listDownloadHistory);
 
 router.post(

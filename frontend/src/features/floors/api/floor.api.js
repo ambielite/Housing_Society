@@ -1,7 +1,7 @@
 import { legacyApi as axiosClient } from "../../../lib/axios";
 
 const floorApi = {
-    getAll: async () => (await axiosClient.get("/floors")).data,
+    getAll: async (config) => (await axiosClient.get("/floors", config)).data,
     getByTower: async (towerId, config) => (await axiosClient.get(`/floors/tower/${towerId}`, config)).data,
     create: async (data) => (await axiosClient.post("/floors", data)).data,
     update: async (id, data) => (await axiosClient.put(`/floors/${id}`, data)).data,

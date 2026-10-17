@@ -1,5 +1,26 @@
 const db = require('../../config/db');
 
+const getCurrentDate = async () => {
+  const result = await db.query('SELECT CURRENT_DATE::text AS today');
+  return result.rows[0].today;
+};
+
+const unitBelongsToSociety = async (unitId, societyId) => {
+  // Unit ownership is defined by the society -> tower -> floor -> unit
+  // hierarchy. `units.society_id` is a legacy denormalized field and can be
+  // empty for units created through the existing unit management flow.
+  const result = await db.query(
+    `SELECT 1
+     FROM units u
+     JOIN floors f ON f.id = u.floor_id
+     JOIN towers t ON t.id = f.tower_id
+     WHERE u.id = $1 AND t.society_id = $2
+     LIMIT 1`,
+    [unitId, societyId]
+  );
+  return result.rowCount > 0;
+};
+
 // --- amenities ----------------------------------------------------------------
 
 const createAmenity = async ({ societyId, name, amenityType, capacity, location, bookingRequired }) => {
@@ -238,6 +259,8 @@ const deleteBlockout = async (id) => {
 };
 
 module.exports = {
+  getCurrentDate,
+  unitBelongsToSociety,
   createAmenity,
   findAmenityById,
   listAmenities,

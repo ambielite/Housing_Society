@@ -4,6 +4,7 @@ const storage = require('./storage.helper');
 const { isVendorScoped, getVendorIds } = require('../../common/vendorScope');
 
 const ELEVATED_ROLES = ['SUPER_ADMIN', 'SOCIETY_ADMIN'];
+const COMMITTEE_ROLES = [...ELEVATED_ROLES, 'PRESIDENT_SECRETARY', 'TREASURER'];
 
 // --- folders --------------------------------------------------------------------
 
@@ -50,31 +51,63 @@ const deleteFolder = async (id) => {
 // --- access control -----------------------------------------------------------
 
 /**
- * Two-layer access model: module-level RBAC (already checked at the
- * route via authorize('DOCUMENT_READ') etc.) gets you in the door.
- * For an ACTIVE, non-CONFIDENTIAL document that's enough. A
- * CONFIDENTIAL document additionally requires either being the
- * uploader, holding SUPER_ADMIN/SOCIETY_ADMIN, or an explicit,
- * non-expired document_permissions grant naming your user id or one
- * of your role codes.
+ * Module-level RBAC grants access to the document area. Visibility then
+ * limits each document to the society, committee, or explicit recipients.
+ * CONFIDENTIAL sensitivity adds a separate restriction on top of visibility.
  */
-const assertCanAccess = async (document, actingUser) => {
-  // Vendor logins may only read/download documents linked to their vendor's
-  // assigned tickets, contracts, invoices or vendor-document records.
-  if (isVendorScoped(actingUser)) {
+const assertCanAccess = async (document, actingUser, action = 'READ') => {
+  const roles = actingUser.roles || [];
+  const permissions = actingUser.permissions || [];
+  const isElevated = roles.some((role) => ELEVATED_ROLES.includes(role));
+  const isCommittee = roles.some((role) => COMMITTEE_ROLES.includes(role));
+  const isUploader = document.uploaded_by === actingUser.id;
+
+  const visibility = document.visibility || 'INTERNAL';
+  // All document visibility remains scoped to the authenticated society.
+  if (document.society_id !== actingUser.societyId) {
+    throw new ApiError(404, 'Document not found');
+  }
+
+  // PUBLIC is the only visibility available to authenticated users without
+  // a document role permission. It is still limited to their active society.
+  const publicSocietyAccess = visibility === 'PUBLIC';
+  const requiresGrant = visibility === 'PRIVATE' || visibility === 'COMMITTEE_ONLY';
+  const grant = !isUploader && !isElevated && requiresGrant
+    ? await repository.findActivePermissionGrant(document.id, actingUser.id, roles)
+    : null;
+
+  if (!publicSocietyAccess && !isElevated && !isUploader && !grant &&
+      !(visibility === 'COMMITTEE_ONLY' && isCommittee) && !permissions.includes('DOCUMENT_READ')) {
+    throw new ApiError(403, 'You do not have permission to read this document');
+  }
+  if (action === 'DOWNLOAD' && !publicSocietyAccess && !isElevated && !permissions.includes('DOCUMENT_DOWNLOAD')) {
+    throw new ApiError(403, 'You do not have permission to download this document');
+  }
+
+  if (visibility === 'PRIVATE' && !isUploader && !isElevated && !grant) {
+    throw new ApiError(403, 'This document is private and has not been shared with you');
+  }
+  if (visibility === 'COMMITTEE_ONLY' && !isCommittee && !isUploader && !isElevated && !grant) {
+    throw new ApiError(403, 'This document is available to committee members only');
+  }
+  if (!['PUBLIC', 'SOCIETY', 'INTERNAL', 'COMMITTEE_ONLY', 'PRIVATE'].includes(visibility)) {
+    throw new ApiError(403, 'This document has an unsupported visibility setting');
+  }
+
+  // Society-visible documents are governed by the society-scoped document
+  // permission above, including for users who also have the VENDOR role.
+  // Keep the narrower vendor-record scope for internal/private documents.
+  if (isVendorScoped(actingUser) && !['PUBLIC', 'SOCIETY'].includes(visibility)) {
     const vendorIds = getVendorIds(actingUser);
     const allowed = await repository.isDocumentLinkedToVendorScope(document.id, vendorIds, actingUser.id);
     if (!allowed) throw new ApiError(404, 'Document not found');
   }
 
   if (document.sensitivity !== 'CONFIDENTIAL') return;
-  if (document.uploaded_by === actingUser.id) return;
-  if (actingUser.roles.some((r) => ELEVATED_ROLES.includes(r))) return;
+  if (isUploader || isElevated || grant) return;
 
-  const grant = await repository.findActivePermissionGrant(document.id, actingUser.id, actingUser.roles);
-  if (!grant) {
-    throw new ApiError(403, 'You do not have permission to access this confidential document');
-  }
+  const confidentialGrant = grant || await repository.findActivePermissionGrant(document.id, actingUser.id, roles);
+  if (!confidentialGrant) throw new ApiError(403, 'You do not have permission to access this confidential document');
 };
 
 // --- documents ------------------------------------------------------------------
@@ -129,7 +162,7 @@ const listDocuments = async (query, actingUser) => {
   const visible = [];
   for (const doc of documents) {
     try {
-      await assertCanAccess(doc, actingUser);
+      await assertCanAccess(doc, actingUser, 'READ');
       visible.push(doc);
     } catch (err) {
       // silently omit documents the caller can't see, rather than erroring the whole list
@@ -143,7 +176,7 @@ const getDocument = async (id, actingUser) => {
   if (!document) {
     throw new ApiError(404, 'Document not found');
   }
-  await assertCanAccess(document, actingUser);
+  await assertCanAccess(document, actingUser, 'READ');
   return document;
 };
 
@@ -180,7 +213,7 @@ const downloadDocument = async (id, actingUser, meta = {}) => {
   if (!document) {
     throw new ApiError(404, 'Document not found');
   }
-  await assertCanAccess(document, actingUser);
+  await assertCanAccess(document, actingUser, 'DOWNLOAD');
 
   await repository.logDownload({ documentId: id, downloadedBy: actingUser.id, ipAddress: meta.ipAddress });
 

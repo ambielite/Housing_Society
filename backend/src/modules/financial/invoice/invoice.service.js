@@ -120,8 +120,9 @@ const createInvoice = async (
      * Calculate previous balance.
      */
 
-    const previousBalance =
-        await calculatePreviousBalance(
+    const previousBalance = data.includePreviousBalance === false
+        ? 0
+        : await calculatePreviousBalance(
             data.societyId,
             data.unitId,
             data.invoiceDate

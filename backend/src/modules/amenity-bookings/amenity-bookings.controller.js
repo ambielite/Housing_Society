@@ -17,8 +17,18 @@ const getBooking = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, booking);
 });
 
+const listEligiblePayments = asyncHandler(async (req, res) => {
+  const payments = await service.listEligiblePayments(req.params.bookingId, req.user.societyId);
+  return ApiResponse.success(res, payments);
+});
+
+const createFinancePayment = asyncHandler(async (req, res) => {
+  const payment = await service.createFinancePayment(req.params.bookingId, req.user.societyId, req.body);
+  return ApiResponse.success(res, payment, 'Payment recorded in Finance for verification', 201);
+});
+
 const confirmBooking = asyncHandler(async (req, res) => {
-  const booking = await service.confirmBooking(req.params.bookingId, req.body.paymentId);
+  const booking = await service.confirmBooking(req.params.bookingId, req.body.paymentId, req.user.societyId);
   return ApiResponse.success(res, booking, 'Booking confirmed successfully');
 });
 
@@ -51,6 +61,8 @@ module.exports = {
   createBooking,
   listBookings,
   getBooking,
+  listEligiblePayments,
+  createFinancePayment,
   confirmBooking,
   cancelBooking,
   markNoShow,

@@ -31,11 +31,17 @@ const confirmBookingSchema = Joi.object({
   paymentId: Joi.string().uuid().allow(null),
 });
 
+const createBookingPaymentSchema = Joi.object({
+  paymentMethod: Joi.string().valid('CASH', 'CHEQUE', 'NEFT', 'RTGS', 'BANK_TRANSFER').default('CASH'),
+  paymentReference: Joi.string().max(100).allow('', null),
+});
+
 const addGuestSchema = guestSchema;
 
 module.exports = {
   createBookingSchema,
   listBookingsQuerySchema,
   confirmBookingSchema,
+  createBookingPaymentSchema,
   addGuestSchema,
 };

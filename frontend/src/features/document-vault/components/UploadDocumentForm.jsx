@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import Alert from '../../../components/ui/Alert';
-import { DOCUMENT_TYPES, SENSITIVITIES, VISIBILITIES } from './documentVaultOptions';
+import { DOCUMENT_TYPES, SENSITIVITIES, VISIBILITIES, visibilityHelp } from './documentVaultOptions';
 
 export default function UploadDocumentForm({ folders, societyId, onSubmit, onCancel, saving, error }) {
   const [file, setFile] = useState(null);
@@ -26,7 +26,7 @@ export default function UploadDocumentForm({ folders, societyId, onSubmit, onCan
       <label className="field">Document type<select className="input" value={documentType} onChange={(e) => setDocumentType(e.target.value)}>{DOCUMENT_TYPES.map((type) => <option key={type}>{type}</option>)}</select></label>
       <div className="form-grid">
         <label className="field">Sensitivity<select className="input" value={sensitivity} onChange={(e) => setSensitivity(e.target.value)}>{SENSITIVITIES.map((v) => <option key={v}>{v}</option>)}</select></label>
-        <label className="field">Visibility<select className="input" value={visibility} onChange={(e) => setVisibility(e.target.value)}>{VISIBILITIES.map((v) => <option key={v}>{v}</option>)}</select></label>
+        <label className="field">Visibility<select className="input" value={visibility} onChange={(e) => setVisibility(e.target.value)}>{VISIBILITIES.map((v) => <option key={v}>{v}</option>)}</select><span className="field-hint">{visibilityHelp(visibility)}</span></label>
         <label className="field">Effective date<input className="input" type="date" value={effectiveDate} onChange={(e) => setEffectiveDate(e.target.value)} /></label>
         <label className="field">Expiry date<input className="input" type="date" min={effectiveDate || undefined} value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} /></label>
       </div>

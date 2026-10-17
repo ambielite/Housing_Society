@@ -270,7 +270,12 @@ const logDownload = async ({ documentId, downloadedBy, ipAddress }) => {
 
 const listDownloadHistory = async (documentId) => {
   const result = await db.query(
-    'SELECT * FROM document_downloads WHERE document_id = $1 ORDER BY downloaded_at DESC',
+    `SELECT dd.*, u.first_name AS downloaded_by_first_name,
+            u.last_name AS downloaded_by_last_name, u.email AS downloaded_by_email
+     FROM document_downloads dd
+     LEFT JOIN users u ON u.id = dd.downloaded_by
+     WHERE dd.document_id = $1
+     ORDER BY dd.downloaded_at DESC`,
     [documentId]
   );
   return result.rows;

@@ -34,9 +34,8 @@ export default function DocumentVaultPage() {
   const [pageError, setPageError] = useState('');
 
   const canReadFolders = hasPermission('DOCUMENT_FOLDER_READ');
-  const canReadDocuments = hasPermission('DOCUMENT_READ');
   const folders = useFetch(() => (societyId && canReadFolders ? vaultApi.listFolders({ societyId }) : Promise.resolve([])), [societyId, canReadFolders]);
-  const docs = useFetch(() => (societyId && canReadDocuments ? vaultApi.listDocuments({ societyId, folderId: folderFilter, documentType: typeFilter, sensitivity: sensitivityFilter, status: statusFilter, search: search.trim() }) : Promise.resolve([])), [societyId, canReadDocuments, folderFilter, typeFilter, sensitivityFilter, statusFilter, search]);
+  const docs = useFetch(() => (societyId ? vaultApi.listDocuments({ societyId, folderId: folderFilter, documentType: typeFilter, sensitivity: sensitivityFilter, status: statusFilter, search: search.trim() }) : Promise.resolve([])), [societyId, folderFilter, typeFilter, sensitivityFilter, statusFilter, search]);
   const folderNames = useMemo(() => new Map((folders.data || []).map((folder) => [folder.id, folder.name])), [folders.data]);
   const activeFilters = Boolean(search || folderFilter || typeFilter || sensitivityFilter || statusFilter);
   const folderList = Array.isArray(folders.data) ? folders.data : (folders.data?.folders || []);
@@ -79,7 +78,7 @@ export default function DocumentVaultPage() {
 
   const columns = [
     { key: 'title', header: 'Document', render: (doc) => <><Link to={`/document-vault/${doc.id}`} className="cell-title">{doc.title}</Link><span className="cell-sub">{doc.file_name || 'File'}</span></> },
-    { key: 'folder', header: 'Folder', render: (doc) => folderNames.get(doc.folder_id) || 'Folder' },
+    ...(canReadFolders ? [{ key: 'folder', header: 'Folder', render: (doc) => folderNames.get(doc.folder_id) || 'Folder' }] : []),
     { key: 'type', header: 'Type', render: (doc) => pretty(doc.document_type) },
     { key: 'sensitivity', header: 'Sensitivity', render: (doc) => pretty(doc.sensitivity) },
     { key: 'size', header: 'Size', render: (doc) => formatBytes(doc.size_bytes) },
@@ -91,7 +90,7 @@ export default function DocumentVaultPage() {
     <PageContainer title="Document Vault" subtitle="Organize society records, upload files, manage versions and control access." actions={actions}>
       {pageNotice && <Alert variant="success">{pageNotice}</Alert>}
       {pageError && <Alert variant="error">{pageError}</Alert>}
-      <section className="card section">
+      {canReadFolders && <section className="card section">
         <div className="section-heading"><div><h2 className="section-title">Folders</h2><p className="muted">Browse by document category.</p></div></div>
         {folders.error && <Alert variant="error">{getErrorMessage(folders.error)}</Alert>}
         {folders.loading ? <p className="muted">Loading folders…</p> : folderList.length ? (
@@ -109,13 +108,13 @@ export default function DocumentVaultPage() {
             ))}
           </div>
         ) : <div className="empty-state compact"><h3>No folders yet</h3><p>Create a folder to organize uploaded documents.</p></div>}
-      </section>
+      </section>}
 
       <section className="card section">
         <div className="section-heading"><div><h2 className="section-title">Documents</h2><p className="muted">Search, filter and open a document to manage its details.</p></div></div>
         <div className="toolbar document-toolbar">
           <input className="input toolbar-search" type="search" placeholder="Search document title" aria-label="Search document title" value={search} onChange={(e) => setSearch(e.target.value)} />
-          <select className="input toolbar-select" aria-label="Filter folder" value={folderFilter} onChange={(e) => setFolderFilter(e.target.value)}><option value="">All folders</option>{folderList.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}</select>
+          {canReadFolders && <select className="input toolbar-select" aria-label="Filter folder" value={folderFilter} onChange={(e) => setFolderFilter(e.target.value)}><option value="">All folders</option>{folderList.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}</select>}
           <select className="input toolbar-select" aria-label="Filter document type" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}><option value="">All types</option>{DOCUMENT_TYPES.map((v) => <option key={v}>{v}</option>)}</select>
           <select className="input toolbar-select" aria-label="Filter sensitivity" value={sensitivityFilter} onChange={(e) => setSensitivityFilter(e.target.value)}><option value="">All sensitivities</option>{SENSITIVITIES.map((v) => <option key={v}>{v}</option>)}</select>
           <select className="input toolbar-select" aria-label="Filter status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="">All statuses</option>{DOCUMENT_STATUSES.map((v) => <option key={v}>{v}</option>)}</select>

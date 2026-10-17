@@ -48,7 +48,7 @@ const assignTicket = asyncHandler(async (req, res) => {
 });
 
 const unassignTicket = asyncHandler(async (req, res) => {
-  const assignment = await service.unassignTicket(req.params.ticketId, vendorScopeFor(req));
+  const assignment = await service.unassignTicket(req.params.ticketId, req.user.id, vendorScopeFor(req));
   return ApiResponse.success(res, assignment, 'Ticket unassigned successfully');
 });
 
@@ -81,6 +81,11 @@ const listAttachments = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, attachments);
 });
 
+const deleteAttachment = asyncHandler(async (req, res) => {
+  await service.deleteAttachment(req.params.ticketId, req.params.attachmentId, vendorScopeFor(req));
+  return ApiResponse.success(res, null, 'Attachment removed successfully');
+});
+
 // --- status history ---
 const listStatusHistory = asyncHandler(async (req, res) => {
   const history = await service.listStatusHistory(req.params.ticketId, vendorScopeFor(req));
@@ -107,6 +112,7 @@ module.exports = {
   listComments,
   addAttachment,
   listAttachments,
+  deleteAttachment,
   listStatusHistory,
   addRating,
 };

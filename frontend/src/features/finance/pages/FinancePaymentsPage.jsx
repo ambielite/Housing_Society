@@ -24,6 +24,7 @@ const FinancePaymentsPage = () => {
     const [search, setSearch] = useState("");
     const [showForm, setShowForm] = useState(false);
     const [editingPayment, setEditingPayment] = useState(null);
+    const [actionError, setActionError] = useState("");
 
     const closeForm = () => {
         setShowForm(false);
@@ -75,10 +76,14 @@ const FinancePaymentsPage = () => {
 
     const handleVerify = async (id) => {
         try {
+            setActionError("");
             await paymentApi.verify(id, { verificationRemarks: "Verified in finance module" });
             await loadData();
         } catch (err) {
-            window.alert(err.response?.data?.message || "Failed to verify payment. Check invoice and accounting period.");
+            const message = err.response?.data?.message || "Failed to verify payment.";
+            setActionError(message.includes("No OPEN accounting period found for payment date")
+                ? "This payment cannot be verified because no OPEN accounting period covers its payment date. Create an OPEN period for this society that includes the payment date, then retry verification."
+                : message);
         }
     };
 
@@ -109,6 +114,10 @@ const FinancePaymentsPage = () => {
             </header>
 
             {error && <div className="society-error" role="alert">{error}<button onClick={loadData}>Try again</button></div>}
+            {actionError && <div className="society-error" role="alert">
+                {actionError}
+                {actionError.includes("accounting period covers its payment date") && <a href="/finance/periods" style={{ marginLeft: 8 }}>Open Accounting periods</a>}
+            </div>}
 
             <section className="society-list-panel">
                 <div className="society-list-heading">

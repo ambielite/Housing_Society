@@ -12,6 +12,40 @@ const findById = async (id) => {
   return result.rows[0] || null;
 };
 
+const findByIdForUpdate = async (client, id) => {
+  const result = await client.query('SELECT * FROM amenity_bookings WHERE id = $1 FOR UPDATE', [id]);
+  return result.rows[0] || null;
+};
+
+const listEligiblePayments = async ({ bookingId, societyId, unitId, amount }) => {
+  const result = await query(
+    `SELECT p.id, p.payment_reference, p.payment_method, p.payment_date, p.amount, p.status
+     FROM payments p
+     WHERE p.society_id = $1
+       AND p.unit_id = $2
+       AND p.amount = $3
+       AND p.status IN ('SUCCESS', 'VERIFIED', 'VERIFICATION_PENDING')
+       AND p.metadata->>'amenityBookingId' = $4::text
+       AND NOT EXISTS (
+         SELECT 1 FROM amenity_bookings b
+         WHERE b.payment_id = p.id AND b.id <> $4::uuid
+       )
+     ORDER BY p.payment_date DESC, p.created_at DESC`,
+    [societyId, unitId, amount, bookingId]
+  );
+  return result.rows;
+};
+
+const listBookingFinancePayments = async ({ bookingId, societyId }) => {
+  const result = await query(
+    `SELECT * FROM payments
+     WHERE society_id = $1 AND metadata->>'amenityBookingId' = $2
+     ORDER BY created_at DESC`,
+    [societyId, bookingId]
+  );
+  return result.rows;
+};
+
 /**
  * Check-on-read expiry (no background scheduler exists yet - same
  * pattern used everywhere else in this project). Any PENDING_PAYMENT
@@ -97,6 +131,20 @@ const updateStatus = async (id, status, paymentId) => {
   return result.rows[0] || null;
 };
 
+const confirmWithPayment = async (client, id, paymentId) => {
+  const result = await client.query(
+    `UPDATE amenity_bookings SET status = 'CONFIRMED', payment_id = $2, updated_at = now()
+     WHERE id = $1 AND status = 'PENDING_PAYMENT'
+       AND ($2::uuid IS NULL OR NOT EXISTS (
+         SELECT 1 FROM amenity_bookings other
+         WHERE other.payment_id = $2 AND other.id <> $1
+       ))
+     RETURNING *`,
+    [id, paymentId || null]
+  );
+  return result.rows[0] || null;
+};
+
 const deleteBooking = async (id) => {
   const result = await query('DELETE FROM amenity_bookings WHERE id = $1 RETURNING id', [id]);
   return result.rows[0] || null;
@@ -123,12 +171,16 @@ module.exports = {
   getClient,
   findByBookingNo,
   findById,
+  findByIdForUpdate,
+  listEligiblePayments,
+  listBookingFinancePayments,
   expireStalePending,
   expireStalePendingInTx,
   countActiveOccupancyForSlot,
   createInTx,
   listBookings,
   updateStatus,
+  confirmWithPayment,
   deleteBooking,
   addGuest,
   listGuests,

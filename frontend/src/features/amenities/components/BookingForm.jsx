@@ -1,18 +1,28 @@
 import { useEffect, useState } from 'react';
 import SelectField from '../../../components/ui/SelectField';
 import TextField from '../../../components/ui/TextField';
-import UnitSelect from '../../../components/ui/UnitSelect';
 import Alert from '../../../components/ui/Alert';
 import { DAY_TYPES, MEMBER_TYPES } from './amenityOptions';
 import { todayISO } from '../../../utils/format';
 import * as api from '../api/amenities.api';
+import unitApi from '../../units/api/unit.api';
+import floorApi from '../../floors/api/floor.api';
+import towerApi from '../../towers/api/tower.api';
 
-export default function BookingForm({ userId, amenities, onSubmit, onCancel, saving, error }) {
+const rowsFrom = (response, key) => {
+  const rows = Array.isArray(response) ? response : response?.data || response?.[key] || [];
+  return Array.isArray(rows) ? rows : [];
+};
+
+export default function BookingForm({ userId, societyId, amenities, onSubmit, onCancel, saving, error }) {
   const [amenityId, setAmenityId] = useState('');
   const [slotDate, setSlotDate] = useState(todayISO());
   const [slotOptions, setSlotOptions] = useState([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [slotError, setSlotError] = useState('');
+  const [unitOptions, setUnitOptions] = useState([]);
+  const [loadingUnits, setLoadingUnits] = useState(false);
+  const [unitLoadError, setUnitLoadError] = useState('');
   const [values, setValues] = useState({
     amenitySlotId: '',
     unitId: '',
@@ -20,6 +30,38 @@ export default function BookingForm({ userId, amenities, onSubmit, onCancel, sav
     memberType: '',
     dayType: '',
   });
+
+  useEffect(() => {
+    if (!societyId) {
+      setUnitOptions([]);
+      return undefined;
+    }
+    let active = true;
+    const config = { headers: { 'x-society-id': societyId } };
+    setLoadingUnits(true);
+    setUnitLoadError('');
+    Promise.all([unitApi.getAll(config), floorApi.getAll(config), towerApi.getAll(config)])
+      .then(([unitResponse, floorResponse, towerResponse]) => {
+        if (!active) return;
+        const units = rowsFrom(unitResponse, 'units');
+        const floorsById = new Map(rowsFrom(floorResponse, 'floors').map((floor) => [floor.id, floor]));
+        const towersById = new Map(rowsFrom(towerResponse, 'towers').map((tower) => [tower.id, tower]));
+        setUnitOptions(units
+          .filter((unit) => unit.status !== 'INACTIVE')
+          .map((unit) => {
+            const floor = floorsById.get(unit.floorId || unit.floor_id);
+            const tower = towersById.get(floor?.towerId || floor?.tower_id);
+            const unitName = unit.unitNumber || unit.unit_number || unit.name || 'Unit';
+            return { value: unit.id, label: `${unitName}${tower?.name ? ` - ${tower.name}` : ''}` };
+          })
+          .sort((left, right) => left.label.localeCompare(right.label, undefined, { numeric: true })));
+      })
+      .catch((err) => {
+        if (active) setUnitLoadError(err?.response?.data?.message || 'Could not load units for this society.');
+      })
+      .finally(() => { if (active) setLoadingUnits(false); });
+    return () => { active = false; };
+  }, [societyId]);
   const [guests, setGuests] = useState([]);
   const [errors, setErrors] = useState({});
 
@@ -63,6 +105,7 @@ export default function BookingForm({ userId, amenities, onSubmit, onCancel, sav
     if (!amenityId) next.amenityId = 'Choose an amenity.';
     if (!values.amenitySlotId) next.amenitySlotId = 'Choose an available slot.';
     if (!values.unitId) next.unitId = 'Choose a unit.';
+    if (unitLoadError) next.unitId = 'Units could not be loaded. Refresh and try again.';
     const count = Number(values.guestsCount);
     if (!Number.isInteger(count) || count < 0) next.guestsCount = 'Guest count cannot be negative.';
     guests.forEach((guest, index) => {
@@ -91,7 +134,7 @@ export default function BookingForm({ userId, amenities, onSubmit, onCancel, sav
         <TextField id="booking-date" label="Slot date" type="date" value={slotDate} onChange={(e) => { setSlotDate(e.target.value); setValues((v) => ({ ...v, amenitySlotId: '' })); }} />
       </div>
       <SelectField id="booking-slot" name="amenitySlotId" label="Available slot" placeholder={loadingSlots ? 'Loading slots...' : slotOptions.length ? 'Choose a slot' : 'No available slots'} options={slotOptions} value={values.amenitySlotId} onChange={change} error={errors.amenitySlotId} disabled={loadingSlots || !amenityId} />
-      <UnitSelect value={values.unitId} onChange={(unitId) => setValues((v) => ({ ...v, unitId }))} error={errors.unitId} />
+      <SelectField id="booking-unit" label="Unit" placeholder={loadingUnits ? 'Loading units...' : unitOptions.length ? 'Choose a unit' : 'No units found'} options={unitOptions} value={values.unitId} onChange={(event) => setValues((current) => ({ ...current, unitId: event.target.value }))} error={errors.unitId} hint={unitLoadError || undefined} disabled={loadingUnits || Boolean(unitLoadError) || !unitOptions.length} />
       <div className="form-grid">
         <TextField id="booking-guests" name="guestsCount" type="number" min="0" step="1" label="Guest count" value={values.guestsCount} onChange={change} error={errors.guestsCount} />
         <SelectField id="booking-member" name="memberType" label="Member type (optional)" placeholder="Use slot default price" options={MEMBER_TYPES} value={values.memberType} onChange={change} />

@@ -26,7 +26,9 @@ const createMeterSchema = Joi.object({
   unitId: Joi.string().uuid().allow(null),
   meterNo: Joi.string().max(50).required(),
   utilityTypeId: Joi.string().uuid().required(),
-  installationDate: Joi.date().iso().allow(null),
+  // Keep date-only values as YYYY-MM-DD strings after validation. Converting
+  // them to JavaScript Date objects can shift the calendar day by timezone.
+  installationDate: Joi.date().iso().raw().allow(null),
 });
 
 const listMetersQuerySchema = Joi.object({
@@ -39,13 +41,13 @@ const listMetersQuerySchema = Joi.object({
 const updateMeterSchema = Joi.object({
   unitId: Joi.string().uuid().allow(null),
   meterNo: Joi.string().max(50),
-  installationDate: Joi.date().iso().allow(null),
+  installationDate: Joi.date().iso().raw().allow(null),
   status: Joi.string().valid(...METER_STATUSES),
 }).min(1);
 
 const replaceMeterSchema = Joi.object({
   newMeterNo: Joi.string().max(50).required(),
-  installationDate: Joi.date().iso().allow(null),
+  installationDate: Joi.date().iso().raw().allow(null),
 });
 
 const createTariffSchema = Joi.object({

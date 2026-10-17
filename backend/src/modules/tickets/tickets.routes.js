@@ -38,6 +38,7 @@ router.post(
   controller.addAttachment
 );
 router.get('/:ticketId/attachments', authorize('TICKET_ATTACHMENT_READ'), controller.listAttachments);
+router.delete('/:ticketId/attachments/:attachmentId', authorize('TICKET_ATTACHMENT_CREATE'), controller.deleteAttachment);
 
 router.get('/:ticketId/status-history', authorize('TICKET_READ'), controller.listStatusHistory);
 
