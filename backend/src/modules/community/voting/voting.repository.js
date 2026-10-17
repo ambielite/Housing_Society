@@ -18,6 +18,9 @@ const CommunityVotingVote =
 
 const CommunityGovernanceRule =
     require("./governanceRule.model");
+const CommunityVotingOtp = require("./votingOtp.model");
+const CommunityVotingAudit = require("./votingAudit.model");
+const sequelize = require("../../../config/database");
 
 
 // ============================================================
@@ -168,6 +171,48 @@ const updateRule = async (rule, data) => {
     return await rule.update(data);
 };
 
+const createOtp = async (data) => CommunityVotingOtp.create(data);
+const findLatestOtp = async (where) => CommunityVotingOtp.findOne({ where, order: [["createdAt", "DESC"]] });
+const updateOtp = async (otp, data) => otp.update(data);
+const consumeOtp = async (otpId, codeHash) => CommunityVotingOtp.update(
+    { verifiedAt: new Date(), usedAt: new Date() },
+    { where: { id: otpId, codeHash, verifiedAt: null, usedAt: null, expiresAt: { [Op.gt]: new Date() }, attempts: { [Op.lt]: 5 } } }
+);
+
+const issueBallotAfterOtp = async ({ otp, codeHash, votingId, eligibilityId, ballotTokenHash }) => sequelize.transaction(async (transaction) => {
+    await sequelize.query("SELECT pg_advisory_xact_lock(hashtext('community-voting-ballot'), hashtext(:eligibilityId))", { replacements: { eligibilityId }, transaction });
+    const existing = await CommunityVotingBallot.findOne({ where: { eligibilityId }, transaction });
+    if (existing) throw new Error("A ballot has already been issued for this eligibility record");
+    const [consumed] = await CommunityVotingOtp.update(
+        { verifiedAt: new Date(), usedAt: new Date() },
+        { where: { id: otp.id, codeHash, verifiedAt: null, usedAt: null, expiresAt: { [Op.gt]: new Date() }, attempts: { [Op.lt]: 5 } }, transaction }
+    );
+    if (!consumed) throw new Error("This verification code was already used or expired. Request a new code.");
+    return CommunityVotingBallot.create({ votingId, eligibilityId, ballotTokenHash, status: "ISSUED" }, { transaction });
+});
+
+const castVoteAtomically = async ({ ballot, eligibility, vote }) => sequelize.transaction(async (transaction) => {
+    const [used] = await CommunityVotingBallot.update(
+        { status: "USED", usedAt: new Date() },
+        { where: { id: ballot.id, status: "ISSUED" }, transaction }
+    );
+    if (!used) throw new Error("This ballot has already been used or is invalid");
+    await CommunityVotingVote.create(vote, { transaction });
+    await eligibility.update({ hasVoted: true, votedAt: new Date() }, { transaction });
+});
+
+const appendAudit = async ({ votingId, societyId, actorId, action, details, eventHash }) => sequelize.transaction(async (transaction) => {
+    await sequelize.query("SELECT pg_advisory_xact_lock(hashtext('community-voting-audit'), hashtext(:votingId))", { replacements: { votingId }, transaction });
+    const previous = await CommunityVotingAudit.findOne({ where: { votingId }, order: [["createdAt", "DESC"], ["id", "DESC"]], transaction });
+    const previousHash = previous?.eventHash || null;
+    const canonical = JSON.stringify({ votingId, societyId, actorId: actorId || null, action, details: details || {}, previousHash, at: new Date().toISOString() });
+    const crypto = require("crypto");
+    const hash = crypto.createHash("sha256").update(canonical).digest("hex");
+    return CommunityVotingAudit.create({ votingId, societyId, actorId: actorId || null, action, details: { ...(details || {}), canonicalEvent: canonical }, previousHash, eventHash: hash }, { transaction });
+});
+
+const findAudits = async (votingId) => CommunityVotingAudit.findAll({ where: { votingId }, order: [["createdAt", "ASC"], ["id", "ASC"]] });
+
 
 module.exports = {
     createVoting,
@@ -196,6 +241,14 @@ module.exports = {
     createRule,
     findRules,
     findRuleById,
-    updateRule
+    updateRule,
+    createOtp,
+    findLatestOtp,
+    updateOtp,
+    consumeOtp,
+    issueBallotAfterOtp,
+    castVoteAtomically,
+    appendAudit,
+    findAudits
 };
 

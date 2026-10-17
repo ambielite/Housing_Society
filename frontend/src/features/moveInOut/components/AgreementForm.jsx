@@ -11,6 +11,14 @@ const rowsFrom = (response) => {
     return Array.isArray(rows) ? rows : [];
 };
 
+const documentHref = (storedPath) => {
+    if (!storedPath) return "";
+    if (/^https?:\/\//i.test(storedPath)) return storedPath;
+    const apiBase = import.meta.env.VITE_LEGACY_API_BASE_URL || (import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api/v1").replace(/\/api\/v1\/?$/, "/api");
+    const serverOrigin = new URL(apiBase, window.location.origin).origin;
+    return `${serverOrigin}${storedPath.startsWith("/") ? storedPath : `/${storedPath}`}`;
+};
+
 const initialValues = (agreement) => ({
     societyId: agreement?.societyId || "",
     unitId: agreement?.unitId || "",
@@ -33,6 +41,7 @@ const AgreementForm = ({ agreement, onClose, onSuccess }) => {
     const [societies, setSocieties] = useState([]);
     const [units, setUnits] = useState([]);
     const [residents, setResidents] = useState([]);
+    const [documents, setDocuments] = useState({ agreementDocument: null, signedAgreementCopy: null });
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
@@ -74,6 +83,11 @@ const AgreementForm = ({ agreement, onClose, onSuccess }) => {
         setValues((current) => ({ ...current, [name]: value }));
     };
 
+    const updateDocument = (event) => {
+        const { name, files: selectedFiles } = event.target;
+        setDocuments((current) => ({ ...current, [name]: selectedFiles?.[0] || null }));
+    };
+
     const submit = async (event) => {
         event.preventDefault();
         setError("");
@@ -100,8 +114,16 @@ const AgreementForm = ({ agreement, onClose, onSuccess }) => {
                 remarks: values.remarks.trim() || null
             };
 
-            if (agreement?.id) await agreementApi.update(agreement.id, payload);
-            else await agreementApi.create(payload);
+            const formData = new FormData();
+            Object.entries(payload).forEach(([key, value]) => {
+                if (key === "agreementDocument" || key === "signedAgreementCopy") return;
+                formData.append(key, value == null ? "" : String(value));
+            });
+            if (documents.agreementDocument) formData.append("agreementDocument", documents.agreementDocument);
+            if (documents.signedAgreementCopy) formData.append("signedAgreementCopy", documents.signedAgreementCopy);
+
+            if (agreement?.id) await agreementApi.update(agreement.id, formData);
+            else await agreementApi.create(formData);
             await onSuccess();
         } catch (err) {
             setError(err.response?.data?.message || "Could not create agreement.");
@@ -200,9 +222,17 @@ const AgreementForm = ({ agreement, onClose, onSuccess }) => {
                                 <input id="agreement-duration" type="number" name="duration" min="1" value={values.duration} onChange={updateField} placeholder="Optional duration in months" />
                             </div>
 
-                            <div className="form-group"><label htmlFor="agreement-document">Agreement document URL</label><input id="agreement-document" name="agreementDocument" value={values.agreementDocument} onChange={updateField} placeholder="Stored document URL/path" /></div>
+                            <div className="form-group">
+                                <label htmlFor="agreement-document">Agreement document</label>
+                                <input id="agreement-document" name="agreementDocument" type="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" onChange={updateDocument} />
+                                {values.agreementDocument && <small>Current file: <a href={documentHref(values.agreementDocument)} target="_blank" rel="noreferrer">View document</a></small>}
+                            </div>
                             <div className="form-group"><label htmlFor="agreement-uploaded-at">Uploaded date</label><input id="agreement-uploaded-at" type="date" name="uploadedAt" value={values.uploadedAt} onChange={updateField} /></div>
-                            <div className="form-group"><label htmlFor="agreement-signed-copy">Signed agreement copy URL</label><input id="agreement-signed-copy" name="signedAgreementCopy" value={values.signedAgreementCopy} onChange={updateField} placeholder="Stored document URL/path" /></div>
+                            <div className="form-group">
+                                <label htmlFor="agreement-signed-copy">Signed agreement copy</label>
+                                <input id="agreement-signed-copy" name="signedAgreementCopy" type="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" onChange={updateDocument} />
+                                {values.signedAgreementCopy && <small>Current file: <a href={documentHref(values.signedAgreementCopy)} target="_blank" rel="noreferrer">View signed copy</a></small>}
+                            </div>
                             <div className="form-group"><label htmlFor="agreement-signed-at">Signed date</label><input id="agreement-signed-at" type="date" name="signedAt" value={values.signedAt} onChange={updateField} /></div>
 
                             <div className="form-group form-group-full">

@@ -43,6 +43,31 @@ const CommunityVotingEligibility = sequelize.define(
             allowNull: true
         },
 
+        memberType: {
+            type: DataTypes.STRING(30),
+            allowNull: true,
+            field: "member_type"
+        },
+
+        identityVerified: {
+            type: DataTypes.BOOLEAN,
+            allowNull: false,
+            defaultValue: false,
+            field: "identity_verified"
+        },
+
+        identityVerifiedBy: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            field: "identity_verified_by"
+        },
+
+        identityVerifiedAt: {
+            type: DataTypes.DATE,
+            allowNull: true,
+            field: "identity_verified_at"
+        },
+
         hasVoted: {
             type: DataTypes.BOOLEAN,
             allowNull: false,

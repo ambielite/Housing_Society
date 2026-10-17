@@ -32,12 +32,16 @@ const agreementApi = {
     },
 
     create: async (data) => {
-        const response = await axiosClient.post("/agreements", data);
+        const response = await axiosClient.post("/agreements", data, {
+            headers: { "Content-Type": "multipart/form-data" }
+        });
         return response.data;
     },
 
     update: async (id, data) => {
-        const response = await axiosClient.put(`/agreements/${id}`, data);
+        const response = await axiosClient.put(`/agreements/${id}`, data, {
+            headers: { "Content-Type": "multipart/form-data" }
+        });
         return response.data;
     },
 

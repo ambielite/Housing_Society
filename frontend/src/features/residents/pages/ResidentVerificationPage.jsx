@@ -58,7 +58,7 @@ const ResidentVerificationPage = () => {
     const filtered = useMemo(() => {
         const query = search.trim().toLowerCase();
         if (!query) return items;
-        return items.filter((item) => [item.residentId, item.verificationType, item.status, item.reviewedBy].some((value) => String(value || "").toLowerCase().includes(query)));
+        return items.filter((item) => [item.residentId, item.verificationType, item.status, item.reviewerName].some((value) => String(value || "").toLowerCase().includes(query)));
     }, [items, search]);
 
     const pendingCount = items.filter((item) => item.status === "PENDING").length;
@@ -85,11 +85,11 @@ const ResidentVerificationPage = () => {
         try {
             setSaving(true);
             if (action === "approve") {
-                await residentVerificationApi.approve(id, { reviewedBy: "Admin", reviewerRemarks: "Approved from resident module" });
+                await residentVerificationApi.approve(id, { reviewerRemarks: "Approved from resident module" });
             } else if (action === "reject") {
-                await residentVerificationApi.reject(id, { reviewedBy: "Admin", rejectionReason: "Rejected from resident module" });
+                await residentVerificationApi.reject(id, { rejectionReason: "Rejected from resident module" });
             } else {
-                await residentVerificationApi.requestInformation(id, { reviewedBy: "Admin", informationRequest: "Please provide missing information." });
+                await residentVerificationApi.requestInformation(id, { informationRequest: "Please provide missing information." });
             }
             await loadData();
         } catch (err) {
@@ -186,7 +186,7 @@ const ResidentVerificationPage = () => {
                                                 </span>
                                                 <span>
                                                     <strong>{(residents.find((r) => r.id === item.residentId)?.displayName) || item.residentDisplayName || item.residentId || "Resident"}</strong>
-                                                    <small>{item.reviewedBy ? `Reviewed by ${item.reviewedBy}` : "Awaiting review"}</small>
+                                                    <small>{item.reviewerName ? `Reviewed by ${item.reviewerName}` : item.reviewedBy ? "Reviewed" : "Awaiting review"}</small>
                                                 </span>
                                             </div>
                                         </td>

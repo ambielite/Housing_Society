@@ -26,6 +26,7 @@ const startMoveOutEffectiveDateJob =
 
 const startNotificationJob =
     require("./jobs/notification.job").startNotificationJob;
+const startCommunityVotingJob = require("./jobs/communityVoting.job").startCommunityVotingJob;
 
 const PORT =
     process.env.PORT || 5000;
@@ -80,6 +81,7 @@ const startServer = async () => {
                 startAssetLifecycleJob();
                 startMoveOutEffectiveDateJob();
                 startNotificationJob();
+                startCommunityVotingJob();
 
             }
         );

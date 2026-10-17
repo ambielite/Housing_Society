@@ -1,6 +1,55 @@
 const repository = require("./agreement.repository");
+const fs = require("node:fs");
+const path = require("node:path");
+const crypto = require("node:crypto");
 
-const createAgreement = async (data) => {
+const saveAgreementDocuments = (files = {}) => {
+    const uploadDirectory = path.join(process.cwd(), "uploads", "agreement-documents");
+    const documentPaths = {};
+    const savedFiles = [];
+    const fields = ["agreementDocument", "signedAgreementCopy"];
+
+    fs.mkdirSync(uploadDirectory, { recursive: true });
+    for (const field of fields) {
+        const file = files[field]?.[0];
+        if (!file) continue;
+        const extension = path.extname(file.originalname).toLowerCase();
+        const fileName = `${crypto.randomUUID()}${extension}`;
+        const fullPath = path.join(uploadDirectory, fileName);
+        fs.writeFileSync(fullPath, file.buffer, { flag: "wx" });
+        savedFiles.push(fullPath);
+        documentPaths[field] = `/uploads/agreement-documents/${fileName}`;
+    }
+
+    return { documentPaths, savedFiles };
+};
+
+const removeSavedFiles = (savedFiles) => {
+    for (const filePath of savedFiles) {
+        try {
+            fs.unlinkSync(filePath);
+        } catch {
+            // Preserve the original database error if cleanup also fails.
+        }
+    }
+};
+
+const normalizeAgreementData = (data = {}) => {
+    const { agreementDocument, signedAgreementCopy, ...fields } = data;
+    return {
+        ...fields,
+        ownerId: fields.ownerId || null,
+        tenantId: fields.tenantId || null,
+        duration: fields.duration === "" || fields.duration == null ? null : Number(fields.duration),
+        uploadedAt: fields.uploadedAt || null,
+        signedAt: fields.signedAt || null,
+        remarks: fields.remarks || null
+    };
+};
+
+const createAgreement = async (data, files) => {
+
+    data = normalizeAgreementData(data);
 
     if (data.startDate >= data.expiryDate) {
         throw new Error(
@@ -30,11 +79,18 @@ const createAgreement = async (data) => {
         );
     }
 
-    return await repository.create({
-        ...data,
-        status: "DRAFT",
-        renewalStatus: "NOT_REQUIRED"
-    });
+    const { documentPaths, savedFiles } = saveAgreementDocuments(files);
+    try {
+        return await repository.create({
+            ...data,
+            ...documentPaths,
+            status: "DRAFT",
+            renewalStatus: "NOT_REQUIRED"
+        });
+    } catch (error) {
+        removeSavedFiles(savedFiles);
+        throw error;
+    }
 };
 
 
@@ -288,7 +344,9 @@ const markExpired = async (id) => {
 };
 
 
-const updateAgreement = async (id, data) => {
+const updateAgreement = async (id, data, files) => {
+
+    data = normalizeAgreementData(data);
 
     const agreement =
         await repository.findById(id);
@@ -309,7 +367,13 @@ const updateAgreement = async (id, data) => {
         );
     }
 
-    return await repository.update(id, data);
+    const { documentPaths, savedFiles } = saveAgreementDocuments(files);
+    try {
+        return await repository.update(id, { ...data, ...documentPaths });
+    } catch (error) {
+        removeSavedFiles(savedFiles);
+        throw error;
+    }
 };
 
 

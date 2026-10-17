@@ -12,7 +12,10 @@ const choices = {
     ruleType: ["QUORUM", "ELIGIBILITY", "VOTING", "NOTICE", "TERM", "OTHER"],
     votingType: ["RESOLUTION", "ELECTION", "POLL", "AGM", "SGM", "OTHER"],
     ballotType: ["SINGLE_CHOICE", "MULTIPLE_CHOICE", "YES_NO", "ELECTION"],
-    secrecy: ["SECRET", "OPEN"]
+    secrecy: ["SECRET", "OPEN"],
+    candidateApprovalRequired: ["true", "false"],
+    identityVerificationRequired: ["true", "false"],
+    otpRequired: ["true", "false"]
 };
 
 const labels = {
@@ -25,7 +28,9 @@ const labels = {
     guestCount: "Guests", quorumRequired: "Required quorum", financialYear: "Financial year",
     isActive: "Active", votingType: "Voting type", ballotType: "Ballot type",
     secrecy: "Ballot secrecy", startAt: "Voting opens at", endAt: "Voting closes at",
-    governanceMeetingId: "AGM / SGM record"
+    governanceMeetingId: "AGM / SGM record",
+    legalBasis: "Applicable law / bylaw reference", eligibilityRules: "Eligibility rules (JSON)",
+    candidateApprovalRequired: "Require candidate approval", identityVerificationRequired: "Require identity verification", otpRequired: "Require OTP verification"
 };
 
 const titleCase = (value) => String(value).replace(/([a-z])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -53,7 +58,7 @@ function optionsFor(field, resource, options) {
     if (field === "priority") return choices.priority;
     if (field === "ruleType") return choices.ruleType;
     if (["votingType", "ballotType", "secrecy"].includes(field)) return choices[field];
-    if (["isFree", "isNegotiable", "isActive", "discussionRequired", "decisionRequired"].includes(field)) return ["true", "false"];
+    if (["isFree", "isNegotiable", "isActive", "discussionRequired", "decisionRequired", "candidateApprovalRequired", "identityVerificationRequired", "otpRequired"].includes(field)) return ["true", "false"];
     return null;
 }
 
@@ -71,13 +76,13 @@ function optionLabel(field, item) {
 }
 
 export default function CommunityRecordForm({ resource, fields, value = {}, options = {}, onChange, onSocietyChange }) {
-    const inputType = (field) => field === "description" || field === "content" || field === "summary" || field === "discussionSummary" || field === "configuration" ? "textarea" : /At$/.test(field) ? "datetime-local" : /Date$/.test(field) ? "date" : /price|capacity|quorum|order|tickets|guestCount|noticePeriod/i.test(field) ? "number" : field === "contactEmail" ? "email" : field === "contactPhone" ? "tel" : "text";
+    const inputType = (field) => field === "description" || field === "content" || field === "summary" || field === "discussionSummary" || field === "configuration" || field === "eligibilityRules" || field === "legalBasis" ? "textarea" : /At$/.test(field) ? "datetime-local" : /Date$/.test(field) ? "date" : /price|capacity|quorum|order|tickets|guestCount|noticePeriod/i.test(field) ? "number" : field === "contactEmail" ? "email" : field === "contactPhone" ? "tel" : "text";
     const setValue = (field, nextValue) => onChange((current) => ({ ...current, [field]: nextValue }));
     return <div className="security-form-grid community-form-grid">
         {fields.map((field) => {
             const label = labels[field] || titleCase(field);
             const selectOptions = optionsFor(field, resource, options);
-            const isOptional = ["capacity", "ticketPrice", "contactPhone", "contactEmail", "agendaId", "effectiveFrom", "effectiveTo", "discussionSummary", "venue", "meetingLink", "noticeDate", "noticePeriodDays", "financialYear", "quorumRequired", "chairmanId", "secretaryId", "isNegotiable", "isFree", "isActive", "governanceMeetingId"].includes(field)
+            const isOptional = ["capacity", "ticketPrice", "contactPhone", "contactEmail", "agendaId", "effectiveFrom", "effectiveTo", "discussionSummary", "venue", "meetingLink", "noticeDate", "noticePeriodDays", "financialYear", "quorumRequired", "chairmanId", "secretaryId", "isNegotiable", "isFree", "isActive", "governanceMeetingId", "legalBasis", "eligibilityRules", "candidateApprovalRequired", "identityVerificationRequired", "otpRequired"].includes(field)
                 || (field === "description" && !["classifieds", "events"].includes(resource))
                 || (field === "endAt" && resource !== "events")
                 || (field === "category" && !["classifieds", "events"].includes(resource));
@@ -90,7 +95,7 @@ export default function CommunityRecordForm({ resource, fields, value = {}, opti
                 </select></label>;
             }
             const type = inputType(field);
-            return <label key={field}>{label}{type === "textarea" ? <textarea rows={field === "configuration" ? 4 : 3} required={!isOptional} value={value[field] ?? (field === "configuration" ? "{}" : "")} onChange={(event) => setValue(field, event.target.value)} placeholder={field === "configuration" ? '{"quorumPercentage": 50}' : ""}/> : <input type={type} min={type === "number" ? 0 : undefined} step={field === "price" || field === "ticketPrice" ? "0.01" : undefined} required={!isOptional} value={value[field] ?? ""} onChange={(event) => setValue(field, event.target.value)}/>}</label>;
+                return <label key={field}>{label}{type === "textarea" ? <textarea rows={field === "configuration" || field === "eligibilityRules" ? 4 : 3} required={!isOptional} value={value[field] ?? (["configuration", "eligibilityRules"].includes(field) ? "{}" : "")} onChange={(event) => setValue(field, event.target.value)} placeholder={field === "configuration" || field === "eligibilityRules" ? '{"excludeTenants": true}' : ""}/> : <input type={type} min={type === "number" ? 0 : undefined} step={field === "price" || field === "ticketPrice" ? "0.01" : undefined} required={!isOptional} value={value[field] ?? ""} onChange={(event) => setValue(field, event.target.value)}/>}</label>;
         })}
     </div>;
 }

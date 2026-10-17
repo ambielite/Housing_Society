@@ -1,5 +1,23 @@
 const repository = require("./residentVerification.repository");
 const Resident = require("../resident/resident.model");
+const usersRepository = require("../../users/users.repository");
+
+const addReviewerNames = async (verifications) => {
+    const rows = verifications.map((verification) =>
+        typeof verification.toJSON === "function" ? verification.toJSON() : verification
+    );
+    const reviewerIds = [...new Set(rows.map((row) => row.reviewedBy).filter(Boolean))];
+    const reviewers = await usersRepository.findNamesByIds(reviewerIds);
+    const namesById = new Map(reviewers.map((reviewer) => [
+        reviewer.id,
+        [reviewer.first_name, reviewer.last_name].filter(Boolean).join(" ")
+    ]));
+
+    return rows.map((row) => ({
+        ...row,
+        reviewerName: row.reviewedBy ? namesById.get(row.reviewedBy) || null : null
+    }));
+};
 
 const createVerification = async (data) => {
     const resident = await Resident.findByPk(data.residentId);
@@ -46,11 +64,11 @@ const getVerification = async (id) => {
 };
 
 const getAll = async (filters = {}) => {
-    return await repository.findAll(filters);
+    return await addReviewerNames(await repository.findAll(filters));
 };
 
 const getPendingQueue = async (societyId) => {
-    return await repository.findPending(societyId);
+    return await addReviewerNames(await repository.findPending(societyId));
 };
 
 const getResidentVerifications = async (residentId) => {
@@ -60,7 +78,7 @@ const getResidentVerifications = async (residentId) => {
         throw new Error("Resident not found");
     }
 
-    return await repository.findByResident(residentId);
+    return await addReviewerNames(await repository.findByResident(residentId));
 };
 
 const approveVerification = async (

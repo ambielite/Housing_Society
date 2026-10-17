@@ -41,11 +41,8 @@ const nonMemberApi = {
         return response.data;
     },
 
-    approve: async (id, approvedBy, remarks) => {
-        const response = await axiosClient.patch(`/non-members/${id}/approve`, {
-            approvedBy,
-            remarks
-        });
+    approve: async (id, remarks) => {
+        const response = await axiosClient.patch(`/non-members/${id}/approve`, { remarks });
         return response.data;
     },
 

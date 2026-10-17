@@ -21,16 +21,6 @@ const CommunityVotingVote = sequelize.define(
             }
         },
 
-        ballotId: {
-            type: DataTypes.UUID,
-            allowNull: false,
-            field: "ballot_id",
-            references: {
-                model: "community_voting_ballots",
-                key: "id"
-            }
-        },
-
         optionId: {
             type: DataTypes.UUID,
             allowNull: false,
@@ -39,6 +29,12 @@ const CommunityVotingVote = sequelize.define(
                 model: "community_voting_options",
                 key: "id"
             }
+        },
+
+        receiptHash: {
+            type: DataTypes.STRING(64),
+            allowNull: true,
+            field: "receipt_hash"
         },
 
         castAt: {
@@ -65,10 +61,6 @@ const CommunityVotingVote = sequelize.define(
         timestamps: true,
 
         indexes: [
-            {
-                unique: true,
-                fields: ["ballot_id"]
-            },
             {
                 fields: ["voting_id"]
             },

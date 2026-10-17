@@ -113,7 +113,7 @@ const approve = async (req, res) => {
         const verification =
             await service.approveVerification(
                 req.params.id,
-                req.body.reviewedBy,
+                req.user.id,
                 req.body.reviewerRemarks
             );
 
@@ -136,7 +136,7 @@ const reject = async (req, res) => {
         const verification =
             await service.rejectVerification(
                 req.params.id,
-                req.body.reviewedBy,
+                req.user.id,
                 req.body.rejectionReason,
                 req.body.reviewerRemarks
             );
@@ -159,7 +159,7 @@ const requestInformation = async (req, res) => {
         const verification =
             await service.requestMoreInformation(
                 req.params.id,
-                req.body.reviewedBy,
+                req.user.id,
                 req.body.informationRequest,
                 req.body.reviewerRemarks
             );

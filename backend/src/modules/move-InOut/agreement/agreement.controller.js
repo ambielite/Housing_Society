@@ -6,7 +6,7 @@ const createAgreement = async (req, res) => {
     try {
 
         const agreement =
-            await service.createAgreement(req.body);
+            await service.createAgreement(req.body, req.files);
 
         res.status(201).json({
             success: true,
@@ -426,7 +426,8 @@ const updateAgreement = async (
         const agreement =
             await service.updateAgreement(
                 req.params.id,
-                req.body
+                req.body,
+                req.files
             );
 
         res.status(200).json({
