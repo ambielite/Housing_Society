@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Plus } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useFetch from '../../../utils/useFetch';
@@ -48,7 +49,7 @@ export default function RoleListPage() {
 
   const newRoleButton = hasPermission('ROLE_CREATE') && (
     <Link to="/roles/new" className="btn btn-primary">
-      New role
+      <Plus size={16} /> New role
     </Link>
   );
 

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Plus } from 'lucide-react';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
 import useFetch from '../../../utils/useFetch';
@@ -29,13 +30,13 @@ const list = (value) => {
   return [];
 };
 
-function ProfileForm({ societyId, value, onSubmit, onCancel, saving, error }) {
+function ProfileForm({ societyId, societyName, value, onSubmit, onCancel, saving, error }) {
   const [form, setForm] = useState({ societyId, name: value?.name || '', phone: value?.phone || '', idType: value?.id_type || '', idNumberMasked: value?.id_number_masked || '', vehicleNo: value?.vehicle_no || '' });
   const edit = Boolean(value);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   return <form onSubmit={(e) => { e.preventDefault(); onSubmit(edit ? { name: form.name, phone: form.phone || null, idType: form.idType || null, idNumberMasked: form.idNumberMasked || null, vehicleNo: form.vehicleNo || null } : { ...form, phone: form.phone || null, idType: form.idType || null, idNumberMasked: form.idNumberMasked || null, vehicleNo: form.vehicleNo || null }); }}>
     <ErrorBox error={error} />
-    {!edit && <TextField id="profileSociety" label="Society" value={form.societyId} disabled />}
+    {!edit && <TextField id="profileSociety" label="Society" value={societyName || 'Selected society'} disabled />}
     <TextField id="visitorName" label="Visitor name" value={form.name} onChange={(e) => set('name', e.target.value)} required />
     <TextField id="visitorPhone" label="Phone" value={form.phone} onChange={(e) => set('phone', e.target.value)} />
     <SelectField id="visitorIdType" label="ID type" options={[{ value: '', label: 'Not provided' }, ...ID_TYPES.map((v) => ({ value: v, label: label(v) }))]} value={form.idType} onChange={(e) => set('idType', e.target.value)} />
@@ -73,7 +74,7 @@ function PassForm({ profiles, gates, invites, onSubmit, onCancel, saving, error 
   </form>;
 }
 
-export default function VisitorsPage({ societyId, currentUser, gates, unitNames = {}, userNames = {}, gateNames = {} }) {
+export default function VisitorsPage({ societyId, societyName, currentUser, gates, unitNames = {}, userNames = {}, gateNames = {} }) {
   const { hasPermission } = useAuth();
   const [tab, setTab] = useState('profiles');
   const [dialog, setDialog] = useState(null);
@@ -353,9 +354,9 @@ const passColumns = [
     {notice && <Alert variant="success">{notice}</Alert>}
     {error && !dialog && <Alert>{error}</Alert>}
 
-    {tab === 'profiles' && <><div className="section-head"><div><h2 className="section-title">Visitor profiles</h2><p className="muted section-hint">Register and maintain visitor identity records.</p></div>{hasPermission('VISITOR_PROFILE_CREATE') && <button className="btn btn-primary" onClick={() => setDialog('profile-new')}>New visitor</button>}</div><DataTable columns={profileColumns} rows={profileRows} loading={profiles.loading} error={profiles.error ? getErrorMessage(profiles.error) : ''} onRetry={profiles.reload} emptyTitle="No visitor profiles" emptyMessage="Register a visitor before creating an invite or pass." /></>}
+    {tab === 'profiles' && <><div className="section-head"><div><h2 className="section-title">Visitor profiles</h2><p className="muted section-hint">Register and maintain visitor identity records.</p></div>{hasPermission('VISITOR_PROFILE_CREATE') && <button className="btn btn-primary" onClick={() => setDialog('profile-new')}><Plus size={16} /> New visitor</button>}</div><DataTable columns={profileColumns} rows={profileRows} loading={profiles.loading} error={profiles.error ? getErrorMessage(profiles.error) : ''} onRetry={profiles.reload} emptyTitle="No visitor profiles" emptyMessage="Register a visitor before creating an invite or pass." /></>}
 
-    {tab === 'invites' && <><div className="section-head"><div><h2 className="section-title">Visitor invites</h2><p className="muted section-hint">Pre-approve expected visitors for a unit.</p></div>{hasPermission('VISITOR_INVITE_CREATE') && <button className="btn btn-primary" onClick={() => setDialog('invite-new')}>New invite</button>}</div><DataTable columns={inviteColumns} rows={inviteRows} loading={invites.loading} error={invites.error ? getErrorMessage(invites.error) : ''} onRetry={invites.reload} emptyTitle="No invites" emptyMessage="Create an invite for a pre-approved visitor." /></>}
+    {tab === 'invites' && <><div className="section-head"><div><h2 className="section-title">Visitor invites</h2><p className="muted section-hint">Pre-approve expected visitors for a unit.</p></div>{hasPermission('VISITOR_INVITE_CREATE') && <button className="btn btn-primary" onClick={() => setDialog('invite-new')}><Plus size={16} /> New invite</button>}</div><DataTable columns={inviteColumns} rows={inviteRows} loading={invites.loading} error={invites.error ? getErrorMessage(invites.error) : ''} onRetry={invites.reload} emptyTitle="No invites" emptyMessage="Create an invite for a pre-approved visitor." /></>}
 
     {tab === 'passes' && <><div className="section-head"><div><h2 className="section-title">Visitor passes</h2><p className="muted section-hint">Gate-facing lifecycle: expected → arrival → entry → exit/overstay.</p></div>{hasPermission('VISITOR_PASS_CREATE') && <button className="btn btn-primary" onClick={() => setDialog('pass-new')}>Issue pass</button>}</div><DataTable columns={passColumns} rows={passRows} loading={passes.loading} error={passes.error ? getErrorMessage(passes.error) : ''} onRetry={passes.reload} emptyTitle="No visitor passes" emptyMessage="Issue a pass for an approved invite or a walk-in visitor." /></>}
 
@@ -363,8 +364,8 @@ const passColumns = [
 
     {tab === 'alerts' && <><div className="section-head"><div><h2 className="section-title">Overstay alerts</h2><p className="muted section-hint">Manual trigger is used by the backend; there is no automatic scheduler yet.</p></div></div><DataTable columns={alertColumns} rows={alertRows} loading={alerts.loading} error={alerts.error ? getErrorMessage(alerts.error) : ''} onRetry={alerts.reload} emptyTitle="No overstay alerts" emptyMessage="Triggered overstays will appear here." /></>}
 
-    {dialog === 'profile-new' && <Modal title="Register visitor" onClose={() => setDialog(null)}><ProfileForm societyId={societyId} onSubmit={(p) => run(() => api.createVisitorProfile(p), 'Visitor profile created.')} onCancel={() => setDialog(null)} /></Modal>}
-    {dialog === 'profile-edit' && <Modal title="Edit visitor" onClose={() => setDialog(null)}><ProfileForm societyId={societyId} value={selected} onSubmit={(p) => run(() => api.updateVisitorProfile(selected.id, p), 'Visitor profile updated.')} onCancel={() => setDialog(null)} /></Modal>}
+    {dialog === 'profile-new' && <Modal title="Register visitor" onClose={() => setDialog(null)}><ProfileForm societyId={societyId} societyName={societyName} onSubmit={(p) => run(() => api.createVisitorProfile(p), 'Visitor profile created.')} onCancel={() => setDialog(null)} /></Modal>}
+    {dialog === 'profile-edit' && <Modal title="Edit visitor" onClose={() => setDialog(null)}><ProfileForm societyId={societyId} societyName={societyName} value={selected} onSubmit={(p) => run(() => api.updateVisitorProfile(selected.id, p), 'Visitor profile updated.')} onCancel={() => setDialog(null)} /></Modal>}
     {dialog === 'profile-detail' && <Modal title="Visitor profile" onClose={() => setDialog(null)}><dl className="details"><dt>Name</dt><dd>{selected?.name}</dd><dt>Phone</dt><dd>{selected?.phone || '-'}</dd><dt>ID type</dt><dd>{selected?.id_type ? label(selected.id_type) : '-'}</dd><dt>Masked ID</dt><dd>{selected?.id_number_masked || '-'}</dd><dt>Vehicle</dt><dd>{selected?.vehicle_no || '-'}</dd><dt>Blacklist</dt><dd><SecurityBadge value={selected?.blacklist_status} /></dd></dl></Modal>}
 
     {dialog === 'invite-new' && <Modal title="Create visitor invite" onClose={() => setDialog(null)}><InviteForm societyId={societyId} userId={currentUser?.id} profiles={profileRows} onSubmit={(p) => run(() => api.createVisitorInvite(p), 'Visitor invite created.')} onCancel={() => setDialog(null)} /></Modal>}

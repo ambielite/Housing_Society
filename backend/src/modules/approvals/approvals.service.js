@@ -1,5 +1,8 @@
 const ApiError = require('../../common/ApiError');
 const repository = require('./approvals.repository');
+const procurementRepository = require('../procurement/procurement.repository');
+const purchaseOrdersRepository = require('../purchase-orders/purchase-orders.repository');
+const db = require('../../config/db');
 
 /**
  * Generic approval engine (per the DB doc, approval_requests /
@@ -20,6 +23,20 @@ const repository = require('./approvals.repository');
  */
 
 const raiseApproval = async ({ societyId, entityType, entityId, approvalType }) => {
+  let entity;
+  if (entityType === 'PURCHASE_REQUEST') entity = await procurementRepository.findRequestById(entityId);
+  else if (entityType === 'PURCHASE_ORDER') entity = await purchaseOrdersRepository.findPOById(entityId);
+  else if (entityType === 'VENDOR_INVOICE') {
+    const result = await db.query(
+      `SELECT vi.id, v.society_id FROM vendor_invoices vi
+       JOIN vendors v ON v.id = vi.vendor_id WHERE vi.id = $1`,
+      [entityId]
+    );
+    entity = result.rows[0] || null;
+  }
+  if (!entity) throw new ApiError(404, 'The selected approval record was not found');
+  if (entity.society_id !== societyId) throw new ApiError(400, 'The selected approval record belongs to a different society');
+
   const existingOpen = await repository.findOpenForEntity(entityType, entityId);
   if (existingOpen) {
     throw new ApiError(409, 'An approval request is already pending for this entity');

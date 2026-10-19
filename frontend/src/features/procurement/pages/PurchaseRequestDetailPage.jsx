@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Plus } from 'lucide-react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useFetch from '../../../utils/useFetch';
@@ -16,6 +17,7 @@ import { RequestStatusBadge, RfqStatusBadge } from '../components/ProcurementBad
 import RequestLineForm from '../components/RequestLineForm';
 import RfqForm from '../components/RfqForm';
 import { NEXT_REQUEST_STATUSES, REQUEST_STATUSES, friendlyDeleteError } from '../components/procurementOptions';
+import assetsApi from '../../assets/api/assets.api';
 
 export default function PurchaseRequestDetailPage() {
   const { requestId } = useParams();
@@ -24,6 +26,8 @@ export default function PurchaseRequestDetailPage() {
   const { hasPermission } = useAuth();
 
   const request = useFetch(() => procurementApi.getRequest(requestId), [requestId]);
+  const assetCategoryResult = useFetch(() => request.data?.society_id ? assetsApi.getCategories() : Promise.resolve([]), [request.data?.society_id]);
+  const assetCategories = assetCategoryResult.data?.data || assetCategoryResult.data?.categories || [];
   const canSeeRfqs = hasPermission('RFQ_READ');
   const rfqs = useFetch(() => (canSeeRfqs ? procurementApi.listRfqs(requestId) : Promise.resolve(null)), [requestId, canSeeRfqs]);
 
@@ -103,6 +107,7 @@ export default function PurchaseRequestDetailPage() {
 
   const lineColumns = [
     { key: 'item', header: 'Item', render: (l) => <span className="cell-title">{l.item_description}</span> },
+    { key: 'assetCategory', header: 'Asset category', render: (l) => l.asset_category_name || '—' },
     { key: 'qty', header: 'Quantity', render: (l) => Number(l.quantity) },
     { key: 'cost', header: 'Estimated unit cost', render: (l) => formatCurrency(l.estimated_unit_cost) },
     {
@@ -202,7 +207,7 @@ export default function PurchaseRequestDetailPage() {
             </div>
             {canCreateRfq && (
               <button type="button" className="btn btn-primary" onClick={() => openDialog('rfq')}>
-                New RFQ
+                <Plus size={16} /> New RFQ
               </button>
             )}
           </div>
@@ -233,7 +238,7 @@ export default function PurchaseRequestDetailPage() {
       )}
       {dialog === 'line' && (
         <Modal title="Add item" onClose={() => setDialog(null)} busy={saving}>
-          <RequestLineForm onSubmit={saveLine} onCancel={() => setDialog(null)} saving={saving} error={saveError} />
+          <RequestLineForm onSubmit={saveLine} onCancel={() => setDialog(null)} saving={saving} error={saveError} assetCategories={assetCategories.filter((category) => (category.status || 'ACTIVE') === 'ACTIVE')} />
         </Modal>
       )}
       {dialog === 'rfq' && (

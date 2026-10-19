@@ -315,6 +315,8 @@ const getQuotationComparison = async (p) => {
   return { rfq, quotationCount: rows.length, lowestQuote: lowest, quotations: rows, rows };
 };
 
+const listProcurementRfqs = (societyId) => repo.rfqsForSociety(societyId);
+
 const getPurchaseOrderReport = async (p) => {
   const rows = await repo.poRows(p.societyId, p.fromDate, p.toDate, p.limit);
   return { period: period(p), count: rows.length, totalValue: Number(sum(rows, 'total').toFixed(2)), purchaseOrders: rows, rows };
@@ -396,7 +398,7 @@ module.exports = {
   getVisitorReport, getGateActivityReport, getOverstayReport, getDeliveryReport,
   getTicketReport, getSlaReport, getCategoryTrends,
   getVendorOutstanding, getVendorContracts, getVendorSpend, getVendorSlaPerformance,
-  getProcurementSummary, getQuotationComparison, getPurchaseOrderReport, getVendorBillReport,
+  getProcurementSummary, getQuotationComparison, listProcurementRfqs, getPurchaseOrderReport, getVendorBillReport,
   getAmenityUtilization, getAmenityBookings,
   getUtilitySummary,
 };

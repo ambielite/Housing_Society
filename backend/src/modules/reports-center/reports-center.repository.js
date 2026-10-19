@@ -532,6 +532,15 @@ const findRfqForSociety = (societyId, rfqId) =>
     [societyId, rfqId]
   );
 
+const rfqsForSociety = (societyId) =>
+  many(
+    `SELECT r.id, r.rfq_no, r.status, pr.request_no
+     FROM rfqs r JOIN purchase_requests pr ON pr.id = r.purchase_request_id
+     WHERE pr.society_id = $1
+     ORDER BY r.created_at DESC, r.rfq_no ASC`,
+    [societyId]
+  );
+
 const rfqQuotations = (rfqId) =>
   many(
     `SELECT q.id AS quotation_id, q.vendor_id, v.legal_name AS vendor, q.quotation_no,
@@ -653,7 +662,7 @@ module.exports = {
   slaTimerStatus, slaOverdueRunning, slaBreachRows, categoryTrends,
   vendorOutstanding, contractStatus, contractRows, vendorSpend, vendorSlaPerformance,
   prByStatus, rfqByStatus, quotationByStatus, poByStatus, vendorInvoiceByStatus, goodsReceiptByStatus,
-  poRows, vendorBillRows, findRfqForSociety, rfqQuotations, rfqScores,
+  poRows, vendorBillRows, findRfqForSociety, rfqsForSociety, rfqQuotations, rfqScores,
   amenityUtilization, amenityWeekday, amenityBookingRows,
   metersByTypeStatus, utilityBills, readingsByStatus, utilityBillRows,
 };

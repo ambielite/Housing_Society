@@ -2,6 +2,7 @@ const ApiError = require('../../common/ApiError');
 const repository = require('./purchase-orders.repository');
 const vendorsRepository = require('../vendors/vendors.repository');
 const documentRepository = require('../document-folders/document-folders.repository');
+const db = require('../../config/db');
 const { isVendorScoped } = require('../../common/vendorScope');
 const assertVendorInvoiceScope = (invoice, actingUser) => {
   if (isVendorOnly(actingUser) && (!actingUser.vendorId || invoice.vendor_id !== actingUser.vendorId)) {
@@ -23,6 +24,9 @@ const createPO = async ({ societyId, vendorId, purchaseRequestId, poNo, poDate, 
   if (!vendor) {
     throw new ApiError(404, 'Vendor not found');
   }
+  if (vendor.society_id !== societyId) {
+    throw new ApiError(400, 'Vendor does not belong to the purchase order society');
+  }
   if (vendor.status !== 'ACTIVE') {
     throw new ApiError(400, `Cannot issue a purchase order to a vendor with status ${vendor.status}`);
   }
@@ -30,6 +34,14 @@ const createPO = async ({ societyId, vendorId, purchaseRequestId, poNo, poDate, 
   const existing = await repository.findPOByNo(poNo);
   if (existing) {
     throw new ApiError(409, 'A purchase order with this PO number already exists');
+  }
+
+  if (purchaseRequestId) {
+    const requestResult = await db.query('SELECT society_id FROM purchase_requests WHERE id = $1', [purchaseRequestId]);
+    if (!requestResult.rows[0]) throw new ApiError(404, 'Purchase request not found');
+    if (requestResult.rows[0].society_id !== societyId) {
+      throw new ApiError(400, 'Purchase request does not belong to the purchase order society');
+    }
   }
 
   return repository.createPO({ societyId, vendorId, purchaseRequestId, poNo, poDate, deliveryDate });
@@ -80,6 +92,12 @@ const addPOLine = async (purchaseOrderId, payload) => {
   const po = await repository.findPOById(purchaseOrderId);
   if (!po) {
     throw new ApiError(404, 'Purchase order not found');
+  }
+  if (payload.assetCategoryId) {
+    const category = await db.query('SELECT id, society_id, status FROM asset_categories WHERE id = $1', [payload.assetCategoryId]);
+    if (!category.rows[0] || category.rows[0].society_id !== po.society_id || category.rows[0].status !== 'ACTIVE') {
+      throw new ApiError(400, 'Choose an active asset category from the purchase order society');
+    }
   }
   await repository.addPOLine({ purchaseOrderId, ...payload });
   return repository.recalculatePOTotals(purchaseOrderId);
@@ -237,11 +255,6 @@ const updateInvoiceStatus = async (id, status, actingUser) => {
 
 // --- vendor payments --------------------------------------------------------------
 
-/**
- * payment_id has no FK yet (Phase 7 - teammate's Payments module is in
- * progress). Store whatever UUID is given, don't validate it against a
- * real payments table until that phase lands.
- */
 const allocatePayment = async ({ vendorInvoiceId, paymentId, allocatedAmount }, actingUser) => {
   const invoice = await repository.findInvoiceById(vendorInvoiceId);
   if (!invoice) {
@@ -250,6 +263,20 @@ const allocatePayment = async ({ vendorInvoiceId, paymentId, allocatedAmount }, 
   assertVendorInvoiceScope(invoice, actingUser);
   if (invoice.status !== 'APPROVED') {
     throw new ApiError(400, 'Only APPROVED invoices can receive a payment allocation');
+  }
+  if (paymentId) {
+    const result = await db.query(
+      `SELECT p.id, p.society_id, v.society_id AS vendor_society_id
+       FROM payments p
+       JOIN vendor_invoices vi ON vi.id = $2
+       JOIN vendors v ON v.id = vi.vendor_id
+       WHERE p.id = $1`,
+      [paymentId, vendorInvoiceId]
+    );
+    if (!result.rows[0]) throw new ApiError(404, 'Finance payment record not found');
+    if (result.rows[0].society_id !== result.rows[0].vendor_society_id) {
+      throw new ApiError(400, 'Finance payment belongs to a different society than the vendor invoice');
+    }
   }
 
   const alreadyAllocated = await repository.sumAllocatedForInvoice(vendorInvoiceId);

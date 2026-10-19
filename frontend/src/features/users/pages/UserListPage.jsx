@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
@@ -56,7 +57,7 @@ export default function UserListPage() {
 
   const newUserButton = canCreate && (
     <Link to="/users/new" className="btn btn-primary">
-      New user
+      <Plus size={16} /> New user
     </Link>
   );
 

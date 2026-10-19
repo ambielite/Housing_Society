@@ -1,6 +1,7 @@
 const ApiError = require('../../common/ApiError');
 const repository = require('./procurement.repository');
 const vendorsRepository = require('../vendors/vendors.repository');
+const db = require('../../config/db');
 const { isVendorScoped } = require('../../common/vendorScope');
 
 const isVendorOnly = isVendorScoped;
@@ -75,6 +76,12 @@ const addRequestLine = async (purchaseRequestId, payload) => {
   const request = await repository.findRequestById(purchaseRequestId);
   if (!request) {
     throw new ApiError(404, 'Purchase request not found');
+  }
+  if (payload.assetCategoryId) {
+    const category = await db.query('SELECT id, society_id, status FROM asset_categories WHERE id = $1', [payload.assetCategoryId]);
+    if (!category.rows[0] || category.rows[0].society_id !== request.society_id || category.rows[0].status !== 'ACTIVE') {
+      throw new ApiError(400, 'Choose an active asset category from the purchase request society');
+    }
   }
   return repository.addRequestLine({ purchaseRequestId, ...payload });
 };

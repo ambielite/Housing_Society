@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
@@ -31,7 +32,7 @@ export default function PurchaseOrderListPage() {
   const term = search.trim().toLowerCase();
   const rows = data ? data.filter((po) => !term || `${po.po_no} ${po.vendor_id}`.toLowerCase().includes(term)) : null;
   const filtersActive = Boolean(term || status || vendorId);
-  const newButton = hasPermission('PURCHASE_ORDER_CREATE') && <Link to="/purchase-orders/new" className="btn btn-primary">New purchase order</Link>;
+  const newButton = hasPermission('PURCHASE_ORDER_CREATE') && <Link to="/purchase-orders/new" className="btn btn-primary"><Plus size={16} /> New purchase order</Link>;
 
   const columns = [
     { key: 'po', header: 'Purchase order', render: (po) => <><Link to={`/purchase-orders/${po.id}`} className="cell-title">{po.po_no}</Link><span className="cell-sub">{nameOf(po.vendor_id)}</span></> },
