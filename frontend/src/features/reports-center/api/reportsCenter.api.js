@@ -31,6 +31,7 @@ export const getVendorSpend = (params = {}) => data(get('/vendors/spend', params
 export const getVendorSlaPerformance = (params = {}) => data(get('/vendors/sla-performance', params));
 // Procurement
 export const getProcurementSummary = (params = {}) => data(get('/procurement/summary', params));
+export const listProcurementRfqs = (params = {}) => data(get('/procurement/rfqs', params));
 export const getQuotationComparison = (params = {}) => data(get('/procurement/quotation-comparison', params));
 export const getPurchaseOrderReport = (params = {}) => data(get('/procurement/purchase-orders', params));
 export const getVendorBillReport = (params = {}) => data(get('/procurement/vendor-bills', params));

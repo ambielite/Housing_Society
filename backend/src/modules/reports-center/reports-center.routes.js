@@ -40,6 +40,7 @@ router.get('/vendors/sla-performance', authorize('REPORT_VENDOR_READ'), q, contr
 
 // Procurement
 router.get('/procurement/summary', authorize('REPORT_PROCUREMENT_READ'), q, controller.getProcurementSummary);
+router.get('/procurement/rfqs', authorize('REPORT_PROCUREMENT_READ'), q, controller.listProcurementRfqs);
 router.get(
   '/procurement/quotation-comparison',
   authorize('REPORT_PROCUREMENT_READ'),

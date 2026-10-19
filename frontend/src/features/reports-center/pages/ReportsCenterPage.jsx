@@ -70,10 +70,14 @@ const formatValue = (value, key = '') => {
 };
 const displayLabel = (key) => LABELS[key] || humanize(key);
 const isScalar = (value) => value === null || ['string', 'number', 'boolean'].includes(typeof value);
+const isIdentifierField = (key) => /(^id$|_id$)/i.test(String(key));
 const asRows = (value) => Array.isArray(value) ? value.filter((item) => item && typeof item === 'object') : [];
 
 function ReportTable({ title, rows }) {
-  const columns = useMemo(() => [...new Set(rows.slice(0, 40).flatMap((row) => Object.keys(row)))], [rows]);
+  const columns = useMemo(
+    () => [...new Set(rows.slice(0, 40).flatMap((row) => Object.keys(row)))].filter((column) => !isIdentifierField(column)),
+    [rows]
+  );
   if (!rows.length) return null;
   return (
     <section className="rc-data-section">
@@ -93,7 +97,7 @@ function ReportTable({ title, rows }) {
 }
 
 function MetricCards({ data, prefix = '' }) {
-  const entries = Object.entries(data || {}).filter(([key, value]) => isScalar(value) && key !== 'period' && key !== 'responseTimeDefinition');
+  const entries = Object.entries(data || {}).filter(([key, value]) => isScalar(value) && !isIdentifierField(key) && key !== 'period' && key !== 'responseTimeDefinition');
   if (!entries.length) return null;
   return <div className="rc-metric-grid">{entries.map(([key, value], index) => (
     <article className="rc-metric-card" key={`${prefix}${key}`}>
@@ -159,13 +163,13 @@ function ReportResults({ data, report }) {
   const arrays = [];
   Object.entries(data).forEach(([key, value]) => {
     if (key === 'period') return;
-    if (isScalar(value)) scalarData[key] = value;
+    if (isScalar(value) && !isIdentifierField(key)) scalarData[key] = value;
     else if (Array.isArray(value)) {
       const rows = asRows(value);
       if (rows.length) arrays.push({ key, title: displayLabel(key), rows });
       else if (key === 'rows') arrays.push({ key, title: 'Detail rows', rows: [] });
     } else if (value && typeof value === 'object') {
-      const scalar = Object.fromEntries(Object.entries(value).filter(([, item]) => isScalar(item)));
+      const scalar = Object.fromEntries(Object.entries(value).filter(([name, item]) => isScalar(item) && !isIdentifierField(name)));
       const list = Object.entries(value).filter(([, item]) => Array.isArray(item) && asRows(item).length);
       if (Object.keys(scalar).length || list.length) nestedSections.push({ key, title: displayLabel(key), scalar, arrays: list.map(([name, items]) => ({ key: name, title: displayLabel(name), rows: asRows(items) })) });
     }
@@ -202,6 +206,9 @@ export default function ReportsCenterPage() {
   const [includeRows, setIncludeRows] = useState(false);
   const [limit, setLimit] = useState('500');
   const [rfqId, setRfqId] = useState('');
+  const [rfqOptions, setRfqOptions] = useState([]);
+  const [rfqOptionsLoading, setRfqOptionsLoading] = useState(false);
+  const [rfqOptionsError, setRfqOptionsError] = useState('');
   const [expiringInDays, setExpiringInDays] = useState('30');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -213,6 +220,35 @@ export default function ReportsCenterPage() {
   const currentReport = REPORT_BY_KEY[reportKey] || currentGroup?.reports[0];
   const canExport = Boolean(currentReport?.exportKey && hasPermission('REPORT_EXPORT'));
   const needsSociety = isSuperAdmin && !societyId;
+
+  useEffect(() => {
+    if (!currentReport?.rfqId) {
+      setRfqOptions([]);
+      setRfqId('');
+      setRfqOptionsError('');
+      return undefined;
+    }
+
+    let cancelled = false;
+    setRfqOptions([]);
+    setRfqId('');
+    setRfqOptionsError('');
+    setRfqOptionsLoading(true);
+    reportsApi.listProcurementRfqs(isSuperAdmin && societyId ? { societyId } : {})
+      .then((result) => {
+        if (cancelled) return;
+        const rows = Array.isArray(result) ? result : result?.rfqs || result?.data || [];
+        setRfqOptions(Array.isArray(rows) ? rows : []);
+      })
+      .catch((err) => {
+        if (!cancelled) setRfqOptionsError(getErrorMessage(err));
+      })
+      .finally(() => {
+        if (!cancelled) setRfqOptionsLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [currentReport?.rfqId, isSuperAdmin, societyId]);
 
   useEffect(() => {
     if (!visibleGroups.length) return;
@@ -243,7 +279,7 @@ export default function ReportsCenterPage() {
     if (!report) return;
     if (needsSociety) { setError('Select a society before loading reports.'); return; }
     if (fromDate && toDate && fromDate > toDate) { setError('The end date cannot be earlier than the start date.'); return; }
-    if (report.rfqId && !rfqId.trim()) { setError('Enter an RFQ ID to compare its quotations.'); return; }
+    if (report.rfqId && !rfqId) { setError('Select an RFQ to compare its quotations.'); return; }
     setLoading(true); setError(''); setNotice('');
     try {
       const result = await REQUESTS[key](makeParams(report));
@@ -255,7 +291,7 @@ export default function ReportsCenterPage() {
   }, [reportKey, needsSociety, fromDate, toDate, rfqId, makeParams]);
 
   useEffect(() => {
-    if (needsSociety || !currentReport || !hasAnyPermission(currentReport.permission)) return;
+    if (needsSociety || !currentReport || currentReport.rfqId || !hasAnyPermission(currentReport.permission)) return;
     runReport(currentReport.key);
   // Run automatically when the report changes; filter changes are applied using the Run report button.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -273,7 +309,7 @@ export default function ReportsCenterPage() {
     if (!currentReport?.exportKey || !canExport) return;
     if (needsSociety) { setError('Select a society before exporting reports.'); return; }
     if (fromDate && toDate && fromDate > toDate) { setError('The end date cannot be earlier than the start date.'); return; }
-    if (currentReport.rfqId && !rfqId.trim()) { setError('Enter an RFQ ID to compare its quotations.'); return; }
+    if (currentReport.rfqId && !rfqId) { setError('Select an RFQ to compare its quotations.'); return; }
     setExporting(format); setError(''); setNotice('');
     try {
       const params = { ...makeParams(currentReport), includeRows: true, format };
@@ -324,7 +360,7 @@ export default function ReportsCenterPage() {
             <div className="rc-control"><label htmlFor="rc-to">To date</label><input id="rc-to" className="input" type="date" min={fromDate || undefined} value={toDate} onChange={(event) => setToDate(event.target.value)} /></div>
           </>}
           {currentReport?.expiringDays && <div className="rc-control"><label htmlFor="rc-expiry">Expiring within</label><select id="rc-expiry" className="input" value={expiringInDays} onChange={(event) => setExpiringInDays(event.target.value)}>{[7, 15, 30, 60, 90, 180, 365].map((days) => <option key={days} value={days}>{days} days</option>)}</select></div>}
-          {currentReport?.rfqId && <div className="rc-control rc-rfq-control"><label htmlFor="rc-rfq">RFQ ID</label><input id="rc-rfq" className="input" value={rfqId} onChange={(event) => setRfqId(event.target.value)} placeholder="Paste the existing RFQ UUID" /></div>}
+          {currentReport?.rfqId && <div className="rc-control rc-rfq-control"><label htmlFor="rc-rfq">RFQ</label><select id="rc-rfq" className="input" value={rfqId} onChange={(event) => setRfqId(event.target.value)} disabled={rfqOptionsLoading || Boolean(rfqOptionsError)}><option value="">{rfqOptionsLoading ? 'Loading RFQs...' : rfqOptionsError ? 'RFQs could not be loaded' : rfqOptions.length ? 'Select an RFQ' : 'No RFQs found for this society'}</option>{rfqOptions.map((rfq) => <option key={rfq.id} value={rfq.id}>{rfq.rfq_no} · {rfq.request_no} · {String(rfq.status || '').replaceAll('_', ' ')}</option>)}</select>{rfqOptionsError && <p className="field-hint">{rfqOptionsError}</p>}</div>}
           {!currentReport?.rfqId && !currentReport?.expiringDays && currentReport?.key !== 'dashboard' && <div className="rc-control rc-limit-control"><label htmlFor="rc-limit">Detail row limit</label><select id="rc-limit" className="input" value={limit} onChange={(event) => setLimit(event.target.value)}>{[100, 250, 500, 1000, 2500, 5000].map((count) => <option key={count} value={count}>{count.toLocaleString('en-IN')} rows</option>)}</select></div>}
           {currentReport?.key !== 'dashboard' && !currentReport?.rfqId && !currentReport?.expiringDays && <label className="rc-include-rows"><input type="checkbox" checked={includeRows} onChange={(event) => setIncludeRows(event.target.checked)} /> Include detail rows</label>}
           <button type="button" className="btn btn-primary rc-run-button" onClick={() => runReport()} disabled={loading || exporting !== ''}><Activity size={15} /> {loading ? 'Loading…' : 'Run report'}</button>

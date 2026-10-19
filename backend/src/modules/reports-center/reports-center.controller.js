@@ -132,6 +132,11 @@ const handler = (serviceFn, message, exportName) =>
   });
 
 module.exports = {
+  listProcurementRfqs: asyncHandler(async (req, res) => {
+    const societyId = resolveSocietyId(req);
+    const rfqs = await service.listProcurementRfqs(societyId);
+    return ApiResponse.success(res, rfqs, 'Procurement RFQs loaded successfully');
+  }),
   getDashboard: handler(service.getDashboard, 'Reports dashboard loaded successfully'),
 
   getVehicleReport: handler(service.getVehicleReport, 'Vehicle report loaded successfully', 'vehicles'),
