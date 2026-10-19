@@ -20,6 +20,14 @@ const Unit =
 const Resident =
     require("../resident/resident.model");
 
+const markUnitOccupiedForActiveOwnership = async (unitId, relationshipStatus) => {
+    if (relationshipStatus !== "ACTIVE") return;
+    const unit = await Unit.findByPk(unitId);
+    if (unit?.status === "VACANT") {
+        await unit.update({ status: "OCCUPIED" });
+    }
+};
+
 
 // ============================================================
 // CREATE OWNER-UNIT RELATION
@@ -164,9 +172,12 @@ const createOwnerUnit = async (data) => {
     }
 
 
-    return await ownerUnitRepository.create(
-        data
-    );
+    const relationship = await ownerUnitRepository.create(data);
+
+    // Preserve workflow states such as move-in/out and inactive.
+    await markUnitOccupiedForActiveOwnership(unit.id, relationship.status);
+
+    return relationship;
 };
 
 
@@ -394,10 +405,13 @@ const updateOwnerUnit = async (
     }
 
 
-    return await ownerUnitRepository.update(
+    const updated = await ownerUnitRepository.update(
         record,
         data
     );
+
+    await markUnitOccupiedForActiveOwnership(record.unitId, updated.status);
+    return updated;
 };
 
 

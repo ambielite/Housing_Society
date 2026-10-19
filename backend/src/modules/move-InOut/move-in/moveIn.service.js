@@ -1,19 +1,53 @@
 const repository = require("./moveIn.repository");
 const accessAssignmentService = require("../access/accessAssignment.service");
+const fs = require("node:fs");
+const path = require("node:path");
+const crypto = require("node:crypto");
 
-const createMoveIn = async (data) => {
-    return await repository.create({
-        societyId: data.societyId,
-        unitId: data.unitId,
-        residentId: data.residentId,
-        occupancyType: data.occupancyType,
-        requestedMoveInDate: data.requestedMoveInDate,
-        agreementId: data.agreementId || null,
-        leaseDocument: data.leaseDocument || null,
-        registryDocument: data.registryDocument || null,
-        policeVerificationDocument: data.policeVerificationDocument || null,
-        remarks: data.remarks || null
-    });
+const documentFields = ["leaseDocument", "registryDocument", "policeVerificationDocument"];
+
+const saveMoveInDocuments = (files = {}) => {
+    const uploadDirectory = path.join(process.cwd(), "uploads", "move-in-documents");
+    const documentPaths = {};
+    const savedFiles = [];
+    fs.mkdirSync(uploadDirectory, { recursive: true });
+
+    for (const field of documentFields) {
+        const file = files[field]?.[0];
+        if (!file) continue;
+        const extension = path.extname(file.originalname).toLowerCase();
+        const fileName = `${crypto.randomUUID()}${extension}`;
+        const fullPath = path.join(uploadDirectory, fileName);
+        fs.writeFileSync(fullPath, file.buffer, { flag: "wx" });
+        savedFiles.push(fullPath);
+        documentPaths[field] = `/uploads/move-in-documents/${fileName}`;
+    }
+    return { documentPaths, savedFiles };
+};
+
+const removeSavedFiles = (savedFiles) => {
+    for (const filePath of savedFiles) {
+        try { fs.unlinkSync(filePath); } catch { /* Preserve the original database error. */ }
+    }
+};
+
+const createMoveIn = async (data, files) => {
+    const { documentPaths, savedFiles } = saveMoveInDocuments(files);
+    try {
+        return await repository.create({
+            societyId: data.societyId,
+            unitId: data.unitId,
+            residentId: data.residentId,
+            occupancyType: data.occupancyType,
+            requestedMoveInDate: data.requestedMoveInDate,
+            agreementId: data.agreementId || null,
+            ...documentPaths,
+            remarks: data.remarks || null
+        });
+    } catch (error) {
+        removeSavedFiles(savedFiles);
+        throw error;
+    }
 };
 
 const getMoveIns = async () => {
@@ -24,14 +58,27 @@ const getMoveIn = async (id) => {
     return await repository.findById(id);
 };
 
-const updateMoveIn = async (id, data) => {
+const updateMoveIn = async (id, data, files) => {
     const update = { ...data };
 
     // The edit form submits an empty string when no agreement is selected.
     // agreementId is a nullable UUID column, so persist it as NULL instead.
     if (update.agreementId === "") update.agreementId = null;
 
-    return await repository.update(id, update);
+    // Document fields are managed through uploaded files, never client paths.
+    for (const field of documentFields) delete update[field];
+
+    const { documentPaths, savedFiles } = saveMoveInDocuments(files);
+    Object.assign(update, documentPaths);
+
+    try {
+        const moveIn = await repository.update(id, update);
+        if (!moveIn) removeSavedFiles(savedFiles);
+        return moveIn;
+    } catch (error) {
+        removeSavedFiles(savedFiles);
+        throw error;
+    }
 };
 
 const deleteMoveIn = async (id) => {

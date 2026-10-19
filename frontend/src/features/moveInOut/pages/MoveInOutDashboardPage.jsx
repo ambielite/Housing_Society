@@ -13,6 +13,8 @@ import {
 import moveInApi from "../api/moveIn.api";
 import moveOutApi from "../api/moveOut.api";
 import agreementApi from "../api/agreement.api";
+import unitApi from "../../units/api/unit.api";
+import residentApi from "../../residents/api/resident.api";
 
 const rowsFrom = (response) => {
     const rows = Array.isArray(response) ? response : response?.data || response?.records || [];
@@ -25,6 +27,8 @@ const MoveInOutDashboardPage = () => {
     const [moveIns, setMoveIns] = useState([]);
     const [moveOuts, setMoveOuts] = useState([]);
     const [agreements, setAgreements] = useState([]);
+    const [units, setUnits] = useState([]);
+    const [residents, setResidents] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [search, setSearch] = useState("");
@@ -34,15 +38,19 @@ const MoveInOutDashboardPage = () => {
             setLoading(true);
             setError("");
 
-            const [moveInResponse, moveOutResponse, agreementResponse] = await Promise.all([
+            const [moveInResponse, moveOutResponse, agreementResponse, unitResponse, residentResponse] = await Promise.all([
                 moveInApi.getAll(),
                 moveOutApi.getAll(),
-                agreementApi.getAll()
+                agreementApi.getAll(),
+                unitApi.getAll(),
+                residentApi.getAll()
             ]);
 
             setMoveIns(rowsFrom(moveInResponse));
             setMoveOuts(rowsFrom(moveOutResponse));
             setAgreements(rowsFrom(agreementResponse));
+            setUnits(rowsFrom(unitResponse));
+            setResidents(rowsFrom(residentResponse));
         } catch (err) {
             setError(err.response?.data?.message || "Could not load Move-In/Out data.");
         } finally {
@@ -55,16 +63,20 @@ const MoveInOutDashboardPage = () => {
 
         const run = async () => {
             try {
-                const [moveInResponse, moveOutResponse, agreementResponse] = await Promise.all([
+                const [moveInResponse, moveOutResponse, agreementResponse, unitResponse, residentResponse] = await Promise.all([
                     moveInApi.getAll(),
                     moveOutApi.getAll(),
-                    agreementApi.getAll()
+                    agreementApi.getAll(),
+                    unitApi.getAll(),
+                    residentApi.getAll()
                 ]);
 
                 if (!isMounted) return;
                 setMoveIns(rowsFrom(moveInResponse));
                 setMoveOuts(rowsFrom(moveOutResponse));
                 setAgreements(rowsFrom(agreementResponse));
+                setUnits(rowsFrom(unitResponse));
+                setResidents(rowsFrom(residentResponse));
             } catch (err) {
                 if (isMounted) {
                     setError(err.response?.data?.message || "Could not load Move-In/Out data.");
@@ -79,10 +91,24 @@ const MoveInOutDashboardPage = () => {
     }, []);
 
     const filtered = useMemo(() => {
+        const unitById = new Map(units.map((unit) => [unit.id, unit]));
+        const residentById = new Map(residents.map((resident) => [resident.id, resident]));
+        const unitLabel = (id) => {
+            const unit = unitById.get(id);
+            return unit ? unit.unitNumber || unit.unit_number || unit.name || "Unit" : "Unit details unavailable";
+        };
+        const residentLabel = (id) => {
+            const resident = residentById.get(id);
+            return resident ? resident.displayName || [resident.firstName || resident.first_name, resident.middleName || resident.middle_name, resident.lastName || resident.last_name].filter(Boolean).join(" ") || resident.name || "Resident" : "Resident details unavailable";
+        };
         const q = search.trim().toLowerCase();
-        if (!q) return [...moveIns, ...moveOuts, ...agreements];
+        const records = [...moveIns, ...moveOuts, ...agreements].map((item) => {
+            const residentId = item.residentId || item.tenantId || item.ownerId;
+            return { ...item, unitDisplayName: unitLabel(item.unitId), residentDisplayName: residentId ? residentLabel(residentId) : "" };
+        });
+        if (!q) return records;
 
-        return [...moveIns, ...moveOuts, ...agreements].filter((item) => {
+        return records.filter((item) => {
             const text = [
                 item.status,
                 item.occupancyType,
@@ -91,13 +117,13 @@ const MoveInOutDashboardPage = () => {
                 item.agreementType,
                 item.agreementReference,
                 item.remarks,
-                item.unitId,
-                item.residentId
+                item.unitDisplayName,
+                item.residentDisplayName
             ].filter(Boolean).join(" ").toLowerCase();
 
             return text.includes(q);
         });
-    }, [agreements, moveIns, moveOuts, search]);
+    }, [agreements, moveIns, moveOuts, residents, search, units]);
 
     const summary = [
         {
@@ -226,8 +252,8 @@ const MoveInOutDashboardPage = () => {
                                 {filtered.map((item, index) => {
                                     const type = item.occupancyType ? "Move-in" : item.requestedMoveOutDate ? "Move-out" : "Agreement";
                                     const status = item.status || "ACTIVE";
-                                    const unit = item.unitId || "—";
-                                    const resident = item.residentId || "—";
+                                    const unit = item.unitDisplayName || "Unit details unavailable";
+                                    const resident = item.residentDisplayName || "Resident details unavailable";
                                     const reference = item.agreementReference || item.id?.slice(0, 8) || "—";
                                     const timeline = item.requestedMoveInDate || item.requestedMoveOutDate || item.startDate || item.expiryDate || "—";
 

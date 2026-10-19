@@ -2,7 +2,7 @@ const service = require("./moveIn.service");
 
 const createMoveIn = async (req, res) => {
     try {
-        const moveIn = await service.createMoveIn(req.body);
+        const moveIn = await service.createMoveIn(req.body, req.files);
 
         return res.status(201).json({
             success: true,
@@ -60,7 +60,8 @@ const updateMoveIn = async (req, res) => {
     try {
         const moveIn = await service.updateMoveIn(
             req.params.id,
-            req.body
+            req.body,
+            req.files
         );
 
         if (!moveIn) {

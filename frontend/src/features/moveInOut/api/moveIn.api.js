@@ -12,12 +12,16 @@ const moveInApi = {
     },
 
     create: async (data) => {
-        const response = await axiosClient.post("/move-ins", data);
+        const response = await axiosClient.post("/move-ins", data, {
+            headers: { "Content-Type": "multipart/form-data" }
+        });
         return response.data;
     },
 
     update: async (id, data) => {
-        const response = await axiosClient.put(`/move-ins/${id}`, data);
+        const response = await axiosClient.put(`/move-ins/${id}`, data, {
+            headers: { "Content-Type": "multipart/form-data" }
+        });
         return response.data;
     },
 

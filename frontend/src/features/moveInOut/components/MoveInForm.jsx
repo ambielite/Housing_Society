@@ -19,11 +19,11 @@ const initialValues = (moveIn = null) => ({
     occupancyType: moveIn?.occupancyType || "TENANT",
     requestedMoveInDate: moveIn?.requestedMoveInDate ? String(moveIn.requestedMoveInDate).slice(0, 10) : "",
     agreementId: moveIn?.agreementId || "",
-    leaseDocument: moveIn?.leaseDocument || "",
-    registryDocument: moveIn?.registryDocument || "",
-    policeVerificationDocument: moveIn?.policeVerificationDocument || "",
     remarks: moveIn?.remarks || ""
 });
+
+const documentBaseUrl = (import.meta.env.VITE_LEGACY_API_BASE_URL || import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api/v1").replace(/\/api(?:\/v1)?\/?$/, "");
+const documentHref = (path) => /^https?:\/\//i.test(path) ? path : `${documentBaseUrl}${path}`;
 
 const MoveInForm = ({ moveIn, onClose, onSuccess }) => {
     const [values, setValues] = useState(() => initialValues(moveIn));
@@ -31,6 +31,7 @@ const MoveInForm = ({ moveIn, onClose, onSuccess }) => {
     const [units, setUnits] = useState([]);
     const [residents, setResidents] = useState([]);
     const [agreements, setAgreements] = useState([]);
+    const [documents, setDocuments] = useState({ leaseDocument: null, registryDocument: null, policeVerificationDocument: null });
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
@@ -74,6 +75,11 @@ const MoveInForm = ({ moveIn, onClose, onSuccess }) => {
         setValues((current) => ({ ...current, [name]: value }));
     };
 
+    const updateDocument = (event) => {
+        const { name, files: selectedFiles } = event.target;
+        setDocuments((current) => ({ ...current, [name]: selectedFiles?.[0] || null }));
+    };
+
     const submit = async (event) => {
         event.preventDefault();
         setError("");
@@ -90,10 +96,13 @@ const MoveInForm = ({ moveIn, onClose, onSuccess }) => {
 
         try {
             setSaving(true);
-            const payload = {
-                ...values,
-                remarks: values.remarks.trim() || null
-            };
+            const payload = new FormData();
+            Object.entries({ ...values, remarks: values.remarks.trim() }).forEach(([key, value]) => {
+                if (value !== undefined && value !== null) payload.append(key, String(value));
+            });
+            Object.entries(documents).forEach(([key, file]) => {
+                if (file) payload.append(key, file);
+            });
 
             if (moveIn?.id) {
                 await moveInApi.update(moveIn.id, payload);
@@ -180,9 +189,12 @@ const MoveInForm = ({ moveIn, onClose, onSuccess }) => {
                                         ))}
                                     </select>
                                 </div>
-                                <div className="form-group"><label htmlFor="movein-lease">Lease / signed agreement document URL</label><input id="movein-lease" name="leaseDocument" value={values.leaseDocument} onChange={updateField} placeholder="Document URL or stored path" /></div>
-                                <div className="form-group"><label htmlFor="movein-registry">Registry document URL</label><input id="movein-registry" name="registryDocument" value={values.registryDocument} onChange={updateField} placeholder="Document URL or stored path" /></div>
-                                <div className="form-group form-group-full"><label htmlFor="movein-police">Police verification document URL</label><input id="movein-police" name="policeVerificationDocument" value={values.policeVerificationDocument} onChange={updateField} placeholder="Document URL or stored path" /></div>
+                                {[["leaseDocument", "Lease / signed agreement document", moveIn?.leaseDocument], ["registryDocument", "Registry document", moveIn?.registryDocument], ["policeVerificationDocument", "Police verification document", moveIn?.policeVerificationDocument]].map(([field, label, existingPath]) => <div className={`form-group${field === "policeVerificationDocument" ? " form-group-full" : ""}`} key={field}>
+                                    <label htmlFor={`movein-${field}`}>{label}</label>
+                                    {existingPath && <small className="field-hint">Current file: <a href={documentHref(existingPath)} target="_blank" rel="noreferrer">View uploaded document</a></small>}
+                                    <input id={`movein-${field}`} name={field} type="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,application/pdf,image/png,image/jpeg" onChange={updateDocument} />
+                                    {documents[field] && <small className="field-hint">Selected: {documents[field].name}</small>}
+                                </div>)}
                             </>}
 
                             <div className="form-group form-group-full">

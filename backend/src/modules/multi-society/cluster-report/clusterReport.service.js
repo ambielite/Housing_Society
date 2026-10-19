@@ -4,6 +4,7 @@ const Society = require("../../../modules/societies/society/society.model");
 const Cluster = require("../cluster/cluster.model");
 const Organization = require("../organization/organization.model");
 const SocietyAccess = require("../society-access/societyAccess.model");
+const MultiSocietyAccess = require("../multi-society/multiSociety.model");
 
 
 /*
@@ -17,7 +18,7 @@ const getClusterSummary = async (clusterId) => {
          * Get cluster information
          */
         const cluster = await Cluster.findByPk(clusterId, {
-            attributes: ["id", "name"]
+            attributes: ["id", "name", "organizationId"]
         });
 
         if (!cluster) {
@@ -54,43 +55,48 @@ const getClusterSummary = async (clusterId) => {
         /*
          * Get access information for societies in this cluster
          */
-        let accessRecords = [];
-
-        if (societyIds.length > 0) {
-            accessRecords = await SocietyAccess.findAll({
+        const [societyAccessRecords, hierarchicalAccessRecords] = await Promise.all([
+            societyIds.length ? SocietyAccess.findAll({
+                where: { societyId: { [Op.in]: societyIds } },
+                attributes: ["id", "userId", "societyId", "accessType", "isActive", "validFrom", "validUntil"]
+            }) : [],
+            MultiSocietyAccess.findAll({
                 where: {
-                    societyId: {
-                        [Op.in]: societyIds
-                    }
+                    [Op.or]: [
+                        ...(cluster.organizationId ? [{ accessLevel: "ORGANIZATION", organizationId: cluster.organizationId }] : []),
+                        { accessLevel: "CLUSTER", clusterId },
+                        ...(societyIds.length ? [{ accessLevel: "SOCIETY", societyId: { [Op.in]: societyIds } }] : [])
+                    ]
                 },
-                attributes: [
-                    "id",
-                    "userId",
-                    "societyId",
-                    "accessType",
-                    "isActive",
-                    "isDefault",
-                    "validFrom",
-                    "validUntil"
-                ]
-            });
-        }
+                attributes: ["id", "userId", "organizationId", "clusterId", "societyId", "accessLevel", "role", "status", "startDate", "endDate"]
+            })
+        ]);
+        const accessRecords = [
+            ...societyAccessRecords.map((access) => ({
+                ...access.get({ plain: true }),
+                source: "SOCIETY",
+                role: access.accessType
+            })),
+            ...hierarchicalAccessRecords.map((access) => ({ ...access.get({ plain: true }), source: "HIERARCHICAL" }))
+        ];
 
         /*
          * Active access
          */
         const activeAccess = accessRecords.filter((access) => {
-            if (!access.isActive) {
+            if (access.source === "SOCIETY" ? !access.isActive : access.status !== "ACTIVE") {
                 return false;
             }
 
             const now = new Date();
 
-            if (access.validFrom && new Date(access.validFrom) > now) {
+            const startsAt = access.validFrom || access.startDate;
+            const endsAt = access.validUntil || access.endDate;
+            if (startsAt && new Date(startsAt) > now) {
                 return false;
             }
 
-            if (access.validUntil && new Date(access.validUntil) < now) {
+            if (endsAt && new Date(endsAt) < now) {
                 return false;
             }
 
@@ -100,8 +106,8 @@ const getClusterSummary = async (clusterId) => {
         /*
          * Delegated administrators
          */
-        const delegatedAdmins = activeAccess.filter(
-            (access) => access.accessType === "DELEGATED_ADMIN"
+        const delegatedAdmins = activeAccess.filter((access) =>
+            String(access.accessType || access.role || "").toUpperCase() === "DELEGATED_ADMIN"
         );
 
         /*
