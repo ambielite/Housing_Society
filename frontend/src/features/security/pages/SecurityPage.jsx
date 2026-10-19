@@ -5,6 +5,7 @@ import useUnits from '../../../utils/useUnits';
 import useFetch from '../../../utils/useFetch';
 import { formatDateTime } from '../../../utils/format';
 import { getErrorMessage } from '../../../lib/axios';
+import societyApi from '../../societies/api/society.api';
 import PageContainer from '../../../components/layout/PageContainer';
 import DataTable from '../../../components/tables/DataTable';
 import Alert from '../../../components/ui/Alert';
@@ -33,7 +34,7 @@ const list = (value) => {
 };
 const initial = (extra = {}) => ({ ...extra });
 
-function GateForm({ societyId, value, gates = [], onSubmit, onCancel, saving, error }) {
+function GateForm({ societyId, societyName, value, gates = [], onSubmit, onCancel, saving, error }) {
   const [form, setForm] = useState(initial({ societyId, name: value?.name || '', location: value?.location || '', gateType: value?.gate_type || 'MAIN', status: value?.status || 'ACTIVE' }));
   const [validationError, setValidationError] = useState('');
   const edit = Boolean(value);
@@ -67,7 +68,7 @@ function GateForm({ societyId, value, gates = [], onSubmit, onCancel, saving, er
   return <form onSubmit={handleSubmit}>
     <ErrorBox error={error} />
     {validationError && <div className="form-error">{validationError}</div>}
-    {!edit && <TextField id="gateSociety" label="Society" value={form.societyId} disabled />}
+    {!edit && <TextField id="gateSociety" label="Society" value={societyName || 'Selected society'} disabled />}
     <TextField id="gateName" label="Gate name" value={form.name} onChange={(e) => set('name', e.target.value)} required />
     <TextField id="gateLocation" label="Location" value={form.location} onChange={(e) => set('location', e.target.value)} required />
     <SelectField id="gateType" label="Gate type" options={GATE_TYPES.map((v) => ({ value: v, label: label(v) }))} value={form.gateType} onChange={(e) => set('gateType', e.target.value)} />
@@ -207,6 +208,7 @@ export default function SecurityPage() {
   [societyId]
 );
   const visitorProfiles = useFetch(() => societyId ? api.listVisitorProfiles({ societyId }) : Promise.resolve([]), [societyId]);
+  const activeSociety = useFetch(() => societyId ? societyApi.getById(societyId) : Promise.resolve(null), [societyId]);
   useEffect(() => {
   if (tab === 'deliveries' && societyId) {
     visitorProfiles.reload();
@@ -222,6 +224,8 @@ export default function SecurityPage() {
   const userRows = list(users.data);
   const vendorRows = list(vendors.data);
   const unitRows = list(units);
+  const societyRecord = activeSociety.data?.data?.society || activeSociety.data?.data || activeSociety.data?.society || activeSociety.data;
+  const societyName = societyRecord?.name || societyRecord?.society_name || societyRecord?.societyName || '';
   const userNames = Object.fromEntries(userRows.map((u) => [u.id, `${u.first_name || u.firstName || ''} ${u.last_name || u.lastName || ''}`.trim() || u.email || u.id]));
   const vendorNames = Object.fromEntries(vendorRows.map((v) => [v.id, v.legal_name || v.name || v.id]));
   const unitNames = Object.fromEntries(unitRows.map((u) => [u.id, u.unitNumber || u.unit_number || u.name || u.id]));
@@ -258,13 +262,13 @@ export default function SecurityPage() {
     {notice && <Alert variant="success">{notice}</Alert>}
     {error && !dialog && <Alert>{error}</Alert>}
 
-    {tab === 'gates' && <GatesPanel societyId={societyId} gates={gateRows} guards={guardRows} cards={cardRows} userNames={userNames} vendorNames={vendorNames} onRefresh={refresh} onRun={run} onDeleteGate={removeGate} onDeleteGuard={removeGuard} onRevokeCard={revokeCard} dialog={dialog} setDialog={setDialog} selected={selected} setSelected={setSelected} deviceEvents={deviceEvents} openDeviceEvents={openDeviceEvents} />}
-    {tab === 'visitors' && <VisitorsPage societyId={societyId} currentUser={user} gates={gateRows} unitNames={unitNames} userNames={userNames} gateNames={Object.fromEntries(gateRows.map((g) => [g.id, g.name]))} />}
+    {tab === 'gates' && <GatesPanel societyId={societyId} societyName={societyName} gates={gateRows} guards={guardRows} cards={cardRows} userNames={userNames} vendorNames={vendorNames} onRefresh={refresh} onRun={run} onDeleteGate={removeGate} onDeleteGuard={removeGuard} onRevokeCard={revokeCard} dialog={dialog} setDialog={setDialog} selected={selected} setSelected={setSelected} deviceEvents={deviceEvents} openDeviceEvents={openDeviceEvents} />}
+    {tab === 'visitors' && <VisitorsPage societyId={societyId} societyName={societyName} currentUser={user} gates={gateRows} unitNames={unitNames} userNames={userNames} gateNames={Object.fromEntries(gateRows.map((g) => [g.id, g.name]))} />}
     {tab === 'deliveries' && <DeliveriesPage societyId={societyId} currentUser={user} profiles={list(visitorProfiles.data)} unitNames={unitNames} userNames={userNames} />}
   </PageContainer>;
 }
 
-function GatesPanel({ societyId, gates, guards, cards, userNames, vendorNames, onRefresh, onRun, onDeleteGate, onDeleteGuard, onRevokeCard, dialog, setDialog, selected, setSelected, deviceEvents, openDeviceEvents }) {
+function GatesPanel({ societyId, societyName, gates, guards, cards, userNames, vendorNames, onRefresh, onRun, onDeleteGate, onDeleteGuard, onRevokeCard, dialog, setDialog, selected, setSelected, deviceEvents, openDeviceEvents }) {
   const { hasPermission } = useAuth();
   const [gateDevices, setGateDevices] = useState([]);
   const [gateForDevices, setGateForDevices] = useState(null);
@@ -339,8 +343,8 @@ function GatesPanel({ societyId, gates, guards, cards, userNames, vendorNames, o
       <DataTable columns={cardColumns} rows={cards} emptyTitle="No access cards" emptyMessage="Issue a credential to an existing user." />
     </div>
 
-    {dialog === 'new-gate' && <Modal title="Create gate" onClose={() => setDialog(null)}><GateForm societyId={societyId} gates={gates} onSubmit={(p) => onRun(() => api.createGate(p), 'Gate created.')} onCancel={() => setDialog(null)} /></Modal>}
-    {dialog === 'edit-gate' && <Modal title="Edit gate" onClose={() => setDialog(null)}><GateForm societyId={societyId} value={selected} gates={gates} onSubmit={(p) => onRun(() => api.updateGate(selected.id, p), 'Gate updated.')} onCancel={() => setDialog(null)} /></Modal>}
+    {dialog === 'new-gate' && <Modal title="Create gate" onClose={() => setDialog(null)}><GateForm societyId={societyId} societyName={societyName} gates={gates} onSubmit={(p) => onRun(() => api.createGate(p), 'Gate created.')} onCancel={() => setDialog(null)} /></Modal>}
+    {dialog === 'edit-gate' && <Modal title="Edit gate" onClose={() => setDialog(null)}><GateForm societyId={societyId} societyName={societyName} value={selected} gates={gates} onSubmit={(p) => onRun(() => api.updateGate(selected.id, p), 'Gate updated.')} onCancel={() => setDialog(null)} /></Modal>}
     {dialog === 'new-guard' && <Modal title="Add security guard" onClose={() => setDialog(null)}><GuardForm guards={guards} onSubmit={(p) => onRun(() => api.createGuard(p), 'Security guard added.')} onCancel={() => setDialog(null)} /></Modal>}
     {dialog === 'edit-guard' && <Modal title="Edit security guard" onClose={() => setDialog(null)}><GuardForm value={selected} guards={guards} onSubmit={(p) => onRun(() => api.updateGuard(selected.id, p), 'Security guard updated.')} onCancel={() => setDialog(null)} /></Modal>}
     {dialog === 'guard-detail' && <Modal title="Security guard" onClose={() => setDialog(null)}><dl className="details"><dt>User</dt><dd>{[guardDetail?.user_first_name, guardDetail?.user_last_name].filter(Boolean).join(' ') || guardDetail?.user_email || userNames[guardDetail?.user_id] || guardDetail?.user_id}</dd><dt>Employee code</dt><dd>{guardDetail?.employee_code || '-'}</dd><dt>Agency</dt><dd>{guardDetail?.agency_vendor_name || (guardDetail?.agency_vendor_id ? (vendorNames[guardDetail.agency_vendor_id] || guardDetail.agency_vendor_id) : '-')}</dd><dt>Status</dt><dd><SecurityBadge value={guardDetail?.status} /></dd></dl></Modal>}

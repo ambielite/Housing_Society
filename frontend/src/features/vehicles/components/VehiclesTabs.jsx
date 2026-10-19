@@ -1,7 +1,5 @@
 import { NavLink } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
-import useSociety from '../../../app/store/useSociety';
-import { shortId } from '../../../utils/format';
 
 const TABS = [
   { label: 'Vehicles', to: '/vehicles', permission: 'VEHICLE_READ', end: true },
@@ -9,10 +7,7 @@ const TABS = [
 ];
 
 export default function VehiclesTabs() {
-  const { user, hasPermission } = useAuth();
-  const { societyId, setSocietyId } = useSociety();
-  // Only accounts without their own society pick one by hand (see SocietyIdPrompt).
-  const pickedByHand = Boolean(societyId) && !user?.society_id;
+  const { hasPermission } = useAuth();
 
   return (
     <div className="tabs-bar">
@@ -23,14 +18,6 @@ export default function VehiclesTabs() {
           </NavLink>
         ))}
       </nav>
-      {pickedByHand && (
-        <span className="muted tabs-note">
-          Society <span className="mono">{shortId(societyId)}</span>{' '}
-          <button type="button" className="link-button" onClick={() => setSocietyId(null)}>
-            Change
-          </button>
-        </span>
-      )}
     </div>
   );
 }
