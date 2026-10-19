@@ -32,6 +32,22 @@ const hashToken = (token) => {
         .digest("hex");
 };
 
+const normalizeEmail = (value) => String(value || "").trim().toLowerCase();
+const normalizePhone = (value) => String(value || "").replace(/\D/g, "");
+const residentMatchesAccount = (resident, account) => {
+    const residentEmail = normalizeEmail(resident.email);
+    const accountEmail = normalizeEmail(account.email);
+    if (residentEmail && accountEmail && residentEmail === accountEmail) return true;
+
+    const residentPhone = normalizePhone(resident.mobile);
+    const accountPhone = normalizePhone(account.phone);
+    if (!residentPhone || !accountPhone) return false;
+    return residentPhone === accountPhone || (
+        residentPhone.length >= 10 && accountPhone.length >= 10 &&
+        residentPhone.slice(-10) === accountPhone.slice(-10)
+    );
+};
+
 // E-voting remains disabled unless the formally approved requirements have
 // been independently reviewed and the deployment is explicitly enabled.
 const assertElectronicVotingEnabled = (voting) => {
@@ -310,7 +326,8 @@ const addEligibleVoter = async (data, actorId) => {
     if (!eligibleTypes.includes(memberType)) throw new Error("This member type is not permitted by the configured eligibility rules");
     const voterAccount = await usersRepository.findById(data.userId);
     if (!voterAccount || voterAccount.society_id !== voting.societyId || voterAccount.status !== "ACTIVE") throw new Error("Eligible voters must have an active account in this society");
-    const resident = await Resident.findOne({ where: { societyId: voting.societyId, email: { [Op.iLike]: voterAccount.email }, status: "ACTIVE" } });
+    const residents = await Resident.findAll({ where: { societyId: voting.societyId, status: "ACTIVE" } });
+    const resident = residents.find((record) => residentMatchesAccount(record, voterAccount));
     if (!resident) throw new Error("The account must be linked to an active resident record before being made eligible");
     const memberRole = resident.role === "PRIMARY_OWNER" ? "OWNER" : resident.role;
     if (memberRole !== memberType) throw new Error(`Resident records identify this voter as ${memberRole}; use that membership type`);
@@ -362,11 +379,10 @@ const getVotingAccounts = async (votingId) => {
         where: { societyId: voting.societyId, status: "ACTIVE" },
         attributes: ["email", "role", "displayName", "firstName", "lastName"]
     });
-    const residentByEmail = new Map(residents.filter((resident) => resident.email).map((resident) => [resident.email.toLowerCase(), resident]));
-    if (!residentByEmail.size) return [];
     const { rows } = await usersRepository.listUsers({ societyId: voting.societyId, status: "ACTIVE", limit: 500, offset: 0 });
-    return rows.filter((account) => account.email && residentByEmail.has(account.email.toLowerCase())).map((account) => {
-        const resident = residentByEmail.get(account.email.toLowerCase());
+    return rows.map((account) => {
+        const resident = residents.find((record) => residentMatchesAccount(record, account));
+        if (!resident) return null;
         return {
             id: account.id,
             email: account.email,
@@ -375,7 +391,7 @@ const getVotingAccounts = async (votingId) => {
             displayName: resident.displayName || [resident.firstName, resident.lastName].filter(Boolean).join(" "),
             memberType: resident.role === "PRIMARY_OWNER" ? "OWNER" : resident.role
         };
-    });
+    }).filter(Boolean);
 };
 
 

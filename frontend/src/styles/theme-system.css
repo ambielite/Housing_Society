@@ -23,7 +23,6 @@ button, a, .card, .data-card, .table-card, .society-stat-card,
 .btn-primary, .primary-button, .society-add-button, .society-workflow-action,
 .dashboard-refresh-button, .assets-view-toggle button.active,
 .security-manage-button, .security-location-button,
-.reports-tabs button.active, .reports-subtabs button.active,
 .society-inline-actions .btn-primary {
   background: var(--action);
   border-color: var(--action);
@@ -111,7 +110,13 @@ input:focus, select:focus, textarea:focus, .input:focus, .society-search:focus-w
 .society-tab.active, .security-tabs button.active, .assets-page .assets-view-toggle button.active,
 .reports-tabs button.active, .reports-subtabs button.active {
   color: var(--action);
-  border-color: var(--action);
+  border-color: var(--action-soft);
+  background: var(--action-soft);
+}
+.reports-tabs button:hover:not(.active), .reports-subtabs button:hover:not(.active) {
+  color: var(--action);
+  border-color: var(--action-soft);
+  background: var(--action-soft);
 }
 .menu, .dropdown-menu { color: var(--text-primary); background: var(--surface); border-color: var(--border-color); }
 

@@ -1,4 +1,4 @@
-import api from '../lib/axios';
+import { legacyApi as api } from '../lib/axios';
 import useSociety from '../app/store/useSociety';
 import useFetch from './useFetch';
 
