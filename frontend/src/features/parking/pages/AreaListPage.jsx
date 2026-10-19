@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
@@ -34,7 +35,7 @@ export default function AreaListPage() {
 
   const newButton = hasPermission('PARKING_AREA_CREATE') && (
     <button type="button" className="btn btn-primary" onClick={() => openDialog({ mode: 'create' })}>
-      New area
+      <Plus size={16} /> New area
     </button>
   );
 

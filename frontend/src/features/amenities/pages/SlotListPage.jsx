@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Plus } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
@@ -69,7 +70,7 @@ export default function SlotListPage() {
   };
 
   const newButton = hasPermission('AMENITY_SLOT_CREATE')
-    ? <button className="btn btn-primary" onClick={() => { setError(''); setDialog({ type: 'create' }); }}>New slot</button>
+    ? <button className="btn btn-primary" onClick={() => { setError(''); setDialog({ type: 'create' }); }}><Plus size={16} /> New slot</button>
     : null;
 
   return (

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Plus } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
@@ -54,7 +55,7 @@ export default function SlotListPage() {
 
   const newButton = hasPermission('PARKING_SLOT_CREATE') && (
     <button type="button" className="btn btn-primary" onClick={() => openDialog({ type: 'create' })}>
-      New slot
+      <Plus size={16} /> New slot
     </button>
   );
 

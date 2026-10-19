@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Plus } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
@@ -27,7 +28,7 @@ export default function PurchaseRequestListPage() {
 
   const newButton = hasPermission('PURCHASE_REQUEST_CREATE') && (
     <Link to="/procurement/requests/new" className="btn btn-primary">
-      New purchase request
+      <Plus size={16} /> New purchase request
     </Link>
   );
 

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Plus } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
@@ -71,7 +72,7 @@ export default function DocumentVaultPage() {
 
   const actions = (
     <>
-      {hasPermission('DOCUMENT_FOLDER_CREATE') && <button className="btn btn-secondary" onClick={() => { setFormError(''); setShowFolder(true); }}>New folder</button>}
+      {hasPermission('DOCUMENT_FOLDER_CREATE') && <button className="btn btn-secondary" onClick={() => { setFormError(''); setShowFolder(true); }}><Plus size={16} /> New folder</button>}
       {hasPermission('DOCUMENT_CREATE') && <button className="btn btn-primary" onClick={() => { setFormError(''); setShowUpload(true); }}>Upload document</button>}
     </>
   );

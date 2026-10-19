@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Plus } from 'lucide-react';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
 import useFetch from '../../../utils/useFetch';
@@ -46,7 +47,7 @@ export default function AllocationListPage() {
   const canCreate = hasPermission('PARKING_ALLOCATION_CREATE');
   const newButton = canCreate && (
     <button type="button" className="btn btn-primary" onClick={() => openDialog({ type: 'create' })}>
-      New allocation
+      <Plus size={16} /> New allocation
     </button>
   );
 

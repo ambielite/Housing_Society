@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
@@ -67,7 +68,7 @@ export default function AmenityListPage() {
   };
 
   const newButton = hasPermission('AMENITY_CREATE')
-    ? <button className="btn btn-primary" onClick={() => { setError(''); setDialog({ mode: 'create' }); }}>New amenity</button>
+    ? <button className="btn btn-primary" onClick={() => { setError(''); setDialog({ mode: 'create' }); }}><Plus size={16} /> New amenity</button>
     : null;
 
   const columns = [

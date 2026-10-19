@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Plus } from 'lucide-react';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
 import useUnits from '../../../utils/useUnits';
@@ -330,7 +331,7 @@ function GatesPanel({ societyId, societyName, gates, guards, cards, userNames, v
 
   return <>
     <div className="section-head"><div><h2 className="section-title">Gates</h2><p className="muted section-hint">Society entry points and their hardware.</p></div>
-      {hasPermission('GATE_CREATE') && <button className="btn btn-primary" onClick={() => setDialog('new-gate')}>New gate</button>}</div>
+      {hasPermission('GATE_CREATE') && <button className="btn btn-primary" onClick={() => setDialog('new-gate')}><Plus size={16} /> New gate</button>}</div>
     <DataTable columns={gateColumns} rows={gates} emptyTitle="No gates" emptyMessage="Create a gate before registering devices." />
     <div className="section">
       <div className="section-head"><div><h2 className="section-title">Security guards</h2><p className="muted section-hint">Guards are linked to existing user accounts.</p></div>

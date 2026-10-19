@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Plus } from 'lucide-react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useFetch from '../../../utils/useFetch';
@@ -206,7 +207,7 @@ export default function PurchaseRequestDetailPage() {
             </div>
             {canCreateRfq && (
               <button type="button" className="btn btn-primary" onClick={() => openDialog('rfq')}>
-                New RFQ
+                <Plus size={16} /> New RFQ
               </button>
             )}
           </div>

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Plus } from 'lucide-react';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
 import useFetch from '../../../utils/useFetch';
@@ -353,9 +354,9 @@ const passColumns = [
     {notice && <Alert variant="success">{notice}</Alert>}
     {error && !dialog && <Alert>{error}</Alert>}
 
-    {tab === 'profiles' && <><div className="section-head"><div><h2 className="section-title">Visitor profiles</h2><p className="muted section-hint">Register and maintain visitor identity records.</p></div>{hasPermission('VISITOR_PROFILE_CREATE') && <button className="btn btn-primary" onClick={() => setDialog('profile-new')}>New visitor</button>}</div><DataTable columns={profileColumns} rows={profileRows} loading={profiles.loading} error={profiles.error ? getErrorMessage(profiles.error) : ''} onRetry={profiles.reload} emptyTitle="No visitor profiles" emptyMessage="Register a visitor before creating an invite or pass." /></>}
+    {tab === 'profiles' && <><div className="section-head"><div><h2 className="section-title">Visitor profiles</h2><p className="muted section-hint">Register and maintain visitor identity records.</p></div>{hasPermission('VISITOR_PROFILE_CREATE') && <button className="btn btn-primary" onClick={() => setDialog('profile-new')}><Plus size={16} /> New visitor</button>}</div><DataTable columns={profileColumns} rows={profileRows} loading={profiles.loading} error={profiles.error ? getErrorMessage(profiles.error) : ''} onRetry={profiles.reload} emptyTitle="No visitor profiles" emptyMessage="Register a visitor before creating an invite or pass." /></>}
 
-    {tab === 'invites' && <><div className="section-head"><div><h2 className="section-title">Visitor invites</h2><p className="muted section-hint">Pre-approve expected visitors for a unit.</p></div>{hasPermission('VISITOR_INVITE_CREATE') && <button className="btn btn-primary" onClick={() => setDialog('invite-new')}>New invite</button>}</div><DataTable columns={inviteColumns} rows={inviteRows} loading={invites.loading} error={invites.error ? getErrorMessage(invites.error) : ''} onRetry={invites.reload} emptyTitle="No invites" emptyMessage="Create an invite for a pre-approved visitor." /></>}
+    {tab === 'invites' && <><div className="section-head"><div><h2 className="section-title">Visitor invites</h2><p className="muted section-hint">Pre-approve expected visitors for a unit.</p></div>{hasPermission('VISITOR_INVITE_CREATE') && <button className="btn btn-primary" onClick={() => setDialog('invite-new')}><Plus size={16} /> New invite</button>}</div><DataTable columns={inviteColumns} rows={inviteRows} loading={invites.loading} error={invites.error ? getErrorMessage(invites.error) : ''} onRetry={invites.reload} emptyTitle="No invites" emptyMessage="Create an invite for a pre-approved visitor." /></>}
 
     {tab === 'passes' && <><div className="section-head"><div><h2 className="section-title">Visitor passes</h2><p className="muted section-hint">Gate-facing lifecycle: expected → arrival → entry → exit/overstay.</p></div>{hasPermission('VISITOR_PASS_CREATE') && <button className="btn btn-primary" onClick={() => setDialog('pass-new')}>Issue pass</button>}</div><DataTable columns={passColumns} rows={passRows} loading={passes.loading} error={passes.error ? getErrorMessage(passes.error) : ''} onRetry={passes.reload} emptyTitle="No visitor passes" emptyMessage="Issue a pass for an approved invite or a walk-in visitor." /></>}
 

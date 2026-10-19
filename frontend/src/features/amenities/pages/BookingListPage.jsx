@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Plus } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
@@ -55,7 +56,7 @@ export default function BookingListPage() {
   };
 
   const newButton = hasPermission('AMENITY_BOOKING_CREATE')
-    ? <button className="btn btn-primary" onClick={() => { setError(''); setDialog(true); }}>New booking</button>
+    ? <button className="btn btn-primary" onClick={() => { setError(''); setDialog(true); }}><Plus size={16} /> New booking</button>
     : null;
 
   return (
