@@ -13,7 +13,13 @@ const createPO = async ({ societyId, vendorId, purchaseRequestId, poNo, poDate, 
 };
 
 const findPOById = async (id) => {
-  const result = await db.query('SELECT * FROM purchase_orders WHERE id = $1', [id]);
+  const result = await db.query(
+    `SELECT po.*, pr.request_no AS purchase_request_no
+     FROM purchase_orders po
+     LEFT JOIN purchase_requests pr ON pr.id = po.purchase_request_id
+     WHERE po.id = $1`,
+    [id]
+  );
   return result.rows[0] || null;
 };
 
@@ -85,7 +91,13 @@ const addPOLine = async ({ purchaseOrderId, itemDescription, quantity, unitPrice
 };
 
 const listPOLines = async (purchaseOrderId) => {
-  const result = await db.query('SELECT * FROM purchase_order_lines WHERE purchase_order_id = $1', [purchaseOrderId]);
+  const result = await db.query(
+    `SELECT pol.*, ac.category_name AS asset_category_name
+     FROM purchase_order_lines pol
+     LEFT JOIN asset_categories ac ON ac.id = pol.asset_category_id
+     WHERE pol.purchase_order_id = $1`,
+    [purchaseOrderId]
+  );
   return result.rows;
 };
 

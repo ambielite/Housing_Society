@@ -34,13 +34,19 @@ function readMigrations() {
         const normalizedChecksum = crypto.createHash("sha256").update(sql.replace(/\r\n/g, "\n")).digest("hex");
         const legacyChecksum = crypto.createHash("sha256").update(legacySql).digest("hex");
         const legacyNormalizedChecksum = crypto.createHash("sha256").update(legacySql.replace(/\r\n/g, "\n")).digest("hex");
+        // 039 was applied before its billing-cycle FK was moved to migration
+        // 040. Keep its recorded checksum valid while the new migration adds
+        // that relationship without rewriting applied migration history.
+        const knownHistoricalChecksums = name === "sujal/039_link_asset_categories_and_finance.sql"
+            ? ["ccc08cef51e92082b0cb17f67688079032fd30738a0ea63ddbf53ca7a541bd6b"]
+            : [];
         return {
             name,
             sql,
             checksum,
             // Git checkouts may convert SQL line endings, so allow both forms
             // while validating previously recorded checksums.
-            acceptedChecksums: new Set([checksum, normalizedChecksum, legacyChecksum, legacyNormalizedChecksum]),
+            acceptedChecksums: new Set([checksum, normalizedChecksum, legacyChecksum, legacyNormalizedChecksum, ...knownHistoricalChecksums]),
         };
     });
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useFetch from '../../../utils/useFetch';
 import { formatDateTime } from '../../../utils/format';
@@ -15,7 +15,6 @@ import { ApprovalStatusBadge } from '../components/ApprovalBadges';
 export default function ApprovalDetailPage() {
   const { approvalRequestId } = useParams();
   const { hasPermission } = useAuth();
-  const navigate = useNavigate();
   const location = useLocation();
   const [dialog, setDialog] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -31,6 +30,13 @@ export default function ApprovalDetailPage() {
 
   const canDecide = hasPermission('APPROVAL_ACTION') && ['PENDING'].includes(target.status);
   const canCancel = hasPermission('APPROVAL_CREATE') && ['PENDING', 'INFO_REQUIRED'].includes(target.status);
+  const entityName = target.entity_display_name || target.entity_type.replaceAll('_', ' ');
+  const entityPath = target.entity_type === 'PURCHASE_REQUEST' && hasPermission('PURCHASE_REQUEST_READ')
+    ? `/procurement/requests/${target.entity_id}`
+    : target.entity_type === 'PURCHASE_ORDER' && hasPermission('PURCHASE_ORDER_READ')
+      ? `/purchase-orders/${target.entity_id}`
+      : null;
+  const societyName = target.society_display_name || 'Society';
 
   const decide = async (payload) => {
     setSaving(true); setSaveError('');
@@ -49,7 +55,7 @@ export default function ApprovalDetailPage() {
   const actionColumns = [
     { key: 'level', header: 'Level', render: (a) => a.level },
     { key: 'decision', header: 'Decision', render: (a) => a.decision },
-    { key: 'approver', header: 'Approver', render: (a) => <span className="mono">{a.approver_id}</span> },
+    { key: 'approver', header: 'Approver', render: (a) => a.approver_name || a.approver_email || 'User' },
     { key: 'remarks', header: 'Remarks', render: (a) => a.remarks || '-' },
     { key: 'at', header: 'Action time', render: (a) => formatDateTime(a.action_at) },
   ];
@@ -74,10 +80,10 @@ export default function ApprovalDetailPage() {
         <dl className="details">
           <dt>Status</dt><dd><ApprovalStatusBadge status={target.status} /></dd>
           <dt>Entity type</dt><dd>{target.entity_type}</dd>
-          <dt>Entity ID</dt><dd className="mono">{target.entity_id}</dd>
+          <dt>Related record</dt><dd>{entityPath ? <Link to={entityPath}>{entityName}</Link> : entityName}</dd>
           <dt>Approval type</dt><dd>{target.approval_type}</dd>
           <dt>Current level</dt><dd>{target.current_level}</dd>
-          <dt>Society</dt><dd className="mono">{target.society_id}</dd>
+          <dt>Society</dt><dd>{societyName}</dd>
           <dt>Created</dt><dd>{formatDateTime(target.created_at)}</dd>
           <dt>Updated</dt><dd>{formatDateTime(target.updated_at)}</dd>
         </dl>

@@ -15,7 +15,7 @@ import ApprovalForm from '../components/ApprovalForm';
 import { ApprovalStatusBadge } from '../components/ApprovalBadges';
 import { APPROVAL_STATUSES, ENTITY_TYPES } from '../components/approvalOptions';
 
-export default function ApprovalListPage() {``
+export default function ApprovalListPage() {
   const { hasPermission } = useAuth();
   const { societyId } = useSociety();
   const navigate = useNavigate();
@@ -52,8 +52,9 @@ export default function ApprovalListPage() {``
   }
 
   const columns = [
-    { key: 'entity', header: 'Entity', render: (r) => <Link to={`/approvals/${r.id}`} className="cell-title">{r.entity_type}</Link> },
-    { key: 'entityId', header: 'Entity ID', render: (r) => <span className="mono">{r.entity_id}</span> },
+    { key: 'entity', header: 'Related record', render: (r) => <Link to={`/approvals/${r.id}`} className="cell-title">{r.entity_display_name || r.entity_type.replaceAll('_', ' ')}</Link> },
+    { key: 'entityType', header: 'Type', render: (r) => r.entity_type.replaceAll('_', ' ') },
+    { key: 'society', header: 'Society', render: (r) => r.society_display_name || 'Society' },
     { key: 'type', header: 'Approval type', render: (r) => r.approval_type },
     { key: 'level', header: 'Level', render: (r) => r.current_level },
     { key: 'status', header: 'Status', render: (r) => <ApprovalStatusBadge status={r.status} /> },

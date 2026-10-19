@@ -11,7 +11,18 @@ const createRequest = async ({ societyId, entityType, entityId, approvalType }) 
 };
 
 const findById = async (id) => {
-  const result = await db.query('SELECT * FROM approval_requests WHERE id = $1', [id]);
+  const result = await db.query(
+    `SELECT ar.*, COALESCE(s.display_name, s.legal_name) AS society_display_name,
+       CASE ar.entity_type
+         WHEN 'PURCHASE_REQUEST' THEN (SELECT pr.request_no FROM purchase_requests pr WHERE pr.id = ar.entity_id)
+         WHEN 'PURCHASE_ORDER' THEN (SELECT po.po_no FROM purchase_orders po WHERE po.id = ar.entity_id)
+         WHEN 'VENDOR_INVOICE' THEN (SELECT vi.invoice_no FROM vendor_invoices vi WHERE vi.id = ar.entity_id)
+       END AS entity_display_name
+     FROM approval_requests ar
+     LEFT JOIN societies s ON s.id = ar.society_id
+     WHERE ar.id = $1`,
+    [id]
+  );
   return result.rows[0] || null;
 };
 
@@ -30,25 +41,34 @@ const listRequests = async ({ societyId, entityType, entityId, status }) => {
   let idx = 1;
 
   if (societyId) {
-    conditions.push(`society_id = $${idx++}`);
+    conditions.push(`ar.society_id = $${idx++}`);
     params.push(societyId);
   }
   if (entityType) {
-    conditions.push(`entity_type = $${idx++}`);
+    conditions.push(`ar.entity_type = $${idx++}`);
     params.push(entityType);
   }
   if (entityId) {
-    conditions.push(`entity_id = $${idx++}`);
+    conditions.push(`ar.entity_id = $${idx++}`);
     params.push(entityId);
   }
   if (status) {
-    conditions.push(`status = $${idx++}`);
+    conditions.push(`ar.status = $${idx++}`);
     params.push(status);
   }
 
   const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const result = await db.query(
-    `SELECT * FROM approval_requests ${whereClause} ORDER BY created_at DESC`,
+    `SELECT ar.*, COALESCE(s.display_name, s.legal_name) AS society_display_name,
+       CASE ar.entity_type
+         WHEN 'PURCHASE_REQUEST' THEN (SELECT pr.request_no FROM purchase_requests pr WHERE pr.id = ar.entity_id)
+         WHEN 'PURCHASE_ORDER' THEN (SELECT po.po_no FROM purchase_orders po WHERE po.id = ar.entity_id)
+         WHEN 'VENDOR_INVOICE' THEN (SELECT vi.invoice_no FROM vendor_invoices vi WHERE vi.id = ar.entity_id)
+       END AS entity_display_name
+     FROM approval_requests ar
+     LEFT JOIN societies s ON s.id = ar.society_id
+     ${whereClause}
+     ORDER BY ar.created_at DESC`,
     params
   );
   return result.rows;
@@ -79,7 +99,11 @@ const addAction = async ({ approvalRequestId, approverId, level, decision, remar
 
 const listActions = async (approvalRequestId) => {
   const result = await db.query(
-    'SELECT * FROM approval_actions WHERE approval_request_id = $1 ORDER BY action_at ASC',
+    `SELECT aa.*, concat_ws(' ', u.first_name, u.last_name) AS approver_name, u.email AS approver_email
+     FROM approval_actions aa
+     LEFT JOIN users u ON u.id = aa.approver_id
+     WHERE aa.approval_request_id = $1
+     ORDER BY aa.action_at ASC`,
     [approvalRequestId]
   );
   return result.rows;

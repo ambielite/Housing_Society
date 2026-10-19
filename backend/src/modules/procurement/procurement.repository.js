@@ -79,7 +79,10 @@ const addRequestLine = async ({ purchaseRequestId, itemDescription, quantity, es
 
 const listRequestLines = async (purchaseRequestId) => {
   const result = await db.query(
-    'SELECT * FROM purchase_request_lines WHERE purchase_request_id = $1',
+    `SELECT prl.*, ac.category_name AS asset_category_name
+     FROM purchase_request_lines prl
+     LEFT JOIN asset_categories ac ON ac.id = prl.asset_category_id
+     WHERE prl.purchase_request_id = $1`,
     [purchaseRequestId]
   );
   return result.rows;
