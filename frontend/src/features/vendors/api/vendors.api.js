@@ -29,6 +29,8 @@ export const listDocuments = (vendorId) => api.get(`/vendors/${vendorId}/documen
 export const addDocument = (vendorId, payload) => api.post(`/vendors/${vendorId}/documents`, payload).then(unwrap);
 export const verifyDocument = (vendorId, documentId, verificationStatus) =>
   api.patch(`/vendors/${vendorId}/documents/${documentId}/verify`, { verificationStatus }).then(unwrap);
+export const listVaultDocuments = (societyId) =>
+  api.get('/document-vault/documents', { params: { societyId, status: 'ACTIVE' } }).then(unwrap);
 
 // --- bank accounts ---
 export const listBankAccounts = (vendorId) => api.get(`/vendors/${vendorId}/bank-accounts`).then(unwrap);

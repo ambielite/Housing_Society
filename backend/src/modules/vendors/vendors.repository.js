@@ -241,7 +241,12 @@ const addDocument = async ({ vendorId, documentId, documentType, expiryDate }) =
 
 const listDocuments = async (vendorId) => {
   const result = await db.query(
-    'SELECT * FROM vendor_documents WHERE vendor_id = $1 ORDER BY created_at DESC',
+    `SELECT vd.*, d.title AS document_title, d.file_name AS document_file_name,
+            d.status AS linked_document_status
+     FROM vendor_documents vd
+     LEFT JOIN documents d ON d.id = vd.document_id
+     WHERE vd.vendor_id = $1
+     ORDER BY vd.created_at DESC`,
     [vendorId]
   );
   return result.rows;
