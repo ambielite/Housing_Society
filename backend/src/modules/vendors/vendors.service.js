@@ -2,6 +2,7 @@ const ApiError = require('../../common/ApiError');
 const { getPagination } = require('../../common/pagination');
 const repository = require('./vendors.repository');
 const usersRepository = require('../users/users.repository');
+const documentsRepository = require('../document-folders/document-folders.repository');
 const { isVendorScoped, getVendorIds } = require('../../common/vendorScope');
 
 /**
@@ -207,6 +208,15 @@ const addDocument = async (vendorId, payload, actingUser) => {
   const vendor = await repository.findById(vendorId);
   if (!vendor) {
     throw new ApiError(404, 'Vendor not found');
+  }
+  if (payload.documentId) {
+    const linkedDocument = await documentsRepository.findDocumentById(payload.documentId);
+    if (!linkedDocument || linkedDocument.society_id !== vendor.society_id) {
+      throw new ApiError(400, 'Choose an active document from this vendor\'s society');
+    }
+    if (linkedDocument.status !== 'ACTIVE') {
+      throw new ApiError(400, 'Only active Document Vault files can be linked to a vendor');
+    }
   }
   return repository.addDocument({ vendorId, ...payload });
 };
