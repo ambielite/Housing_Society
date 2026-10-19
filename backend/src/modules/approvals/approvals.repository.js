@@ -12,7 +12,7 @@ const createRequest = async ({ societyId, entityType, entityId, approvalType }) 
 
 const findById = async (id) => {
   const result = await db.query(
-    `SELECT ar.*, COALESCE(s.display_name, s.legal_name) AS society_display_name,
+    `SELECT ar.*, s.name AS society_display_name,
        CASE ar.entity_type
          WHEN 'PURCHASE_REQUEST' THEN (SELECT pr.request_no FROM purchase_requests pr WHERE pr.id = ar.entity_id)
          WHEN 'PURCHASE_ORDER' THEN (SELECT po.po_no FROM purchase_orders po WHERE po.id = ar.entity_id)
@@ -59,7 +59,7 @@ const listRequests = async ({ societyId, entityType, entityId, status }) => {
 
   const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const result = await db.query(
-    `SELECT ar.*, COALESCE(s.display_name, s.legal_name) AS society_display_name,
+    `SELECT ar.*, s.name AS society_display_name,
        CASE ar.entity_type
          WHEN 'PURCHASE_REQUEST' THEN (SELECT pr.request_no FROM purchase_requests pr WHERE pr.id = ar.entity_id)
          WHEN 'PURCHASE_ORDER' THEN (SELECT po.po_no FROM purchase_orders po WHERE po.id = ar.entity_id)
