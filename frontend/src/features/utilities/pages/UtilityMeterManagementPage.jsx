@@ -539,14 +539,16 @@ export default function UtilityMeterManagementPage() {
     {error && <Alert variant="error">{error}</Alert>}
     {notice && <Alert variant="success">{notice}</Alert>}
     {bulkResult && <div className="um-bulk-summary"><div><strong>Bulk upload results</strong><span>{bulkResult.succeeded} succeeded · {bulkResult.failed} failed of {bulkResult.total}</span></div><button className="btn btn-ghost btn-sm" onClick={() => setBulkResult(null)}>Dismiss</button>{bulkResult.results?.map((r) => <p key={r.index} className={r.success ? 'um-result-ok' : 'um-result-fail'}>Row {r.index + 1}: {r.success ? 'Submitted' : r.error}</p>)}</div>}
-    <div className="um-stats">
-      <div className="um-stat"><span className="um-stat-icon"><Gauge size={20} /></span><div><span>Registered meters</span><strong>{meters.length}</strong></div></div>
-      <div className="um-stat"><span className="um-stat-icon"><Activity size={20} /></span><div><span>Active meters</span><strong>{activeMeters}</strong></div></div>
-      <div className="um-stat"><span className="um-stat-icon"><AlertTriangle size={20} /></span><div><span>Readings to review</span><strong>{pendingReadings}</strong></div></div>
-      <div className="um-stat"><span className="um-stat-icon">{types.some((t) => /water/i.test(t.name)) ? <Droplets size={20} /> : <Zap size={20} />}</span><div><span>Utility types</span><strong>{types.length}</strong></div></div>
+    <div className="um-stats society-stats">
+      <div className="um-stat society-stat-card"><span className="society-stat-icon society-stat-icon-blue"><Gauge size={19} /></span><div><span className="society-stat-label">Registered meters</span><strong>{meters.length}</strong></div></div>
+      <div className="um-stat society-stat-card"><span className="society-stat-icon society-stat-icon-green"><Activity size={19} /></span><div><span className="society-stat-label">Active meters</span><strong>{activeMeters}</strong></div></div>
+      <div className="um-stat society-stat-card"><span className="society-stat-icon society-stat-icon-violet"><AlertTriangle size={19} /></span><div><span className="society-stat-label">Readings to review</span><strong>{pendingReadings}</strong></div></div>
+      <div className="um-stat society-stat-card"><span className="society-stat-icon society-stat-icon-blue">{types.some((t) => /water/i.test(t.name)) ? <Droplets size={19} /> : <Zap size={19} />}</span><div><span className="society-stat-label">Utility types</span><strong>{types.length}</strong></div></div>
     </div>
-    <div className="um-tabs" role="tablist" aria-label="Utility management sections">
-      {allowedTabs.map((item) => <button type="button" key={item.key} role="tab" aria-selected={tab === item.key} className={`um-tab${tab === item.key ? ' active' : ''}`} onClick={() => setTab(item.key)}>{item.label}</button>)}
+    <div className="tabs-bar um-tabs-bar">
+      <nav className="tabs" role="tablist" aria-label="Utility management sections">
+        {allowedTabs.map((item) => <button type="button" key={item.key} role="tab" aria-selected={tab === item.key} className={`tab${tab === item.key ? ' active' : ''}`} onClick={() => setTab(item.key)}>{item.label}</button>)}
+      </nav>
     </div>
     <section className="card section um-content-card">
       <div className="section-heading"><div><h2 className="section-title">{TABS.find((item) => item.key === tab)?.label || 'Utility management'}</h2><p className="muted">{tab === 'meters' ? 'Register meters by utility type and flat, or track common-area meters.' : tab === 'readings' ? 'Submit, validate, reject or adjust readings before calculating a bill.' : tab === 'tariffs' ? 'Set effective-dated flat rates or tiered pricing slabs.' : tab === 'bills' ? 'Review calculated consumption bills and link them to the Billing module.' : 'Configure the utility categories available to the society.'}</p></div></div>

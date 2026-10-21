@@ -25,6 +25,10 @@ a { text-decoration: none; color: inherit; }
 
 .sidebar-nav { flex: 1; padding: 18px 12px; overflow-y: auto; scrollbar-width: none; -ms-overflow-style: none; }
 .sidebar-nav::-webkit-scrollbar { display: none; }
+
+/* Keep scrolling available without displaying native scrollbar tracks. */
+* { scrollbar-width: none; -ms-overflow-style: none; }
+*::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }
 .nav-item {
   display: flex; align-items: center; gap: 12px; padding: 11px 13px; margin-bottom: 4px;
   border-radius: 7px; color: var(--sidebar-text); font-size: 14px; transition: 0.2s;
@@ -1083,6 +1087,16 @@ button.tab.active { border-bottom-color: var(--action); }
 }
 
 /* Main module section */
+.um-stats {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.um-stat {
+  min-height: 92px;
+}
+
 .um-content-card {
   min-width: 0;
   margin-top: 24px;
@@ -1444,12 +1458,20 @@ button.tab.active { border-bottom-color: var(--action); }
 
 /* Responsive layout */
 @media (max-width: 1100px) {
+  .um-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .um-row-actions {
     min-width: 120px;
   }
 }
 
 @media (max-width: 700px) {
+  .um-stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .um-content-card {
     padding: 16px;
   }
