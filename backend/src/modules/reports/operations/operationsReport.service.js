@@ -1,4 +1,5 @@
 const { Op } = require("sequelize");
+const reportsCenterService = require("../../reports-center/reports-center.service");
 
 const Society =
     require("../../../modules/societies/society/society.model");
@@ -299,30 +300,14 @@ const getResidentReport = async ({
 |--------------------------------------------------------------------------
 */
 
-const getVehicleReport = async ({
-    societyId
-}) => {
+const getVehicleReport = async ({ societyId, includeRows = true, limit = 500 }) => {
 
     validateSocietyId(societyId);
 
     await validateSociety(societyId);
 
 
-    return {
-
-        available: false,
-
-        message:
-            "Vehicle report is not available because a Vehicle model is not currently available.",
-
-        totalVehicles: null,
-
-        twoWheelers: null,
-
-        fourWheelers: null,
-
-        otherVehicles: null
-    };
+    return reportsCenterService.getVehicleReport({ societyId, includeRows, limit });
 };
 
 
@@ -332,30 +317,14 @@ const getVehicleReport = async ({
 |--------------------------------------------------------------------------
 */
 
-const getParkingReport = async ({
-    societyId
-}) => {
+const getParkingReport = async ({ societyId, fromDate, toDate, includeRows = true, limit = 500 }) => {
 
     validateSocietyId(societyId);
 
     await validateSociety(societyId);
 
 
-    return {
-
-        available: false,
-
-        message:
-            "Parking report is not available because a Parking model is not currently available.",
-
-        totalParkingSlots: null,
-
-        occupiedSlots: null,
-
-        vacantSlots: null,
-
-        reservedSlots: null
-    };
+    return reportsCenterService.getParkingReport({ societyId, fromDate, toDate, includeRows, limit });
 };
 
 
@@ -399,7 +368,9 @@ const getOperationsDashboard = async ({
         }),
 
         getParkingReport({
-            societyId
+            societyId,
+            fromDate,
+            toDate
         })
 
     ]);

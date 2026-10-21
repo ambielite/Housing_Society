@@ -74,7 +74,8 @@ const getApprovalReport = async (req, res) => {
         const {
             societyId,
             fromDate,
-            toDate
+            toDate,
+            limit
         } = req.query;
 
 
@@ -90,7 +91,8 @@ const getApprovalReport = async (req, res) => {
             await service.getApprovalReport({
                 societyId,
                 fromDate,
-                toDate
+                toDate,
+                limit
             });
 
 
@@ -184,7 +186,8 @@ const getSlaReport = async (req, res) => {
         const {
             societyId,
             fromDate,
-            toDate
+            toDate,
+            limit
         } = req.query;
 
 
@@ -200,7 +203,8 @@ const getSlaReport = async (req, res) => {
             await service.getSlaReport({
                 societyId,
                 fromDate,
-                toDate
+                toDate,
+                limit
             });
 
 

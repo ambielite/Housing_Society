@@ -221,10 +221,11 @@ const getParkingReport = async (
 
         const result =
             await service.getParkingReport({
-
-                societyId:
-                    req.query.societyId
-
+                societyId: req.query.societyId,
+                fromDate: req.query.fromDate,
+                toDate: req.query.toDate,
+                includeRows: req.query.includeRows === "true",
+                limit: req.query.limit
             });
 
 
