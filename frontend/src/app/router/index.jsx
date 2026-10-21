@@ -49,7 +49,6 @@ const HelpdeskSetupPage = lazy(() => import('../../features/helpdesk/pages/Helpd
 const DocumentVaultPage = lazy(() => import('../../features/document-vault/pages/DocumentVaultPage'));
 const DocumentDetailPage = lazy(() => import('../../features/document-vault/pages/DocumentDetailPage'));
 const UtilityMeterManagementPage = lazy(() => import('../../features/utilities/pages/UtilityMeterManagementPage'));
-const ReportsCenterPage = lazy(() => import('../../features/reports-center/pages/ReportsCenterPage'));
 // Nikhil's housing-management modules use the legacy /api namespace.
 const SocietyListPage = lazy(() => import('../../features/societies/pages/SocietyListPage'));
 const TowerListPage = lazy(() => import('../../features/towers/pages/TowerListPage'));
@@ -82,7 +81,8 @@ const OperationsSecurityPage = lazy(() => import('../../features/security/pages/
 const AssetsPage = lazy(() => import('../../features/assets/pages/AssetsPage'));
 const NotificationsPage = lazy(() => import('../../features/notifications/pages/NotificationsPage'));
 const CommunityPage = lazy(() => import('../../features/community/pages/CommunityPage'));
-const ReportsPage = lazy(() => import('../../features/reports/pages/ReportsWorkspace'));
+const ReportsModulePage = lazy(() => import('../../features/reports/pages/ReportsModulePage'));
+const REPORTS_MODULE_PERMISSIONS = ['REPORT_DASHBOARD_READ', 'REPORT_FINANCE_READ', 'REPORT_OPERATIONS_READ', 'REPORT_SECURITY_READ', 'REPORT_APPROVAL_READ', 'REPORT_HELPDESK_READ', 'REPORT_VENDOR_READ', 'REPORT_PROCUREMENT_READ', 'REPORT_AMENITY_READ', 'REPORT_UTILITY_READ'];
 const MultiSocietyPage = lazy(() => import('../../features/multiSociety/pages/MultiSocietyPage'));
 const HousingDashboardPage = lazy(() => import('../../features/dashboard/pages/HousingDashboardPage'));
 
@@ -178,9 +178,10 @@ export default function AppRoutes() {
               <Route path="/community" element={<CommunityPage />} />
               <Route path="/community/:section" element={<CommunityPage />} />
             </Route>
-            <Route element={<ProtectedRoute permission={['REPORT_DASHBOARD_READ', 'REPORT_FINANCE_READ', 'REPORT_OPERATIONS_READ', 'REPORT_SECURITY_READ', 'REPORT_APPROVAL_READ']} />}>
-              <Route path="/reports" element={<ReportsPage />} />
-              <Route path="/reports/:section" element={<ReportsPage />} />
+            <Route element={<ProtectedRoute permission={REPORTS_MODULE_PERMISSIONS} />}>
+              <Route path="/reports" element={<ReportsModulePage />} />
+              <Route path="/reports/:section" element={<ReportsModulePage />} />
+              <Route path="/reports-center" element={<ReportsModulePage />} />
             </Route>
             <Route element={<ProtectedRoute permission={['ORGANIZATION_READ', 'CLUSTER_READ', 'MULTI_SOCIETY_READ']} />}>
               <Route path="/multi-society" element={<MultiSocietyPage />} />
@@ -320,15 +321,6 @@ export default function AppRoutes() {
             <Route element={<ProtectedRoute permission={['UTILITY_TYPE_READ', 'METER_READ', 'METER_READING_READ', 'UTILITY_TARIFF_READ', 'UTILITY_BILL_READ']} />}>
               <Route path="/utilities" element={<UtilityMeterManagementPage />} />
             </Route>
-
-
-            {/* Phase 17 — Reports Center (your report endpoints) */}
-            <Route element={<ProtectedRoute permission={['REPORT_DASHBOARD_READ', 'REPORT_OPERATIONS_READ', 'REPORT_SECURITY_READ', 'REPORT_HELPDESK_READ', 'REPORT_VENDOR_READ', 'REPORT_PROCUREMENT_READ', 'REPORT_AMENITY_READ', 'REPORT_UTILITY_READ']} />}>
-              <Route path="/reports-center" element={<ReportsCenterPage />} />
-            </Route>
-
-
-
 
 
             {/* Each new module adds its routes here, wrapped in <ProtectedRoute permission="..." /> */}

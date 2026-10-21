@@ -121,13 +121,12 @@ const NAV_ITEMS = [
       { label: 'Voting & rules', to: '/community/voting', permission: 'COMMUNITY_VOTING_READ', icon: CheckCircle },
     ],
   },
-  { label: 'Reports', to: '/reports', permission: ['REPORT_DASHBOARD_READ', 'REPORT_FINANCE_READ', 'REPORT_OPERATIONS_READ', 'REPORT_SECURITY_READ', 'REPORT_APPROVAL_READ'], icon: ChartNoAxesCombined },
+  { label: 'Reports', to: '/reports', permission: ['REPORT_DASHBOARD_READ', 'REPORT_FINANCE_READ', 'REPORT_OPERATIONS_READ', 'REPORT_SECURITY_READ', 'REPORT_APPROVAL_READ', 'REPORT_HELPDESK_READ', 'REPORT_VENDOR_READ', 'REPORT_PROCUREMENT_READ', 'REPORT_AMENITY_READ', 'REPORT_UTILITY_READ'], icon: ChartNoAxesCombined },
   { label: 'Multi-society', to: '/multi-society', permission: ['ORGANIZATION_READ', 'CLUSTER_READ', 'MULTI_SOCIETY_READ'], icon: Network },
   { label: 'Amenities', to: '/amenities', permission: ['AMENITY_READ', 'AMENITY_SLOT_READ', 'AMENITY_BOOKING_READ'], icon: CalendarDays },
   { label: 'Helpdesk', to: '/helpdesk/tickets', permission: 'TICKET_READ', icon: LifeBuoy },
   { label: 'Document Vault', to: '/document-vault', icon: FolderArchive },
   { label: 'Utility & Meters', to: '/utilities', permission: ['UTILITY_TYPE_READ', 'METER_READ', 'METER_READING_READ', 'UTILITY_TARIFF_READ', 'UTILITY_BILL_READ'], icon: Gauge },
-  { label: 'Reports Center', to: '/reports-center', permission: ['REPORT_DASHBOARD_READ', 'REPORT_OPERATIONS_READ', 'REPORT_SECURITY_READ', 'REPORT_HELPDESK_READ', 'REPORT_VENDOR_READ', 'REPORT_PROCUREMENT_READ', 'REPORT_AMENITY_READ', 'REPORT_UTILITY_READ'], icon: ChartNoAxesCombined },
 ];
 
 const canSee = (item, hasAnyPermission) => !item.permission || hasAnyPermission(item.permission);
