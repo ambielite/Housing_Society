@@ -1,6 +1,39 @@
 const repository = require("./billingConfig.repository");
 
+const NUMERIC_FIELDS = [
+    "flatAmount",
+    "ratePerArea",
+    "fixedAmount",
+    "billingDay",
+    "dueDays",
+    "penaltyValue",
+    "gracePeriodDays",
+    "taxRate"
+];
+
+const normalizeNumericFields = (data) => {
+    const normalized = { ...data };
+
+    for (const field of NUMERIC_FIELDS) {
+        if (!Object.prototype.hasOwnProperty.call(normalized, field)) continue;
+        const value = normalized[field];
+        if (value == null || value === "") {
+            normalized[field] = null;
+            continue;
+        }
+
+        const number = Number(value);
+        if (!Number.isFinite(number)) {
+            throw new Error(`${field} must be a valid number`);
+        }
+        normalized[field] = number;
+    }
+
+    return normalized;
+};
+
 const createConfig = async (data) => {
+    data = normalizeNumericFields(data);
 
     const existing = await repository.findByCode(
         data.societyId,
@@ -92,6 +125,7 @@ const getConfigById = async (id) => {
 };
 
 const updateConfig = async (id, data) => {
+    data = normalizeNumericFields(data);
 
     const config = await repository.update(
         id,

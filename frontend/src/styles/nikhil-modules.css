@@ -952,6 +952,12 @@ font-size: 12px;
 .form-section-title { margin-bottom: 16px; }
 .form-section-title h3 { color: #111827; font-size: 15px; font-weight: 650; line-height: 1.35; }
 .form-section-title span { display: block; margin-top: 3px; color: #6b7280; font-size: 12px; }
+.billing-ledger-create { grid-column: 1 / -1; min-width: 0; padding: 15px 16px; border: 1px solid #dfe3ed; border-radius: 10px; background: #fff; }
+.billing-ledger-create .form-section-title { margin-bottom: 12px; }
+.billing-ledger-create .form-section-title h3 { margin: 0; font-size: 15px; }
+.billing-ledger-create-controls { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 9px; align-items: center; }
+.billing-ledger-create-controls select { width: 100%; min-width: 0; height: 42px; padding: 0 11px; border: 1px solid #d1d5db; border-radius: 7px; background: #fff; color: #1f2937; font: inherit; font-size: 13px; }
+.billing-ledger-create-controls button { min-height: 42px; padding: 0 16px; white-space: nowrap; }
 .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .form-grid > *, .form-group { min-width: 0; }
 .society-form-modal .modal-close-btn { flex: 0 0 34px; }
@@ -1447,6 +1453,7 @@ tbody tr:hover {
 
 @media (max-width: 640px) {
     .form-grid { grid-template-columns: minmax(0, 1fr); }
+    .billing-ledger-create-controls { grid-template-columns: minmax(0, 1fr); }
     .society-form-header { padding: 18px 18px 14px; }
     .society-form-body { padding: 16px 18px; }
     .society-form-footer { padding: 14px 18px; }
