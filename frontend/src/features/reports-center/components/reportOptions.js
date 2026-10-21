@@ -2,17 +2,12 @@ export const REPORT_GROUPS = [
   {
     key: 'dashboard', label: 'Executive dashboard', permission: 'REPORT_DASHBOARD_READ', reports: [
       { key: 'dashboard', label: 'Executive dashboard', title: 'Executive dashboard', description: 'A current snapshot of vehicles, parking, security, workflow, vendors, amenities and utilities.', permission: 'REPORT_DASHBOARD_READ', exportable: false, dates: false },
-      { key: 'legacy-executive', label: 'Society executive dashboard', title: 'Society executive dashboard', description: 'Executive metrics from the society reports service.', permission: 'REPORT_DASHBOARD_READ', legacy: true, exportable: false, dates: true },
     ],
   },
   {
     key: 'operations', label: 'Operations', permission: 'REPORT_OPERATIONS_READ', reports: [
       { key: 'vehicles', label: 'Vehicle report', title: 'Vehicle report', permission: 'REPORT_OPERATIONS_READ', exportKey: 'vehicles', dates: false },
       { key: 'parking', label: 'Parking report', title: 'Parking report', permission: 'REPORT_OPERATIONS_READ', exportable: false, dates: true },
-      { key: 'society-operations', label: 'Operations dashboard', title: 'Operations dashboard', permission: 'REPORT_OPERATIONS_READ', legacy: true, exportable: false, dates: true },
-      { key: 'occupancy', label: 'Occupancy', title: 'Occupancy report', permission: 'REPORT_OPERATIONS_READ', legacy: true, exportable: false, dates: true },
-      { key: 'residents', label: 'Residents', title: 'Resident report', permission: 'REPORT_OPERATIONS_READ', legacy: true, exportable: false, dates: true },
-      { key: 'society-vehicles', label: 'Society vehicle summary', title: 'Society vehicle summary', permission: 'REPORT_OPERATIONS_READ', legacy: true, exportable: false, dates: true },
     ],
   },
   {
@@ -21,28 +16,6 @@ export const REPORT_GROUPS = [
       { key: 'gate-activity', label: 'Gate activity', title: 'Gate activity report', permission: 'REPORT_SECURITY_READ', exportKey: 'gate-activity', dates: true },
       { key: 'overstay', label: 'Overstay alerts', title: 'Overstay report', permission: 'REPORT_SECURITY_READ', exportKey: 'overstay', dates: true },
       { key: 'deliveries', label: 'Deliveries', title: 'Delivery report', permission: 'REPORT_SECURITY_READ', exportKey: 'deliveries', dates: true },
-      { key: 'legacy-visitors', label: 'Visitor summary', title: 'Visitor summary', permission: 'REPORT_SECURITY_READ', legacy: true, exportable: false, dates: true },
-      { key: 'gate-summary', label: 'Gate summary', title: 'Gate summary', permission: 'REPORT_SECURITY_READ', legacy: true, exportable: false, dates: true },
-      { key: 'staff-summary', label: 'Staff summary', title: 'Staff summary', permission: 'REPORT_SECURITY_READ', legacy: true, exportable: false, dates: true },
-      { key: 'patrol-summary', label: 'Patrol summary', title: 'Patrol summary', permission: 'REPORT_SECURITY_READ', legacy: true, exportable: false, dates: true },
-    ],
-  },
-  {
-    key: 'finance', label: 'Finance', permission: 'REPORT_FINANCE_READ', reports: [
-      { key: 'finance-dashboard', label: 'Finance dashboard', title: 'Finance dashboard', permission: 'REPORT_FINANCE_READ', legacy: true, exportable: false, dates: true },
-      { key: 'bank-balance', label: 'Bank balance', title: 'Bank balance report', permission: 'REPORT_FINANCE_READ', legacy: true, exportable: false, dates: true },
-      { key: 'collection', label: 'Collections', title: 'Collections report', permission: 'REPORT_FINANCE_READ', legacy: true, exportable: false, dates: true },
-      { key: 'arrears', label: 'Arrears', title: 'Arrears report', permission: 'REPORT_FINANCE_READ', legacy: true, exportable: false, dates: true },
-      { key: 'income-expense', label: 'Income & expense', title: 'Income and expense report', permission: 'REPORT_FINANCE_READ', legacy: true, exportable: false, dates: true },
-    ],
-  },
-  {
-    key: 'approvals', label: 'Approvals & SLA', permission: 'REPORT_APPROVAL_READ', reports: [
-      { key: 'approvals-dashboard', label: 'Approvals dashboard', title: 'Approvals dashboard', permission: 'REPORT_APPROVAL_READ', legacy: true, exportable: false, dates: true },
-      { key: 'approval-details', label: 'Approval detail', title: 'Approval detail report', permission: 'REPORT_APPROVAL_READ', legacy: true, exportable: false, dates: true },
-      { key: 'approval-status', label: 'Approval status', title: 'Approval status report', permission: 'REPORT_APPROVAL_READ', legacy: true, exportable: false, dates: true },
-      { key: 'approval-sla', label: 'SLA report', title: 'Approval SLA report', permission: 'REPORT_APPROVAL_READ', legacy: true, exportable: false, dates: true },
-      { key: 'approval-payments', label: 'Payments', title: 'Payments report', permission: 'REPORT_APPROVAL_READ', legacy: true, exportable: false, dates: true },
     ],
   },
   {

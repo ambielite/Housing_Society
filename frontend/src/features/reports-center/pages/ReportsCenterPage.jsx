@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useLocation } from 'react-router-dom';
 import {
   Activity, AlertTriangle, BarChart3, CalendarDays, CarFront, CheckCircle2, ChevronRight,
   Download, FileSpreadsheet, FileText, Gauge, RefreshCw, Shield, Truck, Wallet,
@@ -10,7 +9,6 @@ import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
 import { getErrorMessage } from '../../../lib/axios';
 import * as reportsApi from '../api/reportsCenter.api';
-import legacyReportsApi from '../../reports/api/reports.api';
 import { REPORT_GROUPS, REPORT_BY_KEY } from '../components/reportOptions';
 
 const REQUESTS = {
@@ -35,25 +33,6 @@ const REQUESTS = {
   'amenity-utilization': reportsApi.getAmenityUtilization,
   'amenity-bookings': reportsApi.getAmenityBookings,
   'utility-summary': reportsApi.getUtilitySummary,
-  'legacy-executive': legacyReportsApi.executive,
-  'finance-dashboard': legacyReportsApi.finance,
-  'bank-balance': legacyReportsApi.bankBalance,
-  collection: legacyReportsApi.collection,
-  arrears: legacyReportsApi.arrears,
-  'income-expense': legacyReportsApi.incomeExpense,
-  'society-operations': legacyReportsApi.operations,
-  occupancy: legacyReportsApi.occupancy,
-  residents: legacyReportsApi.residents,
-  'society-vehicles': legacyReportsApi.vehicles,
-  'legacy-visitors': legacyReportsApi.visitors,
-  'gate-summary': legacyReportsApi.gate,
-  'staff-summary': legacyReportsApi.staff,
-  'patrol-summary': legacyReportsApi.patrols,
-  'approvals-dashboard': legacyReportsApi.approvals,
-  'approval-details': legacyReportsApi.approvalDetails,
-  'approval-status': legacyReportsApi.approvalStatus,
-  'approval-sla': legacyReportsApi.sla,
-  'approval-payments': legacyReportsApi.payments,
 };
 
 const LABELS = {
@@ -214,23 +193,14 @@ function ReportResults({ data, report }) {
 export default function ReportsCenterPage() {
   const { hasPermission, hasAnyPermission, hasRole } = useAuth();
   const { societyId } = useSociety();
-  const { pathname } = useLocation();
   const isSuperAdmin = hasRole('SUPER_ADMIN');
-  const routeSection = pathname.startsWith('/reports/') ? pathname.split('/')[2] : '';
-  const initialGroup = ({ finance: 'finance', operations: 'operations', security: 'security', approvals: 'approvals' })[routeSection] || 'dashboard';
-  const initialReport = ({
-    finance: 'finance-dashboard',
-    operations: 'society-operations',
-    security: 'staff-summary',
-    approvals: 'approvals-dashboard',
-  })[routeSection] || 'dashboard';
   const visibleGroups = useMemo(() => REPORT_GROUPS.map((group) => ({
     ...group,
     reports: group.reports.filter((report) => hasPermission(report.permission)),
   })).filter((group) => group.reports.length > 0), [hasPermission]);
 
-  const [activeGroup, setActiveGroup] = useState(initialGroup);
-  const [reportKey, setReportKey] = useState(initialReport);
+  const [activeGroup, setActiveGroup] = useState('dashboard');
+  const [reportKey, setReportKey] = useState('dashboard');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [includeRows, setIncludeRows] = useState(false);
@@ -248,7 +218,7 @@ export default function ReportsCenterPage() {
 
   const currentGroup = visibleGroups.find((group) => group.key === activeGroup) || visibleGroups[0];
   const currentReport = REPORT_BY_KEY[reportKey] || currentGroup?.reports[0];
-  const canExport = Boolean(currentReport && hasPermission('REPORT_EXPORT'));
+  const canExport = Boolean(currentReport?.exportKey && hasPermission('REPORT_EXPORT'));
   const needsSociety = isSuperAdmin && !societyId;
 
   useEffect(() => {
@@ -290,16 +260,12 @@ export default function ReportsCenterPage() {
   const makeParams = useCallback((report) => {
     const params = {};
     if (isSuperAdmin && societyId) params.societyId = societyId;
-    if (report?.legacy) {
-      const legacySocietyId = societyId || localStorage.getItem('selectedSocietyId');
-      if (legacySocietyId) params.societyId = legacySocietyId;
-    }
     if (report?.dates) {
       if (fromDate) params.fromDate = fromDate;
       if (toDate) params.toDate = toDate;
     }
     // The contracts and quotation-comparison schemas intentionally accept a narrower query.
-    if (!report?.legacy && report?.key !== 'dashboard' && !report?.rfqId && !report?.expiringDays) {
+    if (report?.key !== 'dashboard' && !report?.rfqId && !report?.expiringDays) {
       params.includeRows = includeRows;
       params.limit = Number(limit) || 500;
     }
@@ -340,40 +306,23 @@ export default function ReportsCenterPage() {
   const chooseReport = (key) => { setReportKey(key); setData(null); setError(''); setNotice(''); };
 
   const exportReport = async (format) => {
-    if (!canExport || !['csv', 'pdf', 'xlsx'].includes(format)) return;
+    if (!currentReport?.exportKey || !canExport) return;
     if (needsSociety) { setError('Select a society before exporting reports.'); return; }
     if (fromDate && toDate && fromDate > toDate) { setError('The end date cannot be earlier than the start date.'); return; }
     if (currentReport.rfqId && !rfqId) { setError('Select an RFQ to compare its quotations.'); return; }
     setExporting(format); setError(''); setNotice('');
     try {
-      const response = currentReport.exportKey
-        ? await reportsApi.downloadReport(currentReport.exportKey, { ...makeParams(currentReport), includeRows: true }, format)
-        : await reportsApi.downloadReportData(
-          currentReport.key,
-          { ...makeParams(currentReport), limit: Number(limit) || 500 },
-          format
-        );
+      const params = { ...makeParams(currentReport), includeRows: true, format };
+      const response = await reportsApi.downloadReport(currentReport.exportKey, params, format);
       const mimeExtension = format === 'xlsx' ? 'xlsx' : format;
       const disposition = response.headers?.['content-disposition'] || '';
-      const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] || `reports-${currentReport.exportKey || currentReport.key}.${mimeExtension}`;
+      const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] || `reports-${currentReport.exportKey}.${mimeExtension}`;
       const blobUrl = window.URL.createObjectURL(response.data);
       const anchor = document.createElement('a'); anchor.href = blobUrl; anchor.download = filename;
-      document.body.appendChild(anchor); anchor.click(); anchor.remove();
-      window.setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+      document.body.appendChild(anchor); anchor.click(); anchor.remove(); window.URL.revokeObjectURL(blobUrl);
       setNotice(`${format.toUpperCase()} report downloaded.`);
     } catch (err) {
-      if (err.response?.status === 403) {
-        setError('Your account does not have permission to export reports.');
-      } else if (err.response?.data instanceof Blob) {
-        try {
-          const payload = JSON.parse(await err.response.data.text());
-          setError(payload.message || 'Could not export this report.');
-        } catch {
-          setError('Could not export this report. Please try again.');
-        }
-      } else {
-        setError(getErrorMessage(err));
-      }
+      setError(err.response?.status === 403 ? 'Your account does not have permission to export reports.' : getErrorMessage(err));
     } finally { setExporting(''); }
   };
 

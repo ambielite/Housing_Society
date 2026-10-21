@@ -1,11 +1,6 @@
 const PDFDocument = require('pdfkit');
 const ExcelJS = require('exceljs');
 const service = require('./reports-center.service');
-const financeReports = require('../reports/finance/financeReport.service');
-const operationsReports = require('../reports/operations/operationsReport.service');
-const securityReports = require('../reports/security/securityReport.service');
-const approvalReports = require('../reports/approvals/approvalReport.service');
-const dashboardReports = require('../reports/dashboard/dashboard.service');
 const ApiError = require('../../common/ApiError');
 const ApiResponse = require('../../common/ApiResponse');
 const asyncHandler = require('../../common/asyncHandler');
@@ -29,31 +24,6 @@ const assertExportAllowed = (req) => {
   if (!req.user.permissions.includes('REPORT_EXPORT')) {
     throw new ApiError(403, 'You do not have permission to export reports');
   }
-};
-
-const exportTasks = {
-  dashboard: { permission: 'REPORT_DASHBOARD_READ', run: service.getDashboard },
-  parking: { permission: 'REPORT_OPERATIONS_READ', run: service.getParkingReport },
-  'procurement-summary': { permission: 'REPORT_PROCUREMENT_READ', run: service.getProcurementSummary },
-  'legacy-executive': { permission: 'REPORT_DASHBOARD_READ', run: dashboardReports.getExecutiveDashboard },
-  'finance-dashboard': { permission: 'REPORT_FINANCE_READ', run: financeReports.getFinanceDashboard },
-  'bank-balance': { permission: 'REPORT_FINANCE_READ', run: financeReports.getBankBalance },
-  collection: { permission: 'REPORT_FINANCE_READ', run: financeReports.getCollection },
-  arrears: { permission: 'REPORT_FINANCE_READ', run: financeReports.getArrears },
-  'income-expense': { permission: 'REPORT_FINANCE_READ', run: financeReports.getIncomeExpense },
-  'society-operations': { permission: 'REPORT_OPERATIONS_READ', run: operationsReports.getOperationsDashboard },
-  occupancy: { permission: 'REPORT_OPERATIONS_READ', run: operationsReports.getOccupancyReport },
-  residents: { permission: 'REPORT_OPERATIONS_READ', run: operationsReports.getResidentReport },
-  'society-vehicles': { permission: 'REPORT_OPERATIONS_READ', run: operationsReports.getVehicleReport },
-  'legacy-visitors': { permission: 'REPORT_SECURITY_READ', run: securityReports.getVisitorSummary },
-  'gate-summary': { permission: 'REPORT_SECURITY_READ', run: securityReports.getGateSummary },
-  'staff-summary': { permission: 'REPORT_SECURITY_READ', run: securityReports.getStaffSummary },
-  'patrol-summary': { permission: 'REPORT_SECURITY_READ', run: securityReports.getPatrolSummary },
-  'approvals-dashboard': { permission: 'REPORT_APPROVAL_READ', run: approvalReports.getApprovalsDashboard },
-  'approval-details': { permission: 'REPORT_APPROVAL_READ', run: approvalReports.getApprovalReport },
-  'approval-status': { permission: 'REPORT_APPROVAL_READ', run: approvalReports.getApprovalStatusReport },
-  'approval-sla': { permission: 'REPORT_APPROVAL_READ', run: approvalReports.getSlaReport },
-  'approval-payments': { permission: 'REPORT_APPROVAL_READ', run: approvalReports.getPaymentReport },
 };
 
 // --- CSV (guards against spreadsheet formula injection) ---------------------
@@ -139,55 +109,6 @@ const sendXlsx = async (res, name, rows) => {
   res.end();
 };
 
-const exportRowsFromData = (data) => {
-  const detailRows = [];
-  const summaryRows = [];
-  const toCell = (value) => value && typeof value === 'object' ? JSON.stringify(value) : value;
-  const walk = (value, path = '') => {
-    if (Array.isArray(value)) {
-      value.slice(0, 5000 - detailRows.length).forEach((item) => {
-        if (item && typeof item === 'object' && !Array.isArray(item)) {
-          detailRows.push({ section: path || 'Details', ...Object.fromEntries(Object.entries(item).map(([key, cell]) => [key, toCell(cell)])) });
-        } else {
-          detailRows.push({ section: path || 'Details', value: toCell(item) });
-        }
-      });
-      return;
-    }
-    if (!value || typeof value !== 'object') return;
-    Object.entries(value).forEach(([key, child]) => {
-      if (['society', 'period'].includes(key)) return;
-      const nextPath = path ? `${path}.${key}` : key;
-      if (Array.isArray(child)) walk(child, key);
-      else if (child && typeof child === 'object') walk(child, nextPath);
-      else if (child !== undefined) summaryRows.push({ section: path || 'Summary', label: nextPath, value: toCell(child) });
-    });
-  };
-
-  walk(data);
-  const rows = [...summaryRows, ...detailRows].slice(0, 5000);
-  return rows.length ? rows : [{ message: 'No data for the selected filters.' }];
-};
-
-const exportReportData = asyncHandler(async (req, res) => {
-  const { reportKey, format, fromDate, toDate, rfqId, expiringInDays, limit } = req.body;
-  const societyId = resolveSocietyId(req);
-  assertExportAllowed(req);
-  const task = exportTasks[reportKey];
-  if (!task) throw new ApiError(400, 'This report does not support export');
-  if (!req.user.roles.includes('SUPER_ADMIN') && !req.user.permissions.includes(task.permission)) {
-    throw new ApiError(403, 'You do not have permission to export this report');
-  }
-
-  const name = reportKey.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'report';
-  const params = { societyId, fromDate, toDate, rfqId, expiringInDays, includeRows: true, limit: limit || 500 };
-  const data = await task.run(params);
-  const rows = exportRowsFromData(data);
-  if (format === 'csv') return sendCsv(res, name, rows);
-  if (format === 'pdf') return sendPdf(res, name, rows, data?.period || { fromDate, toDate });
-  return sendXlsx(res, name, rows);
-});
-
 /**
  * exportName omitted => the report has no flat table, so ?format=csv|pdf|xlsx is refused.
  * With ?format=csv, pdf or xlsx the service is asked for detail rows (includeRows) and the
@@ -211,7 +132,6 @@ const handler = (serviceFn, message, exportName) =>
   });
 
 module.exports = {
-  exportReportData,
   listProcurementRfqs: asyncHandler(async (req, res) => {
     const societyId = resolveSocietyId(req);
     const rfqs = await service.listProcurementRfqs(societyId);

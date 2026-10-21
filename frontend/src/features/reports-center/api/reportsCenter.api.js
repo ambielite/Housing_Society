@@ -78,7 +78,3 @@ export const downloadReport = (reportKey, params = {}, format = 'csv') => {
   };
   return get(pathByKey[reportKey], { ...params, format }, 'blob');
 };
-
-/** Run the report through its existing service and export when no native export route exists. */
-export const downloadReportData = (reportKey, params = {}, format = 'csv') =>
-  api.post('/reports-center/export', { ...params, reportKey, format }, { responseType: 'blob' });
