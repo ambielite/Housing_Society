@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Share2 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
@@ -14,6 +14,7 @@ import SocietyIdPrompt from '../../../components/ui/SocietyIdPrompt';
 import * as vaultApi from '../api/documentVault.api';
 import FolderForm from '../components/FolderForm';
 import UploadDocumentForm from '../components/UploadDocumentForm';
+import { shareDocument as openDocumentShare } from '../utils/shareDocument';
 import { DOCUMENT_STATUSES, DOCUMENT_TYPES, formatBytes, formatDate, pretty, SENSITIVITIES } from '../components/documentVaultOptions';
 
 export default function DocumentVaultPage() {
@@ -67,6 +68,13 @@ export default function DocumentVaultPage() {
     finally { setSaving(false); }
   };
   const clearFilters = () => { setSearch(''); setFolderFilter(''); setTypeFilter(''); setSensitivityFilter(''); setStatusFilter(''); };
+  const shareDocument = async (doc) => {
+    setPageError('');
+    try { await openDocumentShare(doc); }
+    catch (error) {
+      if (error?.name !== 'AbortError') setPageError(error?.message || 'Could not open the share menu.');
+    }
+  };
 
   if (!societyId) return <PageContainer title="Document Vault" subtitle="Manage society documents, versions and access."><SocietyIdPrompt /></PageContainer>;
 
@@ -85,6 +93,7 @@ export default function DocumentVaultPage() {
     { key: 'size', header: 'Size', render: (doc) => formatBytes(doc.size_bytes) },
     { key: 'status', header: 'Status', render: (doc) => pretty(doc.status) },
     { key: 'created', header: 'Uploaded', render: (doc) => formatDate(doc.created_at) },
+    { key: 'share', header: 'Share', render: (doc) => <button type="button" className="btn btn-ghost btn-sm" title={`Share ${doc.title || 'document'}`} aria-label={`Share ${doc.title || 'document'}`} onClick={() => shareDocument(doc)}><Share2 size={16} aria-hidden="true" /></button> },
   ];
 
   return (

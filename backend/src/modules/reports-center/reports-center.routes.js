@@ -6,6 +6,7 @@ const {
   contractsQuerySchema,
   quotationComparisonQuerySchema,
   dashboardQuerySchema,
+  reportDataExportSchema,
 } = require('./reports-center.validation');
 const { authenticate, authorize } = require('../../common/authMiddleware');
 
@@ -13,6 +14,8 @@ const router = express.Router();
 router.use(authenticate);
 
 const q = validate(reportQuerySchema, 'query');
+
+router.post('/export', validate(reportDataExportSchema, 'body'), controller.exportReportData);
 
 // Dashboard widgets
 router.get('/dashboard', authorize('REPORT_DASHBOARD_READ'), validate(dashboardQuerySchema, 'query'), controller.getDashboard);

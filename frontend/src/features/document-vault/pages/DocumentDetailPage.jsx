@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Share2 } from 'lucide-react';
 import useAuth from '../../../app/providers/useAuth';
 import useFetch from '../../../utils/useFetch';
 import api, { getErrorMessage } from '../../../lib/axios';
@@ -9,6 +10,7 @@ import Modal from '../../../components/ui/Modal';
 import ConfirmDialog from '../../../components/ui/ConfirmDialog';
 import { FullPageLoader } from '../../../components/ui/Spinner';
 import * as vaultApi from '../api/documentVault.api';
+import { shareDocument as openDocumentShare } from '../utils/shareDocument';
 import { DOCUMENT_STATUSES, DOCUMENT_TYPES, ENTITY_TYPES, LINK_TYPES, PERMISSION_TYPES, SENSITIVITIES, VISIBILITIES, formatBytes, formatDate, pretty, visibilityHelp } from '../components/documentVaultOptions';
 
 const rows = (data, key) => Array.isArray(data) ? data : (data?.[key] || []);
@@ -124,6 +126,13 @@ export default function DocumentDetailPage() {
   const removeDocument = async () => {
     if (await run(() => vaultApi.deleteDocument(documentId), 'Document deleted.')) navigate('/document-vault', { replace: true, state: { notice: 'Document deleted successfully.' } });
   };
+  const shareDocument = async () => {
+    setError('');
+    try { await openDocumentShare(target); }
+    catch (shareError) {
+      if (shareError?.name !== 'AbortError') setError(shareError?.message || 'Could not open the share menu.');
+    }
+  };
   const grantAccess = async (event) => {
     event.preventDefault();
     const payload = { documentId, permissionType: grant.permissionType, expiresAt: grant.expiresAt ? new Date(grant.expiresAt).toISOString() : null, ...(grant.targetType === 'user' ? { userId: grant.targetId } : { roleId: grant.targetId }) };
@@ -152,6 +161,7 @@ export default function DocumentDetailPage() {
   return (
     <PageContainer title={target.title || 'Document details'} subtitle={target.file_name || ''} actions={
       <>
+        <button className="btn btn-secondary" onClick={shareDocument}><Share2 size={16} /> Share</button>
         {(hasPermission('DOCUMENT_DOWNLOAD') || (target.visibility === 'PUBLIC' && target.sensitivity !== 'CONFIDENTIAL')) && <button className="btn btn-primary" disabled={saving} onClick={download}>Download file</button>}
         {hasPermission('DOCUMENT_UPDATE') && <button className="btn btn-secondary" onClick={() => setShowEdit(true)}>Edit details</button>}
         {hasPermission('DOCUMENT_VERSION_CREATE') && <button className="btn btn-secondary" onClick={() => setShowVersion(true)}>Upload new version</button>}
