@@ -2,7 +2,11 @@ import { useEffect, useState } from "react";
 import { CalendarDays, LockKeyhole, Plus } from "lucide-react";
 import accountingPeriodApi from "../api/accountingPeriod.api";
 
-const rowsFrom = (response) => Array.isArray(response) ? response : response?.data || response?.records || [];
+const rowsFrom = (response) => {
+    if (Array.isArray(response)) return response;
+    const rows = response?.data?.data ?? response?.data ?? response?.records;
+    return Array.isArray(rows) ? rows : [];
+};
 const initial = { name: "", startDate: "", endDate: "" };
 
 export default function FinancePeriodsPage() {

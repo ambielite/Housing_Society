@@ -265,7 +265,7 @@ const close = async (
         const period =
             await service.closePeriod(
                 req.params.id,
-                req.body.closedBy
+                req.user?.id || null
             );
 
         return res.status(200).json({
@@ -304,7 +304,7 @@ const lock = async (
         const period =
             await service.lockPeriod(
                 req.params.id,
-                req.body.lockedBy
+                req.user?.id || null
             );
 
         return res.status(200).json({

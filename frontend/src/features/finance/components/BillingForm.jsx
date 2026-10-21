@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import billingApi from "../api/billing.api";
 import ledgerAccountApi from "../api/ledgerAccount.api";
 import accountApi from "../api/account.api";
@@ -18,6 +18,10 @@ const BillingForm = ({ onClose, onSuccess, billingRules = [] }) => {
     const [form, setForm] = useState(initial);
     const [units, setUnits] = useState([]);
     const [ledgers, setLedgers] = useState([]);
+    const [receivableAccounts, setReceivableAccounts] = useState([]);
+    const [showLedgerForm, setShowLedgerForm] = useState(false);
+    const [ledgerAccountId, setLedgerAccountId] = useState("");
+    const [creatingLedger, setCreatingLedger] = useState(false);
     const [calculation, setCalculation] = useState(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -33,7 +37,7 @@ const BillingForm = ({ onClose, onSuccess, billingRules = [] }) => {
                 const floorLists = await Promise.all(towers.map((tower) => floorApi.getByTower(tower.id).then(rows)));
                 const floors = floorLists.flat();
                 const unitLists = await Promise.all(floors.map((floor) => unitApi.getByFloor(floor.id).then((response) => rows(response).map((unit) => ({ ...unit, floor, tower: towers.find((x) => x.id === floor.towerId) })) )));
-                if (active) { const receivableIds = new Set(rows(receivableResponse).filter((x) => x.isActive !== false).map((x) => x.id)); setUnits(unitLists.flat()); setLedgers(rows(ledgerResponse).filter((x) => x.isActive !== false && receivableIds.has(x.accountId))); }
+                if (active) { const receivables = rows(receivableResponse).filter((x) => x.isActive !== false); const receivableIds = new Set(receivables.map((x) => x.id)); setUnits(unitLists.flat()); setReceivableAccounts(receivables); setLedgers(rows(ledgerResponse).filter((x) => x.isActive !== false && receivableIds.has(x.accountId))); }
             } catch (e) { if (active) setError(e.response?.data?.message || e.message || "Could not load units and ledger accounts."); }
             finally { if (active) setLoading(false); }
         };
@@ -43,6 +47,29 @@ const BillingForm = ({ onClose, onSuccess, billingRules = [] }) => {
     const matchingLedgers = useMemo(() => ledgers.filter((x) => !x.unitId || x.unitId === form.unitId), [ledgers, form.unitId]);
     const selectedRule = billingRules.find((x) => x.code === form.billingRuleCode);
     const set = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+    const createUnitLedger = async (event) => {
+        event.preventDefault();
+        const account = receivableAccounts.find((item) => item.id === ledgerAccountId);
+        if (!selectedUnit || !account) return setError("Select a receivable account to create this unit ledger.");
+        const unitLabel = selectedUnit.unitNumber || selectedUnit.unitName || selectedUnit.name || "Unit";
+        const codePart = String(account.accountCode || account.id.slice(0, 8)).replace(/[^a-z0-9-]/gi, "-");
+        try {
+            setCreatingLedger(true); setError("");
+            const created = unwrap(await ledgerAccountApi.create({
+                societyId: form.societyId,
+                unitId: selectedUnit.id,
+                accountId: account.id,
+                ledgerCode: `UNIT-${selectedUnit.id}-${codePart}`,
+                ledgerName: `${unitLabel} - ${account.accountName}`,
+                openingBalance: 0,
+                balanceType: "DEBIT"
+            }));
+            setLedgers((current) => [created, ...current]);
+            set("ledgerAccountId", created.id);
+            setShowLedgerForm(false);
+        } catch (e) { setError(e.response?.data?.message || e.message || "Could not create the unit ledger account."); }
+        finally { setCreatingLedger(false); }
+    };
     const calculate = async () => {
         try {
             setError(""); setCalculation(null);
@@ -69,7 +96,8 @@ const BillingForm = ({ onClose, onSuccess, billingRules = [] }) => {
         <form onSubmit={submit}><div className="society-form-body">{error && <div className="form-error" role="alert">{error}</div>}{loading && <p>Loading society units and ledger accounts...</p>}<div className="form-grid">
             <div className="form-group"><label>Society</label><input value={form.societyId ? "Currently selected society" : "Select a society in the top bar"} readOnly/></div>
             <div className="form-group"><label>Unit *</label><select value={form.unitId} onChange={(e)=>{set("unitId",e.target.value);set("ledgerAccountId","");setCalculation(null);}} required disabled={loading}><option value="">Select unit</option>{units.map((u)=><option key={u.id} value={u.id}>{[u.tower?.name,u.floor?.name,u.unitNumber||u.unitName||u.name].filter(Boolean).join(" / ")}</option>)}</select>{!loading&&!units.length&&<small>No units found for the selected society.</small>}</div>
-            <div className="form-group"><label>Receivable ledger *</label><select value={form.ledgerAccountId} onChange={(e)=>set("ledgerAccountId",e.target.value)} required disabled={!form.unitId||loading}><option value="">Select ledger account</option>{matchingLedgers.map((l)=><option key={l.id} value={l.id}>{l.ledgerCode} - {l.ledgerName}{l.unitId?"":" (society ledger)"}</option>)}</select>{form.unitId&&!matchingLedgers.length&&<small>No active ledger account is available for this unit.</small>}</div>
+            <div className="form-group"><label>Receivable ledger *</label><select value={form.ledgerAccountId} onChange={(e)=>set("ledgerAccountId",e.target.value)} required disabled={!form.unitId||loading}><option value="">Select ledger account</option>{matchingLedgers.map((l)=><option key={l.id} value={l.id}>{l.ledgerCode} - {l.ledgerName}{l.unitId?"":" (society ledger)"}</option>)}</select>{form.unitId&&!matchingLedgers.length&&<><small>No active ledger account is available for this unit.</small>{receivableAccounts.length>0?<button type="button" className="society-workflow-action" onClick={()=>setShowLedgerForm((visible)=>!visible)}><Plus size={15}/> Add ledger for this unit</button>:<small>Create an active RECEIVABLE account in Finance &gt; Accounts first.</small>}</>}</div>
+            {showLedgerForm&&form.unitId&&!matchingLedgers.length&&<section className="billing-ledger-create form-group-full" aria-label="Create unit ledger"><div className="form-section-title"><h3>Create receivable ledger</h3><span>Link this unit to an active receivable account.</span></div><div className="billing-ledger-create-controls"><select aria-label="Receivable chart account" value={ledgerAccountId} onChange={(e)=>setLedgerAccountId(e.target.value)}><option value="">Select receivable chart account</option>{receivableAccounts.map((account)=><option key={account.id} value={account.id}>{account.accountCode} - {account.accountName}</option>)}</select><button type="button" className="btn-primary" disabled={creatingLedger||!ledgerAccountId} onClick={createUnitLedger}>{creatingLedger?"Creating...":"Create ledger"}</button><button type="button" className="btn-secondary" disabled={creatingLedger} onClick={()=>setShowLedgerForm(false)}>Cancel</button></div></section>}
             <div className="form-group"><label>Billing rule</label><select value={form.billingRuleCode} onChange={(e)=>{set("billingRuleCode",e.target.value);setCalculation(null);}}><option value="">Manual charge</option>{billingRules.map((r)=><option key={r.id} value={r.code}>{r.code} - {r.name} ({r.billingModel})</option>)}</select></div>
             <div className="form-group"><label>Bill number *</label><input value={form.billNumber} onChange={(e)=>set("billNumber",e.target.value)} required/></div><div className="form-group"><label>Billing period *</label><input value={form.billingPeriod} onChange={(e)=>set("billingPeriod",e.target.value)} placeholder="YYYY-MM" required/></div>
             <div className="form-group"><label>Bill date *</label><input type="date" value={form.billDate} onChange={(e)=>{set("billDate",e.target.value);setCalculation(null);}} required/></div><div className="form-group"><label>Due date *</label><input type="date" value={form.dueDate} onChange={(e)=>set("dueDate",e.target.value)} required/></div>
