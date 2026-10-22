@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   Activity,
   AlertOctagon,
   CalendarDays,
   ClipboardCheck,
-  FileText,
   MapPin,
   Plus,
   RefreshCw,
@@ -71,7 +70,7 @@ const tabs = [
   ["patrols", "Patrols", MapPin],
   ["incidents", "Incidents", AlertOctagon],
   ["emergencies", "Emergencies", Siren],
-  ["audit", "Audit trail", FileText],
+  ["gates", "Gates & Visitor Access", Shield],
 ];
 const configs = {
   attendance: {
@@ -353,6 +352,7 @@ const display = (value) =>
 
 export default function SecurityPage() {
   const { section } = useParams();
+  const navigate = useNavigate();
   const [tab, setTab] = useState(section || "overview");
   const [data, setData] = useState({});
   const [loading, setLoading] = useState(true);
@@ -737,6 +737,10 @@ export default function SecurityPage() {
             key={key}
             className={tab === key ? "active" : ""}
             onClick={() => {
+              if (key === "gates") {
+                navigate("/security");
+                return;
+              }
               setTab(key);
               setSearch("");
             }}

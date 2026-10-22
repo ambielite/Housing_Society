@@ -976,6 +976,18 @@ font-size: 12px;
 .moveinout-cancel-action:hover:not(:disabled) { border-color: #fca5a5; background: #fef2f2; }
 .moveinout-text-action:disabled { cursor: not-allowed; opacity: .55; }
 .moveinout-actions { flex-wrap: wrap; min-width: 150px; max-width: 220px; }
+.moveout-page .society-table th:last-child,
+.moveout-page .society-table td:last-child { width: 250px; min-width: 250px; }
+.moveout-page .moveinout-actions { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 8px; width: 100%; min-width: 0; max-width: none; }
+.moveout-page .moveinout-actions > .moveinout-text-action,
+.moveout-page .moveinout-actions > .society-delete-action { justify-self: start; }
+.moveout-page .moveinout-actions > .society-workflow-action { width: 100%; box-sizing: border-box; min-height: 38px; padding-inline: 10px; font-size: 11px; }
+.moveout-page .moveinout-actions > .society-workflow-action { grid-column: 1 / -1; }
+
+@media (max-width: 760px) {
+    .moveout-page .society-table th:last-child,
+    .moveout-page .society-table td:last-child { width: 220px; min-width: 220px; }
+}
 
 @media (max-width: 900px) {
     .society-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }

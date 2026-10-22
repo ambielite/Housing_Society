@@ -174,7 +174,7 @@ const MoveOutListPage = () => {
     }, [showForm]);
 
     return (
-        <section className="society-dashboard">
+        <section className="society-dashboard moveout-page">
             <header className="society-heading">
                 <div>
                     <div className="society-eyebrow"><span className="society-eyebrow-dot" /> MOVE-OUT REQUESTS</div>

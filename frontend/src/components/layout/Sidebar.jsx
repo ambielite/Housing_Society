@@ -76,7 +76,7 @@ const NAV_ITEMS = [
       { label: 'Patrols', to: '/security-operations/patrols', permission: 'PATROL_READ', icon: ShieldCheck },
       { label: 'Incidents', to: '/security-operations/incidents', permission: 'INCIDENT_READ', icon: Siren },
       { label: 'Emergencies', to: '/security-operations/emergencies', permission: 'EMERGENCY_READ', icon: Siren },
-      { label: 'Audit trail', to: '/security-operations/audit', permission: 'SECURITY_AUDIT_READ', icon: FileText },
+      
       {
         label: 'Gates & visitor access', to: '/security', icon: Shield,
         permission: ['GATE_READ', 'VISITOR_PROFILE_READ', 'DELIVERY_READ'],
