@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bell, Car,Layers3, Boxes, ChevronDown, ClipboardList, FileText, Home, Menu, Moon, Plus, Shield, Sun, Truck, Users, UserRoundPlus, X } from 'lucide-react';
+import { Bell, Car, Layers3, Boxes, ChevronDown, ClipboardList, FileText, Home, Mail, MapPin, Menu, Moon, Phone, Plus, QrCode, Shield, Sun, Truck, Users, UserRoundPlus, X, KeyRound, LogOut, Building2, ArrowUpRight } from 'lucide-react';
 import useAuth from '../../app/providers/useAuth';
 import useTheme from '../../app/providers/useTheme';
 import useSociety from '../../app/store/useSociety';
 import { useUi } from '../../app/store/ui.store';
 import api, { societyStorage } from '../../lib/axios';
+import societyApi from '../../features/societies/api/society.api';
 
 const QUICK_CREATE_GROUPS = [
   {
@@ -48,9 +49,10 @@ export default function Topbar() {
   const { societyId, setSocietyId } = useSociety();
   const [societies, setSocieties] = useState([]);
   const [avatarImageFailed, setAvatarImageFailed] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileSociety, setProfileSociety] = useState(null);
+  const [societyLoading, setSocietyLoading] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
-  const menuRef = useRef(null);
   const quickAddRef = useRef(null);
   const societyRequest = useRef(0);
   const userId = user?.id;
@@ -76,11 +78,13 @@ export default function Topbar() {
 
   useEffect(() => {
     const onClick = (event) => {
-      if (menuRef.current && !menuRef.current.contains(event.target)) setMenuOpen(false);
       if (quickAddRef.current && !quickAddRef.current.contains(event.target)) setQuickAddOpen(false);
     };
     const onKeyDown = (event) => {
-      if (event.key === 'Escape') setQuickAddOpen(false);
+      if (event.key === 'Escape') {
+        setQuickAddOpen(false);
+        setProfileOpen(false);
+      }
     };
     document.addEventListener('mousedown', onClick);
     document.addEventListener('keydown', onKeyDown);
@@ -114,7 +118,36 @@ export default function Topbar() {
 
   useEffect(() => setAvatarImageFailed(false), [avatarImageUrl]);
 
+  useEffect(() => {
+    if (!profileOpen || !societyId) return undefined;
+    let active = true;
+    setProfileSociety(null);
+    setSocietyLoading(true);
+    societyApi.getById(societyId)
+      .then((response) => {
+        if (!active) return;
+        setProfileSociety(response?.data?.society || response?.data || response?.society || response || null);
+      })
+      .catch(() => { if (active) setProfileSociety(null); })
+      .finally(() => { if (active) setSocietyLoading(false); });
+    return () => { active = false; };
+  }, [profileOpen, societyId]);
+
+  useEffect(() => {
+    if (!profileOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [profileOpen]);
+
+  const activeSociety = profileSociety || societies.find((society) => String(society.id) === String(societyId));
+  const societyName = activeSociety?.name || activeSociety?.society_name || activeSociety?.societyName || 'Society details';
+  const societyAddress = activeSociety?.address || activeSociety?.registered_address || activeSociety?.registeredAddress;
+  const societyEmail = activeSociety?.email || activeSociety?.society_email || activeSociety?.societyEmail || activeSociety?.contact_email;
+  const societyPhone = activeSociety?.phone || activeSociety?.society_phone || activeSociety?.societyPhone || activeSociety?.contact_phone;
+
   return (
+    <>
     <header className="topbar">
       <div className="topbar-left">
         <button type="button" className="mobile-menu-button" onClick={toggleSidebar} aria-label="Open menu">
@@ -201,13 +234,14 @@ export default function Topbar() {
           <Bell size={18} />
         </button>
 
-        <div className="user-menu-wrap" ref={menuRef}>
+        <div className="user-menu-wrap">
           <button
             type="button"
             className="user-menu"
-            onClick={() => setMenuOpen((open) => !open)}
-            aria-expanded={menuOpen}
-            aria-haspopup="menu"
+            onClick={() => setProfileOpen(true)}
+            aria-expanded={profileOpen}
+            aria-haspopup="dialog"
+            aria-label={`Open profile for ${fullName}`}
           >
             <span className="avatar">
               {avatarImageUrl && !avatarImageFailed
@@ -220,21 +254,77 @@ export default function Topbar() {
             </span>
             <ChevronDown size={16} />
           </button>
-          {menuOpen && (
-            <div className="menu" role="menu">
-              <Link to="/change-password" role="menuitem" onClick={() => setMenuOpen(false)}>
-                Change password
-              </Link>
-              <button type="button" role="menuitem" onClick={logout}>
-                Sign out
-              </button>
-              <button type="button" role="menuitem" onClick={logoutAll}>
-                Sign out on all devices
-              </button>
-            </div>
-          )}
         </div>
       </div>
     </header>
+      {profileOpen && (
+        <div className="profile-drawer-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setProfileOpen(false); }}>
+          <aside className="profile-drawer" role="dialog" aria-modal="true" aria-labelledby="profile-drawer-title">
+            <header className="profile-drawer-header">
+              <h2 id="profile-drawer-title">Profile</h2>
+              <button type="button" className="profile-close" onClick={() => setProfileOpen(false)} aria-label="Close profile"><X size={18} /></button>
+            </header>
+            <div className="profile-drawer-scroll">
+              <section className="profile-hero">
+                <span className="profile-hero-avatar">
+                  {avatarImageUrl && !avatarImageFailed ? <img src={avatarImageUrl} alt={`${fullName} profile`} onError={() => setAvatarImageFailed(true)} /> : initial}
+                </span>
+                <div className="profile-hero-copy"><h3>{fullName}</h3><span><Building2 size={14} />{societyName}</span></div>
+              </section>
+
+              <section className="profile-section">
+                <h3 className="profile-section-label">Your contact</h3>
+                <div className="profile-info-card">
+                  <span className="profile-info-icon"><Mail size={17} /></span>
+                  <span><small>Email</small><strong>{user?.email || 'Not provided'}</strong></span>
+                </div>
+                <div className="profile-info-card">
+                  <span className="profile-info-icon"><Phone size={17} /></span>
+                  <span><small>Phone</small><strong>{user?.phone || 'Not provided'}</strong></span>
+                </div>
+              </section>
+
+              <section className="profile-section">
+                <h3 className="profile-section-label">Society details</h3>
+                <div className="profile-society-card">
+                  <div className="profile-info-card profile-society-name">
+                    <span className="profile-info-icon"><Building2 size={17} /></span>
+                    <span><small>Your society</small><strong>{societyLoading ? 'Loading society…' : societyName}</strong></span>
+                  </div>
+                  {societyAddress && <div className="profile-info-card">
+                    <span className="profile-info-icon profile-location-icon"><MapPin size={17} /></span>
+                    <span><small>Address</small><strong>{societyAddress}</strong></span>
+                  </div>}
+                  {(societyEmail || societyPhone) && <div className="profile-society-contacts">
+                    {societyEmail && <a className="profile-contact-tile" href={`mailto:${societyEmail}`}><span className="profile-info-icon"><Mail size={16} /></span><span><small>Society email</small><strong>{societyEmail}</strong></span></a>}
+                    {societyPhone && <a className="profile-contact-tile" href={`tel:${societyPhone}`}><span className="profile-info-icon"><Phone size={16} /></span><span><small>Society phone</small><strong>{societyPhone}</strong></span></a>}
+                  </div>}
+                </div>
+              </section>
+
+              <section className="profile-section profile-quick-actions">
+                <h3 className="profile-section-label">Quick actions</h3>
+                
+                <Link to="/change-password" className="profile-action" onClick={() => setProfileOpen(false)}>
+                  <span className="profile-info-icon"><KeyRound size={17} /></span>
+                  <span><strong>Reset password</strong><small>Change your login password</small></span>
+                  <ArrowUpRight size={16} />
+                </Link>
+                <button type="button" className="profile-action profile-logout" onClick={() => { setProfileOpen(false); logout(); }}>
+                  <span className="profile-info-icon"><LogOut size={17} /></span>
+                  <span><strong>Logout</strong><small>Sign out of this session</small></span>
+                  <ArrowUpRight size={16} />
+                </button>
+                <button type="button" className="profile-action profile-logout-all" onClick={() => { setProfileOpen(false); logoutAll(); }}>
+                  <span className="profile-info-icon"><LogOut size={17} /></span>
+                  <span><strong>Sign out on all devices</strong><small>End all active sessions</small></span>
+                  <ArrowUpRight size={16} />
+                </button>
+              </section>
+            </div>
+          </aside>
+        </div>
+      )}
+    </>
   );
 }
