@@ -8,31 +8,17 @@ const validateDateRange = (req, res, next) => {
         });
     }
 
-    if (!fromDate) {
-        return res.status(400).json({
-            success: false,
-            message: "fromDate is required"
-        });
-    }
+    const start = fromDate ? new Date(`${fromDate}T00:00:00`) : null;
+    const end = toDate ? new Date(`${toDate}T00:00:00`) : null;
 
-    if (!toDate) {
-        return res.status(400).json({
-            success: false,
-            message: "toDate is required"
-        });
-    }
-
-    const start = new Date(fromDate);
-    const end = new Date(toDate);
-
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+    if ((fromDate && Number.isNaN(start.getTime())) || (toDate && Number.isNaN(end.getTime()))) {
         return res.status(400).json({
             success: false,
             message: "Invalid date format"
         });
     }
 
-    if (start > end) {
+    if (start && end && start > end) {
         return res.status(400).json({
             success: false,
             message: "fromDate cannot be greater than toDate"

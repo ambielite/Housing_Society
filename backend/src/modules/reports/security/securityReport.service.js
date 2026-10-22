@@ -6,15 +6,14 @@ const StaffTask = require("../../../modules/security/staff-task/staffTask.model"
 
 const Patrol = require("../../../modules/security/patrol/patrol.model");
 const PatrolCheckpoint = require("../../../modules/security/patrol/patrolCheckpoint.model");
+const reportsCenterService = require("../../reports-center/reports-center.service");
 
 
 const getDateFilter = (fromDate, toDate) => {
-    return {
-        [Op.between]: [
-            fromDate,
-            toDate
-        ]
-    };
+    if (fromDate && toDate) return { [Op.between]: [fromDate, toDate] };
+    if (fromDate) return { [Op.gte]: fromDate };
+    if (toDate) return { [Op.lte]: toDate };
+    return undefined;
 };
 
 
@@ -61,12 +60,9 @@ const getStaffSummary = async ({
     const attendanceRecords =
         await StaffAttendance.findAll({
             where: {
-                attendanceDate: {
-                    [Op.between]: [
-                        fromDate,
-                        toDate
-                    ]
-                }
+                ...(getDateFilter(fromDate, toDate)
+                    ? { attendanceDate: getDateFilter(fromDate, toDate) }
+                    : {})
             },
             include: [
                 {
@@ -147,12 +143,9 @@ const getPatrolSummary = async ({
 
             where: {
                 societyId,
-                patrolDate: {
-                    [Op.between]: [
-                        fromDate,
-                        toDate
-                    ]
-                }
+                ...(getDateFilter(fromDate, toDate)
+                    ? { patrolDate: getDateFilter(fromDate, toDate) }
+                    : {})
             },
 
             include: [
@@ -363,12 +356,8 @@ const getPatrolSummary = async ({
 |--------------------------------------------------------------------------
 */
 
-const getVisitorSummary = async () => {
-
-    return {
-        message:
-            "Visitor report will be connected after the existing visitor model is identified."
-    };
+const getVisitorSummary = async ({ societyId, fromDate, toDate, includeRows = true, limit = 500 }) => {
+    return reportsCenterService.getVisitorReport({ societyId, fromDate, toDate, includeRows, limit });
 };
 
 
@@ -378,12 +367,8 @@ const getVisitorSummary = async () => {
 |--------------------------------------------------------------------------
 */
 
-const getGateSummary = async () => {
-
-    return {
-        message:
-            "Gate report will be connected after the existing gate-entry model is identified."
-    };
+const getGateSummary = async ({ societyId, fromDate, toDate, includeRows = true, limit = 500 }) => {
+    return reportsCenterService.getGateActivityReport({ societyId, fromDate, toDate, includeRows, limit });
 };
 
 
