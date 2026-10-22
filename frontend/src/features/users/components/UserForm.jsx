@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { isValidEmail, passwordError } from '../../../utils/validators';
 import TextField from '../../../components/ui/TextField';
@@ -6,6 +6,12 @@ import Alert from '../../../components/ui/Alert';
 
 const EMPTY = { firstName: '', lastName: '', email: '', phone: '', password: '', status: 'ACTIVE' };
 const PHONE_PATTERN = /^[0-9+\-\s()]{6,20}$/;
+const imageUrl = (value) => {
+  if (!value) return '';
+  if (/^https?:\/\//i.test(value)) return value;
+  const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+  return new URL(value, new URL(apiBase, window.location.origin)).toString();
+};
 
 /**
  * mode="create": all fields, sends the full payload.
@@ -15,8 +21,20 @@ const PHONE_PATTERN = /^[0-9+\-\s()]{6,20}$/;
 export default function UserForm({ mode, initialValues, societyId, onSubmit, submitting, submitError, cancelTo }) {
   const isEdit = mode === 'edit';
   const [values, setValues] = useState({ ...EMPTY, ...initialValues });
+  const [profilePicture, setProfilePicture] = useState(null);
+  const [picturePreview, setPicturePreview] = useState(() => imageUrl(initialValues.profilePictureUrl));
   const [errors, setErrors] = useState({});
   const [note, setNote] = useState('');
+
+  useEffect(() => {
+    if (!profilePicture) {
+      setPicturePreview(imageUrl(initialValues.profilePictureUrl));
+      return undefined;
+    }
+    const previewUrl = URL.createObjectURL(profilePicture);
+    setPicturePreview(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [profilePicture]);
 
   const onChange = (event) => {
     setNote('');
@@ -54,10 +72,11 @@ export default function UserForm({ mode, initialValues, societyId, onSubmit, sub
       Object.keys(trimmed).forEach((key) => {
         if (trimmed[key] !== (initialValues[key] || '')) changes[key] = trimmed[key];
       });
-      if (Object.keys(changes).length === 0) {
+      if (Object.keys(changes).length === 0 && !profilePicture) {
         setNote("You haven't changed anything yet.");
         return;
       }
+      if (profilePicture) changes.profilePicture = profilePicture;
       onSubmit(changes);
       return;
     }
@@ -68,6 +87,7 @@ export default function UserForm({ mode, initialValues, societyId, onSubmit, sub
       firstName: trimmed.firstName,
       status: values.status,
     };
+    if (profilePicture) payload.profilePicture = profilePicture;
     if (trimmed.lastName) payload.lastName = trimmed.lastName;
     if (trimmed.phone) payload.phone = trimmed.phone;
     if (societyId) payload.societyId = societyId;
@@ -80,6 +100,30 @@ export default function UserForm({ mode, initialValues, societyId, onSubmit, sub
       {note && <Alert variant="success">{note}</Alert>}
 
       <div className="form-grid">
+        <div className="field user-profile-picture-field">
+          <label htmlFor="profilePicture">Profile picture</label>
+          <div className="user-profile-picture-control">
+            {picturePreview ? (
+              <img className="user-profile-picture-preview" src={picturePreview} alt="Profile preview" />
+            ) : (
+              <span className="user-profile-picture-preview user-profile-picture-placeholder" aria-hidden="true">
+                {values.firstName.trim().charAt(0).toUpperCase() || '?'}
+              </span>
+            )}
+            <div>
+              <input
+                id="profilePicture"
+                name="profilePicture"
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={(event) => setProfilePicture(event.target.files?.[0] || null)}
+              />
+              <small className="field-hint">
+                {isEdit ? 'Choose a new picture to replace the current one.' : 'PNG, JPG, or WEBP. Maximum size 5 MB.'}
+              </small>
+            </div>
+          </div>
+        </div>
         <TextField id="firstName" name="firstName" label="First name" value={values.firstName} onChange={onChange} error={errors.firstName} />
         <TextField id="lastName" name="lastName" label="Last name" value={values.lastName} onChange={onChange} error={errors.lastName} />
         <TextField

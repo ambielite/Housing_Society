@@ -17,13 +17,17 @@ const createUser = asyncHandler(async (req, res) => {
   // society even if an older frontend omits societyId from its payload.
   const user = await service.createUser({
     ...req.body,
+    profilePicture: req.file || null,
     societyId: req.body.societyId || req.user.societyId || null,
   });
   return ApiResponse.success(res, user, 'User created successfully', 201);
 });
 
 const updateProfile = asyncHandler(async (req, res) => {
-  const user = await service.updateProfile(req.params.userId, req.body);
+  const user = await service.updateProfile(req.params.userId, {
+    ...req.body,
+    profilePicture: req.file || null,
+  });
   return ApiResponse.success(res, user, 'User updated successfully');
 });
 

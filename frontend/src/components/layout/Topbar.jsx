@@ -20,6 +20,7 @@ export default function Topbar() {
   const { toggleSidebar } = useUi();
   const { societyId, setSocietyId } = useSociety();
   const [societies, setSocieties] = useState([]);
+  const [avatarImageFailed, setAvatarImageFailed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
   const societyRequest = useRef(0);
@@ -60,6 +61,17 @@ export default function Topbar() {
 
   const fullName = [user?.first_name, user?.last_name].filter(Boolean).join(' ') || user?.email;
   const initial = (user?.first_name || user?.email || '?').charAt(0).toUpperCase();
+  const profilePicture = user?.profile_picture_url;
+  const avatarImageUrl = profilePicture
+    ? (/^https?:\/\//i.test(profilePicture)
+      ? profilePicture
+      : new URL(
+        profilePicture,
+        new URL(import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1', window.location.origin),
+      ).toString())
+    : '';
+
+  useEffect(() => setAvatarImageFailed(false), [avatarImageUrl]);
 
   return (
     <header className="topbar">
@@ -110,7 +122,11 @@ export default function Topbar() {
             aria-expanded={menuOpen}
             aria-haspopup="menu"
           >
-            <span className="avatar">{initial}</span>
+            <span className="avatar">
+              {avatarImageUrl && !avatarImageFailed
+                ? <img src={avatarImageUrl} alt="" onError={() => setAvatarImageFailed(true)} />
+                : initial}
+            </span>
             <span className="user-info">
               <strong>{fullName}</strong>
               <span>{roles.map(roleLabel).join(', ') || 'No role assigned'}</span>

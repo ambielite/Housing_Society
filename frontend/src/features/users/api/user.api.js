@@ -8,8 +8,38 @@ const clean = (params) =>
 
 export const listUsers = (params) => api.get('/users', { params: clean(params) }).then(unwrap);
 export const getUser = (id) => api.get(`/users/${id}`).then(unwrap);
-export const createUser = (payload) => api.post('/users', payload).then(unwrap);
-export const updateUser = (id, payload) => api.patch(`/users/${id}`, payload).then(unwrap);
+export const createUser = (payload) => {
+  if (!payload.profilePicture) {
+    return api.post('/users', payload).then(unwrap);
+  }
+
+  const formData = new FormData();
+  Object.entries(payload).forEach(([key, value]) => {
+    if (key !== 'profilePicture' && value !== undefined && value !== null) {
+      formData.append(key, value);
+    }
+  });
+  formData.append('profilePicture', payload.profilePicture);
+  return api.post('/users', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then(unwrap);
+};
+export const updateUser = (id, payload) => {
+  if (!payload.profilePicture) {
+    return api.patch(`/users/${id}`, payload).then(unwrap);
+  }
+
+  const formData = new FormData();
+  Object.entries(payload).forEach(([key, value]) => {
+    if (key !== 'profilePicture' && value !== undefined && value !== null) {
+      formData.append(key, value);
+    }
+  });
+  formData.append('profilePicture', payload.profilePicture);
+  return api.patch(`/users/${id}`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then(unwrap);
+};
 export const updateStatus = (id, status) => api.patch(`/users/${id}/status`, { status }).then(unwrap);
 export const archiveUser = (id) => api.delete(`/users/${id}`).then(unwrap);
 export const forceLogout = (id) => api.post(`/users/${id}/force-logout`).then(unwrap);

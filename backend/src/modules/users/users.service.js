@@ -4,6 +4,7 @@ const { getPagination } = require('../../common/pagination');
 const repository = require('./users.repository');
 const rbacRepository = require('../rbac/rbac.repository');
 const authRepository = require('../auth/auth.repository');
+const { saveProfilePicture, removeProfilePicture } = require('./profilePicture.storage');
 
 const sanitize = (user) => {
   const { password_hash, ...safe } = user; // eslint-disable-line no-unused-vars
@@ -38,21 +39,29 @@ const getUserById = async (id) => {
   return { ...sanitize(user), roles: roles.map((r) => r.code) };
 };
 
-const createUser = async ({ email, password, firstName, lastName, phone, societyId, status }) => {
+const createUser = async ({ email, password, firstName, lastName, phone, societyId, status, profilePicture }) => {
   const existing = await repository.findByEmail(email.toLowerCase());
   if (existing) {
     throw new ApiError(409, 'A user with this email already exists');
   }
   const passwordHash = await bcrypt.hash(password, 12);
-  const user = await repository.createUser({
-    societyId,
-    email: email.toLowerCase(),
-    phone,
-    passwordHash,
-    firstName,
-    lastName,
-    status,
-  });
+  const profilePictureUrl = profilePicture ? saveProfilePicture(profilePicture) : null;
+  let user;
+  try {
+    user = await repository.createUser({
+      societyId,
+      email: email.toLowerCase(),
+      phone,
+      passwordHash,
+      firstName,
+      lastName,
+      status,
+      profilePictureUrl,
+    });
+  } catch (error) {
+    removeProfilePicture(profilePictureUrl);
+    throw error;
+  }
   return sanitize(user);
 };
 
@@ -61,7 +70,18 @@ const updateProfile = async (id, payload) => {
   if (!user) {
     throw new ApiError(404, 'User not found');
   }
-  const updated = await repository.updateProfile(id, payload);
+  const { profilePicture, ...profileFields } = payload;
+  const profilePictureUrl = profilePicture ? saveProfilePicture(profilePicture) : null;
+  let updated;
+  try {
+    updated = await repository.updateProfile(id, { ...profileFields, profilePictureUrl });
+  } catch (error) {
+    removeProfilePicture(profilePictureUrl);
+    throw error;
+  }
+  if (profilePictureUrl && user.profile_picture_url) {
+    removeProfilePicture(user.profile_picture_url);
+  }
   return sanitize(updated);
 };
 

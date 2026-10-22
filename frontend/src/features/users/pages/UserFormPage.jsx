@@ -7,6 +7,7 @@ import * as userApi from '../api/user.api';
 import PageContainer from '../../../components/layout/PageContainer';
 import { FullPageLoader } from '../../../components/ui/Spinner';
 import UserForm from '../components/UserForm';
+import useAuth from '../../../app/providers/useAuth';
 
 /** One page for two routes: /users/new (create) and /users/:userId/edit (edit). */
 export default function UserFormPage() {
@@ -14,6 +15,7 @@ export default function UserFormPage() {
   const isEdit = Boolean(userId);
   const navigate = useNavigate();
   const { societyId } = useSociety();
+  const { user, refreshProfile } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
 
@@ -37,7 +39,10 @@ export default function UserFormPage() {
     setSubmitError('');
     try {
       if (isEdit) {
-        await userApi.updateUser(userId, payload);
+        const updatedUser = await userApi.updateUser(userId, payload);
+        if (String(user?.id) === String(updatedUser.id)) {
+          await refreshProfile().catch(() => {});
+        }
         navigate(`/users/${userId}`, { state: { notice: 'Profile updated.' } });
       } else {
         const created = await userApi.createUser(payload);
@@ -55,13 +60,14 @@ export default function UserFormPage() {
         lastName: existing.data.last_name || '',
         phone: existing.data.phone || '',
         email: existing.data.email,
+        profilePictureUrl: existing.data.profile_picture_url || '',
       }
     : {};
 
   return (
     <PageContainer
       title={isEdit ? 'Edit user' : 'New user'}
-      subtitle={isEdit ? 'Update the name or phone number.' : 'Create an account for someone who needs to sign in.'}
+      subtitle={isEdit ? 'Update the user’s details and profile picture.' : 'Create an account for someone who needs to sign in.'}
     >
       <UserForm
         mode={isEdit ? 'edit' : 'create'}

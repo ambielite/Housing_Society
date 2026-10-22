@@ -97,27 +97,28 @@ const hasSocietyAccess = async (userId, societyId) => {
   return result.rows[0]?.allowed === true;
 };
 
-const createUser = async ({ societyId, email, phone, passwordHash, firstName, lastName, status }) => {
+const createUser = async ({ societyId, email, phone, passwordHash, firstName, lastName, status, profilePictureUrl }) => {
   const result = await db.query(
-    `INSERT INTO users (society_id, email, phone, password_hash, first_name, last_name, status)
-     VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, 'ACTIVE'))
+    `INSERT INTO users (society_id, email, phone, password_hash, first_name, last_name, status, profile_picture_url)
+     VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, 'ACTIVE'), $8)
      RETURNING *`,
-    [societyId || null, email, phone || null, passwordHash, firstName, lastName || null, status || null]
+    [societyId || null, email, phone || null, passwordHash, firstName, lastName || null, status || null, profilePictureUrl || null]
   );
   return result.rows[0];
 };
 
-const updateProfile = async (id, { firstName, lastName, phone, societyId }) => {
+const updateProfile = async (id, { firstName, lastName, phone, societyId, profilePictureUrl }) => {
   const result = await db.query(
     `UPDATE users SET
        first_name = COALESCE($2, first_name),
        last_name  = COALESCE($3, last_name),
        phone      = COALESCE($4, phone),
        society_id = COALESCE($5, society_id),
+       profile_picture_url = COALESCE($6, profile_picture_url),
        updated_at = now()
      WHERE id = $1
      RETURNING *`,
-    [id, firstName, lastName, phone, societyId]
+    [id, firstName, lastName, phone, societyId, profilePictureUrl]
   );
   return result.rows[0] || null;
 };

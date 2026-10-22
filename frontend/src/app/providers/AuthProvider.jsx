@@ -15,6 +15,13 @@ export default function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
+  const refreshProfile = useCallback(async () => {
+    const profile = await authApi.fetchProfile();
+    localStorage.setItem('user', JSON.stringify(profile));
+    setUser(profile);
+    return profile;
+  }, []);
+
   // Restore the session on page load.
   useEffect(() => {
     if (!tokenStorage.getAccess()) return undefined;
@@ -92,11 +99,12 @@ export default function AuthProvider({ children }) {
       logout,
       logoutAll,
       clearSession,
+      refreshProfile,
       hasPermission,
       hasAnyPermission,
       hasRole,
     };
-  }, [user, isLoading, login, logout, logoutAll, clearSession]);
+  }, [user, isLoading, login, logout, logoutAll, clearSession, refreshProfile]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

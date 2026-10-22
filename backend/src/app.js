@@ -83,6 +83,15 @@ app.use("/api", (req, res, next) => {
 });
 
 app.use(
+    "/uploads/profile-pictures",
+    (req, res, next) => {
+        res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+        next();
+    },
+    express.static(path.join(process.cwd(), "uploads", "profile-pictures"))
+);
+
+app.use(
     "/uploads",
     express.static(
         path.join(

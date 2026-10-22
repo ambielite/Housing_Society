@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useFetch from '../../../utils/useFetch';
@@ -62,8 +62,13 @@ export default function UserDetailPage() {
   const [actionError, setActionError] = useState('');
   const [pending, setPending] = useState(null); // key of ACTIONS awaiting confirmation
   const [busy, setBusy] = useState(false);
+  const [profilePictureFailed, setProfilePictureFailed] = useState(false);
 
   const target = profile.data;
+
+  useEffect(() => {
+    setProfilePictureFailed(false);
+  }, [target?.profile_picture_url]);
 
   if (profile.loading && !target) return <FullPageLoader />;
 
@@ -83,6 +88,14 @@ export default function UserDetailPage() {
   const name = fullName(target);
   const isSelf = target.id === me.id;
   const action = pending ? ACTIONS[pending] : null;
+  const profilePictureUrl = target.profile_picture_url
+    ? (/^https?:\/\//i.test(target.profile_picture_url)
+      ? target.profile_picture_url
+      : new URL(
+        target.profile_picture_url,
+        new URL(import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1', window.location.origin),
+      ).toString())
+    : '';
 
   const confirmAction = async () => {
     setBusy(true);
@@ -143,6 +156,21 @@ export default function UserDetailPage() {
 
       <div className="card section">
         <h2 className="section-title">Profile</h2>
+        <div className="user-detail-photo-row">
+          {profilePictureUrl && !profilePictureFailed ? (
+            <img
+              className="user-detail-profile-photo"
+              src={profilePictureUrl}
+              alt={`${name} profile`}
+              onError={() => setProfilePictureFailed(true)}
+            />
+          ) : (
+            <span className="user-detail-profile-photo user-profile-picture-placeholder" aria-hidden="true">
+              {name.charAt(0).toUpperCase() || '?'}
+            </span>
+          )}
+          <span>{target.profile_picture_url ? 'Profile picture' : 'No profile picture added'}</span>
+        </div>
         <dl className="details">
           <dt>Status</dt>
           <dd>

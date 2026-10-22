@@ -8,6 +8,7 @@ const createUserSchema = Joi.object({
   phone: Joi.string().max(20).allow('', null),
   societyId: Joi.string().uuid().allow(null),
   status: Joi.string().valid('ACTIVE', 'PENDING', 'SUSPENDED').allow(null),
+  profilePicture: Joi.boolean(),
 });
 
 const updateProfileSchema = Joi.object({
@@ -15,6 +16,7 @@ const updateProfileSchema = Joi.object({
   lastName: Joi.string().max(100).allow('', null),
   phone: Joi.string().max(20).allow('', null),
   societyId: Joi.string().uuid().allow(null),
+  profilePicture: Joi.boolean(),
 }).min(1);
 
 const updateStatusSchema = Joi.object({
