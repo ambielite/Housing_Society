@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Edit, Home, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import floorApi from "../../floors/api/floor.api";
+import towerApi from "../../towers/api/tower.api";
 import unitApi from "../api/unit.api";
 import UnitForm from "../components/UnitForm";
 
@@ -10,8 +12,10 @@ const rowsFrom = (response) => {
 };
 
 const UnitListPage = () => {
+    const [searchParams, setSearchParams] = useSearchParams();
     const [units, setUnits] = useState([]);
     const [floors, setFloors] = useState([]);
+    const [towers, setTowers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [search, setSearch] = useState("");
@@ -21,24 +25,35 @@ const UnitListPage = () => {
 
     useEffect(() => {
         let mounted = true;
-        Promise.all([unitApi.getAll(), floorApi.getAll()])
-            .then(([unitResponse, floorResponse]) => {
+        Promise.all([unitApi.getAll(), floorApi.getAll(), towerApi.getAll().catch(() => [])])
+            .then(([unitResponse, floorResponse, towerResponse]) => {
                 if (!mounted) return;
                 setUnits(rowsFrom(unitResponse));
                 setFloors(rowsFrom(floorResponse));
+                setTowers(rowsFrom(towerResponse));
             })
             .catch((err) => { if (mounted) setError(err.response?.data?.message || "Could not load units."); })
             .finally(() => { if (mounted) setLoading(false); });
         return () => { mounted = false; };
     }, []);
 
+    useEffect(() => {
+        if (searchParams.get("new") !== "1" || loading) return;
+        if (floors.length > 0) {
+            setEditingUnit(null);
+            setShowForm(true);
+        }
+        setSearchParams({}, { replace: true });
+    }, [floors.length, loading, searchParams, setSearchParams]);
+
     const reload = async () => {
         setLoading(true);
         setError("");
         try {
-            const [unitResponse, floorResponse] = await Promise.all([unitApi.getAll(), floorApi.getAll()]);
+            const [unitResponse, floorResponse, towerResponse] = await Promise.all([unitApi.getAll(), floorApi.getAll(), towerApi.getAll().catch(() => [])]);
             setUnits(rowsFrom(unitResponse));
             setFloors(rowsFrom(floorResponse));
+            setTowers(rowsFrom(towerResponse));
         } catch (err) {
             setError(err.response?.data?.message || "Could not load units.");
         } finally { setLoading(false); }
@@ -82,7 +97,7 @@ const UnitListPage = () => {
                     </tbody></table></div>
                 )}
             </section>
-            {showForm && <div className="society-modal-layer" onMouseDown={(event) => { if (event.target === event.currentTarget) closeForm(); }}><UnitForm key={editingUnit?.id || "new-unit"} unit={editingUnit} floors={floors} onClose={closeForm} onSuccess={saveComplete} /></div>}
+            {showForm && <div className="society-modal-layer" onMouseDown={(event) => { if (event.target === event.currentTarget) closeForm(); }}><UnitForm key={editingUnit?.id || "new-unit"} unit={editingUnit} floors={floors} towers={towers} onClose={closeForm} onSuccess={saveComplete} /></div>}
         </section>
     );
 };

@@ -4,6 +4,7 @@ import {
     useMemo,
     useState
 } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import {
     Edit,
@@ -42,6 +43,8 @@ const rowsFrom = (response) => {
 
 const ResidentListPage = () => {
 
+    const [searchParams, setSearchParams] = useSearchParams();
+
     const [residents, setResidents] =
         useState([]);
 
@@ -62,6 +65,13 @@ const ResidentListPage = () => {
 
     const [editingResident, setEditingResident] =
         useState(null);
+
+    useEffect(() => {
+        if (searchParams.get("new") !== "1") return;
+        setEditingResident(null);
+        setShowForm(true);
+        setSearchParams({}, { replace: true });
+    }, [searchParams, setSearchParams]);
 
 
     const closeForm = () => {

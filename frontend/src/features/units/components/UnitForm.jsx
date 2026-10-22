@@ -2,7 +2,7 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import unitApi from "../api/unit.api";
 
-const UnitForm = ({ unit, floors, onClose, onSuccess }) => {
+const UnitForm = ({ unit, floors, towers = [], onClose, onSuccess }) => {
     const [values, setValues] = useState({
         floorId: unit?.floorId || "",
         unitNumber: unit?.unitNumber || "",
@@ -17,6 +17,11 @@ const UnitForm = ({ unit, floors, onClose, onSuccess }) => {
     const [error, setError] = useState("");
 
     const update = (event) => setValues((current) => ({ ...current, [event.target.name]: event.target.value }));
+    const floorLabel = (floor) => {
+        const floorName = floor.name || `Floor ${floor.floorNumber}`;
+        const towerName = towers.find((tower) => tower.id === floor.towerId)?.name;
+        return towerName ? `${floorName} — ${towerName}` : `${floorName} — Tower not assigned`;
+    };
 
     const submit = async (event) => {
         event.preventDefault();
@@ -67,10 +72,10 @@ const UnitForm = ({ unit, floors, onClose, onSuccess }) => {
                         <div className="form-grid">
                             <div className="form-group form-group-full">
                                 <label htmlFor="unit-floor">Floor{!unit && <span className="required">*</span>}</label>
-                                {unit ? <input id="unit-floor" value={floors.find((item) => item.id === unit.floorId)?.name || `Floor ${floors.find((item) => item.id === unit.floorId)?.floorNumber ?? ""}`} disabled /> : (
+                                {unit ? <input id="unit-floor" value={floorLabel(floors.find((item) => item.id === unit.floorId) || {})} disabled /> : (
                                     <select id="unit-floor" name="floorId" value={values.floorId} onChange={update} required>
                                         <option value="">Select a floor</option>
-                                        {floors.map((floor) => <option key={floor.id} value={floor.id}>{floor.name || `Floor ${floor.floorNumber}`}</option>)}
+                                        {floors.map((floor) => <option key={floor.id} value={floor.id}>{floorLabel(floor)}</option>)}
                                     </select>
                                 )}
                             </div>
