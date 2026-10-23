@@ -2075,8 +2075,8 @@ tbody tr:hover {
 .notices-eyebrow { display: inline-flex; align-items: center; gap: 7px; color: var(--primary); font-size: 10px; font-weight: 750; letter-spacing: .09em; }
 .notices-heading h1 { margin: 0; color: var(--text-primary); font-size: clamp(25px, 3vw, 32px); font-weight: 750; letter-spacing: -.035em; }
 .notices-heading p { margin: 0; color: var(--text-muted); font-size: 13px; }
-.notices-add-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; padding: 0 16px; border: 1px solid #23a982; border-radius: 9px; background: #28b58b; color: #fff; font-size: 12px; font-weight: 700; box-shadow: 0 5px 14px rgba(31, 168, 128, .16); transition: background .18s ease, transform .18s ease; white-space: nowrap; }
-.notices-add-button:hover:not(:disabled) { background: #189a74; transform: translateY(-1px); }
+.notices-add-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; padding: 0 16px; border: 1px solid var(--action); border-radius: 9px; background: var(--action); color: #fff; font-size: 12px; font-weight: 700; box-shadow: 0 5px 14px rgba(49, 94, 232, .17); transition: background .18s ease, transform .18s ease; white-space: nowrap; }
+.notices-add-button:hover:not(:disabled) { background: var(--action-hover); border-color: var(--action-hover); transform: translateY(-1px); }
 .notices-add-button:disabled { cursor: wait; opacity: .7; }
 .notices-tabs { display: flex; align-items: center; gap: 5px; padding: 0 5px; border-bottom: 1px solid var(--border-color); }
 .notices-tabs button { position: relative; display: inline-flex; align-items: center; gap: 8px; min-height: 45px; padding: 0 16px; border: 0; background: transparent; color: var(--text-muted); font-size: 13px; font-weight: 650; }
@@ -2109,8 +2109,8 @@ tbody tr:hover {
 .notice-show-more { padding: 0; border: 0; background: transparent; color: var(--primary); font-size: 11px; }
 .notice-read-count { display: inline-flex; align-items: center; padding: 5px 8px; border-radius: 999px; background: var(--surface-2); color: var(--text-secondary); font-size: 11px; white-space: nowrap; }
 .notice-manage-wrap { position: relative; display: inline-block; }
-.notice-manage-trigger { display: inline-flex; align-items: center; gap: 10px; min-height: 32px; padding: 0 9px; border: 1px solid #36b794; border-radius: 6px; background: var(--surface); color: var(--text-secondary); font-size: 11px; }
-.notice-manage-trigger:hover,.notice-manage-trigger[aria-expanded="true"] { background: color-mix(in srgb, #28b58b 9%, var(--surface)); }
+.notice-manage-trigger { display: inline-flex; align-items: center; gap: 10px; min-height: 32px; padding: 0 9px; border: 1px solid var(--action); border-radius: 6px; background: var(--surface); color: var(--action); font-size: 11px; }
+.notice-manage-trigger:hover,.notice-manage-trigger[aria-expanded="true"] { background: color-mix(in srgb, var(--action) 9%, var(--surface)); }
 .notice-manage-menu { position: absolute; z-index: 30; top: calc(100% + 4px); right: 0; width: 180px; display: grid; padding: 5px; border: 1px solid var(--border-color); border-radius: 9px; background: var(--surface); box-shadow: 0 12px 28px rgba(15, 23, 42, .16); }
 .notice-manage-menu button { display: flex; align-items: center; gap: 9px; min-height: 34px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--text-secondary); font-size: 11px; text-align: left; }
 .notice-manage-menu button:hover { background: var(--surface-2); color: var(--text-primary); }
