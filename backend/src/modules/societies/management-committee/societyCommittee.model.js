@@ -14,6 +14,7 @@ const SocietyCommitteeMember = sequelize.define("SocietyCommitteeMember", {
   unitNumber: { type: DataTypes.STRING(40), allowNull: true, field: "unit_number" },
   phone: { type: DataTypes.STRING(30), allowNull: false },
   email: { type: DataTypes.STRING(255), allowNull: true, validate: { isEmail: true } },
+  profilePictureUrl: { type: DataTypes.STRING(500), allowNull: true, field: "profile_picture_url" },
   termStart: { type: DataTypes.DATEONLY, allowNull: true, field: "term_start" },
   termEnd: { type: DataTypes.DATEONLY, allowNull: true, field: "term_end" },
   notes: { type: DataTypes.TEXT, allowNull: true },

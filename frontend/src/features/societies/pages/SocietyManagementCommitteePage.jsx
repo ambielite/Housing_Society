@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Building2, CalendarDays, Edit2, Mail, Phone, Plus, RefreshCw, Search, ShieldCheck, Trash2, UsersRound, X } from "lucide-react";
+import { Building2, CalendarDays, Camera, Edit2, ImagePlus, Mail, Phone, Plus, RefreshCw, Search, ShieldCheck, Trash2, UsersRound, X } from "lucide-react";
 import { legacyApi } from "../../../lib/axios";
 import useAuth from "../../../app/providers/useAuth";
 import "./society-management-committee.css";
@@ -9,6 +9,12 @@ const EMPTY = { memberName: "", designation: "COMMITTEE_MEMBER", unitNumber: "",
 const pretty = (value) => String(value || "").replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
 const errorMessage = (error) => error?.response?.data?.message || "Could not complete the committee request.";
 const dateLabel = (value) => value ? new Date(`${value}T00:00:00`).toLocaleDateString(undefined, { month: "short", year: "numeric" }) : "Not set";
+const profileImageUrl = (value) => {
+  if (!value) return "";
+  if (/^https?:\/\//i.test(value)) return value;
+  const apiBase = import.meta.env.VITE_LEGACY_API_BASE_URL || (import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api/v1").replace(/\/api\/v1\/?$/, "/api");
+  return new URL(value, new URL(apiBase, window.location.origin)).toString();
+};
 
 export default function SocietyManagementCommitteePage() {
   const { hasPermission } = useAuth();
@@ -26,6 +32,8 @@ export default function SocietyManagementCommitteePage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(EMPTY);
+  const [profilePicture, setProfilePicture] = useState(null);
+  const [picturePreview, setPicturePreview] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -45,6 +53,13 @@ export default function SocietyManagementCommitteePage() {
     window.addEventListener("keydown", onKey);
     return () => { document.body.style.overflow = previous; window.removeEventListener("keydown", onKey); };
   }, [formOpen]);
+  useEffect(() => {
+    if (!formOpen) { setPicturePreview(""); return undefined; }
+    if (!profilePicture) { setPicturePreview(profileImageUrl(editing?.profilePictureUrl)); return undefined; }
+    const previewUrl = URL.createObjectURL(profilePicture);
+    setPicturePreview(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [editing, formOpen, profilePicture]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -53,14 +68,31 @@ export default function SocietyManagementCommitteePage() {
   const activeCount = members.filter((member) => member.isActive).length;
   const roleCount = new Set(members.filter((member) => member.isActive).map((member) => member.designation)).size;
 
-  const openCreate = () => { setEditing(null); setForm({ ...EMPTY }); setError(""); setFormOpen(true); };
-  const openEdit = (member) => { setEditing(member); setForm({ ...EMPTY, ...member, termStart: member.termStart?.slice(0, 10) || "", termEnd: member.termEnd?.slice(0, 10) || "" }); setError(""); setFormOpen(true); };
+  const openCreate = () => { setEditing(null); setForm({ ...EMPTY }); setProfilePicture(null); setError(""); setFormOpen(true); };
+  const openEdit = (member) => { setEditing(member); setForm({ ...EMPTY, ...member, termStart: member.termStart?.slice(0, 10) || "", termEnd: member.termEnd?.slice(0, 10) || "" }); setProfilePicture(null); setError(""); setFormOpen(true); };
   const updateField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const selectPicture = (event) => {
+    const file = event.target.files?.[0] || null;
+    if (!file) return;
+    if (!new Set(["image/jpeg", "image/png", "image/webp"]).has(file.type)) {
+      setError("Choose a JPG, PNG, or WEBP image."); event.target.value = ""; return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError("The profile picture must be 5 MB or smaller."); event.target.value = ""; return;
+    }
+    setError(""); setProfilePicture(file);
+  };
   const submit = async (event) => {
     event.preventDefault(); setSaving(true); setError(""); setMessage("");
+    const payload = new FormData();
+    ["memberName", "designation", "unitNumber", "phone", "email", "termStart", "termEnd", "notes", "isActive"].forEach((key) => {
+      const value = form[key];
+      payload.append(key, typeof value === "boolean" ? String(value) : value || "");
+    });
+    if (profilePicture) payload.append("profilePicture", profilePicture);
     try {
-      if (editing) await legacyApi.put(`/society-management-committee/${editing.id}`, form);
-      else await legacyApi.post("/society-management-committee", form);
+      if (editing) await legacyApi.put(`/society-management-committee/${editing.id}`, payload, { headers: { "Content-Type": "multipart/form-data" } });
+      else await legacyApi.post("/society-management-committee", payload, { headers: { "Content-Type": "multipart/form-data" } });
       setFormOpen(false); setMessage(editing ? "Committee member updated." : "Committee member added."); await load();
     } catch (requestError) { setError(errorMessage(requestError)); }
     finally { setSaving(false); }
@@ -85,7 +117,7 @@ export default function SocietyManagementCommitteePage() {
       <div className="committee-directory-head"><div><span>GOVERNANCE DIRECTORY</span><h2>Committee members</h2><p>Contact your society representatives and review their term details.</p></div><b>{loading ? "Loading…" : `${filtered.length} ${filtered.length === 1 ? "member" : "members"}`}</b></div>
       <div className="committee-toolbar"><label className="committee-search"><Search size={17} /><input aria-label="Search committee members" placeholder="Search by name, role, unit, or contact…" value={query} onChange={(event) => setQuery(event.target.value)} /></label><div className="committee-filters" aria-label="Filter by service status">{[["ACTIVE", "Currently serving"], ["ALL", "All members"], ["FORMER", "Former members"]].map(([key, label]) => <button type="button" key={key} className={status === key ? "active" : ""} onClick={() => setStatus(key)}>{label}</button>)}</div></div>
       {loading ? <div className="committee-state">Loading committee members…</div> : filtered.length === 0 ? <div className="committee-empty"><span><UsersRound size={21} /></span><h3>{query || status !== "ACTIVE" ? "No matching members" : "Your committee directory is empty"}</h3><p>{query ? "Try a different name, role, or contact detail." : "Add the society’s office bearers to make their details easy to find."}</p>{canCreate && !query && <button type="button" className="society-add-button" onClick={openCreate}><Plus size={16} /> Add first member</button>}</div> : <div className="committee-grid">{filtered.map((member) => <article className={`committee-card role-${String(member.designation).toLowerCase()}`} key={member.id}>
-        <div className="committee-card-top"><span className="committee-avatar">{member.memberName?.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span><div className="committee-card-title"><span>{pretty(member.designation)}</span><strong className={member.isActive ? "serving" : "former"}>{member.isActive ? "Serving" : "Former"}</strong></div></div>
+        <div className="committee-card-top"><span className="committee-avatar">{member.profilePictureUrl ? <img src={profileImageUrl(member.profilePictureUrl)} alt={`${member.memberName} profile`} loading="lazy" /> : member.memberName?.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span><div className="committee-card-title"><span>{pretty(member.designation)}</span><strong className={member.isActive ? "serving" : "former"}>{member.isActive ? "Serving" : "Former"}</strong></div></div>
         <h3>{member.memberName}</h3>{member.unitNumber && <p className="committee-unit">Unit {member.unitNumber}</p>}
         <div className="committee-contact"><a href={`tel:${member.phone}`}><Phone size={15} />{member.phone}</a>{member.email && <a href={`mailto:${member.email}`}><Mail size={15} /><span>{member.email}</span></a>}</div>
         <div className="committee-term"><CalendarDays size={15} /><span>Term <b>{dateLabel(member.termStart)} – {dateLabel(member.termEnd)}</b></span></div>
@@ -94,6 +126,7 @@ export default function SocietyManagementCommitteePage() {
       </article>)}</div>}
     </section>
     {formOpen && <div className="committee-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setFormOpen(false); }}><section className="committee-dialog" role="dialog" aria-modal="true" aria-labelledby="committee-form-title"><div className="committee-dialog-head"><div><span>MANAGEMENT COMMITTEE</span><h2 id="committee-form-title">{editing ? "Edit member" : "Add committee member"}</h2><p>Keep office bearer and term information up to date.</p></div><button type="button" className="committee-close" onClick={() => setFormOpen(false)} aria-label="Close"><X size={17} /></button></div><form onSubmit={submit}><div className="committee-form-grid">
+      <div className="committee-picture-field"><span className="committee-picture-preview">{picturePreview ? <img src={picturePreview} alt="Selected member profile preview" /> : <ImagePlus size={23} />}</span><label><strong>Profile picture</strong><small>JPG, PNG, or WEBP · Up to 5 MB</small><span className="committee-picture-button"><Camera size={14} />{profilePicture ? "Choose another photo" : picturePreview ? "Replace photo" : "Upload photo"}<input id="committee-profile-picture" type="file" accept="image/jpeg,image/png,image/webp" onChange={selectPicture} /></span></label>{profilePicture && <button type="button" className="committee-picture-clear" onClick={() => { setProfilePicture(null); const input = document.getElementById("committee-profile-picture"); if (input) input.value = ""; }}>Remove selection</button>}</div>
       <label>Full Name<input required maxLength={140} value={form.memberName} onChange={(event) => updateField("memberName", event.target.value)} placeholder="e.g. Ananya Deshmukh" /></label>
       <label>Committee role<select required value={form.designation} onChange={(event) => updateField("designation", event.target.value)}>{ROLES.map((role) => <option key={role} value={role}>{pretty(role)}</option>)}</select></label>
       <label>Unit number <span>Optional</span><input maxLength={40} value={form.unitNumber || ""} onChange={(event) => updateField("unitNumber", event.target.value)} placeholder="e.g. B-204" /></label>

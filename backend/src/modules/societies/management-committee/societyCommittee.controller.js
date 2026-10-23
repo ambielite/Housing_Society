@@ -9,13 +9,13 @@ const list = async (req, res) => {
 };
 const create = async (req, res) => {
   try {
-    const member = await service.createMember(req.user.societyId, req.body);
+    const member = await service.createMember(req.user.societyId, req.body, req.file);
     res.status(201).json({ success: true, message: "Committee member addedd.", data: member });
   } catch (error) { sendError(res, error); }
 };
 const update = async (req, res) => {
   try {
-    const member = await service.updateMember(req.user.societyId, req.params.id, req.body);
+    const member = await service.updateMember(req.user.societyId, req.params.id, req.body, req.file);
     res.json({ success: true, message: "Committee member updated.", data: member });
   } catch (error) { sendError(res, error); }
 };

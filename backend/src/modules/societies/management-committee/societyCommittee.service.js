@@ -1,5 +1,6 @@
 const repository = require("./societyCommittee.repository");
 const Society = require("../society/society.model");
+const { saveProfilePicture, removeProfilePicture } = require("../../users/profilePicture.storage");
 
 const writableFields = ["memberName", "designation", "unitNumber", "phone", "email", "termStart", "termEnd", "notes", "isActive"];
 const pickFields = (data) => Object.fromEntries(writableFields
@@ -26,9 +27,15 @@ const listMembers = async (societyId) => {
   return { society, members: await repository.list(societyId) };
 };
 
-const createMember = async (societyId, data) => {
+const createMember = async (societyId, data, profilePicture) => {
   await ensureSociety(societyId);
-  return repository.create({ ...pickFields(data), societyId });
+  const profilePictureUrl = profilePicture ? saveProfilePicture(profilePicture) : null;
+  try {
+    return await repository.create({ ...pickFields(data), profilePictureUrl, societyId });
+  } catch (error) {
+    removeProfilePicture(profilePictureUrl);
+    throw error;
+  }
 };
 
 const getMember = async (societyId, id) => {
@@ -42,11 +49,24 @@ const getMember = async (societyId, id) => {
   return member;
 };
 
-const updateMember = async (societyId, id, data) => {
+const updateMember = async (societyId, id, data, profilePicture) => {
   const member = await getMember(societyId, id);
-  return member.update(pickFields(data));
+  const previousPictureUrl = member.profilePictureUrl;
+  const profilePictureUrl = profilePicture ? saveProfilePicture(profilePicture) : undefined;
+  try {
+    const updated = await member.update({ ...pickFields(data), ...(profilePictureUrl ? { profilePictureUrl } : {}) });
+    if (profilePictureUrl) removeProfilePicture(previousPictureUrl);
+    return updated;
+  } catch (error) {
+    removeProfilePicture(profilePictureUrl);
+    throw error;
+  }
 };
 
-const deleteMember = async (societyId, id) => repository.remove(await getMember(societyId, id));
+const deleteMember = async (societyId, id) => {
+  const member = await getMember(societyId, id);
+  await repository.remove(member);
+  removeProfilePicture(member.profilePictureUrl);
+};
 
 module.exports = { listMembers, createMember, updateMember, deleteMember };
