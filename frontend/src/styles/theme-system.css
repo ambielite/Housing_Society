@@ -210,23 +210,23 @@ body .society-refresh-button, body .society-icon-action { border-radius: 9px; }
 body .society-icon-action { width: 36px; height: 36px; }
 
 /* Society directory gets a distinct, polished register layout. */
-body .society-dashboard .society-list-panel .society-table {
+body .society-dashboard .society-list-panel:has(.society-region) .society-table {
   width: 100%;
   min-width: 880px;
   table-layout: fixed;
 }
 body .society-dashboard .society-list-panel .society-table th,
 body .society-dashboard .society-list-panel .society-table td { min-width: 0; }
-body .society-dashboard .society-list-panel .society-table th:first-child,
-body .society-dashboard .society-list-panel .society-table td:first-child { width: 30%; }
-body .society-dashboard .society-list-panel .society-table th:nth-child(2),
-body .society-dashboard .society-list-panel .society-table td:nth-child(2) { width: 16%; }
-body .society-dashboard .society-list-panel .society-table th:nth-child(3),
-body .society-dashboard .society-list-panel .society-table td:nth-child(3) { width: 22%; }
-body .society-dashboard .society-list-panel .society-table th:nth-child(4),
-body .society-dashboard .society-list-panel .society-table td:nth-child(4) { width: 16%; }
-body .society-dashboard .society-list-panel .society-table th:last-child,
-body .society-dashboard .society-list-panel .society-table td:last-child { width: 16%; }
+body .society-dashboard .society-list-panel:has(.society-region) .society-table th:first-child,
+body .society-dashboard .society-list-panel:has(.society-region) .society-table td:first-child { width: 30%; }
+body .society-dashboard .society-list-panel:has(.society-region) .society-table th:nth-child(2),
+body .society-dashboard .society-list-panel:has(.society-region) .society-table td:nth-child(2) { width: 16%; }
+body .society-dashboard .society-list-panel:has(.society-region) .society-table th:nth-child(3),
+body .society-dashboard .society-list-panel:has(.society-region) .society-table td:nth-child(3) { width: 22%; }
+body .society-dashboard .society-list-panel:has(.society-region) .society-table th:nth-child(4),
+body .society-dashboard .society-list-panel:has(.society-region) .society-table td:nth-child(4) { width: 16%; }
+body .society-dashboard .society-list-panel:has(.society-region) .society-table th:last-child,
+body .society-dashboard .society-list-panel:has(.society-region) .society-table td:last-child { width: 16%; }
 body .society-dashboard .society-list-panel .society-table tbody tr { background: var(--surface); }
 body .society-dashboard .society-list-panel .society-table tbody tr:hover { background: var(--row-hover); }
 body .society-dashboard .society-list-panel .society-name-cell { gap: 12px; }
