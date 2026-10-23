@@ -131,6 +131,14 @@ a {
     margin-bottom: 0;
 }
 
+.sidebar-nav-group-heading > button.nav-item {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+}
+
 .sidebar-subnav-group-heading > .sidebar-subnav-item {
     flex: 1;
     margin-bottom: 0;

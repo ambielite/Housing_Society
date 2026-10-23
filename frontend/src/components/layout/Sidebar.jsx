@@ -139,23 +139,22 @@ const visibleTree = (items, hasAnyPermission) => items
   .filter((item) => canSee(item, hasAnyPermission) || item.children?.length);
 const itemIsActive = (item, pathname) => matchesPath(pathname, item.to)
   || item.children?.some((child) => itemIsActive(child, pathname));
-const activeAncestorKeys = (items, pathname, ancestors = [], result = new Set()) => {
-  items.forEach((item) => {
+const groupAncestors = (items, targetKey, ancestors = []) => {
+  for (const item of items) {
     const key = item.key || item.to;
-    const nextAncestors = [...ancestors, key];
-    if (item.children?.length && itemIsActive(item, pathname)) {
-      nextAncestors.forEach((ancestor) => result.add(ancestor));
+    if (key === targetKey) return ancestors;
+    if (item.children?.length) {
+      const found = groupAncestors(item.children, targetKey, [...ancestors, key]);
+      if (found) return found;
     }
-    if (item.children?.length) activeAncestorKeys(item.children, pathname, nextAncestors, result);
-  });
-  return result;
+  }
+  return null;
 };
-
 export default function Sidebar() {
   const { hasAnyPermission, logout } = useAuth();
   const { sidebarOpen, closeSidebar } = useUi();
   const { pathname } = useLocation();
-  const [groupState, setGroupState] = useState(null);
+  const [openGroups, setOpenGroups] = useState(() => new Set());
 
   const visibleItems = visibleTree(NAV_ITEMS, hasAnyPermission);
   const societyOverview = visibleItems.find((item) => item.to === '/housing-dashboard');
@@ -165,16 +164,19 @@ export default function Sidebar() {
     ...visibleItems.filter((item) => item !== societyOverview && !item.children?.length),
   ];
 
-  const defaultOpenGroups = activeAncestorKeys(orderedItems, pathname);
-  const openGroups = groupState?.pathname === pathname ? groupState.opened : defaultOpenGroups;
-
-  const toggleGroup = (key) => setGroupState((currentState) => {
-    const current = currentState?.pathname === pathname ? currentState.opened : defaultOpenGroups;
-    const next = new Set(current);
-    if (next.has(key)) next.delete(key);
-    else next.add(key);
-    return { pathname, opened: next };
+  const toggleGroup = (key) => setOpenGroups((current) => {
+    const next = new Set(groupAncestors(orderedItems, key) || []);
+    if (!current.has(key)) next.add(key);
+    return next;
   });
+  const handleNavigationClick = (key, hasChildren) => {
+    if (hasChildren) {
+      toggleGroup(key);
+    } else {
+      setOpenGroups(new Set(groupAncestors(orderedItems, key) || []));
+    }
+    closeSidebar();
+  };
 
   const renderNavigationItem = (item, depth = 0) => {
     const Icon = item.icon;
@@ -189,15 +191,28 @@ export default function Sidebar() {
     return (
       <div className={`sidebar-nav-group${depth ? ' sidebar-nested-group' : ''}`} key={key}>
         <div className={`sidebar-nav-group-heading${depth ? ' sidebar-subnav-group-heading' : ''}`}>
-          <NavLink
-            to={destination}
-            end={!hasChildren}
-            onClick={closeSidebar}
-            className={`${depth ? 'sidebar-subnav-item' : 'nav-item'}${active ? ' active' : ''}`}
-          >
-            <Icon size={depth ? 16 : 18} aria-hidden="true" />
-            <span>{item.label}</span>
-          </NavLink>
+          {key === 'manage-society' ? (
+            <button
+              type="button"
+              className={`nav-item${active ? ' active' : ''}`}
+              aria-expanded={expanded}
+              aria-controls={submenuId}
+              onClick={() => toggleGroup(key)}
+            >
+              <Icon size={depth ? 16 : 18} aria-hidden="true" />
+              <span>{item.label}</span>
+            </button>
+          ) : (
+            <NavLink
+              to={destination}
+              end={!hasChildren}
+              onClick={() => handleNavigationClick(key, hasChildren)}
+              className={`${depth ? 'sidebar-subnav-item' : 'nav-item'}${active ? ' active' : ''}`}
+            >
+              <Icon size={depth ? 16 : 18} aria-hidden="true" />
+              <span>{item.label}</span>
+            </NavLink>
+          )}
           {hasChildren && (
             <button
               type="button"
