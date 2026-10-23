@@ -15,7 +15,7 @@ import { useUi } from '../../app/store/ui.store';
 // destination page continues to load its data through its existing API module.
 const NAV_ITEMS = [
   { label: 'Dashboard', to: '/dashboard', icon: LayoutDashboard },
-  { label: 'Society Overview', to: '/housing-dashboard', permission: ['SOCIETY_READ', 'RESIDENT_READ', 'ASSET_READ', 'ACCOUNT_READ'], icon: Building2 },
+  { label: 'Home', to: '/housing-dashboard', permission: ['SOCIETY_READ', 'RESIDENT_READ', 'ASSET_READ', 'ACCOUNT_READ'], icon: Building2 },
   {
     label: 'Societies', to: '/societies', permission: 'SOCIETY_READ', icon: Building2,
     children: [
@@ -139,9 +139,11 @@ export default function Sidebar() {
   const visibleItems = NAV_ITEMS
     .map((item) => ({ ...item, children: item.children?.filter((child) => canSee(child, hasAnyPermission)) }))
     .filter((item) => canSee(item, hasAnyPermission) || item.children?.length);
+  const societyOverview = visibleItems.find((item) => item.to === '/housing-dashboard');
   const orderedItems = [
-    ...visibleItems.filter((item) => item.children?.length),
-    ...visibleItems.filter((item) => !item.children?.length),
+    ...(societyOverview ? [societyOverview] : []),
+    ...visibleItems.filter((item) => item !== societyOverview && item.children?.length),
+    ...visibleItems.filter((item) => item !== societyOverview && !item.children?.length),
   ];
 
   useEffect(() => {
