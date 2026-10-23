@@ -183,8 +183,8 @@ export default function NoticesPage() {
   };
 
   return (
-    <section className="notices-page">
-      <header className="notices-heading">
+    <section className="society-dashboard notices-page">
+      <header className="society-heading notices-heading">
         <div className="notices-title-block">
           <span className="notices-eyebrow"><Megaphone size={15} /> MANAGE SOCIETY <span className="noticeboard-breadcrumb">/ NOTICEBOARD</span></span>
           <h1>Noticeboard</h1>
@@ -206,7 +206,7 @@ export default function NoticesPage() {
         <div className="noticeboard-section-heading"><div><span className="noticeboard-section-kicker">SOCIETY COMMUNICATIONS</span><h2>{selectedTab?.label} notices</h2><p>Browse announcements and see who has read each update.</p></div><span className="noticeboard-total">{loading ? 'Loading…' : `${total} ${total === 1 ? 'notice' : 'notices'}`}</span></div>
         <div className="notices-toolbar">
           <label className="notices-search"><Search size={17} /><input aria-label="Search notices" placeholder="Search by title and description" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} />{searchInput && <button type="button" onClick={() => setSearchInput('')} aria-label="Clear search"><X size={15} /></button>}</label>
-          <div className="notices-toolbar-actions"><span>{loading ? 'Loading notices…' : `${total} ${total === 1 ? 'notice' : 'notices'}`}</span><button type="button" className="notices-refresh" onClick={load} disabled={loading}><RefreshCw size={15} className={loading ? 'notices-spinning' : ''} /> Refresh</button></div>
+          <div className="notices-toolbar-actions"><span>{loading ? 'Loading notices…' : `${total} ${total === 1 ? 'notice' : 'notices'}`}</span></div>
         </div>
         {loading ? <div className="notices-empty"><span className="notices-loader" />Loading {selectedTab?.label.toLowerCase()} notices…</div> : rows.length ? <>
           <div className="noticeboard-grid">{rows.map((notice) => {

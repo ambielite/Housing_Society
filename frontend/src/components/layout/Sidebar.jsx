@@ -29,6 +29,7 @@ const NAV_ITEMS = [
       },
       { label: 'Notice', to: '/notices', permission: 'NOTICE_READ', icon: Bell },
       { label: 'Emergency contacts', to: '/emergency-contacts', permission: 'SOCIETY_EMERGENCY_CONTACT_READ', icon: PhoneCall },
+      { label: 'Management committee', to: '/management-committee', permission: 'SOCIETY_COMMITTEE_READ', icon: UsersRound },
     ],
   },
   {
