@@ -27,8 +27,8 @@ const NAV_ITEMS = [
           { label: 'Units', to: '/units', permission: 'UNIT_READ', icon: Home },
         ],
       },
-      { label: 'Notice', to: '/notices', permission: 'NOTICE_READ', icon: Bell },
-      { label: 'Emergency contacts', to: '/emergency-contacts', permission: 'SOCIETY_EMERGENCY_CONTACT_READ', icon: PhoneCall },
+      { label: 'Notice', to: '/notices', icon: Bell },
+      { label: 'Emergency contacts', to: '/emergency-contacts', icon: PhoneCall },
     ],
   },
   {

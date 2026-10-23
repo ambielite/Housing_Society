@@ -126,10 +126,10 @@ export default function AppRoutes() {
             <Route element={<ProtectedRoute permission="SOCIETY_READ" />}>
               <Route path="/societies" element={<SocietyListPage />} />
             </Route>
-            <Route element={<ProtectedRoute permission="NOTICE_READ" />}>
+            <Route element={<ProtectedRoute />}>
               <Route path="/notices" element={<NoticesPage />} />
             </Route>
-            <Route element={<ProtectedRoute permission="SOCIETY_EMERGENCY_CONTACT_READ" />}>
+            <Route element={<ProtectedRoute />}>
               <Route path="/emergency-contacts" element={<SocietyEmergencyContactsPage />} />
             </Route>
             <Route element={<ProtectedRoute permission="TOWER_READ" />}><Route path="/towers" element={<TowerListPage />} /></Route>
