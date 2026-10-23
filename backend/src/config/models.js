@@ -12,6 +12,8 @@ const Unit =
 
 const SocietySettings =
     require("../modules/societies/society-settings/society-settings.model");    
+const SocietyEmergencyContact =
+    require("../modules/societies/emergency-contact/societyEmergencyContact.model");
 
 const MoveIn =
     require("../modules/move-InOut/move-in/moveIn.model"); 
@@ -125,6 +127,17 @@ const KycDocument = require("../modules/residents/kyc-document/kycDocument.model
 Society.hasMany(Tower, {
     foreignKey: "societyId",
     as: "towers"
+});
+
+Society.hasMany(SocietyEmergencyContact, {
+    foreignKey: "societyId",
+    as: "emergencyContacts",
+    onDelete: "CASCADE"
+});
+
+SocietyEmergencyContact.belongsTo(Society, {
+    foreignKey: "societyId",
+    as: "society"
 });
 
 Tower.belongsTo(Society, {
@@ -1305,6 +1318,7 @@ module.exports = {
     Floor,
     Unit,
     SocietySettings,
+    SocietyEmergencyContact,
     
     MoveIn,
     MoveOut,

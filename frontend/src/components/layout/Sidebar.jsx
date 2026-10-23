@@ -5,7 +5,7 @@ import {
   ChartNoAxesCombined, CheckCircle, ChevronDown, ClipboardCheck, ClipboardList,
   FileCheck2, FileText, FolderArchive, Gauge, Home, KeyRound, Layers3,
   LayoutDashboard, Landmark, LifeBuoy, LogOut, Megaphone, MessageSquare, Network,
-  Package, ParkingSquare, Settings2, Shield, ShieldCheck, Siren, Tag, Truck,
+  Package, ParkingSquare, PhoneCall, Settings2, Shield, ShieldCheck, Siren, Tag, Truck,
   Users, Wallet,
 } from 'lucide-react';
 import useAuth from '../../app/providers/useAuth';
@@ -27,6 +27,7 @@ const NAV_ITEMS = [
           { label: 'Units', to: '/units', permission: 'UNIT_READ', icon: Home },
         ],
       },
+      { label: 'Emergency contacts', to: '/emergency-contacts', permission: 'SOCIETY_EMERGENCY_CONTACT_READ', icon: PhoneCall },
     ],
   },
   {

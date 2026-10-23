@@ -751,11 +751,7 @@ const ResidentListPage = () => {
 
                                                     <br />
 
-                                                    {resident.alternateMobile || (
-                                                        <span className="society-muted">
-                                                            No alternate number
-                                                        </span>
-                                                    )}
+                                                    
 
                                                 </td>
 
