@@ -5,8 +5,8 @@ import {
   ChartNoAxesCombined, CheckCircle, ChevronDown, ClipboardCheck, ClipboardList,
   FileCheck2, FileText, FolderArchive, Gauge, Home, KeyRound, Layers3,
   LayoutDashboard, Landmark, LifeBuoy, LogOut, Megaphone, MessageSquare, Network,
-  Package, ParkingSquare, PhoneCall, Settings2, Shield, ShieldCheck, Siren, Tag, Truck, UsersRound,
-  Users, Wallet,
+  Package, ParkingSquare, PhoneCall, Settings2, Shield, ShieldCheck, Siren, Tag, Truck,
+  Users, UsersRound, Wallet,
 } from 'lucide-react';
 import useAuth from '../../app/providers/useAuth';
 import { useUi } from '../../app/store/ui.store';
