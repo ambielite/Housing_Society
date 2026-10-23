@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   Archive, Bell, Boxes, Building2, CalendarClock, CalendarDays, Car,
   ChartNoAxesCombined, CheckCircle, ChevronDown, ClipboardCheck, ClipboardList,
   FileCheck2, FileText, FolderArchive, Gauge, Home, KeyRound, Layers3,
-  LayoutDashboard, LifeBuoy, LogOut, Megaphone, MessageSquare, Network,
+  LayoutDashboard, Landmark, LifeBuoy, LogOut, Megaphone, MessageSquare, Network,
   Package, ParkingSquare, Settings2, Shield, ShieldCheck, Siren, Tag, Truck,
   Users, Wallet,
 } from 'lucide-react';
@@ -17,11 +17,16 @@ const NAV_ITEMS = [
   { label: 'Dashboard', to: '/dashboard', icon: LayoutDashboard },
   { label: 'Home', to: '/housing-dashboard', permission: ['SOCIETY_READ', 'RESIDENT_READ', 'ASSET_READ', 'ACCOUNT_READ'], icon: Building2 },
   {
-    label: 'Societies', to: '/societies', permission: 'SOCIETY_READ', icon: Building2,
+    key: 'manage-society', label: 'Manage Society', to: '/societies', icon: Landmark,
     children: [
-      { label: 'Towers', to: '/towers', permission: 'TOWER_READ', icon: Layers3 },
-      { label: 'Floors', to: '/floors', permission: 'FLOOR_READ', icon: Boxes },
-      { label: 'Units', to: '/units', permission: 'UNIT_READ', icon: Home },
+      {
+        key: 'societies', label: 'Societies', to: '/societies', permission: 'SOCIETY_READ', icon: Building2,
+        children: [
+          { label: 'Towers', to: '/towers', permission: 'TOWER_READ', icon: Layers3 },
+          { label: 'Floors', to: '/floors', permission: 'FLOOR_READ', icon: Boxes },
+          { label: 'Units', to: '/units', permission: 'UNIT_READ', icon: Home },
+        ],
+      },
     ],
   },
   {
@@ -129,16 +134,30 @@ const NAV_ITEMS = [
 
 const canSee = (item, hasAnyPermission) => !item.permission || hasAnyPermission(item.permission);
 const matchesPath = (pathname, path) => pathname === path || pathname.startsWith(`${path}/`);
+const visibleTree = (items, hasAnyPermission) => items
+  .map((item) => ({ ...item, children: item.children ? visibleTree(item.children, hasAnyPermission) : undefined }))
+  .filter((item) => canSee(item, hasAnyPermission) || item.children?.length);
+const itemIsActive = (item, pathname) => matchesPath(pathname, item.to)
+  || item.children?.some((child) => itemIsActive(child, pathname));
+const activeAncestorKeys = (items, pathname, ancestors = [], result = new Set()) => {
+  items.forEach((item) => {
+    const key = item.key || item.to;
+    const nextAncestors = [...ancestors, key];
+    if (item.children?.length && itemIsActive(item, pathname)) {
+      nextAncestors.forEach((ancestor) => result.add(ancestor));
+    }
+    if (item.children?.length) activeAncestorKeys(item.children, pathname, nextAncestors, result);
+  });
+  return result;
+};
 
 export default function Sidebar() {
   const { hasAnyPermission, logout } = useAuth();
   const { sidebarOpen, closeSidebar } = useUi();
   const { pathname } = useLocation();
-  const [openGroup, setOpenGroup] = useState(null);
+  const [groupState, setGroupState] = useState(null);
 
-  const visibleItems = NAV_ITEMS
-    .map((item) => ({ ...item, children: item.children?.filter((child) => canSee(child, hasAnyPermission)) }))
-    .filter((item) => canSee(item, hasAnyPermission) || item.children?.length);
+  const visibleItems = visibleTree(NAV_ITEMS, hasAnyPermission);
   const societyOverview = visibleItems.find((item) => item.to === '/housing-dashboard');
   const orderedItems = [
     ...(societyOverview ? [societyOverview] : []),
@@ -146,14 +165,60 @@ export default function Sidebar() {
     ...visibleItems.filter((item) => item !== societyOverview && !item.children?.length),
   ];
 
-  useEffect(() => {
-    const activeGroup = NAV_ITEMS.find((item) =>
-      item.children && (
-        matchesPath(pathname, item.to) || item.children.some((child) => matchesPath(pathname, child.to))
-      )
+  const defaultOpenGroups = activeAncestorKeys(orderedItems, pathname);
+  const openGroups = groupState?.pathname === pathname ? groupState.opened : defaultOpenGroups;
+
+  const toggleGroup = (key) => setGroupState((currentState) => {
+    const current = currentState?.pathname === pathname ? currentState.opened : defaultOpenGroups;
+    const next = new Set(current);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    return { pathname, opened: next };
+  });
+
+  const renderNavigationItem = (item, depth = 0) => {
+    const Icon = item.icon;
+    const children = item.children || [];
+    const hasChildren = children.length > 0;
+    const key = item.key || item.to;
+    const expanded = openGroups.has(key);
+    const active = itemIsActive(item, pathname);
+    const destination = canSee(item, hasAnyPermission) ? item.to : children[0]?.to || item.to;
+    const submenuId = `sidebar-submenu-${key.replaceAll('/', '-').replaceAll(' ', '-').toLowerCase()}`;
+
+    return (
+      <div className={`sidebar-nav-group${depth ? ' sidebar-nested-group' : ''}`} key={key}>
+        <div className={`sidebar-nav-group-heading${depth ? ' sidebar-subnav-group-heading' : ''}`}>
+          <NavLink
+            to={destination}
+            end={!hasChildren}
+            onClick={closeSidebar}
+            className={`${depth ? 'sidebar-subnav-item' : 'nav-item'}${active ? ' active' : ''}`}
+          >
+            <Icon size={depth ? 16 : 18} aria-hidden="true" />
+            <span>{item.label}</span>
+          </NavLink>
+          {hasChildren && (
+            <button
+              type="button"
+              className={`sidebar-submenu-toggle${expanded ? ' open' : ''}`}
+              aria-label={`${expanded ? 'Collapse' : 'Expand'} ${item.label} menu`}
+              aria-expanded={expanded}
+              aria-controls={submenuId}
+              onClick={() => toggleGroup(key)}
+            >
+              <ChevronDown size={16} aria-hidden="true" />
+            </button>
+          )}
+        </div>
+        {hasChildren && expanded && (
+          <div className="sidebar-subnav" id={submenuId}>
+            {children.map((child) => renderNavigationItem(child, depth + 1))}
+          </div>
+        )}
+      </div>
     );
-    setOpenGroup(activeGroup?.to || null);
-  }, [pathname]);
+  };
 
   return (
     <>
@@ -168,65 +233,7 @@ export default function Sidebar() {
         </div>
 
         <nav className="sidebar-nav" aria-label="Main">
-          {orderedItems.map((item) => {
-            const Icon = item.icon;
-            const children = item.children || [];
-            const hasChildren = children.length > 0;
-            const destination = canSee(item, hasAnyPermission) ? item.to : children[0]?.to || item.to;
-            const expanded = openGroup === item.to;
-            const active = matchesPath(pathname, destination) || children.some((child) => matchesPath(pathname, child.to));
-
-            return (
-              <div className="sidebar-nav-group" key={item.to}>
-                <div className="sidebar-nav-group-heading">
-                  <NavLink
-                    to={destination}
-                    end
-                    onClick={closeSidebar}
-                    className={`nav-item${active ? ' active' : ''}`}
-                  >
-                    <Icon size={18} aria-hidden="true" />
-                    <span>{item.label}</span>
-                  </NavLink>
-                  {hasChildren && (
-                    <button
-                      type="button"
-                      className={`sidebar-submenu-toggle${expanded ? ' open' : ''}`}
-                      aria-label={`${expanded ? 'Collapse' : 'Expand'} ${item.label} menu`}
-                      aria-expanded={expanded}
-                      aria-controls={`sidebar-submenu-${item.to.slice(1).replaceAll('/', '-')}`}
-                      onClick={() => setOpenGroup(expanded ? null : item.to)}
-                    >
-                      <ChevronDown size={16} aria-hidden="true" />
-                    </button>
-                  )}
-                </div>
-
-                {hasChildren && expanded && (
-                  <div
-                    className="sidebar-subnav"
-                    id={`sidebar-submenu-${item.to.slice(1).replaceAll('/', '-')}`}
-                  >
-                    {children.map((child) => {
-                      const ChildIcon = child.icon;
-                      return (
-                        <NavLink
-                          key={child.to}
-                          to={child.to}
-                          end
-                          onClick={closeSidebar}
-                          className={({ isActive }) => `sidebar-subnav-item${isActive ? ' active' : ''}`}
-                        >
-                          <ChildIcon size={16} aria-hidden="true" />
-                          <span>{child.label}</span>
-                        </NavLink>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          {orderedItems.map((item) => renderNavigationItem(item))}
         </nav>
 
         <div className="sidebar-footer">
