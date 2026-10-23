@@ -14,6 +14,8 @@ const SocietySettings =
     require("../modules/societies/society-settings/society-settings.model");    
 const SocietyEmergencyContact =
     require("../modules/societies/emergency-contact/societyEmergencyContact.model");
+const SocietyCommitteeMember =
+    require("../modules/societies/management-committee/societyCommittee.model");
 
 const MoveIn =
     require("../modules/move-InOut/move-in/moveIn.model"); 
@@ -136,6 +138,17 @@ Society.hasMany(SocietyEmergencyContact, {
 });
 
 SocietyEmergencyContact.belongsTo(Society, {
+    foreignKey: "societyId",
+    as: "society"
+});
+
+Society.hasMany(SocietyCommitteeMember, {
+    foreignKey: "societyId",
+    as: "committeeMembers",
+    onDelete: "CASCADE"
+});
+
+SocietyCommitteeMember.belongsTo(Society, {
     foreignKey: "societyId",
     as: "society"
 });
@@ -1319,6 +1332,7 @@ module.exports = {
     Unit,
     SocietySettings,
     SocietyEmergencyContact,
+    SocietyCommitteeMember,
     
     MoveIn,
     MoveOut,

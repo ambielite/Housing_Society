@@ -38,6 +38,7 @@ const ROUTE_MODULES = [
   ['/cluster-reports', 'CLUSTER_REPORT'],
   ['/society-management', 'SOCIETY_MANAGEMENT'],
   ['/society-emergency-contacts', 'SOCIETY_EMERGENCY_CONTACT'],
+  ['/society-management-committee', 'SOCIETY_COMMITTEE'],
   ['/society-settings', 'SOCIETY_SETTING'],
   ['/resident-verifications', 'RESIDENT_VERIFICATION'],
   ['/resident-kyc', 'RESIDENT_VERIFICATION'],

@@ -104,6 +104,7 @@ app.use(
 
 const societyRoutes = require("./modules/societies/society/society.routes");
 const societyEmergencyContactRoutes = require("./modules/societies/emergency-contact/societyEmergencyContact.routes");
+const societyCommitteeRoutes = require("./modules/societies/management-committee/societyCommittee.routes");
 const towerRoutes = require("./modules/societies/tower/tower.routes");
 const floorRoutes = require("./modules/societies/floor/floor.routes");
 const unitRoutes = require("./modules/societies/unit/unit.routes");
@@ -202,6 +203,7 @@ const nonMemberRoutes = require("./modules/residents/non-member/nonMember.routes
 
 app.use("/api/societies", societyRoutes);
 app.use("/api/society-emergency-contacts", societyEmergencyContactRoutes);
+app.use("/api/society-management-committee", societyCommitteeRoutes);
 app.use("/api/towers", towerRoutes);
 app.use("/api/floors", floorRoutes);
 app.use("/api/units", unitRoutes);
