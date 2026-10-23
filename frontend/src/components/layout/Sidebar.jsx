@@ -33,11 +33,16 @@ const NAV_ITEMS = [
     ],
   },
   {
-    label: 'Residents', to: '/residents', permission: 'RESIDENT_READ', icon: Users,
+    key: 'manage-resident', label: 'Manage Resident', to: '/residents', icon: UsersRound,
     children: [
+      {
+        key: 'residents', label: 'Resident', to: '/residents', permission: 'RESIDENT_READ', icon: Users,
+        children: [
+          { label: 'Verification', to: '/residents/verification', permission: 'RESIDENT_VERIFICATION_READ', icon: ClipboardCheck },
+          { label: 'Non-members', to: '/residents/non-members', permission: 'NON_MEMBER_READ', icon: Building2 },
+        ],
+      },
       { label: 'Ownership', to: '/residents/ownership', permission: 'OWNER_UNIT_READ', icon: KeyRound },
-      { label: 'Verification', to: '/residents/verification', permission: 'RESIDENT_VERIFICATION_READ', icon: ClipboardCheck },
-      { label: 'Non-members', to: '/residents/non-members', permission: 'NON_MEMBER_READ', icon: Building2 },
     ],
   },
   {
@@ -199,7 +204,7 @@ export default function Sidebar() {
     return (
       <div className={`sidebar-nav-group${depth ? ' sidebar-nested-group' : ''}`} key={key}>
         <div className={`sidebar-nav-group-heading${depth ? ' sidebar-subnav-group-heading' : ''}`}>
-          {key === 'manage-society' ? (
+          {['manage-society', 'manage-resident'].includes(key) ? (
             <button
               type="button"
               className={`nav-item${active ? ' active' : ''}`}
