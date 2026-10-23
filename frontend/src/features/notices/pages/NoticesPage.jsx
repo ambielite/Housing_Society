@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BellRing, CalendarClock, Check, ChevronDown, CircleAlert, Clock3, Eye, FileText, Megaphone, Plus, Printer, RefreshCw, Search, Send, X } from 'lucide-react';
 import noticesApi from '../api/notices.api';
 import useAuth from '../../../app/providers/useAuth';
+import './noticeboard.css';
 
 const TABS = [
   { key: 'current', label: 'Current', icon: Megaphone },
@@ -185,12 +186,14 @@ export default function NoticesPage() {
     <section className="notices-page">
       <header className="notices-heading">
         <div className="notices-title-block">
-          <span className="notices-eyebrow"><Megaphone size={15} /> MANAGE SOCIETY</span>
+          <span className="notices-eyebrow"><Megaphone size={15} /> MANAGE SOCIETY <span className="noticeboard-breadcrumb">/ NOTICEBOARD</span></span>
           <h1>Noticeboard</h1>
           <p>Publish society updates, meeting notices, and important reminders.</p>
         </div>
-        {canCreate && <button type="button" className="notices-add-button" onClick={openCreate}><Plus size={17} /> Add new Notice / MoM</button>}
+        <div className="noticeboard-heading-actions"><button type="button" className="notices-refresh" onClick={load} disabled={loading}><RefreshCw size={15} className={loading ? 'notices-spinning' : ''}/>Refresh</button>{canCreate && <button type="button" className="notices-add-button" onClick={openCreate}><Plus size={17} /> Add new notice</button>}</div>
       </header>
+
+      <section className="noticeboard-banner"><span className="noticeboard-banner-icon"><Megaphone size={21}/></span><div><span>COMMUNITY UPDATES</span><h2>Keep everyone informed</h2><p>Share important announcements, meeting minutes, and reminders with your society.</p></div><span className="noticeboard-banner-art"><BellRing size={21}/></span></section>
 
       <nav className="notices-tabs" aria-label="Notice status">
         {TABS.map(({ key, label, icon: Icon }) => <button type="button" key={key} className={tab === key ? 'active' : ''} onClick={() => { setTab(key); setPage(1); setMessage(''); }}><Icon size={16} />{label}</button>)}
@@ -199,12 +202,35 @@ export default function NoticesPage() {
       {message && <div className="notices-alert notices-alert-success" role="status"><Check size={16} />{message}<button type="button" onClick={() => setMessage('')} aria-label="Dismiss message"><X size={15} /></button></div>}
       {error && <div className="notices-alert notices-alert-error" role="alert">{error}<button type="button" onClick={() => { setError(''); void load(); }}>Try again</button></div>}
 
-      <section className="notices-list-panel">
+      <section className="notices-list-panel noticeboard-panel">
+        <div className="noticeboard-section-heading"><div><span className="noticeboard-section-kicker">SOCIETY COMMUNICATIONS</span><h2>{selectedTab?.label} notices</h2><p>Browse announcements and see who has read each update.</p></div><span className="noticeboard-total">{loading ? 'Loading…' : `${total} ${total === 1 ? 'notice' : 'notices'}`}</span></div>
         <div className="notices-toolbar">
           <label className="notices-search"><Search size={17} /><input aria-label="Search notices" placeholder="Search by title and description" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} />{searchInput && <button type="button" onClick={() => setSearchInput('')} aria-label="Clear search"><X size={15} /></button>}</label>
           <div className="notices-toolbar-actions"><span>{loading ? 'Loading notices…' : `${total} ${total === 1 ? 'notice' : 'notices'}`}</span><button type="button" className="notices-refresh" onClick={load} disabled={loading}><RefreshCw size={15} className={loading ? 'notices-spinning' : ''} /> Refresh</button></div>
         </div>
         {loading ? <div className="notices-empty"><span className="notices-loader" />Loading {selectedTab?.label.toLowerCase()} notices…</div> : rows.length ? <>
+          <div className="noticeboard-grid">{rows.map((notice) => {
+            const postedAt = value(notice, 'posted_at', 'postedAt');
+            const scheduledAt = value(notice, 'scheduled_at', 'scheduledAt');
+            const expiresAt = value(notice, 'expires_at', 'expiresAt');
+            const expiredAt = value(notice, 'expired_at', 'expiredAt') || expiresAt;
+            const readCount = Number(value(notice, 'read_count', 'readCount') || 0);
+            const recipientCount = Number(value(notice, 'recipient_count', 'recipientCount') || total);
+            const author = value(notice, 'posted_by', 'postedBy') || 'Society management';
+            return <article className={`noticeboard-card noticeboard-card-${tab}`} key={`card-${value(notice, 'id')}`}>
+              <div className="noticeboard-card-top"><span className={`noticeboard-card-icon noticeboard-icon-${tab}`}><Megaphone size={18}/></span><span className={`noticeboard-status noticeboard-status-${tab}`}>{tab === 'current' ? 'Published' : selectedTab?.label}</span><span className="notice-read-count"><Eye size={13}/>{readCount} / {recipientCount} read</span><div className="noticeboard-card-menu">{renderManageMenu(notice)}</div></div>
+              <button type="button" className="noticeboard-card-title" onClick={() => viewNotice(notice)}>{value(notice, 'title')}</button>
+              <p className="noticeboard-card-description">{value(notice, 'description')}</p>
+              <button type="button" className="noticeboard-read-more" onClick={() => viewNotice(notice)}>Read full notice <span>→</span></button>
+              <div className="noticeboard-card-meta">
+                <span><CalendarClock size={14}/>{tab === 'upcoming' ? `Scheduled ${dateTime(scheduledAt)}` : tab === 'expired' ? `Expired ${dateTime(expiredAt)}` : `Posted ${dateTime(postedAt || value(notice, 'created_at', 'createdAt'))}`}</span>
+                <span><Eye size={14}/>{tab === 'expired' ? `Expired by ${value(notice, 'expired_by_name', 'expiredByName') || 'System'}` : `${tab === 'upcoming' ? 'Created' : 'Posted'} by ${author}`}</span>
+                {tab === 'upcoming' && expiresAt && <span><Clock3 size={14}/>Expires {dateTime(expiresAt)}</span>}
+                {tab === 'current' && expiresAt && <span><Clock3 size={14}/>Expires {dateTime(expiresAt)}</span>}
+                {tab === 'current' && value(notice, 'renotified_at', 'renotifiedAt') && <span><BellRing size={14}/>Reminder sent {dateTime(value(notice, 'renotified_at', 'renotifiedAt'))}</span>}
+              </div>
+            </article>;
+          })}</div>
           <div className="notices-table-wrap"><table className="notices-table">
             <thead><tr><th>Title</th><th>Description</th>{tab === 'upcoming' ? <><th>Created on</th><th>Created by</th><th>Scheduled for</th><th>Expiring on</th></> : <><th>Posted on</th>{tab === 'expired' && <th>Expired by</th>}<th>{tab === 'expired' ? 'Expired on' : 'Posted by'}</th><th>{tab === 'current' ? 'Expiring on' : 'Renotified on'}</th>{tab === 'current' && <th>Renotified on</th>}</>}<th>Read by</th><th>Options</th></tr></thead>
             <tbody>{rows.map((notice) => {
