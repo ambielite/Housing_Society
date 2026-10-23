@@ -204,7 +204,7 @@ export default function Topbar() {
         )}
         {user && societies.length > 0 && (
           <label className="current-society">
-            <span className="topbar-label">Active society</span>
+            
             <select
               className="society-topbar-select"
               aria-label="Select active society"

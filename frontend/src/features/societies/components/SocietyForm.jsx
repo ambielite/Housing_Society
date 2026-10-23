@@ -6,6 +6,8 @@ import societyApi from "../api/society.api";
 
 const createInitialForm = (society) => ({
     name: society?.name || "",
+    email: society?.email || "",
+    phone: society?.phone || "",
     reraNumber: society?.reraNumber || "",
     pan: society?.pan || "",
     gstin: society?.gstin || "",
@@ -137,6 +139,28 @@ const SocietyForm = ({ society, onClose, onSuccess }) => {
                                         onChange={handleChange}
                                         placeholder="Enter society name"
                                         required
+                                    />
+                                </div>
+
+                                <div className="form-group">
+                                    <label>Society Email</label>
+                                    <input
+                                        type="email"
+                                        name="email"
+                                        value={formData.email}
+                                        onChange={handleChange}
+                                        placeholder="Enter society email"
+                                    />
+                                </div>
+
+                                <div className="form-group">
+                                    <label>Society Phone</label>
+                                    <input
+                                        type="tel"
+                                        name="phone"
+                                        value={formData.phone}
+                                        onChange={handleChange}
+                                        placeholder="Enter society phone"
                                     />
                                 </div>
 

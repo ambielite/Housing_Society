@@ -15,6 +15,17 @@ const Society = sequelize.define(
             allowNull: false
         },
 
+        email: {
+            type: DataTypes.STRING(255),
+            allowNull: true,
+            validate: { isEmail: true }
+        },
+
+        phone: {
+            type: DataTypes.STRING(30),
+            allowNull: true
+        },
+
         reraNumber: {
             type: DataTypes.STRING(100),
             field: "rera_number"

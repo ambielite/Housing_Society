@@ -1,6 +1,8 @@
 const validateSocietyCreate = (req, res, next) => {
     const {
         name,
+        email,
+        phone,
         reraNumber,
         pan,
         gstin,
@@ -10,6 +12,13 @@ const validateSocietyCreate = (req, res, next) => {
         timezone,
         taxConfiguration
     } = req.body;
+
+    if (email && (typeof email !== "string" || email.length > 255 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))) {
+        return res.status(400).json({ success: false, message: "Enter a valid society email" });
+    }
+    if (phone && (typeof phone !== "string" || phone.length > 30)) {
+        return res.status(400).json({ success: false, message: "Society phone cannot exceed 30 characters" });
+    }
 
     if (!name || name.trim() === "") {
         return res.status(400).json({
@@ -95,11 +104,20 @@ const validateSocietyCreate = (req, res, next) => {
 const validateSocietyUpdate = (req, res, next) => {
     const {
         name,
+        email,
+        phone,
         structuralArea,
         currency,
         timezone,
         taxConfiguration
     } = req.body;
+
+    if (email !== undefined && email !== null && email !== "" && (typeof email !== "string" || email.length > 255 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))) {
+        return res.status(400).json({ success: false, message: "Enter a valid society email" });
+    }
+    if (phone !== undefined && phone !== null && phone !== "" && (typeof phone !== "string" || phone.length > 30)) {
+        return res.status(400).json({ success: false, message: "Society phone cannot exceed 30 characters" });
+    }
 
     if (
         name !== undefined &&
