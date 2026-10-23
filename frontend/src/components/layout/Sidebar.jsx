@@ -22,12 +22,12 @@ const NAV_ITEMS = [
       {
         key: 'societies', label: 'Societies', to: '/societies', permission: 'SOCIETY_READ', icon: Building2,
         children: [
-          { label: 'Notice', to: '/notices', permission: 'NOTICE_READ', icon: Bell },
           { label: 'Towers', to: '/towers', permission: 'TOWER_READ', icon: Layers3 },
           { label: 'Floors', to: '/floors', permission: 'FLOOR_READ', icon: Boxes },
           { label: 'Units', to: '/units', permission: 'UNIT_READ', icon: Home },
         ],
       },
+      { label: 'Notice', to: '/notices', permission: 'NOTICE_READ', icon: Bell },
       { label: 'Emergency contacts', to: '/emergency-contacts', permission: 'SOCIETY_EMERGENCY_CONTACT_READ', icon: PhoneCall },
     ],
   },
