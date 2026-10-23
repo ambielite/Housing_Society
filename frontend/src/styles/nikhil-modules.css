@@ -131,6 +131,11 @@ a {
     margin-bottom: 0;
 }
 
+.sidebar-subnav-group-heading > .sidebar-subnav-item {
+    flex: 1;
+    margin-bottom: 0;
+}
+
 .sidebar-submenu-toggle {
     display: grid;
     place-items: center;
