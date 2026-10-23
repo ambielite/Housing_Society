@@ -3,6 +3,7 @@ import { Building2, Edit, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import societyApi from "../../societies/api/society.api";
 import towerApi from "../api/tower.api";
 import TowerForm from "../components/TowerForm";
+import { RecordDetailsModal } from "../../../components/ui/Modal";
 
 const rowsFrom = (response) => {
     const rows = Array.isArray(response) ? response : response?.data || response?.towers || [];
@@ -17,6 +18,8 @@ const TowerListPage = () => {
     const [search, setSearch] = useState("");
     const [showForm, setShowForm] = useState(false);
     const [editingTower, setEditingTower] = useState(null);
+    const [viewingTower, setViewingTower] = useState(null);
+    const [viewingSociety, setViewingSociety] = useState(null);
     const closeForm = () => { setShowForm(false); setEditingTower(null); };
 
     useEffect(() => {
@@ -74,11 +77,20 @@ const TowerListPage = () => {
                 <div className="society-toolbar"><label className="society-search"><Search size={17} /><input aria-label="Search towers" placeholder="Search tower or society..." value={search} onChange={(event) => setSearch(event.target.value)} /></label><button className="society-refresh-button" onClick={reload} disabled={loading}><RefreshCw size={16} className={loading ? "society-spinning" : ""} /> Refresh</button></div>
                 {loading ? <div className="society-loading"><span className="society-loader" />Loading towers...</div> : filtered.length === 0 ? <div className="society-empty"><span className="society-empty-icon"><Building2 size={24} /></span><h3>{search ? "No matching towers" : "No towers yet"}</h3><p>{search ? "Try another search." : "Add a tower to start organizing floors and units."}</p></div> : (
                     <div className="society-table-wrap"><table className="society-table"><thead><tr><th>Tower</th><th>Society</th><th>Floors</th><th>Status</th><th className="society-actions-heading">Actions</th></tr></thead><tbody>
-                        {filtered.map((tower) => <tr key={tower.id}><td><div className="society-name-cell"><span className="society-avatar"><Building2 size={19} /></span><span><strong>{tower.name}</strong><small>Created {tower.createdAt ? new Date(tower.createdAt).toLocaleDateString() : "—"}</small></span></div></td><td>{societies.find((society) => society.id === tower.societyId)?.name || "Society"}</td><td>{tower.floorCount}</td><td><span className={tower.status === "ACTIVE" ? "society-registration" : "society-muted"}>{tower.status || "ACTIVE"}</span></td><td><div className="society-row-actions"><button className="society-icon-action" title="Edit tower" aria-label={`Edit ${tower.name}`} onClick={() => { setEditingTower(tower); setShowForm(true); }}><Edit size={16} /></button>{tower.status !== "INACTIVE" && <button className="society-icon-action society-delete-action" title="Deactivate tower" aria-label={`Deactivate ${tower.name}`} onClick={() => deactivate(tower)}><Trash2 size={16} /></button>}</div></td></tr>)}
+                        {filtered.map((tower) => <tr key={tower.id}><td><div className="society-name-cell"><span className="society-avatar"><Building2 size={19} /></span><span><button type="button" className="record-details-trigger" onClick={() => setViewingTower(tower)}>{tower.name}</button><small>Created {tower.createdAt ? new Date(tower.createdAt).toLocaleDateString() : "—"}</small></span></div></td><td><button type="button" className="record-details-trigger" onClick={() => { const society = societies.find((item) => item.id === tower.societyId); if (society) setViewingSociety(society); }}>{societies.find((society) => society.id === tower.societyId)?.name || "Society"}</button></td><td>{tower.floorCount}</td><td><span className={tower.status === "ACTIVE" ? "society-registration" : "society-muted"}>{tower.status || "ACTIVE"}</span></td><td><div className="society-row-actions"><button className="society-icon-action" title="Edit tower" aria-label={`Edit ${tower.name}`} onClick={() => { setEditingTower(tower); setShowForm(true); }}><Edit size={16} /></button>{tower.status !== "INACTIVE" && <button className="society-icon-action society-delete-action" title="Deactivate tower" aria-label={`Deactivate ${tower.name}`} onClick={() => deactivate(tower)}><Trash2 size={16} /></button>}</div></td></tr>)}
                     </tbody></table></div>
                 )}
             </section>
             {showForm && <div className="society-modal-layer" onMouseDown={(event) => { if (event.target === event.currentTarget) closeForm(); }}><TowerForm key={editingTower?.id || "new-tower"} tower={editingTower} societies={societies} onClose={closeForm} onSuccess={saveComplete} /></div>}
+            {viewingTower && <RecordDetailsModal title={viewingTower.name || "Tower details"} subtitle="Tower profile and society assignment" icon={Building2} onClose={() => setViewingTower(null)} sections={[
+                { title: "Tower information", fields: [["Status", viewingTower.status || "ACTIVE"], ["Floors", viewingTower.floorCount], ["Tower ID", viewingTower.id], ["Created", viewingTower.createdAt ? new Date(viewingTower.createdAt).toLocaleString() : null]] },
+                { title: "Society", fields: [["Society name", societies.find((society) => society.id === viewingTower.societyId)?.name], ["Email", societies.find((society) => society.id === viewingTower.societyId)?.email], ["Phone", societies.find((society) => society.id === viewingTower.societyId)?.phone], ["Address", societies.find((society) => society.id === viewingTower.societyId)?.address]] }
+            ]} />}
+            {viewingSociety && <RecordDetailsModal title={viewingSociety.name || "Society details"} subtitle="Society profile and registered information" icon={Building2} onClose={() => setViewingSociety(null)} sections={[
+                { title: "Contact information", fields: [["Email", viewingSociety.email], ["Phone", viewingSociety.phone], ["Address", viewingSociety.address]] },
+                { title: "Registration and tax", fields: [["RERA number", viewingSociety.reraNumber], ["PAN", viewingSociety.pan], ["GSTIN", viewingSociety.gstin]] },
+                { title: "Property and region", fields: [["Structural area", viewingSociety.structuralArea == null ? null : `${viewingSociety.structuralArea} sq. ft.`], ["Currency", viewingSociety.currency], ["Timezone", viewingSociety.timezone], ["Society ID", viewingSociety.id]] }
+            ]} />}
         </section>
     );
 };

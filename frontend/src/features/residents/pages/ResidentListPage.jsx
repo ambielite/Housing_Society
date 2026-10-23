@@ -24,6 +24,7 @@ import unitApi from "../../units/api/unit.api";
 import floorApi from "../../floors/api/floor.api";
 import towerApi from "../../towers/api/tower.api";
 import ResidentForm from "../components/ResidentForm";
+import { RecordDetailsModal } from "../../../components/ui/Modal";
 
 
 const rowsFrom = (response) => {
@@ -65,6 +66,7 @@ const ResidentListPage = () => {
 
     const [editingResident, setEditingResident] =
         useState(null);
+    const [viewingResident, setViewingResident] = useState(null);
 
     useEffect(() => {
         if (searchParams.get("new") !== "1") return;
@@ -706,9 +708,9 @@ const ResidentListPage = () => {
 
                                                         <span>
 
-                                                            <strong>
+                                                            <button type="button" className="record-details-trigger" onClick={() => setViewingResident(resident)}>
                                                                 {displayName}
-                                                            </strong>
+                                                            </button>
 
                                                             <small>
                                                                 {resident.email ||
@@ -898,6 +900,12 @@ const ResidentListPage = () => {
                 </div>
 
             )}
+
+            {viewingResident && <RecordDetailsModal title={viewingResident.displayName || [viewingResident.firstName, viewingResident.middleName, viewingResident.lastName].filter(Boolean).join(" ") || "Resident details"} subtitle="Resident profile and contact information" icon={UserRound} onClose={() => setViewingResident(null)} sections={[
+                { title: "Personal information", fields: [["First name", viewingResident.firstName], ["Middle name", viewingResident.middleName], ["Last name", viewingResident.lastName], ["Date of birth", viewingResident.dateOfBirth], ["Gender", viewingResident.gender], ["Role", viewingResident.role], ["Status", viewingResident.status]] },
+                { title: "Contact", fields: [["Email", viewingResident.email], ["Mobile", viewingResident.mobile], ["Alternate mobile", viewingResident.alternateMobile], ["Address", viewingResident.address]] },
+                { title: "Home and emergency contact", fields: [["Units", (residentUnits[viewingResident.id] || []).map((assignment) => `${assignment.towerName ? `${assignment.towerName} · ` : ""}Unit ${assignment.unitNumber || "—"}`).join(", ") || null], ["Emergency contact", viewingResident.emergencyContactName], ["Emergency phone", viewingResident.emergencyContactMobile], ["Resident ID", viewingResident.id]] }
+            ]} />}
 
         </section>
 

@@ -1,5 +1,8 @@
+import { useState } from 'react';
+import { FileText } from 'lucide-react';
 import { Spinner } from '../ui/Spinner';
 import Alert from '../ui/Alert';
+import { displayRecordName, RecordDetailsModal } from '../ui/Modal';
 
 /**
  * Generic table with loading / error / empty states and optional pagination.
@@ -20,6 +23,7 @@ export default function DataTable({
   emptyAction = null,
   pagination = null,
 }) {
+  const [selectedRecord, setSelectedRecord] = useState(null);
   if (error && !rows) {
     return (
       <div className="table-state">
@@ -68,10 +72,21 @@ export default function DataTable({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
+              {rows.map((row) => (
               <tr key={row[rowKey]}>
-                {columns.map((col) => (
-                  <td key={col.key}>{col.render ? col.render(row) : row[col.key]}</td>
+                {columns.map((col, index) => (
+                  <td key={col.key}>
+                    {index === 0 && !col.render ? (
+                      <button
+                        type="button"
+                        className="record-details-trigger"
+                        onClick={() => setSelectedRecord({ row, column: col })}
+                        aria-label={`View details for ${displayRecordName(row, ['name', 'displayName', 'title', col.key])}`}
+                      >
+                        {row[col.key] ?? 'View record'}
+                      </button>
+                    ) : col.render ? col.render(row) : row[col.key]}
+                  </td>
                 ))}
               </tr>
             ))}
@@ -102,6 +117,15 @@ export default function DataTable({
             </button>
           </div>
         </div>
+      )}
+      {selectedRecord && (
+        <RecordDetailsModal
+          title={displayRecordName(selectedRecord.row, ['name', 'displayName', 'title', selectedRecord.column.key])}
+          subtitle={`${selectedRecord.column.header} details`}
+          icon={FileText}
+          record={selectedRecord.row}
+          onClose={() => setSelectedRecord(null)}
+        />
       )}
     </div>
   );

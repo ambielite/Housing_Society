@@ -3,6 +3,7 @@ import { Edit, Layers3, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import floorApi from "../api/floor.api";
 import towerApi from "../../towers/api/tower.api";
 import FloorForm from "../components/FloorForm";
+import { RecordDetailsModal } from "../../../components/ui/Modal";
 
 const rowsFrom = (response) => {
     const rows = Array.isArray(response) ? response : response?.data || response?.floors || [];
@@ -17,6 +18,7 @@ const FloorListPage = () => {
     const [search, setSearch] = useState("");
     const [showForm, setShowForm] = useState(false);
     const [editingFloor, setEditingFloor] = useState(null);
+    const [viewingFloor, setViewingFloor] = useState(null);
     const closeForm = () => { setShowForm(false); setEditingFloor(null); };
 
     useEffect(() => {
@@ -74,11 +76,15 @@ const FloorListPage = () => {
                 <div className="society-toolbar"><label className="society-search"><Search size={17} /><input aria-label="Search floors" placeholder="Search floor or tower..." value={search} onChange={(event) => setSearch(event.target.value)} /></label><button className="society-refresh-button" onClick={reload} disabled={loading}><RefreshCw size={16} className={loading ? "society-spinning" : ""} /> Refresh</button></div>
                 {loading ? <div className="society-loading"><span className="society-loader" />Loading floors...</div> : filtered.length === 0 ? <div className="society-empty"><span className="society-empty-icon"><Layers3 size={24} /></span><h3>{search ? "No matching floors" : "No floors yet"}</h3><p>{search ? "Try another search." : "Add floors to your towers to organize units."}</p></div> : (
                     <div className="society-table-wrap"><table className="society-table"><thead><tr><th>Floor</th><th>Tower</th><th>Floor number</th><th>Status</th><th className="society-actions-heading">Actions</th></tr></thead><tbody>
-                        {filtered.map((floor) => <tr key={floor.id}><td><div className="society-name-cell"><span className="society-avatar"><Layers3 size={19} /></span><span><strong>{floor.name || `Floor ${floor.floorNumber}`}</strong><small>{floor.name ? `Floor ${floor.floorNumber}` : "No custom label"}</small></span></div></td><td>{towers.find((tower) => tower.id === floor.towerId)?.name || "Tower"}</td><td>{floor.floorNumber}</td><td><span className={floor.status === "ACTIVE" ? "society-registration" : "society-muted"}>{floor.status || "ACTIVE"}</span></td><td><div className="society-row-actions"><button className="society-icon-action" title="Edit floor" aria-label={`Edit floor ${floor.floorNumber}`} onClick={() => { setEditingFloor(floor); setShowForm(true); }}><Edit size={16} /></button>{floor.status !== "INACTIVE" && <button className="society-icon-action society-delete-action" title="Deactivate floor" aria-label={`Deactivate floor ${floor.floorNumber}`} onClick={() => deactivate(floor)}><Trash2 size={16} /></button>}</div></td></tr>)}
+                        {filtered.map((floor) => <tr key={floor.id}><td><div className="society-name-cell"><span className="society-avatar"><Layers3 size={19} /></span><span><button type="button" className="record-details-trigger" onClick={() => setViewingFloor(floor)}>{floor.name || `Floor ${floor.floorNumber}`}</button><small>{floor.name ? `Floor ${floor.floorNumber}` : "No custom label"}</small></span></div></td><td>{towers.find((tower) => tower.id === floor.towerId)?.name || "Tower"}</td><td>{floor.floorNumber}</td><td><span className={floor.status === "ACTIVE" ? "society-registration" : "society-muted"}>{floor.status || "ACTIVE"}</span></td><td><div className="society-row-actions"><button className="society-icon-action" title="Edit floor" aria-label={`Edit floor ${floor.floorNumber}`} onClick={() => { setEditingFloor(floor); setShowForm(true); }}><Edit size={16} /></button>{floor.status !== "INACTIVE" && <button className="society-icon-action society-delete-action" title="Deactivate floor" aria-label={`Deactivate floor ${floor.floorNumber}`} onClick={() => deactivate(floor)}><Trash2 size={16} /></button>}</div></td></tr>)}
                     </tbody></table></div>
                 )}
             </section>
             {showForm && <div className="society-modal-layer" onMouseDown={(event) => { if (event.target === event.currentTarget) closeForm(); }}><FloorForm key={editingFloor?.id || "new-floor"} floor={editingFloor} towers={towers} onClose={closeForm} onSuccess={saveComplete} /></div>}
+            {viewingFloor && <RecordDetailsModal title={viewingFloor.name || `Floor ${viewingFloor.floorNumber}`} subtitle="Floor profile and tower assignment" icon={Layers3} onClose={() => setViewingFloor(null)} sections={[
+                { title: "Floor information", fields: [["Floor name", viewingFloor.name], ["Floor number", viewingFloor.floorNumber], ["Status", viewingFloor.status || "ACTIVE"], ["Floor ID", viewingFloor.id]] },
+                { title: "Tower", fields: [["Tower name", towers.find((tower) => tower.id === viewingFloor.towerId)?.name], ["Tower ID", viewingFloor.towerId]] }
+            ]} />}
         </section>
     );
 };

@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import societyApi from "../api/society.api";
 import SocietyForm from "../components/SocietyForm";
+import { RecordDetailsModal } from "../../../components/ui/Modal";
 
 const SocietyPage = () => {
     const [societies, setSocieties] = useState([]);
@@ -13,6 +14,7 @@ const SocietyPage = () => {
     const [search, setSearch] = useState("");
     const [showForm, setShowForm] = useState(false);
     const [editingSociety, setEditingSociety] = useState(null);
+    const [viewingSociety, setViewingSociety] = useState(null);
     const loadRequest = useRef(0);
     const closeForm = () => { setShowForm(false); setEditingSociety(null); };
 
@@ -126,7 +128,7 @@ const SocietyPage = () => {
                 ) : (
                     <div className="society-table-wrap"><table className="society-table"><thead><tr><th>Society</th><th>Registration</th><th>Tax details</th><th>Region</th><th className="society-actions-heading">Actions</th></tr></thead>
                         <tbody>{filteredSocieties.map((society) => <tr key={society.id}>
-                            <td><div className="society-name-cell"><span className="society-avatar"><Building2 size={19} /></span><span><strong>{society.name || "Unnamed society"}</strong><small>{society.address || "Address not added"}</small></span></div></td>
+                            <td><div className="society-name-cell"><span className="society-avatar"><Building2 size={19} /></span><span><button type="button" className="record-details-trigger" onClick={() => setViewingSociety(society)}>{society.name || "Unnamed society"}</button><small>{society.address || "Address not added"}</small></span></div></td>
                             <td>{society.reraNumber ? <span className="society-registration"><CheckCircle2 size={14} /> {society.reraNumber}</span> : <span className="society-muted">Not provided</span>}</td>
                             <td><span className="society-tax-label">PAN:-</span> {society.pan || "—"}<br /><span className="society-tax-label">GSTIN:-</span> {society.gstin || "—"}</td>
                             <td><span className="society-region"><span className="society-region-dot" />{society.currency || "INR"}<small>{society.timezone || "Asia/Kolkata"}</small></span></td>
@@ -137,6 +139,11 @@ const SocietyPage = () => {
             </section>
 
             {showForm && <div className="society-modal-layer" onMouseDown={(e) => { if (e.target === e.currentTarget) closeForm(); }}><SocietyForm key={editingSociety?.id || "new-society"} society={editingSociety} onClose={closeForm} onSuccess={handleFormSuccess} /></div>}
+            {viewingSociety && <RecordDetailsModal title={viewingSociety.name || "Society details"} subtitle="Society profile and registered information" icon={Building2} onClose={() => setViewingSociety(null)} sections={[
+                { title: "Contact information", fields: [["Email", viewingSociety.email], ["Phone", viewingSociety.phone], ["Address", viewingSociety.address]] },
+                { title: "Registration and tax", fields: [["RERA number", viewingSociety.reraNumber], ["PAN", viewingSociety.pan], ["GSTIN", viewingSociety.gstin]] },
+                { title: "Property and region", fields: [["Structural area", viewingSociety.structuralArea == null ? null : `${viewingSociety.structuralArea} sq. ft.`], ["Currency", viewingSociety.currency], ["Timezone", viewingSociety.timezone], ["Society ID", viewingSociety.id]] }
+            ]} />}
         </section>
     );
 };

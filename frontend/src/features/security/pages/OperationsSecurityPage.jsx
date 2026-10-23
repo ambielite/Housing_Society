@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import securityApi from "../api/security.legacy.api";
 import unitApi from "../../units/api/unit.api";
+import { recordToSections, RecordDetailsModal } from "../../../components/ui/Modal";
 
 const rowsFrom = (response) => {
   let rows = Array.isArray(response)
@@ -362,6 +363,7 @@ export default function SecurityPage() {
   const [form, setForm] = useState("");
   const [busy, setBusy] = useState(false);
   const [editRecord, setEditRecord] = useState(null);
+  const [viewingStaff, setViewingStaff] = useState(null);
   const [workflow, setWorkflow] = useState(null);
   const loadData = async () => {
     setLoading(true);
@@ -1026,7 +1028,7 @@ export default function SecurityPage() {
                   {filtered.map((item) => (
                     <tr key={item.id}>
                       {cells(item).map((value, index) => (
-                        <td key={index}>{value}</td>
+                        <td key={index}>{tab === "staff" && index === 0 ? <button type="button" className="record-details-trigger" onClick={() => setViewingStaff(item)}>{value}</button> : value}</td>
                       ))}
                       <td>
                         <div className="society-row-actions">
@@ -1218,6 +1220,7 @@ export default function SecurityPage() {
           }}
         />
       )}
+      {viewingStaff && <RecordDetailsModal title={`${viewingStaff.firstName || ""} ${viewingStaff.lastName || ""}`.trim() || "Staff profile"} subtitle="Staff member profile and employment information" icon={Users} record={viewingStaff} sections={recordToSections(viewingStaff)} onClose={() => setViewingStaff(null)} />}
       {workflow && (
         <SecurityWorkflowDialog
           workflow={workflow}
