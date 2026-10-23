@@ -10,7 +10,7 @@ const list = async (req, res) => {
 const create = async (req, res) => {
   try {
     const member = await service.createMember(req.user.societyId, req.body);
-    res.status(201).json({ success: true, message: "Committee member added.", data: member });
+    res.status(201).json({ success: true, message: "Committee member addedd.", data: member });
   } catch (error) { sendError(res, error); }
 };
 const update = async (req, res) => {
