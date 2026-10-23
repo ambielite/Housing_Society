@@ -119,9 +119,16 @@ const authorizeLegacy = (moduleCode) => (req, res, next) => {
 
 const authorizeLegacyRequest = (req, res, next) => {
   const pathname = req.originalUrl.split('?')[0].replace(/^\/api(?=\/)/, '');
+  // The notice board and emergency contact directory are readable by every
+  // authenticated society user. Mutating actions still require their RBAC
+  // permissions through the normal route-to-module mapping below.
+  if ((req.method === 'GET' || req.method === 'HEAD') &&
+      (/^\/notices(?:\/|$)/i.test(pathname) || /^\/society-emergency-contacts(?:\/|$)/i.test(pathname))) {
+    return next();
+  }
   // Marking a notice read is a read permission operation even though it uses POST.
   if (req.method === 'POST' && /^\/notices\/[^/]+\/read\/?$/i.test(pathname)) {
-    return authorize('NOTICE_READ')(req, res, next);
+    return next();
   }
   if (req.method === 'POST' && /^\/notices\/[^/]+\/template\/?$/i.test(pathname)) {
     return authorize('NOTICE_UPDATE')(req, res, next);

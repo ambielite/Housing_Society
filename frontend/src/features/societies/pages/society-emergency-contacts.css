@@ -1,0 +1,83 @@
+.emergency-contacts-page { display: grid; gap: 18px; min-width: 0; }
+.emergency-contacts-heading { align-items: center; margin-bottom: 0; }
+.emergency-contacts-breadcrumb { color: var(--text-muted); font-weight: 600; }
+.emergency-contacts-heading-actions { display: flex; align-items: center; gap: 10px; }
+.emergency-contacts-banner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 108px;
+  padding: 20px 22px;
+  border: 1px solid color-mix(in srgb, var(--action) 18%, var(--border-color));
+  border-radius: 16px;
+  background: linear-gradient(110deg, color-mix(in srgb, var(--action) 9%, var(--surface)), var(--surface) 76%);
+}
+.emergency-contacts-banner-icon { display: grid; flex: 0 0 46px; width: 46px; height: 46px; place-items: center; border: 1px solid color-mix(in srgb, var(--action) 18%, transparent); border-radius: 14px; background: color-mix(in srgb, var(--action) 11%, var(--surface)); color: var(--action); }
+.emergency-contacts-banner > div { display: grid; gap: 4px; }
+.emergency-contacts-banner > div > span,.emergency-contact-kicker { color: var(--action); font-size: 10px; font-weight: 750; letter-spacing: .09em; }
+.emergency-contacts-banner h2 { margin: 0; color: var(--text-primary); font-size: 18px; }
+.emergency-contacts-banner p { margin: 0; color: var(--text-muted); font-size: 12px; line-height: 1.5; }
+.emergency-contacts-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.emergency-contacts-summary article { display: flex; align-items: center; gap: 12px; min-width: 0; min-height: 82px; padding: 14px 16px; border: 1px solid var(--border-color); border-radius: 13px; background: var(--surface); box-shadow: 0 4px 15px rgba(15, 23, 42, .035); }
+.emergency-summary-icon { display: grid; flex: 0 0 38px; width: 38px; height: 38px; place-items: center; border-radius: 12px; }
+.emergency-summary-icon.purple { background: color-mix(in srgb, #7557e8 11%, var(--surface)); color: #7557e8; }
+.emergency-summary-icon.green { background: color-mix(in srgb, #15966b 11%, var(--surface)); color: #15966b; }
+.emergency-summary-icon.orange { background: color-mix(in srgb, #df8512 12%, var(--surface)); color: #c16c06; }
+.emergency-contacts-summary article > div { display: grid; gap: 3px; min-width: 0; }
+.emergency-contacts-summary small { color: var(--text-muted); font-size: 11px; }
+.emergency-contacts-summary strong { color: var(--text-primary); font-size: 21px; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.emergency-directory-panel { min-width: 0; overflow: hidden; border: 1px solid var(--border-color); border-radius: 15px; background: var(--surface); box-shadow: 0 6px 20px rgba(15, 23, 42, .04); }
+.emergency-directory-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 21px 16px; }
+.emergency-directory-head > div { display: grid; gap: 4px; }
+.emergency-directory-head h2 { margin: 0; color: var(--text-primary); font-size: 18px; }
+.emergency-directory-head p { margin: 0; color: var(--text-muted); font-size: 12px; }
+.emergency-directory-count { flex: 0 0 auto; padding: 7px 10px; border: 1px solid var(--border-color); border-radius: 999px; color: var(--text-secondary); font-size: 11px; }
+.emergency-directory-toolbar { display: grid; gap: 13px; padding: 0 21px 16px; border-bottom: 1px solid var(--border-color); }
+.emergency-directory-search { display: flex; align-items: center; gap: 9px; width: min(100%, 430px); min-height: 40px; padding: 0 11px; border: 1px solid var(--border-color); border-radius: 9px; background: var(--input-bg, var(--surface)); color: var(--text-muted); }
+.emergency-directory-search input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text-primary); font-size: 12px; }
+.emergency-directory-search input::placeholder { color: var(--text-muted); }
+.emergency-category-filters { display: flex; gap: 7px; overflow-x: auto; padding: 1px 1px 5px; scrollbar-width: thin; }
+.emergency-category-filters button { flex: 0 0 auto; min-height: 32px; padding: 0 11px; border: 1px solid var(--border-color); border-radius: 999px; background: var(--surface); color: var(--text-secondary); font-size: 11px; transition: background .16s ease, color .16s ease, border-color .16s ease; }
+.emergency-category-filters button:hover { border-color: var(--action); color: var(--action); }
+.emergency-category-filters button.active { border-color: var(--action); background: var(--action); color: #fff; }
+.emergency-directory-state,.emergency-directory-empty { min-height: 210px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 28px; color: var(--text-muted); text-align: center; font-size: 12px; }
+.emergency-contact-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; padding: 17px; }
+.emergency-contact-card { min-width: 0; display: flex; flex-direction: column; gap: 11px; padding: 15px; border: 1px solid var(--border-color); border-radius: 13px; background: var(--surface); box-shadow: 0 3px 12px rgba(15, 23, 42, .035); }
+.emergency-contact-card.is-inactive { opacity: .7; }
+.emergency-contact-card-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.emergency-contact-icon { display: grid; flex: 0 0 34px; width: 34px; height: 34px; place-items: center; border-radius: 10px; background: color-mix(in srgb, var(--action) 10%, var(--surface)); color: var(--action); }
+.emergency-contact-icon.category-fire,.emergency-contact-icon.category-ambulance,.emergency-contact-icon.category-disaster_response { background: color-mix(in srgb, #dc4545 10%, var(--surface)); color: #c03535; }
+.emergency-contact-icon.category-police,.emergency-contact-icon.category-security { background: color-mix(in srgb, #7557e8 10%, var(--surface)); color: #694bd7; }
+.emergency-contact-icon.category-electricity,.emergency-contact-icon.category-gas { background: color-mix(in srgb, #df8512 12%, var(--surface)); color: #b76205; }
+.emergency-contact-category { overflow: hidden; color: var(--text-muted); font-size: 10px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.emergency-contact-status { margin-left: auto; padding: 4px 7px; border-radius: 999px; background: var(--surface-2); color: var(--text-muted); font-size: 10px; font-weight: 650; }
+.emergency-contact-status.active { background: color-mix(in srgb, #15966b 10%, var(--surface)); color: #12845e; }
+.emergency-contact-card h3 { margin: 0; color: var(--text-primary); font-size: 15px; line-height: 1.35; overflow-wrap: anywhere; }
+.emergency-contact-phone { display: inline-flex; align-items: center; gap: 7px; align-self: flex-start; color: var(--action); font-size: 15px; font-weight: 700; text-decoration: none; font-variant-numeric: tabular-nums; }
+.emergency-contact-phone:hover,.emergency-contact-alt:hover { text-decoration: underline; }
+.emergency-contact-alt { align-self: flex-start; margin-top: -7px; color: var(--text-muted); font-size: 11px; text-decoration: none; }
+.emergency-contact-meta { display: grid; gap: 8px; margin-top: 2px; padding-top: 11px; border-top: 1px solid var(--border-color); }
+.emergency-contact-meta > span,.emergency-contact-meta > a { display: flex; align-items: flex-start; gap: 7px; min-width: 0; color: var(--text-secondary); font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; text-decoration: none; }
+.emergency-contact-meta svg { flex: 0 0 auto; color: var(--text-muted); }
+.emergency-contact-notes { margin: 0; padding: 9px 10px; border-radius: 8px; background: var(--surface-2); color: var(--text-muted); font-size: 11px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.emergency-contact-card-actions { display: flex; gap: 8px; margin-top: auto; padding-top: 10px; border-top: 1px solid var(--border-color); }
+.emergency-contact-card-actions button { display: inline-flex; align-items: center; gap: 6px; min-height: 31px; padding: 0 9px; border: 1px solid var(--border-color); border-radius: 7px; background: var(--surface); color: var(--text-secondary); font-size: 11px; }
+.emergency-contact-card-actions button:hover { border-color: var(--action); color: var(--action); }
+.emergency-contact-card-actions button.remove { margin-left: auto; }
+.emergency-directory-empty h3 { margin: 0; color: var(--text-primary); font-size: 16px; }
+.emergency-directory-empty p { max-width: 430px; margin: 0 0 4px; line-height: 1.55; }
+.emergency-directory-empty-icon { display: grid; width: 46px; height: 46px; place-items: center; border-radius: 14px; background: color-mix(in srgb, var(--action) 10%, var(--surface)); color: var(--action); }
+
+@media (max-width: 980px) { .emergency-contact-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 680px) {
+  .emergency-contacts-heading { align-items: flex-start; flex-direction: column; }
+  .emergency-contacts-heading-actions { width: 100%; }
+  .emergency-contacts-heading-actions > * { flex: 1; }
+  .emergency-contacts-summary { grid-template-columns: 1fr; gap: 9px; }
+  .emergency-contacts-summary article { min-height: 70px; }
+  .emergency-directory-head { align-items: flex-start; padding: 16px; }
+  .emergency-directory-head h2 { font-size: 16px; }
+  .emergency-directory-toolbar { padding: 0 16px 13px; }
+  .emergency-directory-search { width: 100%; }
+  .emergency-contact-grid { grid-template-columns: minmax(0, 1fr); padding: 13px; }
+}
