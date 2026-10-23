@@ -163,6 +163,7 @@ const notificationTemplateRoutes = require("./modules/notifications/notification
 const notificationPreferenceRoutes = require("./modules/notifications/notification-preference/notificationPreference.routes");
 const notificationRoutes = require("./modules/notifications/notification/notification.routes");
 const broadcastRoutes = require("./modules/notifications/broadcast/broadcast.routes");
+const noticeRoutes = require("./modules/notices/notices.routes");
 const communityGroupRoutes = require("./modules/community/group/group.routes");
 const communityGroupMemberRoutes = require("./modules/community/group/groupMember.routes");
 const communityForumRoutes = require("./modules/community/forum/forum.routes"); 
@@ -259,6 +260,7 @@ app.use("/api/notification-templates", notificationTemplateRoutes);
 app.use("/api/notification-preferences", notificationPreferenceRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/broadcasts", broadcastRoutes);
+app.use("/api/notices", noticeRoutes);
 app.use("/api/community-groups",communityGroupRoutes);
 app.use("/api/community-groups",communityGroupMemberRoutes);     
 app.use( "/api/community-forums", communityForumRoutes ); 

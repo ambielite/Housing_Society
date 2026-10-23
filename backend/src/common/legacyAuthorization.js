@@ -80,6 +80,7 @@ const ROUTE_MODULES = [
   ['/amcs', 'AMC'],
   ['/work-orders', 'WORK_ORDER'],
   ['/broadcasts', 'BROADCAST'],
+  ['/notices', 'NOTICE'],
   ['/notifications', 'NOTIFICATION'],
   ['/notification-templates', 'NOTIFICATION_TEMPLATE'],
   ['/notification-preferences', 'NOTIFICATION_PREFERENCE'],
@@ -116,6 +117,13 @@ const authorizeLegacy = (moduleCode) => (req, res, next) => {
 
 const authorizeLegacyRequest = (req, res, next) => {
   const pathname = req.originalUrl.split('?')[0].replace(/^\/api(?=\/)/, '');
+  // Marking a notice read is a read permission operation even though it uses POST.
+  if (req.method === 'POST' && /^\/notices\/[^/]+\/read\/?$/i.test(pathname)) {
+    return authorize('NOTICE_READ')(req, res, next);
+  }
+  if (req.method === 'POST' && /^\/notices\/[^/]+\/template\/?$/i.test(pathname)) {
+    return authorize('NOTICE_UPDATE')(req, res, next);
+  }
   if (/^\/community-events\/(?:rsvps(?:\/|$)|events\/[^/]+\/rsvp(?:\/|$))/.test(pathname)) {
     return authorizeLegacy('COMMUNITY_EVENT_RSVP')(req, res, next);
   }

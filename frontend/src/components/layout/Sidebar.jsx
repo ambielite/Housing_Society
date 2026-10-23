@@ -22,6 +22,7 @@ const NAV_ITEMS = [
       {
         key: 'societies', label: 'Societies', to: '/societies', permission: 'SOCIETY_READ', icon: Building2,
         children: [
+          { label: 'Notice', to: '/notices', permission: 'NOTICE_READ', icon: Bell },
           { label: 'Towers', to: '/towers', permission: 'TOWER_READ', icon: Layers3 },
           { label: 'Floors', to: '/floors', permission: 'FLOOR_READ', icon: Boxes },
           { label: 'Units', to: '/units', permission: 'UNIT_READ', icon: Home },
@@ -165,15 +166,20 @@ export default function Sidebar() {
   ];
 
   const toggleGroup = (key) => setOpenGroups((current) => {
-    const next = new Set(groupAncestors(orderedItems, key) || []);
-    if (!current.has(key)) next.add(key);
+    const next = new Set(current);
+    if (next.has(key)) {
+      next.delete(key);
+    } else {
+      // Opening a nested group also opens its ancestors, while keeping other
+      // expanded sections open as the user navigates around the application.
+      for (const ancestor of groupAncestors(orderedItems, key) || []) next.add(ancestor);
+      next.add(key);
+    }
     return next;
   });
   const handleNavigationClick = (key, hasChildren) => {
     if (hasChildren) {
       toggleGroup(key);
-    } else {
-      setOpenGroups(new Set(groupAncestors(orderedItems, key) || []));
     }
     closeSidebar();
   };
