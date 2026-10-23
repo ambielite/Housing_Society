@@ -29,11 +29,11 @@ export default function DashboardPage() {
         {cards.map((card) => {
           const Icon = card.icon;
           return (
-            <div className="stat-card" key={card.title}>
+            <div className={`stat-card${card.title === 'Last Sign-in' ? ' stat-card-last-signin' : ''}`} key={card.title}>
               <div className="stat-icon">
                 <Icon size={22} />
               </div>
-              <div>
+              <div className="stat-card-content">
                 <span>{card.title}</span>
                 <h2>{card.value}</h2>
               </div>
