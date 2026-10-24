@@ -284,7 +284,7 @@ const MoveInListPage = () => {
                                             </td>
                                             <td>
                                                 <div className="society-row-actions moveinout-actions">
-                                                    <button className="society-icon-action" title="Edit move-in" aria-label={`Edit ${moveIn.id}`} onClick={() => openEdit(moveIn)}><SquarePen size={16} /></button>
+                                                    <button className="society-icon-action" title="Edit move-in" aria-label={`Edit ${moveIn.id}`} onClick={() => openEdit(moveIn)}><Edit size={16} /></button>
                                                     {moveIn.status === "UNDER_VERIFICATION" && <button className="society-icon-action society-delete-action" title="Reject move-in" aria-label={`Reject ${moveIn.id}`} onClick={() => handleReject(moveIn.id)} disabled={submitting}><XCircle size={16} /></button>}
                                                     {moveIn.status === "UNDER_VERIFICATION" && <button className="moveinout-text-action" title="Request information" onClick={() => handleRequestInformation(moveIn.id)} disabled={submitting}>Request info</button>}
                                                     {!["COMPLETED", "REJECTED", "CANCELLED"].includes(moveIn.status) && <button className="society-workflow-action" onClick={() => runWorkflowAction(moveIn)} disabled={submitting}>{moveIn.status === "UNDER_VERIFICATION" ? "Approve" : ({ PENDING_DOCUMENTS: "Submit docs", DOCUMENTS_SUBMITTED: "Verify", APPROVED: "Issue pass", GATE_PASS_ISSUED: "Create ledger", LEDGER_CREATED: "Activate access", ACCESS_ACTIVATED: "Complete" }[moveIn.status] || "Continue")}</button>}

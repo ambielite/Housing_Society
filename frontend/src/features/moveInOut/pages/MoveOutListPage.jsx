@@ -1,9 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-<<<<<<< HEAD
 import { ArrowUpRight, CheckCircle2, Edit, Plus, RefreshCw, Search, Trash2, UserRound, XCircle } from "lucide-react";
-=======
-import { ArrowUpRight, CheckCircle2, SquarePen, Plus, RefreshCw, Search, Trash2, XCircle } from "lucide-react";
->>>>>>> 828731c92498d8a06c3e669287d4d63fb2b7f05f
 import moveOutApi from "../api/moveOut.api";
 import residentApi from "../../residents/api/resident.api";
 import unitApi from "../../units/api/unit.api";
@@ -283,7 +279,7 @@ const MoveOutListPage = () => {
                                             <td>{moveOut.gatePassCode || "—"}</td>
                                             <td>
                                                 <div className="society-row-actions moveinout-actions">
-                                                    <button className="society-icon-action" title="Edit move-out" aria-label={`Edit ${moveOut.id}`} onClick={() => openEdit(moveOut)}><SquarePen size={16} /></button>
+                                                    <button className="society-icon-action" title="Edit move-out" aria-label={`Edit ${moveOut.id}`} onClick={() => openEdit(moveOut)}><Edit size={16} /></button>
                                                     {moveOut.status === "UNDER_VERIFICATION" && <button className="society-icon-action society-delete-action" title="Reject move-out" aria-label={`Reject ${moveOut.id}`} onClick={() => handleReject(moveOut.id)} disabled={submitting}><XCircle size={16} /></button>}
                                                     {!['COMPLETED', 'REJECTED', 'CANCELLED', 'ACCESS_REVOKED'].includes(moveOut.status) && <button className="moveinout-text-action moveinout-cancel-action" title="Cancel move-out" aria-label={`Cancel ${moveOut.id}`} onClick={() => handleCancel(moveOut.id)} disabled={submitting}>Cancel</button>}
                                                     {!["COMPLETED", "REJECTED", "CANCELLED"].includes(moveOut.status) && <button className="society-workflow-action" onClick={() => runWorkflowAction(moveOut)} disabled={submitting}>{({ REQUESTED: "Start checklist", CHECKLIST_PENDING: "Complete checklist", DUES_PENDING: "Update dues", FINANCIAL_CLEARANCE_PENDING: "Submit clearance", UNDER_VERIFICATION: "Approve", APPROVED: "Issue pass", MOVE_OUT_PASS_ISSUED: "Revoke access", ACCESS_REVOKED: "Complete" }[moveOut.status] || "Continue")}</button>}
