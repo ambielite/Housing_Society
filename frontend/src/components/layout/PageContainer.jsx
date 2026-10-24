@@ -21,7 +21,7 @@ function addCreationIcons(node) {
   if (!isValidElement(node)) return node;
 
   const children = node.props.children;
-  if (node.type === 'button') {
+  if (node.type === 'button' || typeof node.props.to === 'string') {
     const label = readButtonText(children).trim();
     if (CREATION_ACTION.test(label) && !containsPlus(children)) {
       return cloneElement(node, {}, <><Plus size={16} aria-hidden="true" /> {children}</>);
