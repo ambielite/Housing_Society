@@ -48,7 +48,24 @@ const validateStockLevels = (data) => {
     }
 };
 
+const hasStockLevel = (value) =>
+    value !== undefined && value !== null && value !== "";
+
 const createInventory = async (data) => {
+
+    data = { ...data };
+
+    // A missing reorder threshold means "reorder at the minimum level".
+    // Keep the persisted values valid even for API clients that omit the field.
+    if (!hasStockLevel(data.minimumStockLevel)) {
+        data.minimumStockLevel = 0;
+    }
+    if (!hasStockLevel(data.reorderLevel)) {
+        data.reorderLevel = data.minimumStockLevel;
+    }
+    if (data.currentStock === "") data.currentStock = undefined;
+    if (data.maximumStockLevel === "") data.maximumStockLevel = null;
+    if (data.unitCost === "") data.unitCost = null;
 
     const errors =
         validateCreateInventory(data);
@@ -163,6 +180,8 @@ const updateInventory = async (
     data
 ) => {
 
+    data = { ...data };
+
     const inventory =
         await inventoryRepository.findById(
             id
@@ -188,6 +207,13 @@ const updateInventory = async (
             "societyId cannot be changed"
         );
     }
+
+    // Treat blank threshold fields as omitted on partial updates; they must
+    // not be coerced to zero and accidentally trigger the threshold rule.
+    for (const field of ["minimumStockLevel", "reorderLevel"]) {
+        if (data[field] === "" || data[field] === null) delete data[field];
+    }
+    if (data.maximumStockLevel === "") data.maximumStockLevel = null;
 
     if (data.itemCode) {
 
@@ -227,12 +253,12 @@ const updateInventory = async (
 
     const stockLevelData = {
         minimumStockLevel:
-            data.minimumStockLevel !== undefined
+            hasStockLevel(data.minimumStockLevel)
                 ? data.minimumStockLevel
                 : inventory.minimumStockLevel,
 
         reorderLevel:
-            data.reorderLevel !== undefined
+            hasStockLevel(data.reorderLevel)
                 ? data.reorderLevel
                 : inventory.reorderLevel,
 
@@ -241,6 +267,18 @@ const updateInventory = async (
                 ? data.maximumStockLevel
                 : inventory.maximumStockLevel
     };
+
+    // If the minimum is raised without specifying a new reorder level,
+    // raise the existing threshold with it. An explicitly supplied lower
+    // reorder level is still rejected by validateStockLevels.
+    if (
+        hasStockLevel(data.minimumStockLevel) &&
+        !hasStockLevel(data.reorderLevel) &&
+        Number(stockLevelData.reorderLevel) < Number(stockLevelData.minimumStockLevel)
+    ) {
+        data.reorderLevel = stockLevelData.minimumStockLevel;
+        stockLevelData.reorderLevel = data.reorderLevel;
+    }
 
     validateStockLevels(
         stockLevelData
