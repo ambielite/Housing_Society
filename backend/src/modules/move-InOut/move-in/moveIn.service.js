@@ -1,61 +1,47 @@
 const repository = require("./moveIn.repository");
 const accessAssignmentService = require("../access/accessAssignment.service");
-const fs = require("node:fs");
-const path = require("node:path");
-const crypto = require("node:crypto");
 
 const documentFields = ["leaseDocument", "registryDocument", "policeVerificationDocument"];
 
-const saveMoveInDocuments = (files = {}) => {
-    const uploadDirectory = path.join(process.cwd(), "uploads", "move-in-documents");
-    const documentPaths = {};
-    const savedFiles = [];
-    fs.mkdirSync(uploadDirectory, { recursive: true });
+const documentPath = (moveInId, field) => `/move-ins/${moveInId}/documents/${field}`;
+const uploadedDocumentPaths = (moveInId, files = {}) => Object.fromEntries(
+    documentFields.filter((field) => files[field]?.[0]).map((field) => [field, documentPath(moveInId, field)])
+);
 
-    for (const field of documentFields) {
-        const file = files[field]?.[0];
-        if (!file) continue;
-        const extension = path.extname(file.originalname).toLowerCase();
-        const fileName = `${crypto.randomUUID()}${extension}`;
-        const fullPath = path.join(uploadDirectory, fileName);
-        fs.writeFileSync(fullPath, file.buffer, { flag: "wx" });
-        savedFiles.push(fullPath);
-        documentPaths[field] = `/uploads/move-in-documents/${fileName}`;
-    }
-    return { documentPaths, savedFiles };
-};
-
-const removeSavedFiles = (savedFiles) => {
-    for (const filePath of savedFiles) {
-        try { fs.unlinkSync(filePath); } catch { /* Preserve the original database error. */ }
-    }
-};
+const asPlainRecord = (record) => record?.toJSON ? record.toJSON() : record;
 
 const createMoveIn = async (data, files) => {
-    const { documentPaths, savedFiles } = saveMoveInDocuments(files);
+    const moveIn = await repository.create({
+        societyId: data.societyId,
+        unitId: data.unitId,
+        residentId: data.residentId,
+        occupancyType: data.occupancyType,
+        requestedMoveInDate: data.requestedMoveInDate,
+        agreementId: data.agreementId || null,
+        remarks: data.remarks || null
+    });
     try {
-        return await repository.create({
-            societyId: data.societyId,
-            unitId: data.unitId,
-            residentId: data.residentId,
-            occupancyType: data.occupancyType,
-            requestedMoveInDate: data.requestedMoveInDate,
-            agreementId: data.agreementId || null,
-            ...documentPaths,
-            remarks: data.remarks || null
-        });
+        await repository.saveDocuments(moveIn.id, files, documentFields);
+        const paths = uploadedDocumentPaths(moveIn.id, files);
+        if (Object.keys(paths).length) await repository.update(moveIn.id, paths);
+        return await getMoveIn(moveIn.id);
     } catch (error) {
-        removeSavedFiles(savedFiles);
+        await repository.deleteById(moveIn.id).catch(() => {});
         throw error;
     }
 };
 
 const getMoveIns = async () => {
-    return await repository.findAll();
+    return (await repository.findAll()).map(asPlainRecord);
 };
 
 const getMoveIn = async (id) => {
-    return await repository.findById(id);
+    return asPlainRecord(await repository.findById(id));
+};
+
+const getMoveInDocument = async (id, documentType) => {
+    if (!documentFields.includes(documentType)) return null;
+    return repository.findDocument(id, documentType);
 };
 
 const updateMoveIn = async (id, data, files) => {
@@ -68,17 +54,12 @@ const updateMoveIn = async (id, data, files) => {
     // Document fields are managed through uploaded files, never client paths.
     for (const field of documentFields) delete update[field];
 
-    const { documentPaths, savedFiles } = saveMoveInDocuments(files);
-    Object.assign(update, documentPaths);
-
-    try {
-        const moveIn = await repository.update(id, update);
-        if (!moveIn) removeSavedFiles(savedFiles);
-        return moveIn;
-    } catch (error) {
-        removeSavedFiles(savedFiles);
-        throw error;
-    }
+    const moveIn = await repository.update(id, update);
+    if (!moveIn) return null;
+    await repository.saveDocuments(id, files, documentFields);
+    const paths = uploadedDocumentPaths(id, files);
+    if (Object.keys(paths).length) await repository.update(id, paths);
+    return getMoveIn(id);
 };
 
 const deleteMoveIn = async (id) => {
@@ -265,6 +246,7 @@ module.exports = {
     createMoveIn,
     getMoveIns,
     getMoveIn,
+    getMoveInDocument,
     updateMoveIn,
     deleteMoveIn,
     submitDocuments,

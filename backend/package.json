@@ -11,6 +11,7 @@
         "db:migrate": "node scripts/migrate.js up",
         "db:status": "node scripts/migrate.js status",
         "db:check": "node scripts/migrate.js check",
+        "migrate:move-in-documents": "node scripts/migrate-move-in-documents-to-db.js",
         "seed:super-admin": "node scripts/seed-super-admin.js"
     },
     "keywords":  [

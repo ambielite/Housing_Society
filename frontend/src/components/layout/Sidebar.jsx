@@ -47,11 +47,11 @@ const NAV_ITEMS = [
         children: [
           { label: 'Move-ins', to: '/move-in-out/move-ins', permission: 'MOVE_IN_READ', icon: ClipboardCheck },
           { label: 'Move-outs', to: '/move-in-out/move-outs', permission: 'MOVE_OUT_READ', icon: CalendarDays },
-          { label: 'Reminders', to: '/move-in-out/renewals', permission: ['AGREEMENT_RENEWAL_READ', 'AGREEMENT_REMINDER_READ'], icon: Bell },
         ],
       },
       { label: 'Ownership', to: '/residents/ownership', permission: 'OWNER_UNIT_READ', icon: KeyRound },
       { label: 'Agreements', to: '/move-in-out/agreements', permission: 'AGREEMENT_READ', icon: FileText },
+      { label: 'Reminders', to: '/move-in-out/renewals', permission: ['AGREEMENT_RENEWAL_READ', 'AGREEMENT_REMINDER_READ'], icon: Bell },
     ],
   },
   {

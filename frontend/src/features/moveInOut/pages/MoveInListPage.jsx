@@ -1,15 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowDownLeft, CheckCircle2, Edit, Plus, RefreshCw, Search, Trash2, XCircle } from "lucide-react";
+import { ArrowDownLeft, CheckCircle2, Edit, FileText, Plus, RefreshCw, Search, Trash2, X, XCircle } from "lucide-react";
 import moveInApi from "../api/moveIn.api";
 import residentApi from "../../residents/api/resident.api";
 import unitApi from "../../units/api/unit.api";
 import MoveInForm from "../components/MoveInForm";
+import { openMoveInDocument } from "../utils/openMoveInDocument";
 import { useAuth } from "../../../app/providers/useAuth";
 
 const rowsFrom = (response) => {
     const rows = Array.isArray(response) ? response : response?.data || response?.records || [];
     return Array.isArray(rows) ? rows : [];
 };
+
+const moveInDocuments = (moveIn) => [
+    ["Lease / signed agreement", moveIn.leaseDocument],
+    ["Registry document", moveIn.registryDocument],
+    ["Police verification", moveIn.policeVerificationDocument]
+].filter(([, path]) => Boolean(path));
 
 const statusTone = (status) => ["COMPLETED", "APPROVED", "ACCESS_ACTIVATED", "CLEARED"].includes(status) ? "success" : ["REJECTED", "CANCELLED"].includes(status) ? "danger" : ["PENDING_DOCUMENTS", "INFORMATION_REQUIRED", "UNDER_VERIFICATION"].includes(status) ? "pending" : "neutral";
 
@@ -21,9 +28,10 @@ const MoveInListPage = () => {
     const [error, setError] = useState("");
     const [search, setSearch] = useState("");
     const [editingMoveIn, setEditingMoveIn] = useState(null);
+    const [viewingDocuments, setViewingDocuments] = useState(null);
     const [showForm, setShowForm] = useState(false);
     const [submitting, setSubmitting] = useState(false);
-    const { user } = useAuth();
+    const { user, hasPermission } = useAuth();
 
     const loadData = async () => {
         try {
@@ -224,6 +232,7 @@ const MoveInListPage = () => {
                                     <th>Requested date</th>
                                             <th>Status</th>
                                             <th>Move-in pass</th>
+                                            <th>Documents</th>
                                     <th className="society-actions-heading">Actions</th>
                                 </tr>
                             </thead>
@@ -249,12 +258,19 @@ const MoveInListPage = () => {
                                             <td><span className={`moveinout-status moveinout-status-${statusTone(moveIn.status)}`}>{moveIn.status || "PENDING_DOCUMENTS"}</span></td>
                                             <td>{moveIn.gatePassCode || "—"}</td>
                                             <td>
+                                                {moveInDocuments(moveIn).length ? (
+                                                    <button className="society-workflow-action movein-documents-button" type="button" onClick={() => setViewingDocuments(moveIn)}>
+                                                        <FileText size={15} /> View documents ({moveInDocuments(moveIn).length})
+                                                    </button>
+                                                ) : <span aria-label="No uploaded documents">—</span>}
+                                            </td>
+                                            <td>
                                                 <div className="society-row-actions moveinout-actions">
                                                     <button className="society-icon-action" title="Edit move-in" aria-label={`Edit ${moveIn.id}`} onClick={() => openEdit(moveIn)}><Edit size={16} /></button>
                                                     {moveIn.status === "UNDER_VERIFICATION" && <button className="society-icon-action society-delete-action" title="Reject move-in" aria-label={`Reject ${moveIn.id}`} onClick={() => handleReject(moveIn.id)} disabled={submitting}><XCircle size={16} /></button>}
                                                     {moveIn.status === "UNDER_VERIFICATION" && <button className="moveinout-text-action" title="Request information" onClick={() => handleRequestInformation(moveIn.id)} disabled={submitting}>Request info</button>}
                                                     {!["COMPLETED", "REJECTED", "CANCELLED"].includes(moveIn.status) && <button className="society-workflow-action" onClick={() => runWorkflowAction(moveIn)} disabled={submitting}>{moveIn.status === "UNDER_VERIFICATION" ? "Approve" : ({ PENDING_DOCUMENTS: "Submit docs", DOCUMENTS_SUBMITTED: "Verify", APPROVED: "Issue pass", GATE_PASS_ISSUED: "Create ledger", LEDGER_CREATED: "Activate access", ACCESS_ACTIVATED: "Complete" }[moveIn.status] || "Continue")}</button>}
-                                                    {moveIn.status === "PENDING_DOCUMENTS" && <button className="society-icon-action society-delete-action" title="Delete move-in" aria-label={`Delete ${moveIn.id}`} onClick={() => handleDelete(moveIn.id)} disabled={submitting}><Trash2 size={16} /></button>}
+                                                    {hasPermission("MOVE_IN_DELETE") && <button className="society-icon-action society-delete-action" title="Delete move-in" aria-label={`Delete ${moveIn.id}`} onClick={() => handleDelete(moveIn.id)} disabled={submitting}><Trash2 size={16} /></button>}
                                                 </div>
                                             </td>
                                         </tr>
@@ -266,6 +282,29 @@ const MoveInListPage = () => {
                 )}
             </section>
 
+            {viewingDocuments && <div className="society-modal-layer" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setViewingDocuments(null); }}>
+                <section className="society-form-modal movein-documents-modal" role="dialog" aria-modal="true" aria-labelledby="movein-documents-title">
+                    <header className="society-form-header">
+                        <div>
+                            <h2 id="movein-documents-title">Move-in documents</h2>
+                            <p>{residents.find((item) => item.id === viewingDocuments.residentId)?.displayName || residents.find((item) => item.id === viewingDocuments.residentId)?.name || "Resident"} · {units.find((item) => item.id === viewingDocuments.unitId)?.unitNumber || "Unit"}</p>
+                        </div>
+                        <button type="button" className="modal-close-btn" onClick={() => setViewingDocuments(null)} aria-label="Close documents"><X size={20} /></button>
+                    </header>
+                    <div className="movein-documents-list">
+                        {moveInDocuments(viewingDocuments).map(([label, path]) => (
+                            <button key={label} type="button" className="movein-document-link" onClick={async () => {
+                                try { await openMoveInDocument(path); }
+                                catch (documentError) { setError(documentError.response?.data?.message || documentError.message || "Could not open the document."); }
+                            }}>
+                                <FileText size={18} />
+                                <span><strong>{label}</strong><small>Open uploaded file</small></span>
+                                <span aria-hidden="true">↗</span>
+                            </button>
+                        ))}
+                    </div>
+                </section>
+            </div>}
             {showForm && <div className="society-modal-layer" onMouseDown={(event) => { if (event.target === event.currentTarget) closeForm(); }}><MoveInForm key={editingMoveIn?.id || "new-move-in"} moveIn={editingMoveIn} onClose={closeForm} onSuccess={async () => { closeForm(); await loadData(); }} /></div>}
         </section>
     );

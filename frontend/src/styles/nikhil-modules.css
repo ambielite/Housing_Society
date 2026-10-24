@@ -953,6 +953,16 @@ font-size: 12px;
 
 /* The modal layer keeps move-in/out forms centered above the current page. */
 .society-modal-layer { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; padding: 24px; overflow-y: auto; background: rgba(15, 23, 42, .52); backdrop-filter: blur(2px); }
+.movein-documents-modal { width: min(520px, 100%); max-height: min(80vh, 680px); }
+.movein-documents-modal .society-form-header { flex: 0 0 auto; }
+.movein-documents-list { display: grid; gap: 10px; padding: 18px 22px 22px; overflow-y: auto; }
+.movein-document-link { display: flex; width: 100%; align-items: center; gap: 12px; padding: 13px 14px; border: 1px solid var(--border-color, #e5e7eb); border-radius: 10px; background: var(--surface, #fff); color: var(--text-primary, #111827); text-align: left; font: inherit; cursor: pointer; }
+.movein-document-link:hover { border-color: var(--action, #4f46e5); background: var(--surface-2, #f8faff); }
+.movein-document-link > svg { flex: 0 0 auto; color: var(--action, #4f46e5); }
+.movein-document-link > span:nth-child(2) { display: grid; flex: 1; gap: 4px; }
+.movein-document-link small { color: var(--muted, #667085); }
+.movein-documents-button { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.movein-file-link { padding: 0; border: 0; background: transparent; color: var(--action, #4f46e5); text-decoration: underline; cursor: pointer; font: inherit; }
 .society-form-modal { width: min(760px, 100%); max-height: min(90vh, 900px); display: flex; flex-direction: column; overflow: hidden; border: 1px solid #e5e7eb; border-radius: 14px; background: #fff; box-shadow: 0 24px 70px rgba(15, 23, 42, .28); }
 .society-form-modal > form { min-height: 0; display: flex; flex: 1; flex-direction: column; overflow: hidden; }
 .society-form-modal .society-form-body { min-height: 0; overflow-y: auto; }

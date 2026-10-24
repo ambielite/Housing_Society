@@ -6,6 +6,7 @@ import agreementApi from "../api/agreement.api";
 import societyApi from "../../societies/api/society.api";
 import unitApi from "../../units/api/unit.api";
 import residentApi from "../../residents/api/resident.api";
+import { openMoveInDocument } from "../utils/openMoveInDocument";
 
 const rowsFrom = (response) => {
     const rows = Array.isArray(response) ? response : response?.data || response?.records || [];
@@ -21,9 +22,6 @@ const initialValues = (moveIn = null) => ({
     agreementId: moveIn?.agreementId || "",
     remarks: moveIn?.remarks || ""
 });
-
-const documentBaseUrl = (import.meta.env.VITE_LEGACY_API_BASE_URL || import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api/v1").replace(/\/api(?:\/v1)?\/?$/, "");
-const documentHref = (path) => /^https?:\/\//i.test(path) ? path : `${documentBaseUrl}${path}`;
 
 const MoveInForm = ({ moveIn, onClose, onSuccess }) => {
     const [values, setValues] = useState(() => initialValues(moveIn));
@@ -191,7 +189,10 @@ const MoveInForm = ({ moveIn, onClose, onSuccess }) => {
                                 </div>
                                 {[["leaseDocument", "Lease / signed agreement document", moveIn?.leaseDocument], ["registryDocument", "Registry document", moveIn?.registryDocument], ["policeVerificationDocument", "Police verification document", moveIn?.policeVerificationDocument]].map(([field, label, existingPath]) => <div className={`form-group${field === "policeVerificationDocument" ? " form-group-full" : ""}`} key={field}>
                                     <label htmlFor={`movein-${field}`}>{label}</label>
-                                    {existingPath && <small className="field-hint">Current file: <a href={documentHref(existingPath)} target="_blank" rel="noreferrer">View uploaded document</a></small>}
+                                    {existingPath && <small className="field-hint">Current file: <button type="button" className="movein-file-link" onClick={async () => {
+                                        try { await openMoveInDocument(existingPath); }
+                                        catch (documentError) { setError(documentError.response?.data?.message || documentError.message || "Could not open the document."); }
+                                    }}>View uploaded document</button></small>}
                                     <input id={`movein-${field}`} name={field} type="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,application/pdf,image/png,image/jpeg" onChange={updateDocument} />
                                     {documents[field] && <small className="field-hint">Selected: {documents[field].name}</small>}
                                 </div>)}

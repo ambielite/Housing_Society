@@ -56,6 +56,27 @@ const getMoveIn = async (req, res) => {
     }
 };
 
+const getMoveInDocument = async (req, res) => {
+    try {
+        const document = await service.getMoveInDocument(req.params.id, req.params.documentType);
+        if (!document) {
+            return res.status(404).json({ success: false, message: "Move-in document not found" });
+        }
+        if (String(document.society_id) !== String(req.user.societyId)) {
+            return res.status(403).json({ success: false, message: "You do not have access to this society document" });
+        }
+
+        const safeFilename = encodeURIComponent(document.original_filename).replace(/[!'()*]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
+        res.setHeader("Content-Type", document.mime_type);
+        res.setHeader("Content-Length", String(document.file_size));
+        res.setHeader("Content-Disposition", `inline; filename*=UTF-8''${safeFilename}`);
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        return res.send(document.content);
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 const updateMoveIn = async (req, res) => {
     try {
         const moveIn = await service.updateMoveIn(
@@ -332,6 +353,7 @@ module.exports = {
     createMoveIn,
     getMoveIns,
     getMoveIn,
+    getMoveInDocument,
     updateMoveIn,
     deleteMoveIn,
     submitDocuments,

@@ -55,6 +55,12 @@ router.get(
 );
 
 router.get(
+    "/:id/documents/:documentType",
+    validation.validateMoveInId,
+    controller.getMoveInDocument
+);
+
+router.get(
     "/:id",
     validation.validateMoveInId,
     controller.getMoveIn
