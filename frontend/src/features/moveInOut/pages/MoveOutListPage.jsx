@@ -1,14 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowUpRight, CheckCircle2, Edit, Plus, RefreshCw, Search, Trash2, XCircle } from "lucide-react";
+import { ArrowUpRight, CheckCircle2, Edit, Plus, RefreshCw, Search, Trash2, UserRound, XCircle } from "lucide-react";
 import moveOutApi from "../api/moveOut.api";
 import residentApi from "../../residents/api/resident.api";
 import unitApi from "../../units/api/unit.api";
 import MoveOutForm from "../components/MoveOutForm";
 import { useAuth } from "../../../app/providers/useAuth";
+import { RecordDetailsModal } from "../../../components/ui/Modal";
+import { listUsers } from "../../users/api/user.api";
+import { approverName, formatApprovalDateTime } from "../utils/approvalDisplay";
 
 const rowsFrom = (response) => {
     const rows = Array.isArray(response) ? response : response?.data || response?.records || [];
     return Array.isArray(rows) ? rows : [];
+};
+
+const profileImageUrl = (url) => {
+    if (!url) return undefined;
+    const value = String(url).trim().replaceAll("\\", "/");
+    if (/^https?:\/\//i.test(value)) return value;
+    const base = import.meta.env.VITE_LEGACY_API_BASE_URL || "http://localhost:5000/api";
+    return `${new URL(base, window.location.origin).origin}/${value.replace(/^\/+/, "")}`;
 };
 
 const statusTone = (status) => ["COMPLETED", "APPROVED", "ACCESS_REVOKED"].includes(status) ? "success" : ["REJECTED", "CANCELLED"].includes(status) ? "danger" : ["REQUESTED", "CHECKLIST_PENDING", "DUES_PENDING", "FINANCIAL_CLEARANCE_PENDING", "UNDER_VERIFICATION"].includes(status) ? "pending" : "neutral";
@@ -17,27 +28,34 @@ const MoveOutListPage = () => {
     const [moveOuts, setMoveOuts] = useState([]);
     const [residents, setResidents] = useState([]);
     const [units, setUnits] = useState([]);
+    const [approverUsers, setApproverUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [search, setSearch] = useState("");
     const [editingMoveOut, setEditingMoveOut] = useState(null);
+    const [viewingMoveOut, setViewingMoveOut] = useState(null);
     const [showForm, setShowForm] = useState(false);
     const [submitting, setSubmitting] = useState(false);
-    const { user } = useAuth();
+    const { user, hasPermission } = useAuth();
 
     const loadData = async () => {
         try {
             setLoading(true);
             setError("");
-            const [moveOutResponse, residentResponse, unitResponse] = await Promise.all([
+            const approverUsersRequest = hasPermission("USER_READ")
+                ? listUsers({ page: 1, limit: 100, ...(user?.societyId ? { societyId: user.societyId } : {}) }).catch(() => null)
+                : Promise.resolve(null);
+            const [moveOutResponse, residentResponse, unitResponse, approverResponse] = await Promise.all([
                 moveOutApi.getAll(),
                 residentApi.getAll(),
-                unitApi.getAll()
+                unitApi.getAll(),
+                approverUsersRequest
             ]);
 
             setMoveOuts(rowsFrom(moveOutResponse));
             setResidents(rowsFrom(residentResponse));
             setUnits(rowsFrom(unitResponse));
+            setApproverUsers(approverResponse?.users || []);
         } catch (err) {
             setError(err.response?.data?.message || "Could not load move-outs.");
         } finally {
@@ -247,9 +265,9 @@ const MoveOutListPage = () => {
                                         <tr key={moveOut.id}>
                                             <td>
                                                 <div className="society-name-cell">
-                                                    <span className="society-avatar"><ArrowUpRight size={18} /></span>
+                                                    <span className="society-avatar">{resident?.profilePhoto ? <img src={profileImageUrl(resident.profilePhoto)} alt={resident.displayName || "Resident"} className="resident-table-photo" /> : <UserRound size={18} />}</span>
                                                     <span>
-                                                        <strong>{resident?.displayName || resident?.name || "Resident"}</strong>
+                                                        <button type="button" className="record-details-trigger" onClick={() => setViewingMoveOut(moveOut)}>{resident?.displayName || resident?.name || "Resident"}</button>
                                                         <small>{moveOut.financialClearanceStatus || "PENDING"}</small>
                                                     </span>
                                                 </div>
@@ -276,6 +294,19 @@ const MoveOutListPage = () => {
                     </div>
                 )}
             </section>
+
+            {viewingMoveOut && (() => {
+                const resident = residents.find((item) => item.id === viewingMoveOut.residentId);
+                const unit = units.find((item) => item.id === viewingMoveOut.unitId);
+                const checklistTasks = Array.isArray(viewingMoveOut.checklistTasks) ? viewingMoveOut.checklistTasks : [];
+                const checklistSummary = checklistTasks.map((task) => typeof task === "string" ? task : task?.taskName || task?.name || task?.title).filter(Boolean).join(", ");
+                return <RecordDetailsModal title={resident?.displayName || resident?.name || "Resident move-out details"} subtitle="Resident profile and move-out request" icon={UserRound} image={profileImageUrl(resident?.profilePhoto)} onClose={() => setViewingMoveOut(null)} sections={[
+                    { title: "Resident information", fields: [["Name", resident?.displayName || resident?.name], ["Email", resident?.email], ["Mobile", resident?.mobile], ["Role", resident?.role], ["Resident status", resident?.status]] },
+                    { title: "Move-out details", fields: [["Unit", unit?.unitNumber || unit?.name], ["Status", viewingMoveOut.status], ["Requested move-out", viewingMoveOut.requestedMoveOutDate], ["Effective move-out", viewingMoveOut.effectiveMoveOutDate], ["Actual move-out", viewingMoveOut.actualMoveOutDate], ["Gate pass", viewingMoveOut.gatePassCode], ["Checklist completed", viewingMoveOut.checklistCompleted], ["Checklist tasks", checklistSummary || (checklistTasks.length ? `${checklistTasks.length} task(s)` : null)], ["Remarks", viewingMoveOut.remarks]] },
+                    { title: "Financial clearance", fields: [["Clearance status", viewingMoveOut.financialClearanceStatus], ["Outstanding amount", viewingMoveOut.outstandingAmount], ["Configured charges", viewingMoveOut.configuredCharges], ["Charges paid", viewingMoveOut.chargesPaid], ["Revert billing to owner", viewingMoveOut.revertBillingToOwner]] },
+                    { title: "Approval", fields: [["Approved by", approverName(viewingMoveOut.approvedBy, approverUsers, user)], ["Approved at", formatApprovalDateTime(viewingMoveOut.approvedAt)], ["Signed off by", approverName(viewingMoveOut.signedOffBy, approverUsers, user)], ["Signed off at", formatApprovalDateTime(viewingMoveOut.signedOffAt)], ["Cancellation reason", viewingMoveOut.cancellationReason]] }
+                ]} />;
+            })()}
 
             {showForm && <div className="society-modal-layer" onMouseDown={(event) => { if (event.target === event.currentTarget) closeForm(); }}><MoveOutForm key={editingMoveOut?.id || "new-move-out"} moveOut={editingMoveOut} onClose={closeForm} onSuccess={async () => { closeForm(); await loadData(); }} /></div>}
         </section>

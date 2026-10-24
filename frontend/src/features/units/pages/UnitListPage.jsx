@@ -5,6 +5,10 @@ import floorApi from "../../floors/api/floor.api";
 import societyApi from "../../societies/api/society.api";
 import towerApi from "../../towers/api/tower.api";
 import unitApi from "../api/unit.api";
+import ownerUnitApi from "../../residents/api/ownerUnit.api";
+import residentApi from "../../residents/api/resident.api";
+import moveInApi from "../../moveInOut/api/moveIn.api";
+import moveOutApi from "../../moveInOut/api/moveOut.api";
 import UnitForm from "../components/UnitForm";
 import { RecordDetailsModal } from "../../../components/ui/Modal";
 
@@ -19,6 +23,10 @@ const UnitListPage = () => {
     const [floors, setFloors] = useState([]);
     const [towers, setTowers] = useState([]);
     const [societies, setSocieties] = useState([]);
+    const [ownerUnits, setOwnerUnits] = useState([]);
+    const [residents, setResidents] = useState([]);
+    const [moveIns, setMoveIns] = useState([]);
+    const [moveOuts, setMoveOuts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [search, setSearch] = useState("");
@@ -29,13 +37,17 @@ const UnitListPage = () => {
 
     useEffect(() => {
         let mounted = true;
-        Promise.all([unitApi.getAll(), floorApi.getAll(), towerApi.getAll().catch(() => []), societyApi.getAll().catch(() => [])])
-            .then(([unitResponse, floorResponse, towerResponse, societyResponse]) => {
+        Promise.all([unitApi.getAll(), floorApi.getAll(), towerApi.getAll().catch(() => []), societyApi.getAll().catch(() => []), ownerUnitApi.getAll().catch(() => []), residentApi.getAll().catch(() => []), moveInApi.getAll().catch(() => []), moveOutApi.getAll().catch(() => [])])
+            .then(([unitResponse, floorResponse, towerResponse, societyResponse, ownerResponse, residentResponse, moveInResponse, moveOutResponse]) => {
                 if (!mounted) return;
                 setUnits(rowsFrom(unitResponse));
                 setFloors(rowsFrom(floorResponse));
                 setTowers(rowsFrom(towerResponse));
                 setSocieties(rowsFrom(societyResponse));
+                setOwnerUnits(rowsFrom(ownerResponse));
+                setResidents(rowsFrom(residentResponse));
+                setMoveIns(rowsFrom(moveInResponse));
+                setMoveOuts(rowsFrom(moveOutResponse));
             })
             .catch((err) => { if (mounted) setError(err.response?.data?.message || "Could not load units."); })
             .finally(() => { if (mounted) setLoading(false); });
@@ -55,11 +67,15 @@ const UnitListPage = () => {
         setLoading(true);
         setError("");
         try {
-            const [unitResponse, floorResponse, towerResponse, societyResponse] = await Promise.all([unitApi.getAll(), floorApi.getAll(), towerApi.getAll().catch(() => []), societyApi.getAll().catch(() => [])]);
+            const [unitResponse, floorResponse, towerResponse, societyResponse, ownerResponse, residentResponse, moveInResponse, moveOutResponse] = await Promise.all([unitApi.getAll(), floorApi.getAll(), towerApi.getAll().catch(() => []), societyApi.getAll().catch(() => []), ownerUnitApi.getAll().catch(() => []), residentApi.getAll().catch(() => []), moveInApi.getAll().catch(() => []), moveOutApi.getAll().catch(() => [])]);
             setUnits(rowsFrom(unitResponse));
             setFloors(rowsFrom(floorResponse));
             setTowers(rowsFrom(towerResponse));
             setSocieties(rowsFrom(societyResponse));
+            setOwnerUnits(rowsFrom(ownerResponse));
+            setResidents(rowsFrom(residentResponse));
+            setMoveIns(rowsFrom(moveInResponse));
+            setMoveOuts(rowsFrom(moveOutResponse));
         } catch (err) {
             setError(err.response?.data?.message || "Could not load units.");
         } finally { setLoading(false); }
@@ -104,11 +120,42 @@ const UnitListPage = () => {
                 )}
             </section>
             {showForm && <div className="society-modal-layer" onMouseDown={(event) => { if (event.target === event.currentTarget) closeForm(); }}><UnitForm key={editingUnit?.id || "new-unit"} unit={editingUnit} floors={floors} towers={towers} onClose={closeForm} onSuccess={saveComplete} /></div>}
-            {viewingUnit && (() => { const floor = floors.find((item) => item.id === viewingUnit.floorId); const tower = floor && towers.find((item) => item.id === floor.towerId); const society = tower && societies.find((item) => item.id === tower.societyId); return <RecordDetailsModal title={`Unit ${viewingUnit.unitNumber || "details"}`} subtitle="Home profile and property assignment" icon={Home} onClose={() => setViewingUnit(null)} sections={[
-                { title: "Unit information", fields: [["Unit number", viewingUnit.unitNumber], ["Configuration", viewingUnit.bhk], ["Property type", viewingUnit.propertyType], ["Status", viewingUnit.status || "VACANT"], ["Unit ID", viewingUnit.id]] },
+            {viewingUnit && (() => {
+                const floor = floors.find((item) => item.id === viewingUnit.floorId);
+                const tower = floor && towers.find((item) => item.id === floor.towerId);
+                const society = tower && societies.find((item) => item.id === tower.societyId);
+                const owners = ownerUnits.filter((item) => item.unitId === viewingUnit.id && item.status === "ACTIVE");
+                const unitMoveOuts = moveOuts
+                    .filter((item) => item.unitId === viewingUnit.id)
+                    .sort((left, right) => new Date(right.actualMoveOutDate || right.effectiveMoveOutDate || right.requestedMoveOutDate || right.createdAt || 0) - new Date(left.actualMoveOutDate || left.effectiveMoveOutDate || left.requestedMoveOutDate || left.createdAt || 0));
+                const completedMoveOuts = unitMoveOuts.filter((item) => ["ACCESS_REVOKED", "COMPLETED"].includes(item.status));
+                const unitMoveIns = moveIns
+                    .filter((item) => item.unitId === viewingUnit.id && !["REJECTED", "CANCELLED"].includes(item.status))
+                    .filter((moveIn) => !completedMoveOuts.some((moveOut) => {
+                        if (moveOut.residentId !== moveIn.residentId) return false;
+                        const moveInDate = new Date(moveIn.actualMoveInDate || moveIn.requestedMoveInDate || moveIn.createdAt || 0).getTime();
+                        const moveOutDate = new Date(moveOut.actualMoveOutDate || moveOut.effectiveMoveOutDate || moveOut.requestedMoveOutDate || moveOut.createdAt || 0).getTime();
+                        return moveOutDate >= moveInDate;
+                    }))
+                    .sort((left, right) => new Date(right.actualMoveInDate || right.requestedMoveInDate || right.createdAt || 0) - new Date(left.actualMoveInDate || left.requestedMoveInDate || left.createdAt || 0));
+                const latestMoveOut = unitMoveOuts.find((item) => !["REJECTED", "CANCELLED"].includes(item.status));
+                const displayedUnitStatus = unitMoveIns.length ? "OCCUPIED" : completedMoveOuts.length ? "VACANT" : viewingUnit.status || "VACANT";
+                return <RecordDetailsModal title={`Unit ${viewingUnit.unitNumber || "details"}`} subtitle="Home profile and property assignment" icon={Home} onClose={() => setViewingUnit(null)} sections={[
+                { title: "Unit information", fields: [["Unit number", viewingUnit.unitNumber], ["Configuration", viewingUnit.bhk], ["Property type", viewingUnit.propertyType], ["Status", displayedUnitStatus], ["Unit ID", viewingUnit.id]] },
                 { title: "Area details", fields: [["Carpet area", viewingUnit.carpetArea == null ? null : `${viewingUnit.carpetArea} sq. ft.`], ["Built-up area", viewingUnit.builtUpArea == null ? null : `${viewingUnit.builtUpArea} sq. ft.`]] },
                 { title: "Location", fields: [["Floor", floor?.name || (floor ? `Floor ${floor.floorNumber}` : null)], ["Tower", tower?.name], ["Society", society?.name], ["Society ID", society?.id]] },
-                { title: "Society contact", fields: [["Email", society?.email], ["Phone", society?.phone], ["Address", society?.address]] }
+                { title: "Society contact", fields: [["Email", society?.email], ["Phone", society?.phone], ["Address", society?.address]] },
+                ...((owners.length ? owners : [null]).map((owner, index) => {
+                    const resident = owner && residents.find((item) => item.id === owner.ownerId);
+                    return { title: owners.length ? `Owner ${index + 1}` : "Unit owner", fields: [["Name", resident?.displayName || [resident?.firstName, resident?.middleName, resident?.lastName].filter(Boolean).join(" ") || (owner ? "Resident details unavailable" : "No owner linked")], ["Ownership type", owner?.ownershipType], ["Ownership share", owner?.ownershipPercentage == null ? null : `${owner.ownershipPercentage}%`], ["Email", resident?.email], ["Mobile", resident?.mobile], ["Status", owner?.status]] };
+                })),
+                ...((unitMoveIns.length ? unitMoveIns : [null]).map((moveIn, index) => {
+                    const resident = moveIn && residents.find((item) => item.id === moveIn.residentId);
+                    const noCurrentResident = !moveIn && completedMoveOuts.length > 0;
+                    const vacancyMessage = noCurrentResident ? `No current resident; move-out ${completedMoveOuts[0].status === "COMPLETED" ? "completed" : "access revoked"}` : "No move-in resident recorded";
+                    return { title: unitMoveIns.length ? `Move-in resident ${index + 1}` : "Move-in resident", fields: [["Name", resident?.displayName || [resident?.firstName, resident?.middleName, resident?.lastName].filter(Boolean).join(" ") || (moveIn ? "Resident details unavailable" : vacancyMessage)], ["Occupancy type", moveIn?.occupancyType], ["Email", resident?.email], ["Mobile", resident?.mobile], ["Move-in status", moveIn?.status], ["Requested move-in", moveIn?.requestedMoveInDate], ["Actual move-in", moveIn?.actualMoveInDate]] };
+                })),
+                ...(latestMoveOut ? [{ title: "Latest move-out", fields: [["Resident", residents.find((item) => item.id === latestMoveOut.residentId)?.displayName || residents.find((item) => item.id === latestMoveOut.residentId)?.name || "Resident"], ["Status", latestMoveOut.status], ["Requested move-out", latestMoveOut.requestedMoveOutDate], ["Effective move-out", latestMoveOut.effectiveMoveOutDate], ["Actual move-out", latestMoveOut.actualMoveOutDate], ["Financial clearance", latestMoveOut.financialClearanceStatus]] }] : [])
             ]} />; })()}
         </section>
     );

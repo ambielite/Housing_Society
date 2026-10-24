@@ -1,14 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
-import { Building2, CheckCircle2,  Home, KeyRound, Plus, Search, SquarePen, Trash2, Users } from "lucide-react";
+import { Building2, CheckCircle2,  Home, KeyRound, Plus, Search, SquarePen, Trash2, Users, UserRound } from "lucide-react";
 
 import residentApi from "../api/resident.api";
 import ownerUnitApi from "../api/ownerUnit.api";
 import unitApi from "../../units/api/unit.api";
 import societyApi from "../../societies/api/society.api";
+import { RecordDetailsModal } from "../../../components/ui/Modal";
 
 const rowsFrom = (response) => {
     const rows = Array.isArray(response) ? response : response?.data || response?.records || [];
     return Array.isArray(rows) ? rows : [];
+};
+
+const profileImageUrl = (url) => {
+    if (!url) return undefined;
+    const value = String(url).trim().replaceAll("\\", "/");
+    if (/^https?:\/\//i.test(value)) return value;
+    const base = import.meta.env.VITE_LEGACY_API_BASE_URL || "http://localhost:5000/api";
+    return `${new URL(base, window.location.origin).origin}/${value.replace(/^\/+/, "")}`;
 };
 
 const emptyForm = () => ({
@@ -34,6 +43,7 @@ const ResidentHierarchyPage = () => {
     const [editingId, setEditingId] = useState(null);
     const [form, setForm] = useState(emptyForm());
     const [search, setSearch] = useState("");
+    const [viewingResident, setViewingResident] = useState(null);
 
     const loadData = async () => {
         try {
@@ -211,14 +221,14 @@ const ResidentHierarchyPage = () => {
                                         <td>
                                             <div className="society-name-cell">
                                                 <span className="society-avatar">
-                                                    {resident.avatarUrl ? (
-                                                        <img src={resident.avatarUrl} alt={resident.displayName || resident.firstName} className="society-avatar-img" />
+                                                    {resident.profilePhoto ? (
+                                                        <img src={profileImageUrl(resident.profilePhoto)} alt={resident.displayName || resident.firstName || "Resident"} className="resident-table-photo" />
                                                     ) : (
                                                         <Users size={19} />
                                                     )}
                                                 </span>
                                                 <span>
-                                                    <strong>{resident.displayName || `${resident.firstName || ""} ${resident.lastName || ""}`.trim() || "Unnamed resident"}</strong>
+                                                    <button type="button" className="record-details-trigger" onClick={() => setViewingResident(resident)}>{resident.displayName || `${resident.firstName || ""} ${resident.lastName || ""}`.trim() || "Unnamed resident"}</button>
                                                     <small>{resident.email || resident.mobile || "No contact"}</small>
                                                 </span>
                                             </div>
@@ -313,6 +323,27 @@ const ResidentHierarchyPage = () => {
                     </section>
                 </div>
             )}
+
+            {viewingResident && <RecordDetailsModal
+                title={viewingResident.displayName || [viewingResident.firstName, viewingResident.middleName, viewingResident.lastName].filter(Boolean).join(" ") || "Resident details"}
+                subtitle="Resident profile and ownership details"
+                icon={UserRound}
+                image={profileImageUrl(viewingResident.profilePhoto)}
+                onClose={() => setViewingResident(null)}
+                sections={[
+                    { title: "Personal information", fields: [["First name", viewingResident.firstName], ["Middle name", viewingResident.middleName], ["Last name", viewingResident.lastName], ["Date of birth", viewingResident.dateOfBirth], ["Role", viewingResident.role], ["Status", viewingResident.status]] },
+                    { title: "Contact", fields: [["Email", viewingResident.email], ["Mobile", viewingResident.mobile], ["Alternate mobile", viewingResident.alternateMobile], ["Emergency contact", viewingResident.emergencyContactName], ["Emergency phone", viewingResident.emergencyContactMobile]] },
+                    ...viewingResident.ownerships.map((ownership, index) => {
+                        const unit = units.find((item) => item.id === ownership.unitId);
+                        const society = societies.find((item) => item.id === ownership.societyId);
+                        return {
+                            title: `Ownership ${index + 1}`,
+                            fields: [["Unit", unit?.unitNumber || unit?.name], ["Society", society?.name], ["Ownership type", ownership.ownershipType], ["Ownership share", ownership.ownershipPercentage == null ? null : `${ownership.ownershipPercentage}%`], ["Status", ownership.status], ["Effective from", ownership.effectiveFrom], ["Effective to", ownership.effectiveTo], ["Remarks", ownership.remarks]]
+                        };
+                    }),
+                    { title: "Resident record", fields: [["Resident ID", viewingResident.id]] }
+                ]}
+            />}
         </section>
     );
 };

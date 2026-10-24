@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowDownLeft, CheckCircle2, Edit, FileText, Plus, RefreshCw, Search, Trash2, X, XCircle } from "lucide-react";
+import { ArrowDownLeft, CheckCircle2, Edit, FileText, Plus, RefreshCw, Search, Trash2, UserRound, X, XCircle } from "lucide-react";
 import moveInApi from "../api/moveIn.api";
 import residentApi from "../../residents/api/resident.api";
 import unitApi from "../../units/api/unit.api";
 import MoveInForm from "../components/MoveInForm";
 import { openMoveInDocument } from "../utils/openMoveInDocument";
 import { useAuth } from "../../../app/providers/useAuth";
+import { RecordDetailsModal } from "../../../components/ui/Modal";
+import { listUsers } from "../../users/api/user.api";
+import { approverName, formatApprovalDateTime } from "../utils/approvalDisplay";
 
 const rowsFrom = (response) => {
     const rows = Array.isArray(response) ? response : response?.data || response?.records || [];
@@ -18,17 +21,27 @@ const moveInDocuments = (moveIn) => [
     ["Police verification", moveIn.policeVerificationDocument]
 ].filter(([, path]) => Boolean(path));
 
+const profileImageUrl = (url) => {
+    if (!url) return undefined;
+    const value = String(url).trim().replaceAll("\\", "/");
+    if (/^https?:\/\//i.test(value)) return value;
+    const base = import.meta.env.VITE_LEGACY_API_BASE_URL || "http://localhost:5000/api";
+    return `${new URL(base, window.location.origin).origin}/${value.replace(/^\/+/, "")}`;
+};
+
 const statusTone = (status) => ["COMPLETED", "APPROVED", "ACCESS_ACTIVATED", "CLEARED"].includes(status) ? "success" : ["REJECTED", "CANCELLED"].includes(status) ? "danger" : ["PENDING_DOCUMENTS", "INFORMATION_REQUIRED", "UNDER_VERIFICATION"].includes(status) ? "pending" : "neutral";
 
 const MoveInListPage = () => {
     const [moveIns, setMoveIns] = useState([]);
     const [residents, setResidents] = useState([]);
     const [units, setUnits] = useState([]);
+    const [approverUsers, setApproverUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [search, setSearch] = useState("");
     const [editingMoveIn, setEditingMoveIn] = useState(null);
     const [viewingDocuments, setViewingDocuments] = useState(null);
+    const [viewingMoveIn, setViewingMoveIn] = useState(null);
     const [showForm, setShowForm] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const { user, hasPermission } = useAuth();
@@ -37,15 +50,20 @@ const MoveInListPage = () => {
         try {
             setLoading(true);
             setError("");
-            const [moveInResponse, residentResponse, unitResponse] = await Promise.all([
+            const approverUsersRequest = hasPermission("USER_READ")
+                ? listUsers({ page: 1, limit: 100, ...(user?.societyId ? { societyId: user.societyId } : {}) }).catch(() => null)
+                : Promise.resolve(null);
+            const [moveInResponse, residentResponse, unitResponse, approverResponse] = await Promise.all([
                 moveInApi.getAll(),
                 residentApi.getAll(),
-                unitApi.getAll()
+                unitApi.getAll(),
+                approverUsersRequest
             ]);
 
             setMoveIns(rowsFrom(moveInResponse));
             setResidents(rowsFrom(residentResponse));
             setUnits(rowsFrom(unitResponse));
+            setApproverUsers(approverResponse?.users || []);
         } catch (err) {
             setError(err.response?.data?.message || "Could not load move-ins.");
         } finally {
@@ -245,9 +263,9 @@ const MoveInListPage = () => {
                                         <tr key={moveIn.id}>
                                             <td>
                                                 <div className="society-name-cell">
-                                                    <span className="society-avatar"><CheckCircle2 size={18} /></span>
+                                                    <span className="society-avatar">{resident?.profilePhoto ? <img src={profileImageUrl(resident.profilePhoto)} alt={resident.displayName || "Resident"} className="resident-table-photo" /> : <UserRound size={18} />}</span>
                                                     <span>
-                                                        <strong>{resident?.displayName || resident?.name || "Resident"}</strong>
+                                                        <button type="button" className="record-details-trigger" onClick={() => setViewingMoveIn(moveIn)}>{resident?.displayName || resident?.name || "Resident"}</button>
                                                         <small>{moveIn.occupancyType || "OWNER"}</small>
                                                     </span>
                                                 </div>
@@ -305,6 +323,16 @@ const MoveInListPage = () => {
                     </div>
                 </section>
             </div>}
+            {viewingMoveIn && (() => {
+                const resident = residents.find((item) => item.id === viewingMoveIn.residentId);
+                const unit = units.find((item) => item.id === viewingMoveIn.unitId);
+                return <RecordDetailsModal title={resident?.displayName || resident?.name || "Resident move-in details"} subtitle="Resident profile and move-in request" icon={UserRound} image={profileImageUrl(resident?.profilePhoto)} onClose={() => setViewingMoveIn(null)} sections={[
+                    { title: "Resident information", fields: [["Name", resident?.displayName || resident?.name], ["Email", resident?.email], ["Mobile", resident?.mobile], ["Role", resident?.role], ["Resident status", resident?.status]] },
+                    { title: "Move-in details", fields: [["Unit", unit?.unitNumber || unit?.name], ["Occupancy type", viewingMoveIn.occupancyType], ["Status", viewingMoveIn.status], ["Requested move-in", viewingMoveIn.requestedMoveInDate], ["Actual move-in", viewingMoveIn.actualMoveInDate], ["Gate pass", viewingMoveIn.gatePassCode], ["Information requested", viewingMoveIn.informationRequest], ["Remarks", viewingMoveIn.remarks]] },
+                    { title: "Approval", fields: [["Approved by", approverName(viewingMoveIn.approvedBy, approverUsers, user)], ["Approved at", formatApprovalDateTime(viewingMoveIn.approvedAt)], ["Agreement ID", viewingMoveIn.agreementId]] },
+                    { title: "Documents", fields: [["Lease / agreement", viewingMoveIn.leaseDocument ? "Uploaded" : null], ["Registry document", viewingMoveIn.registryDocument ? "Uploaded" : null], ["Police verification", viewingMoveIn.policeVerificationDocument ? "Uploaded" : null]] }
+                ]} />;
+            })()}
             {showForm && <div className="society-modal-layer" onMouseDown={(event) => { if (event.target === event.currentTarget) closeForm(); }}><MoveInForm key={editingMoveIn?.id || "new-move-in"} moveIn={editingMoveIn} onClose={closeForm} onSuccess={async () => { closeForm(); await loadData(); }} /></div>}
         </section>
     );
