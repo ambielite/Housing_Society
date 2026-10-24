@@ -223,7 +223,7 @@ const ResidentHierarchyPage = () => {
                                                 </span>
                                             </div>
                                         </td>
-                                        <td><span className="society-tax-label">{resident.role || "PRIMARY_OWNER"}</span></td>
+                                        <td>{(resident.role || "PRIMARY_OWNER").replaceAll("_", " ")}</td>
                                         <td>{resident.unitCount}</td>
                                         <td>{resident.ownerships[0]?.ownershipType || "PRIMARY_OWNER"}</td>
                                         <td>

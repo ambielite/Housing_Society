@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-    Building2, CheckCircle2, Edit, MapPin, Plus,
+    Building2, CheckCircle2, SquarePen, MapPin, Plus,
     RefreshCw, Search, Trash2
 } from "lucide-react";
 import societyApi from "../api/society.api";
@@ -132,7 +132,7 @@ const SocietyPage = () => {
                             <td>{society.reraNumber ? <span className="society-registration"><CheckCircle2 size={14} /> {society.reraNumber}</span> : <span className="society-muted">Not provided</span>}</td>
                             <td><span className="society-tax-label">PAN:-</span> {society.pan || "—"}<br /><span className="society-tax-label">GSTIN:-</span> {society.gstin || "—"}</td>
                             <td><span className="society-region"><span className="society-region-dot" />{society.currency || "INR"}<small>{society.timezone || "Asia/Kolkata"}</small></span></td>
-                            <td><div className="society-row-actions"><button className="society-icon-action" title="Edit society" aria-label={`Edit ${society.name}`} onClick={() => openEdit(society)}><Edit size={16} /></button><button className="society-icon-action society-delete-action" title="Delete society" aria-label={`Delete ${society.name}`} onClick={() => handleDelete(society.id)}><Trash2 size={16} /></button></div></td>
+                            <td><div className="society-row-actions"><button className="society-icon-action" title="Edit society" aria-label={`Edit ${society.name}`} onClick={() => openEdit(society)}><SquarePen size={16} /></button><button className="society-icon-action society-delete-action" title="Delete society" aria-label={`Delete ${society.name}`} onClick={() => handleDelete(society.id)}><Trash2 size={16} /></button></div></td>
                         </tr>)}</tbody>
                     </table></div>
                 )}

@@ -111,7 +111,7 @@ export default function VehicleDetailPage() {
     { key: 'status', header: 'Status', render: (c) => <CredentialStatusBadge status={c.status} /> },
     {
       key: 'actions',
-      header: '',
+      header: 'Actions',
       render: (c) =>
         canCredential && c.status === 'ACTIVE' ? (
           <div className="row-actions">

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Building2, Plus, RefreshCw, Search, ShieldAlert, UserRound, Edit, Check, Trash2 } from "lucide-react";
+import { Building2, Plus, RefreshCw, Search, ShieldAlert, UserRound, SquarePen, Check, Trash2 } from "lucide-react";
 
 import nonMemberApi from "../api/nonMember.api";
 import societyApi from "../../societies/api/society.api";
@@ -227,7 +227,7 @@ const NonMemberListPage = () => {
                                                     aria-label={`Edit ${member.name}`}
                                                     onClick={() => openEdit(member)}
                                                 >
-                                                    <Edit size={16} />
+                                                    <SquarePen size={16} />
                                                 </button>
 
                                                 <button

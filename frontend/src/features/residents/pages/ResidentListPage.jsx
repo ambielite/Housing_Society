@@ -7,7 +7,7 @@ import {
 import { useSearchParams } from "react-router-dom";
 
 import {
-    Edit,
+    SquarePen,
     Plus,
     RefreshCw,
     Search,
@@ -740,11 +740,8 @@ const ResidentListPage = () => {
                                                 <td>
 
                                                     {resident.mobile ? (
-
-                                                        <span className="society-registration">
-
+                                                        <span>
                                                             {resident.mobile}
-
                                                         </span>
 
                                                     ) : (
@@ -766,7 +763,7 @@ const ResidentListPage = () => {
 
                                                 <td>
 
-                                                    <span className="society-tax-label">
+                                                    <span>
 
                                                         {(resident.role ||
                                                             "PRIMARY_OWNER")
@@ -822,7 +819,7 @@ const ResidentListPage = () => {
                                                             }
                                                         >
 
-                                                            <Edit size={16} />
+                                                            <SquarePen size={16} />
 
                                                         </button>
 

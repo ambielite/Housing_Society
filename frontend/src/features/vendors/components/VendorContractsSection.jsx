@@ -78,7 +78,7 @@ export default function VendorContractsSection({ vendorId }) {
     { key: 'status', header: 'Status', render: (c) => <ContractStatusBadge status={c.status} /> },
     {
       key: 'actions',
-      header: '',
+      header: 'Actions',
       render: (c) =>
         canEdit ? (
           <div className="row-actions">

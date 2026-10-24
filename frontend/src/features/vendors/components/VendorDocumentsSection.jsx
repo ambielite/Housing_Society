@@ -105,12 +105,12 @@ export default function VendorDocumentsSection({ vendorId }) {
       canReadVault
         ? <button type="button" className="btn btn-secondary btn-sm" onClick={() => viewDocument(d)} disabled={previewLoading}>{previewLoading ? 'Loading...' : 'View document'}</button>
         : <span className="muted">Document Read access required</span>
-    ) : <span className="muted">—</span> },
+    ) : <span className="muted">â€”</span> },
     { key: 'expiry', header: 'Expires', render: (d) => formatDate(d.expiry_date, 'No expiry') },
     { key: 'status', header: 'Verification', render: (d) => <VerificationBadge status={d.verification_status} /> },
     {
       key: 'actions',
-      header: '',
+      header: 'Actions',
       render: (d) =>
         canEdit ? (
           <div className="row-actions">
@@ -170,7 +170,7 @@ export default function VendorDocumentsSection({ vendorId }) {
         </Modal>
       )}
 
-      {preview && <Modal title={preview.title} onClose={() => setPreview(null)}><div style={{ minWidth: 'min(80vw, 900px)', minHeight: '60vh' }}>{preview.mimeType === 'application/pdf' ? <iframe title={preview.title} src={preview.url} style={{ width: 'min(80vw, 900px)', height: '70vh', border: 0 }} /> : preview.mimeType.startsWith('image/') ? <img src={preview.url} alt={preview.title} style={{ display: 'block', maxWidth: '80vw', maxHeight: '70vh', objectFit: 'contain', margin: '0 auto' }} /> : <div className="table-state"><h3>Preview isn’t available for this file type.</h3><a className="btn btn-primary" href={preview.url} download={preview.fileName}>Download document</a></div>}</div></Modal>}
+      {preview && <Modal title={preview.title} onClose={() => setPreview(null)}><div style={{ minWidth: 'min(80vw, 900px)', minHeight: '60vh' }}>{preview.mimeType === 'application/pdf' ? <iframe title={preview.title} src={preview.url} style={{ width: 'min(80vw, 900px)', height: '70vh', border: 0 }} /> : preview.mimeType.startsWith('image/') ? <img src={preview.url} alt={preview.title} style={{ display: 'block', maxWidth: '80vw', maxHeight: '70vh', objectFit: 'contain', margin: '0 auto' }} /> : <div className="table-state"><h3>Preview isnâ€™t available for this file type.</h3><a className="btn btn-primary" href={preview.url} download={preview.fileName}>Download document</a></div>}</div></Modal>}
     </div>
   );
 }

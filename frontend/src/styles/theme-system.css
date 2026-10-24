@@ -679,3 +679,105 @@ body :is(.society-search, .search-box) input:focus { background: transparent; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* Project-wide table typography and full cell grid. Status badges keep their own colors. */
+body table {
+  width: 100%;
+  border: 1px solid var(--row-divider) !important;
+  border-collapse: collapse !important;
+  border-spacing: 0 !important;
+  font-family: var(--font-sans);
+}
+body table th {
+  padding: 13px 16px !important;
+  border: 1px solid var(--row-divider) !important;
+  background: var(--thead-bg) !important;
+  color: var(--th-color) !important;
+  font-family: var(--font-sans) !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: .045em !important;
+  line-height: 1.35 !important;
+  text-transform: uppercase;
+}
+body table td {
+  padding: 14px 16px !important;
+  border: 1px solid var(--row-divider) !important;
+  color: var(--td-color) !important;
+  font-family: var(--font-sans) !important;
+  font-size: 13px !important;
+  font-weight: 400;
+  line-height: 1.5 !important;
+  vertical-align: middle;
+}
+body table td strong,
+body table td .cell-title {
+  color: var(--td-color) !important;
+  font-size: 13px !important;
+  font-weight: 650 !important;
+}
+body table td small,
+body table td .cell-sub {
+  color: var(--td-color) !important;
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+}
+body table td a:not(.btn) {
+  color: var(--td-color) !important;
+  font-family: var(--font-sans) !important;
+  font-size: 13px !important;
+}
+body table td a:not(.btn):hover { color: var(--action); }
+
+/* Same edit/delete icon buttons across table-based modules. */
+body :is(.society-icon-action, .notification-icon-action, .icon-button, .table-action-button) {
+  display: inline-grid !important;
+  width: 44px !important;
+  min-width: 44px !important;
+  height: 44px !important;
+  min-height: 44px !important;
+  flex: 0 0 44px;
+  place-items: center !important;
+  padding: 0 !important;
+  border: 1px solid var(--field-border) !important;
+  border-radius: 12px !important;
+  background: var(--btn2-bg) !important;
+  color: var(--action) !important;
+  cursor: pointer;
+}
+body :is(.society-icon-action, .notification-icon-action, .icon-button, .table-action-button):hover:not(:disabled) {
+  border-color: var(--action) !important;
+  background: var(--action-soft) !important;
+  color: var(--action) !important;
+}
+body :is(.society-delete-action, .notification-icon-action.danger, .icon-button.danger,
+  table button[title*="delete" i], table button[aria-label*="delete" i],
+  .society-row-actions button[title*="delete" i], .society-row-actions button[aria-label*="delete" i]) {
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--field-border)) !important;
+  background: var(--danger-bg) !important;
+  color: var(--danger) !important;
+}
+body :is(.society-delete-action, .notification-icon-action.danger, .icon-button.danger,
+  table button[title*="delete" i], table button[aria-label*="delete" i],
+  .society-row-actions button[title*="delete" i], .society-row-actions button[aria-label*="delete" i]):hover:not(:disabled) {
+  border-color: var(--danger) !important;
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface)) !important;
+  color: var(--danger) !important;
+}
+
+/* All modal and panel close controls use the same red X treatment. */
+body :is(.modal-close-btn, .modal-close, .quick-add-close, .profile-close, .dialog-head .btn-ghost,
+  .security-modal-header > button, .multi-society-hierarchy-detail .society-list-heading > button,
+  button[aria-label*="close" i], button[aria-label^="dismiss" i]) {
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent) !important;
+  border-radius: 8px !important;
+  background: var(--danger-bg) !important;
+  color: var(--danger) !important;
+}
+body :is(.modal-close-btn, .modal-close, .quick-add-close, .profile-close, .dialog-head .btn-ghost,
+  .security-modal-header > button, .multi-society-hierarchy-detail .society-list-heading > button,
+  button[aria-label*="close" i], button[aria-label^="dismiss" i]):hover:not(:disabled) {
+  border-color: var(--danger) !important;
+  background: color-mix(in srgb, var(--danger) 14%, var(--surface)) !important;
+  color: var(--danger) !important;
+}

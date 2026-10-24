@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { BadgeCheck, Ban, CheckCircle2, Edit, FileText, Plus, RefreshCw, Search, Trash2, XCircle } from "lucide-react";
+import { BadgeCheck, Ban, CheckCircle2, SquarePen, FileText, Plus, RefreshCw, Search, Trash2, XCircle } from "lucide-react";
 import agreementApi from "../api/agreement.api";
 import residentApi from "../../residents/api/resident.api";
 import unitApi from "../../units/api/unit.api";
@@ -199,7 +199,7 @@ const AgreementListPage = () => {
                                             <td><span className={`moveinout-status moveinout-status-${statusTone(agreement.status)}`}>{agreement.status || "DRAFT"}</span></td>
                                             <td>
                                                 <div className="society-row-actions moveinout-actions">
-                                                    <button className="society-icon-action" title="Edit agreement" aria-label={`Edit ${agreement.id}`} onClick={() => { setEditingAgreement(agreement); setShowForm(true); }}><Edit size={16} /></button>
+                                                    <button className="society-icon-action" title="Edit agreement" aria-label={`Edit ${agreement.id}`} onClick={() => { setEditingAgreement(agreement); setShowForm(true); }}><SquarePen size={16} /></button>
                                                     {!["TERMINATED", "EXPIRED"].includes(agreement.status) && <button className="society-workflow-action" onClick={() => runWorkflowAction(agreement)} disabled={submitting}>{({ DRAFT: "Submit", SUBMITTED: "Verify", UNDER_VERIFICATION: "Approve", APPROVED: "Activate", ACTIVE: "Mark expiring", EXPIRING_SOON: "Mark expired", RENEWAL_INITIATED: "Mark expired" }[agreement.status] || "Continue")}</button>}
                                                     {["SUBMITTED", "UNDER_VERIFICATION"].includes(agreement.status) && <button className="society-icon-action society-delete-action" title="Reject agreement" aria-label={`Reject ${agreement.id}`} onClick={() => handleReject(agreement.id)} disabled={submitting}><XCircle size={16} /></button>}
                                                     {/* {!["TERMINATED", "EXPIRED"].includes(agreement.status) && <button className="society-icon-action society-delete-action" title="Terminate agreement" aria-label={`Terminate ${agreement.id}`} onClick={() => handleReject(agreement.id, true)} disabled={submitting}><Ban size={16} /></button>} */}
