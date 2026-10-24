@@ -16,7 +16,6 @@ import {
   X,
 } from "lucide-react";
 import securityApi from "../api/security-operations.api";
-import unitApi from "../../units/api/unit.api";
 
 const rowsFrom = (response) => {
   let rows = Array.isArray(response)
@@ -34,9 +33,8 @@ const societyId = () =>
 const documentUrl = (filePath) => {
   if (!filePath) return "#";
   if (/^https?:\/\//i.test(filePath)) return filePath;
-  const apiBase =
-    import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
-  return `${apiBase.replace(/\/api\/?$/, "")}${filePath.startsWith("/") ? filePath : `/${filePath}`}`;
+  const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api/v1";
+  return new URL(filePath.startsWith("/") ? filePath : `/${filePath}`, new URL(apiBase, window.location.origin).origin).toString();
 };
 const localDate = () => {
   const now = new Date();
@@ -61,7 +59,7 @@ const formatTime = (value) => {
 };
 const tabs = [
   ["overview", "Overview", Shield],
-  ["staff", "Staff & documents", Users],
+  ["staff", "Staff", Users],
   ["attendance", "Attendance", ClipboardCheck],
   ["rosters", "Shifts & rosters", CalendarDays],
   ["tasks", "Tasks", Activity],
@@ -95,6 +93,7 @@ const configs = {
     api: "createStaff",
     fields: [
       ["employeeCode", "Employee code"],
+      ["profilePicture", "Profile picture", "file"],
       ["firstName", "First name"],
       ["lastName", "Last name"],
       ["mobileNumber", "Mobile number"],
@@ -107,7 +106,7 @@ const configs = {
         [
           "SECURITY_GUARD",
           "SECURITY_SUPERVISOR",
-          "HOUSEKEEPING",
+          "MAID",
           "MAINTENANCE",
           "ELECTRICIAN",
           "PLUMBER",
@@ -115,49 +114,6 @@ const configs = {
           "OTHER",
         ],
       ],
-    ],
-  },
-  assignment: {
-    title: "Unit assignment",
-    api: "createAssignment",
-    fields: [
-      ["staffId", "Staff", "staff"],
-      ["unitId", "Unit", "unit"],
-      [
-        "assignmentType",
-        "Assignment type",
-        "select",
-        ["SECURITY", "HOUSEKEEPING", "MAINTENANCE", "SUPPORT", "OTHER"],
-      ],
-      ["startDate", "Start date", "date"],
-      ["endDate", "End date", "date"],
-    ],
-  },
-  document: {
-    title: "Upload staff document",
-    api: "uploadDocument",
-    fields: [
-      ["staffId", "Staff", "staff"],
-      [
-        "documentType",
-        "Document type",
-        "select",
-        [
-          "ID_PROOF",
-          "PAN",
-          "ADDRESS_PROOF",
-          "POLICE_VERIFICATION",
-          "EMPLOYMENT_PROOF",
-          "CONTRACT",
-          "MEDICAL_CERTIFICATE",
-          "OTHER",
-        ],
-      ],
-      ["file", "Choose document", "file"],
-      ["issueDate", "Issue date", "date"],
-      ["expiryDate", "Expiry date", "date"],
-      ["documentNumber", "Document number"],
-      ["remarks", "Notes", "textarea"],
     ],
   },
   shift: {
@@ -201,7 +157,7 @@ const configs = {
         "select",
         [
           "SECURITY",
-          "HOUSEKEEPING",
+          "MAID",
           "MAINTENANCE",
           "INSPECTION",
           "PATROL",
@@ -310,6 +266,7 @@ const configs = {
 };
 const titleCase = (value) => {
   if (!value) return "";
+  if (String(value).toUpperCase() === "MAID") return "MAID";
 
   let label = String(value)
     // camelCase → camel Case
@@ -366,8 +323,6 @@ export default function SecurityPage() {
     try {
       const keys = [
         "staff",
-        "assignments",
-        "documents",
         "attendance",
         "shifts",
         "rosters",
@@ -377,12 +332,9 @@ export default function SecurityPage() {
         "incidents",
         "emergencies",
         "audits",
-        "units",
       ];
       const methods = [
         securityApi.getStaff,
-        securityApi.getAssignments,
-        securityApi.getDocuments,
         securityApi.getAttendance,
         securityApi.getShifts,
         securityApi.getRosters,
@@ -392,7 +344,6 @@ export default function SecurityPage() {
         securityApi.getIncidents,
         securityApi.getEmergencies,
         securityApi.getAudits,
-        unitApi.getAll,
       ];
       const results = await Promise.allSettled(
         methods.map((method) => method()),
@@ -444,12 +395,13 @@ export default function SecurityPage() {
     };
   }, [form, editRecord, workflow]);
   const staff = data.staff || [];
-  const units = data.units || [];
   const stats = [
     [
       "Active staff",
       staff.filter((item) => item.status === "ACTIVE").length,
       Users,
+      "staff",
+      "violet",
     ],
     [
       "On duty today",
@@ -457,6 +409,8 @@ export default function SecurityPage() {
         (item) => item.status === "PRESENT" || item.status === "LATE",
       ).length,
       ClipboardCheck,
+      "attendance",
+      "green",
     ],
     [
       "Open incidents",
@@ -464,6 +418,8 @@ export default function SecurityPage() {
         (item) => !["CLOSED", "RESOLVED", "REJECTED"].includes(item.status),
       ).length,
       AlertOctagon,
+      "incidents",
+      "blue",
     ],
     [
       "Active emergencies",
@@ -474,6 +430,8 @@ export default function SecurityPage() {
           ),
       ).length,
       Siren,
+      "emergencies",
+      "orange",
     ],
   ];
   const sectionKey = {
@@ -499,16 +457,15 @@ export default function SecurityPage() {
     event.preventDefault();
     const config = configs[form];
     const formData = new FormData(event.currentTarget);
-    const payload =
-      form === "document" ? formData : Object.fromEntries(formData.entries());
-    if (form === "document" && !formData.get("file")?.size) {
-      setFormError("Choose a document file to upload.");
+    const profilePicture = formData.get("profilePicture");
+    const payload = form === "staff" && profilePicture?.size
+      ? formData
+      : Object.fromEntries(formData.entries());
+    if (form === "staff" && profilePicture?.size > 5 * 1024 * 1024) {
+      setFormError("The profile picture must be 5 MB or smaller.");
       return;
     }
-    if (form === "document" && formData.get("file").size > 25 * 1024 * 1024) {
-      setFormError("The selected file is larger than the 25 MB upload limit.");
-      return;
-    }
+    if (form === "staff" && !profilePicture?.size) formData.delete("profilePicture");
     [
       "breakMinutes",
       "graceMinutes",
@@ -532,7 +489,8 @@ export default function SecurityPage() {
         "emergency",
       ].includes(form)
     )
-      payload.societyId = societyId();
+      if (payload instanceof FormData) payload.set("societyId", societyId());
+      else payload.societyId = societyId();
     setBusy(true);
     try {
       await securityApi[config.api](payload);
@@ -748,31 +706,33 @@ export default function SecurityPage() {
       {tab === "overview" ? (
         <>
           <div className="society-stats">
-            {stats.map(([label, count, Icon]) => (
-              <article className="society-stat-card" key={label}>
-                <span className="society-stat-icon society-stat-icon-blue">
+            {stats.map(([label, count, Icon, targetTab, color]) => (
+              <button type="button" className={`society-stat-card security-summary-card security-summary-${color}`} key={label} onClick={() => setTab(targetTab)}>
+                <span className={`society-stat-icon society-stat-icon-${color}`}>
                   <Icon size={19} />
                 </span>
                 <div>
                   <span className="society-stat-label">{label}</span>
+                  <small className="society-stat-note security-summary-note">Open {targetTab} →</small>
                   <strong>{loading ? "—" : count}</strong>
                 </div>
-              </article>
+              </button>
             ))}
           </div>
           <div className="society-lifecycle-grid">
             {[
-              ["Patrols", "patrols", "patrols"],
-              ["Incidents", "incidents", "incidents"],
-              ["Emergency calls", "emergencies", "emergencies"],
-              ["Staff tasks", "tasks", "tasks"],
-            ].map(([label, key, route]) => (
+              ["Patrols", "patrols", "patrols", MapPin, "teal"],
+              ["Incidents", "incidents", "incidents", AlertOctagon, "rose"],
+              ["Emergency calls", "emergencies", "emergencies", Siren, "cyan"],
+              ["Staff tasks", "tasks", "tasks", ClipboardCheck, "slate"],
+            ].map(([label, key, route, Icon, color]) => (
               <button
-                className="security-quick-card"
+                className={`security-quick-card security-quick-card-${color}`}
                 key={key}
                 onClick={() => setTab(route)}
               >
-                <span>{label}</span>
+                <span className="security-quick-icon"><Icon size={19} /></span>
+                <span className="security-quick-label">{label}</span>
                 <strong>{(data[key] || []).length}</strong>
                 <small>Open {label.toLowerCase()} →</small>
               </button>
@@ -895,14 +855,6 @@ export default function SecurityPage() {
               </button>
             )}
           </div>
-          {tab === "staff" && (
-            <StaffExtras
-              data={data}
-              act={act}
-              setForm={setForm}
-              setEditRecord={setEditRecord}
-            />
-          )}
           {tab === "rosters" && (
             <section className="security-shifts">
               <h3>Shift definitions</h3>
@@ -1021,7 +973,7 @@ export default function SecurityPage() {
                   {filtered.map((item) => (
                     <tr key={item.id}>
                       {cells(item).map((value, index) => (
-                        <td key={index}>{value}</td>
+                        <td key={index}>{tab === "staff" && index === 0 ? <div className="staff-record-cell"><span className="staff-record-avatar">{item.photoPath && <img className="staff-record-photo" src={documentUrl(item.photoPath)} alt="" onError={(event) => { event.currentTarget.hidden = true; event.currentTarget.nextElementSibling.hidden = false; }} />}<Users className="staff-record-fallback" size={18} hidden={Boolean(item.photoPath)} /></span>{value}</div> : value}</td>
                       ))}
                       <td>
                         <div className="society-row-actions">
@@ -1108,19 +1060,6 @@ export default function SecurityPage() {
                             </option>
                           ))}
                         </select>
-                      ) : type === "unit" ? (
-                        <select name={name} required disabled={!units.length}>
-                          <option value="">
-                            {units.length
-                              ? "Select unit"
-                              : "No units available"}
-                          </option>
-                          {units.map((unit) => (
-                            <option key={unit.id} value={unit.id}>
-                              {unit.unitNumber || unit.name || unit.id}
-                            </option>
-                          ))}
-                        </select>
                       ) : type === "shift" ? (
                         <select name={name} required>
                           <option value="">Select shift</option>
@@ -1131,6 +1070,8 @@ export default function SecurityPage() {
                             </option>
                           ))}
                         </select>
+                      ) : type === "file" ? (
+                        <><input name={name} type="file" accept="image/jpeg,image/png,image/webp" /><small>JPG, PNG, or WEBP · Up to 5 MB</small></>
                       ) : type === "textarea" ? (
                         <textarea
                           name={name}
@@ -1144,6 +1085,7 @@ export default function SecurityPage() {
                           required={
                             ![
                               "lastName",
+                              "profilePicture",
                               "email",
                               "endDate",
                               "dueDate",
@@ -1175,20 +1117,14 @@ export default function SecurityPage() {
                 </button>
               </footer>
             </form>
+            {formError && <p className="security-form-error" role="alert">{formError}</p>}
           </section>
-        </div>
-      )}
-      {formError && form === "document" && (
-        <div className="security-upload-error" role="alert">
-          {formError}
         </div>
       )}
       {editRecord && (
         <RecordEditModal
           record={editRecord.item}
           tab={editRecord.tab}
-          staff={staff}
-          units={units}
           onClose={() => setEditRecord(null)}
           onSave={async (id, sectionName, patchData) => {
             const resource = {
@@ -1201,8 +1137,6 @@ export default function SecurityPage() {
               emergencies: "emergencies",
               shifts: "shifts",
               checkpoints: "checkpoints",
-              documents: "staff-documents",
-              assignments: "staff-unit-assignments",
             }[sectionName];
             await act(
               (key, body) => securityApi.updateResource(resource, key, body),
@@ -1267,16 +1201,27 @@ export default function SecurityPage() {
   );
 }
 
-function RecordEditModal({ record, tab, staff, units, onClose, onSave }) {
+function RecordEditModal({ record, tab, onClose, onSave }) {
+  const normalizeDate = (value) => {
+    if (!value || value === "Invalid date") return "";
+    const date = String(value).match(/^\d{4}-\d{2}-\d{2}/)?.[0];
+    return date && !Number.isNaN(Date.parse(`${date}T00:00:00`)) ? date : "";
+  };
   const editable = Object.fromEntries(
     Object.entries(record).filter(
       ([key, value]) =>
-        !["id", "createdAt", "updatedAt", "deletedAt"].includes(key) &&
+        !["id", "createdAt", "updatedAt", "deletedAt", ...(tab === "staff" ? ["photoPath"] : [])].includes(key) &&
         (value == null ||
           ["string", "number", "boolean"].includes(typeof value)),
     ),
   );
-  const [values, setValues] = useState(editable);
+  const [values, setValues] = useState(() => Object.fromEntries(
+    Object.entries(editable).map(([key, value]) => [
+      key,
+      ["dateOfBirth", "joiningDate"].includes(key) ? normalizeDate(value) : value,
+    ]),
+  ));
+  const [profilePicture, setProfilePicture] = useState(null);
   const [error, setError] = useState("");
   const submit = async (event) => {
     event.preventDefault();
@@ -1286,8 +1231,23 @@ function RecordEditModal({ record, tab, staff, units, onClose, onSave }) {
         value === "" ? null : value,
       ]),
     );
+    if (tab === "staff" && !payload.joiningDate) {
+      setError("Enter a valid joining date before saving staff details.");
+      return;
+    }
+    if (tab === "staff" && profilePicture?.size > 5 * 1024 * 1024) {
+      setError("The profile picture must be 5 MB or smaller.");
+      return;
+    }
+    const requestPayload = tab === "staff" && profilePicture
+      ? Object.entries(payload).reduce((formData, [key, value]) => {
+          formData.append(key, value == null ? "" : String(value));
+          return formData;
+        }, new FormData())
+      : payload;
+    if (requestPayload instanceof FormData) requestPayload.append("profilePicture", profilePicture);
     try {
-      await onSave(record.id, tab, payload);
+      await onSave(record.id, tab, requestPayload);
     } catch (err) {
       setError(err.response?.data?.message || "Could not save this record.");
     }
@@ -1311,6 +1271,7 @@ function RecordEditModal({ record, tab, staff, units, onClose, onSave }) {
         </header>
         <form onSubmit={submit}>
           <div className="security-form-grid">
+            {tab === "staff" && <label className="security-profile-picture-edit">Profile picture{record.photoPath && <img src={documentUrl(record.photoPath)} alt="Current staff profile" />}<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setProfilePicture(event.target.files?.[0] || null)} /><small>Choose a JPG, PNG, or WEBP image up to 5 MB. Leave empty to keep the current picture.</small></label>}
             {Object.entries(values).map(([key, value]) => (
               <label key={key}>
                 {titleCase(key)}
@@ -1349,6 +1310,8 @@ function RecordEditModal({ record, tab, staff, units, onClose, onSave }) {
                   </select>
                 ) : (
                   <input
+                    type={["dateOfBirth", "joiningDate"].includes(key) ? "date" : "text"}
+                    required={tab === "staff" && key === "joiningDate"}
                     value={value ?? ""}
                     onChange={(event) =>
                       setValues((current) => ({
@@ -1677,156 +1640,3 @@ function SecurityWorkflowDialog({
   );
 }
 
-function StaffExtras({ data, act, setForm, setEditRecord }) {
-  const staff = data.staff || [];
-  const units = data.units || [];
-
-  const getStaffName = (staffId) => {
-    const person = staff.find((item) => String(item.id) === String(staffId));
-
-    return person
-      ? `${person.firstName || ""} ${person.lastName || ""}`.trim()
-      : "Unknown staff";
-  };
-
-  const getUnitName = (unitId) => {
-    const unit = units.find((item) => String(item.id) === String(unitId));
-
-    return unit?.unitNumber || unit?.name || "Unknown unit";
-  };
-  return (
-    <div className="security-subpanels">
-      <section>
-        <h3>
-          Unit mapping
-          <button onClick={() => setForm("assignment")}><span className="button-plus" aria-hidden="true">+</span> Add mapping</button>
-        </h3>
-
-        <div>
-          {(data.assignments || []).map((item) => (
-            <p key={item.id}>
-              <strong>
-                {item.staff
-                  ? `${item.staff.firstName || ""} ${item.staff.lastName || ""}`.trim()
-                  : getStaffName(item.staffId)}
-              </strong>
-
-              <span>
-                {item.unit
-                  ? item.unit.unitNumber || item.unit.name
-                  : getUnitName(item.unitId)}
-              </span>
-
-              <span className="security-extra-status">
-                {titleCase(item.status)}
-              </span>
-
-              <button
-                onClick={() =>
-                  act(
-                    securityApi.assignmentAction,
-                    item.id,
-                    item.status === "ACTIVE" ? "deactivate" : "activate",
-                  )
-                }
-              >
-                {item.status === "ACTIVE" ? "End" : "Activate"}
-              </button>
-
-              <button
-                onClick={() =>
-                  setEditRecord({
-                    item,
-                    tab: "assignments",
-                  })
-                }
-              >
-                Edit
-              </button>
-
-              <button
-                onClick={() =>
-                  window.confirm("Delete this unit assignment?") &&
-                  act(securityApi.deleteAssignment, item.id)
-                }
-              >
-                Delete
-              </button>
-            </p>
-          ))}
-
-          {!data.assignments?.length && <small>No unit mappings yet.</small>}
-        </div>
-      </section>
-      <section>
-        <h3>
-          Staff documents{" "}
-          <button onClick={() => setForm("document")}><span className="button-plus" aria-hidden="true">+</span> Upload document</button>
-        </h3>
-        <div>
-          {(data.documents || []).map((item) => (
-            <article className="security-document-row" key={item.id}>
-              <span className="security-document-icon">
-                <FileText size={17} />
-              </span>
-              <div className="security-document-info">
-                <strong>{titleCase(item.documentType)}</strong>
-                <small>
-                  {item.fileName ||
-                    item.documentPath?.split("/").pop() ||
-                    "Staff file"}{" "}
-                  · {item.staff?.firstName || item.staffId}
-                </small>
-              </div>
-              <span
-                className={`security-status-pill ${String(item.verificationStatus || item.status || "pending").toLowerCase()}`}
-              >
-                {titleCase(item.verificationStatus || item.status || "PENDING")}
-              </span>
-              <div className="security-document-actions">
-                <a
-                  href={documentUrl(item.documentPath)}
-                  target="_blank"
-                  rel="noreferrer"
-                  title="Open document"
-                >
-                  Open
-                </a>
-                <button
-                  onClick={() => act(securityApi.verifyDocument, item.id)}
-                >
-                  Verify
-                </button>
-                <button
-                  onClick={() =>
-                    act(securityApi.rejectDocument, item.id, {
-                      remarks: "Rejected from security console",
-                    })
-                  }
-                >
-                  Reject
-                </button>
-                <button
-                  onClick={() => setEditRecord({ item, tab: "documents" })}
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() =>
-                    window.confirm("Delete this document record?") &&
-                    act(securityApi.deleteDocument, item.id)
-                  }
-                >
-                  Delete
-                </button>
-              </div>
-            </article>
-          ))}
-          {!data.documents?.length && (
-            <small>No documents have been uploaded.</small>
-          )}
-        </div>
-      </section>
-    </div>
-  );
-}

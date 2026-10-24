@@ -29,6 +29,7 @@ const validateStaffType = (staffType) => {
     const allowedTypes = [
         "SECURITY_GUARD",
         "SECURITY_SUPERVISOR",
+        "MAID",
         "HOUSEKEEPING",
         "MAINTENANCE",
         "ELECTRICIAN",

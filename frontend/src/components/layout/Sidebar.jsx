@@ -80,9 +80,9 @@ const NAV_ITEMS = [
   { label: 'Purchase Orders', to: '/purchase-orders', permission: 'PURCHASE_ORDER_READ', icon: FileText },
   { label: 'Approvals', to: '/approvals', permission: 'APPROVAL_READ', icon: CheckCircle },
   {
-    label: 'Manage Staff & Visitors', to: '/security-operations', icon: UsersRound,
+    label: 'Staff & Visitors', to: '/security-operations', icon: UsersRound,
     children: [
-      { label: 'Staff & documents', to: '/security-operations/staff', permission: 'STAFF_READ', icon: Users },
+      { label: 'Manage Staff ', to: '/security-operations/staff', permission: 'STAFF_READ', icon: Users },
       { label: 'Attendance', to: '/security-operations/attendance', permission: 'STAFF_ATTENDANCE_READ', icon: ClipboardCheck },
       { label: 'Shifts & rosters', to: '/security-operations/rosters', permission: ['SHIFT_READ', 'ROSTER_READ'], icon: CalendarDays },
       { label: 'Tasks', to: '/security-operations/tasks', permission: 'STAFF_TASK_READ', icon: CheckCircle },

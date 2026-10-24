@@ -159,7 +159,7 @@ const verifyDocument = async (req, res) => {
         const document =
             await StaffDocumentService.verifyDocument(
                 req.params.id,
-                req.body.verifiedBy
+                req.body?.verifiedBy || req.user?.id || null
             );
 
         return res.status(200).json({

@@ -671,6 +671,16 @@ body :is(.society-search, .search-box) input:focus { background: transparent; }
 .record-details-trigger { display: inline; padding: 0; border: 0; background: transparent; color: var(--text-primary); font: inherit; font-weight: 700; text-align: left; cursor: pointer; }
 .record-details-trigger:hover { color: var(--action); text-decoration: underline; text-underline-offset: 3px; }
 .record-details-trigger:focus-visible { border-radius: 3px; outline: 2px solid var(--action); outline-offset: 3px; }
+.security-page .society-stats .security-summary-card { font: inherit; text-align: left; cursor: pointer; transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease; }
+.security-page .society-stats .security-summary-violet { --summary-accent: #7c4dff; border-left-color: var(--summary-accent); }
+.security-page .society-stats .security-summary-green { --summary-accent: #159b63; border-left-color: var(--summary-accent); }
+.security-page .society-stats .security-summary-blue { --summary-accent: #2878d0; border-left-color: var(--summary-accent); }
+.security-page .society-stats .security-summary-orange { --summary-accent: #df7900; border-left-color: var(--summary-accent); }
+.security-page .security-summary-card:hover { border-color: var(--summary-accent); border-left-color: var(--summary-accent); box-shadow: 0 7px 18px color-mix(in srgb, var(--summary-accent) 16%, transparent); transform: translateY(-1px); }
+.security-page .security-summary-card:focus-visible { outline: 2px solid var(--summary-accent); outline-offset: 3px; }
+.security-page .security-summary-card .security-summary-note { color: var(--summary-accent); font-size: 11px; }
+.security-page .security-summary-orange .society-stat-icon-orange { background: #fff1df; color: #df7900; }
+:root[data-theme='dark'] .security-page .security-summary-orange .society-stat-icon-orange { background: color-mix(in srgb, #df7900 16%, var(--surface)); }
 @media (max-width: 560px) {
   .record-details-dialog { padding: 18px; }
   .record-details-section dl { grid-template-columns: 1fr; gap: 11px; }
