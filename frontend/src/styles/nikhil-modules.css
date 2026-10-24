@@ -914,6 +914,7 @@ a {
 .society-name-cell strong { color: #111827; font-size: 12px; font-weight: 600; }
 .society-name-cell small { color: #6b7280; font-size: 11px; }
 .society-avatar { width: 34px; height: 34px; display: grid; flex: 0 0 34px; place-items: center; border-radius: 9px; background: #eff6ff; color: #2563eb; }
+.society-avatar .resident-table-photo { display: block; width: 100%; height: 100%; border-radius: inherit; object-fit: cover; object-position: center; }
 .society-registration { display: inline-flex; align-items: center; gap: 5px; color: #047857; font-size: 11px; font-weight: 550; }
 .society-tax-label { color: #9ca3af; font-size: 10px; }
 .society-muted { color: #9ca3af; }

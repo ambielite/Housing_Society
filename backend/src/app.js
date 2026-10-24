@@ -74,7 +74,7 @@ app.use("/api", (req, res, next) => {
     if (req.path === "/v1" || req.path.startsWith("/v1/")) return next();
     return authenticate(req, res, (error) => {
         if (error) return next(error);
-        const requestedSocietyId = req.query.societyId || req.body?.societyId;
+        const requestedSocietyId = req.query.societyId || req.body?.societyId || req.get("x-society-id");
         if (requestedSocietyId && requestedSocietyId !== req.user.societyId) {
             return next(new ApiError(403, "Request society must match the active society"));
         }

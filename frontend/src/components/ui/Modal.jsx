@@ -64,13 +64,13 @@ const displayValue = (value) => {
   return String(value);
 };
 
-export function RecordDetailsModal({ title, subtitle, icon: Icon = Building2, sections, record, onClose }) {
+export function RecordDetailsModal({ title, subtitle, icon: Icon = Building2, image, sections, record, onClose }) {
   const detailSections = sections || recordToSections(record);
   return (
     <Modal title={title} onClose={onClose} className="record-details-dialog">
       {subtitle && (
         <div className="record-details-intro">
-          <span className="record-details-icon"><Icon size={21} /></span>
+          {image ? <img className="record-details-icon record-details-photo" src={image} alt="Resident profile" /> : <span className="record-details-icon"><Icon size={21} /></span>}
           <p>{subtitle}</p>
         </div>
       )}

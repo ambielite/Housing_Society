@@ -41,6 +41,14 @@ const rowsFrom = (response) => {
         : [];
 };
 
+const profileImageUrl = (url) => {
+    if (!url) return undefined;
+    const value = String(url).trim().replaceAll("\\", "/");
+    if (/^https?:\/\//i.test(value)) return value;
+    const base = import.meta.env.VITE_LEGACY_API_BASE_URL || "http://localhost:5000/api";
+    return `${new URL(base, window.location.origin).origin}/${value.replace(/^\/+/, "")}`;
+};
+
 
 const ResidentListPage = () => {
 
@@ -699,9 +707,7 @@ const ResidentListPage = () => {
 
                                                         <span className="society-avatar">
 
-                                                            <UserRound
-                                                                size={19}
-                                                            />
+                                                            {resident.profilePhoto ? <img src={profileImageUrl(resident.profilePhoto)} alt="" className="resident-table-photo" onError={(event) => { event.currentTarget.hidden = true; }} /> : <UserRound size={19} />}
 
                                                         </span>
 
@@ -897,7 +903,7 @@ const ResidentListPage = () => {
 
             )}
 
-            {viewingResident && <RecordDetailsModal title={viewingResident.displayName || [viewingResident.firstName, viewingResident.middleName, viewingResident.lastName].filter(Boolean).join(" ") || "Resident details"} subtitle="Resident profile and contact information" icon={UserRound} onClose={() => setViewingResident(null)} sections={[
+            {viewingResident && <RecordDetailsModal title={viewingResident.displayName || [viewingResident.firstName, viewingResident.middleName, viewingResident.lastName].filter(Boolean).join(" ") || "Resident details"} subtitle="Resident profile and contact information" icon={UserRound} image={profileImageUrl(viewingResident.profilePhoto)} onClose={() => setViewingResident(null)} sections={[
                 { title: "Personal information", fields: [["First name", viewingResident.firstName], ["Middle name", viewingResident.middleName], ["Last name", viewingResident.lastName], ["Date of birth", viewingResident.dateOfBirth], ["Gender", viewingResident.gender], ["Role", viewingResident.role], ["Status", viewingResident.status]] },
                 { title: "Contact", fields: [["Email", viewingResident.email], ["Mobile", viewingResident.mobile], ["Alternate mobile", viewingResident.alternateMobile], ["Address", viewingResident.address]] },
                 { title: "Home and emergency contact", fields: [["Units", (residentUnits[viewingResident.id] || []).map((assignment) => `${assignment.towerName ? `${assignment.towerName} · ` : ""}Unit ${assignment.unitNumber || "—"}`).join(", ") || null], ["Emergency contact", viewingResident.emergencyContactName], ["Emergency phone", viewingResident.emergencyContactMobile], ["Resident ID", viewingResident.id]] }

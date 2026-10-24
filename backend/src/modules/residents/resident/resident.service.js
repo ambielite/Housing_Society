@@ -5,13 +5,14 @@ const {
 } = require("./resident.validation");
 
 const Society = require("../../../modules/societies/society/society.model");
+const { saveProfilePicture, removeProfilePicture } = require("../../users/profilePicture.storage");
 
 
 // ============================================================
 // CREATE RESIDENT
 // ============================================================
 
-const createResident = async (data) => {
+const createResident = async (data, profilePicture) => {
 
     const errors = validateCreateResident(data);
 
@@ -69,8 +70,14 @@ const createResident = async (data) => {
             .join(" ");
     }
 
-    const resident =
-        await residentRepository.create(data);
+    const profilePhoto = profilePicture ? saveProfilePicture(profilePicture) : null;
+    let resident;
+    try {
+        resident = await residentRepository.create({ ...data, ...(profilePhoto ? { profilePhoto } : {}) });
+    } catch (error) {
+        removeProfilePicture(profilePhoto);
+        throw error;
+    }
 
     return resident;
 };
@@ -140,7 +147,8 @@ const getResidentById = async (
 const updateResident = async (
     id,
     societyId,
-    data
+    data,
+    profilePicture
 ) => {
 
     const resident =
@@ -227,10 +235,16 @@ const updateResident = async (
             .join(" ");
     }
 
-    return await residentRepository.update(
-        resident,
-        data
-    );
+    const previousPhoto = resident.profilePhoto;
+    const profilePhoto = profilePicture ? saveProfilePicture(profilePicture) : null;
+    try {
+        const updated = await residentRepository.update(resident, { ...data, ...(profilePhoto ? { profilePhoto } : {}) });
+        if (profilePhoto) removeProfilePicture(previousPhoto);
+        return updated;
+    } catch (error) {
+        removeProfilePicture(profilePhoto);
+        throw error;
+    }
 };
 
 

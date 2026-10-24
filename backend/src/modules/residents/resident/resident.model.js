@@ -53,6 +53,12 @@ const Resident = sequelize.define(
             allowNull: false
         },
 
+        dateOfBirth: {
+            type: DataTypes.DATEONLY,
+            allowNull: true,
+            field: "date_of_birth"
+        },
+
         alternateMobile: {
             type: DataTypes.STRING(20),
             allowNull: true,

@@ -11,7 +11,8 @@ const createResident = async (req, res) => {
 
         const resident =
             await residentService.createResident(
-                req.body
+                req.body,
+                req.file
             );
 
         return res.status(201).json({
@@ -100,7 +101,8 @@ const updateResident = async (req, res) => {
             await residentService.updateResident(
                 req.params.id,
                 req.body.societyId,
-                req.body
+                req.body,
+                req.file
             );
 
         return res.status(200).json({

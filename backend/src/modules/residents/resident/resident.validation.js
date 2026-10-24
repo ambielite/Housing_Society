@@ -20,6 +20,8 @@ const validateCreateResident = (data) => {
 
     const errors = [];
 
+    if (data.dateOfBirth && !/^\d{4}-\d{2}-\d{2}$/.test(data.dateOfBirth)) errors.push("dateOfBirth must be a valid date");
+
     if (!data.societyId) {
         errors.push("societyId is required");
     } else if (!validateUUID(data.societyId)) {
@@ -107,6 +109,8 @@ const validateCreateResident = (data) => {
 const validateUpdateResident = (data) => {
 
     const errors = [];
+
+    if (data.dateOfBirth && !/^\d{4}-\d{2}-\d{2}$/.test(data.dateOfBirth)) errors.push("dateOfBirth must be a valid date");
 
     if (
         data.email !== undefined &&

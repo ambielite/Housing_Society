@@ -1,5 +1,15 @@
 import { legacyApi as axiosClient } from "../../../lib/axios";
 
+const toRequestBody = (data) => {
+    if (!data.profilePicture) return data;
+    const body = new FormData();
+    Object.entries(data).forEach(([key, value]) => {
+        if (key !== "profilePicture" && value !== undefined && value !== null) body.append(key, value);
+    });
+    body.append("profilePicture", data.profilePicture);
+    return body;
+};
+
 const residentApi = {
 
     getAll: async (params = {}) => {
@@ -22,19 +32,22 @@ const residentApi = {
     },
 
     create: async (data, config) => {
+        const body = toRequestBody(data);
         const response = await axiosClient.post(
             "/residents",
-            data,
-            config
+            body,
+            body instanceof FormData ? { ...config, headers: { ...config?.headers, "Content-Type": "multipart/form-data" } } : config
         );
 
         return response.data;
     },
 
     update: async (id, data) => {
+        const body = toRequestBody(data);
         const response = await axiosClient.put(
             `/residents/${id}`,
-            data
+            body,
+            body instanceof FormData ? { headers: { "Content-Type": "multipart/form-data" } } : undefined
         );
 
         return response.data;

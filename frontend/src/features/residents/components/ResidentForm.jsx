@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { Camera, X } from "lucide-react";
 
 import societyApi from "../../societies/api/society.api";
 import towerApi from "../../towers/api/tower.api";
@@ -42,6 +42,7 @@ const initialValues = (resident) => ({
     firstName: resident?.firstName || "",
     middleName: resident?.middleName || "",
     lastName: resident?.lastName || "",
+    dateOfBirth: resident?.dateOfBirth || "",
     email: resident?.email || "",
     mobile: resident?.mobile || "",
     alternateMobile: resident?.alternateMobile || "",
@@ -55,6 +56,7 @@ const initialValues = (resident) => ({
 });
 
 const normalizeName = (value) => value.trim().replace(/\s+/g, " ").toLocaleLowerCase();
+const profileImageUrl = (url) => !url || /^https?:\/\//i.test(url) ? url : `${new URL(import.meta.env.VITE_LEGACY_API_BASE_URL || "http://localhost:5000/api", window.location.origin).origin}${url}`;
 
 const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
     const [values, setValues] = useState(() => initialValues(resident));
@@ -69,6 +71,19 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
     const [createdResidentId, setCreatedResidentId] = useState("");
+    const [profilePicture, setProfilePicture] = useState(null);
+    const [picturePreview, setPicturePreview] = useState(profileImageUrl(resident?.profilePhoto));
+
+    useEffect(() => {
+        if (!profilePicture) return;
+        const preview = URL.createObjectURL(profilePicture);
+        setPicturePreview(preview);
+        return () => URL.revokeObjectURL(preview);
+    }, [profilePicture]);
+
+    useEffect(() => {
+        if (!profilePicture) setPicturePreview(profileImageUrl(resident?.profilePhoto));
+    }, [profilePicture, resident?.profilePhoto]);
 
     useEffect(() => {
         let isMounted = true;
@@ -203,6 +218,8 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
             emergencyContactRelation: values.emergencyContactRelation.trim() || null,
             remarks: values.remarks.trim() || null
         };
+        payload.dateOfBirth = values.dateOfBirth || null;
+        if (profilePicture) payload.profilePicture = profilePicture;
 
         let residentId = createdResidentId;
         const societyConfig = { headers: { "x-society-id": values.societyId } };
@@ -309,6 +326,14 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
                             <div className="form-group"><label htmlFor="resident-first-name">First name<span className="required">*</span></label><input id="resident-first-name" name="firstName" value={values.firstName} onChange={update} maxLength={100} autoComplete="given-name" required /></div>
                             <div className="form-group"><label htmlFor="resident-middle-name">Middle name</label><input id="resident-middle-name" name="middleName" value={values.middleName} onChange={update} maxLength={100} /></div>
                             <div className="form-group"><label htmlFor="resident-last-name">Last name<span className="required">*</span></label><input id="resident-last-name" name="lastName" value={values.lastName} onChange={update} maxLength={100} autoComplete="family-name" required /></div>
+                            <div className="form-group"><label htmlFor="resident-dob">Date of birth</label><input id="resident-dob" name="dateOfBirth" type="date" value={values.dateOfBirth} onChange={update} max={new Date().toISOString().slice(0, 10)} /></div>
+                            <div className="form-group form-group-full">
+                                <label htmlFor="resident-profile-picture">Profile picture</label>
+                                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                                    <span style={{ width: 64, height: 64, borderRadius: "50%", overflow: "hidden", display: "grid", placeItems: "center", background: "var(--surface-2, #f1f5f9)" }}>{picturePreview ? <img src={picturePreview} alt="Resident profile preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Camera size={22} />}</span>
+                                    <div><input id="resident-profile-picture" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (file && file.size > 5 * 1024 * 1024) { setError("Profile picture must be 5 MB or smaller."); event.target.value = ""; return; } setError(""); setProfilePicture(file || null); }} /><small className="field-hint">JPG, PNG, or WEBP · Up to 5 MB</small></div>
+                                </div>
+                            </div>
                             <div className="form-group"><label htmlFor="resident-role">Resident role<span className="required">*</span></label><select id="resident-role" name="role" value={values.role} onChange={update} required><option value="">Select a role</option>{RESIDENT_ROLES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
                             <div className="form-group"><label htmlFor="resident-status">Status</label><select id="resident-status" name="status" value={values.status} onChange={update}>{RESIDENT_STATUSES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
                         </div>
