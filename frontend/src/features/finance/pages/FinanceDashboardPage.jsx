@@ -19,6 +19,18 @@ const formatCurrency = (value) => {
     }).format(numeric);
 };
 
+const statusBadge = (value, fallback = "UNKNOWN") => {
+    const status = String(value || fallback).toUpperCase();
+    const tone = /VERIFIED|PAID|OPEN|ACTIVE|APPROVED|COMPLETED/.test(status)
+        ? "success"
+        : /PENDING|ISSUED|PROCESSING|REVIEW/.test(status)
+            ? "pending"
+            : /FAILED|REJECTED|CANCELLED|OVERDUE/.test(status)
+                ? "danger"
+                : "neutral";
+    return <span className={`moveinout-status moveinout-status-${tone}`}>{status.replaceAll("_", " ")}</span>;
+};
+
 const FinanceDashboardPage = () => {
     const [accounts, setAccounts] = useState([]);
     const [journals, setJournals] = useState([]);
@@ -146,7 +158,7 @@ const FinanceDashboardPage = () => {
                                 {(loading ? [] : activePeriods.length ? activePeriods : periods.slice(0, 3)).map((period) => (
                                     <tr key={period.id}>
                                         <td>{period.name || "Accounting period"}</td>
-                                        <td>{period.status || "OPEN"}</td>
+                                        <td>{statusBadge(period.status, "OPEN")}</td>
                                         <td>{period.startDate ? String(period.startDate).slice(0, 10) : "—"} to {period.endDate ? String(period.endDate).slice(0, 10) : "—"}</td>
                                     </tr>
                                 ))}
@@ -177,7 +189,7 @@ const FinanceDashboardPage = () => {
                                     <td>{payment.paymentReference || "—"}</td>
                                     <td>{payment.paymentMethod || "—"}</td>
                                     <td>{formatCurrency(payment.amount)}</td>
-                                    <td>{payment.status || "PENDING"}</td>
+                                    <td>{statusBadge(payment.status, "PENDING")}</td>
                                 </tr>
                             ))}
                             {!loading && !payments.length && <tr><td colSpan="4"><div className="society-empty"><h3>No payment records</h3></div></td></tr>}
