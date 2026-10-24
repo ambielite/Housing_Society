@@ -6,7 +6,7 @@ const PUBLIC_COLUMNS = `
 `;
 
 const findByEmail = async (email) => {
-  const result = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+  const result = await db.query('SELECT * FROM users WHERE lower(email) = lower($1) LIMIT 1', [String(email).trim()]);
   return result.rows[0] || null;
 };
 

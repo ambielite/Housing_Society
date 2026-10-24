@@ -1,5 +1,7 @@
 const repository = require("./societyEmergencyContact.repository");
 const Society = require("../society/society.model");
+const assertUniqueEmail = require("../../../common/assertUniqueEmail");
+const SocietyEmergencyContact = require("./societyEmergencyContact.model");
 
 const allowedFields = ["name", "category", "phone", "alternatePhone", "email", "address", "operatingHours", "available24x7", "notes", "isActive"];
 const pickFields = (data) => Object.fromEntries(allowedFields
@@ -33,6 +35,8 @@ const listContacts = async (societyId) => {
 
 const createContact = async (societyId, data) => {
   await requireSociety(societyId);
+  if (data.email) data.email = data.email.trim().toLowerCase();
+  await assertUniqueEmail({ model: SocietyEmergencyContact, email: data.email, where: { societyId }, message: "An emergency contact with this email already exists in this society." });
   return repository.create({ ...pickFields(data), societyId });
 };
 
@@ -49,6 +53,8 @@ const getContact = async (id, societyId) => {
 
 const updateContact = async (id, societyId, data) => {
   const contact = await getContact(id, societyId);
+  if (data.email) data.email = data.email.trim().toLowerCase();
+  if (data.email !== undefined) await assertUniqueEmail({ model: SocietyEmergencyContact, email: data.email, where: { societyId }, excludeId: id, message: "An emergency contact with this email already exists in this society." });
   return contact.update(pickFields(data));
 };
 

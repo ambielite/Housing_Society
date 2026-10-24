@@ -4,6 +4,9 @@ const Society =
 const Staff =
     require("../staff/staff.model");
 
+const gatesRepository =
+    require("../../gates/gates.repository");
+
 const Checkpoint =
     require("./checkpoint.model");
 
@@ -14,6 +17,16 @@ const {
     validateCreate,
     validateUpdate
 } = require("./patrol.validation");
+
+const validateGate = async (gateId, societyId) => {
+    if (!gateId) return;
+    const gate = await gatesRepository.findGateById(gateId);
+    if (!gate) throw new Error("Gate not found");
+    if (String(gate.society_id) !== String(societyId)) {
+        throw new Error("Gate does not belong to this society");
+    }
+    if (gate.status !== "ACTIVE") throw new Error("Only active gates can be assigned to patrols");
+};
 
 
 // CREATE PATROL
@@ -34,6 +47,8 @@ const createPatrol = async (data) => {
         );
 
     }
+
+    await validateGate(data.gateId, data.societyId);
 
 
     const staff =
@@ -747,6 +762,10 @@ const updatePatrol = async (
             "Completed patrol cannot be updated"
         );
 
+    }
+
+    if (Object.hasOwn(data, "gateId")) {
+        await validateGate(data.gateId, patrol.societyId);
     }
 
 

@@ -1,6 +1,9 @@
 const repository = require("./nonMember.repository");
+const assertUniqueEmail = require("../../../common/assertUniqueEmail");
+const NonMember = require("./nonMember.model");
 
 const createNonMember = async (data) => {
+    if (data.email) data.email = data.email.trim().toLowerCase();
     const existing = await repository.findByMobile(
         data.mobile,
         data.societyId
@@ -11,6 +14,8 @@ const createNonMember = async (data) => {
             "A non-member with this mobile number already exists in this society"
         );
     }
+
+    await assertUniqueEmail({ model: NonMember, email: data.email, where: { societyId: data.societyId }, message: "A non-member with this email already exists in this society." });
 
     const nonMember = await repository.create({
         societyId: data.societyId,
@@ -81,6 +86,11 @@ const updateNonMember = async (id, data) => {
                 "Another non-member with this mobile number already exists"
             );
         }
+    }
+
+    if (data.email !== undefined) {
+        if (data.email) data.email = data.email.trim().toLowerCase();
+        await assertUniqueEmail({ model: NonMember, email: data.email, where: { societyId: existing.societyId }, excludeId: id, message: "A non-member with this email already exists in this society." });
     }
 
     return await repository.update(id, data);

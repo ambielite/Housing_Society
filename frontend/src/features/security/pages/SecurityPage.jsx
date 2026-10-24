@@ -190,7 +190,7 @@ function DeviceForm({ gates, value, onSubmit, onCancel, saving, error }) {
   </form>;
 }
 
-export default function SecurityPage() {
+export default function SecurityPage({ embedded = false } = {}) {
   const { hasPermission, user } = useAuth();
   const { societyId } = useSociety();
   const [tab, setTab] = useState('gates');
@@ -250,9 +250,15 @@ export default function SecurityPage() {
 
   const deviceRowsForGate = selected?.id ? devices.data || [] : [];
 
-  if (!societyId) return <PageContainer title="Security & Gate Operations" subtitle="Gates, guards, credentials and device operations."><SocietyIdPrompt /></PageContainer>;
+  if (!societyId) return embedded ? <SocietyIdPrompt /> : <PageContainer title="Security & Gate Operations" subtitle="Gates, guards, credentials and device operations."><SocietyIdPrompt /></PageContainer>;
 
-  return <PageContainer title="Security, Gate & Visitor Operations" subtitle="Manage physical access, visitors, deliveries and gate activity.">
+  const content = <section className={embedded ? 'society-list-panel security-access-panel' : undefined}>
+    {embedded && <div className="society-list-heading">
+      <div>
+        <h2>Gates &amp; Visitor Access</h2>
+        <p>Manage society gates, visitors, deliveries, and access activity.</p>
+      </div>
+    </div>}
     <div className="tabs-bar">
       <div className="tabs">
         <button className={`tab ${tab === 'gates' ? 'active' : ''}`} type="button" onClick={() => setTab('gates')}>Gates & Devices</button>
@@ -260,13 +266,16 @@ export default function SecurityPage() {
         <button className={`tab ${tab === 'deliveries' ? 'active' : ''}`} type="button" onClick={() => setTab('deliveries')}>Deliveries</button>
       </div>
     </div>
+    <div className={embedded ? 'security-access-content' : undefined}>
     {notice && <Alert variant="success">{notice}</Alert>}
     {error && !dialog && <Alert>{error}</Alert>}
 
     {tab === 'gates' && <GatesPanel societyId={societyId} societyName={societyName} gates={gateRows} guards={guardRows} cards={cardRows} userNames={userNames} vendorNames={vendorNames} onRefresh={refresh} onRun={run} onDeleteGate={removeGate} onDeleteGuard={removeGuard} onRevokeCard={revokeCard} dialog={dialog} setDialog={setDialog} selected={selected} setSelected={setSelected} deviceEvents={deviceEvents} openDeviceEvents={openDeviceEvents} />}
     {tab === 'visitors' && <VisitorsPage societyId={societyId} societyName={societyName} currentUser={user} gates={gateRows} unitNames={unitNames} userNames={userNames} gateNames={Object.fromEntries(gateRows.map((g) => [g.id, g.name]))} />}
     {tab === 'deliveries' && <DeliveriesPage societyId={societyId} currentUser={user} profiles={list(visitorProfiles.data)} unitNames={unitNames} userNames={userNames} />}
-  </PageContainer>;
+    </div>
+  </section>;
+  return embedded ? <div className="security-embedded-page">{content}</div> : <PageContainer title="Security, Gate & Visitor Operations" subtitle="Manage physical access, visitors, deliveries and gate activity.">{content}</PageContainer>;
 }
 
 function GatesPanel({ societyId, societyName, gates, guards, cards, userNames, vendorNames, onRefresh, onRun, onDeleteGate, onDeleteGuard, onRevokeCard, dialog, setDialog, selected, setSelected, deviceEvents, openDeviceEvents }) {

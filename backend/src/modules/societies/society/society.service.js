@@ -1,12 +1,11 @@
 const societyRepository = require("./society.repository");
 const usersRepository = require("../../users/users.repository");
+const assertUniqueEmail = require("../../../common/assertUniqueEmail");
+const Society = require("./society.model");
 
 const createSociety = async (data, createdBy) => {
-
-    const existingSocieties =
-        await societyRepository.findAllSocieties();
-
-    // your business logic here
+    if (data.email) data.email = data.email.trim().toLowerCase();
+    await assertUniqueEmail({ model: Society, email: data.email, message: "A society with this email already exists." });
 
     return await societyRepository.createSociety(data, createdBy);
 };
@@ -22,6 +21,8 @@ const getSocietyById = async (id) => {
 };
 
 const updateSociety = async (id, data) => {
+    if (data.email) data.email = data.email.trim().toLowerCase();
+    if (data.email !== undefined) await assertUniqueEmail({ model: Society, email: data.email, excludeId: id, message: "A society with this email already exists." });
     return await societyRepository.updateSociety(id, data);
 };
 

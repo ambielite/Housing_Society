@@ -1,6 +1,8 @@
 const { Op } = require("sequelize");
 
 const Society = require("../../../modules/societies/society/society.model");
+const CommunityClassified = require("./classified.model");
+const assertUniqueEmail = require("../../../common/assertUniqueEmail");
 
 const repository = require("./classified.repository");
 
@@ -15,6 +17,15 @@ const {
 const createClassified = async (data) => {
 
     validateCreateClassified(data);
+
+    if (data.contactEmail) data.contactEmail = data.contactEmail.trim().toLowerCase();
+    await assertUniqueEmail({
+        model: CommunityClassified,
+        field: "contactEmail",
+        email: data.contactEmail,
+        where: { societyId: data.societyId },
+        message: "A classified listing with this contact email already exists in this society."
+    });
 
     const society = await Society.findByPk(data.societyId);
 
@@ -88,6 +99,18 @@ const updateClassified = async (id, data) => {
     validateUpdateClassified(data);
 
     const classified = await getClassifiedById(id);
+
+    if (data.contactEmail !== undefined) {
+        if (data.contactEmail) data.contactEmail = data.contactEmail.trim().toLowerCase();
+        await assertUniqueEmail({
+            model: CommunityClassified,
+            field: "contactEmail",
+            email: data.contactEmail,
+            where: { societyId: classified.societyId },
+            excludeId: id,
+            message: "A classified listing with this contact email already exists in this society."
+        });
+    }
 
     if (
         classified.status === "PUBLISHED" ||

@@ -28,6 +28,7 @@ const assertVendorScope = async (vendorId, actingUser) => {
 };
 
 const createVendor = async (payload, actingUser) => {
+  if (payload.contactEmail) payload.contactEmail = payload.contactEmail.trim().toLowerCase();
   if (!actingUser?.societyId || payload.societyId !== actingUser.societyId) {
     throw new ApiError(403, 'Select a society you are authorized to manage');
   }
@@ -39,6 +40,9 @@ const createVendor = async (payload, actingUser) => {
     }
     const existingLink = await repository.findUserVendorLink(payload.userId);
     if (existingLink) throw new ApiError(409, 'This user is already linked to a vendor');
+  }
+  if (payload.contactEmail && await repository.findByContactEmail(payload.societyId, payload.contactEmail)) {
+    throw new ApiError(409, 'A vendor with this contact email already exists in this society');
   }
   try {
     return await repository.createVendor(payload);
@@ -94,10 +98,14 @@ const getVendor = async (id, actingUser) => {
 };
 
 const updateVendor = async (id, payload, actingUser) => {
+  if (payload.contactEmail) payload.contactEmail = payload.contactEmail.trim().toLowerCase();
   await assertVendorScope(id, actingUser);
   const vendor = await repository.findById(id);
   if (!vendor) {
     throw new ApiError(404, 'Vendor not found');
+  }
+  if (payload.contactEmail && await repository.findByContactEmail(vendor.society_id, payload.contactEmail, id)) {
+    throw new ApiError(409, 'A vendor with this contact email already exists in this society');
   }
   return repository.updateVendor(id, payload);
 };
@@ -175,10 +183,14 @@ const unlinkUser = async (vendorId, userId, actingUser) => {
 // --- contacts ---------------------------------------------------------------
 
 const addContact = async (vendorId, payload, actingUser) => {
+  if (payload.email) payload.email = payload.email.trim().toLowerCase();
   await assertVendorScope(vendorId, actingUser);
   const vendor = await repository.findById(vendorId);
   if (!vendor) {
     throw new ApiError(404, 'Vendor not found');
+  }
+  if (payload.email && await repository.findContactByEmail(vendorId, payload.email)) {
+    throw new ApiError(409, 'A vendor contact with this email already exists for this vendor');
   }
   return repository.addContact({ vendorId, ...payload });
 };

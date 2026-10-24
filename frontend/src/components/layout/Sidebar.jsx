@@ -80,9 +80,9 @@ const NAV_ITEMS = [
   { label: 'Purchase Orders', to: '/purchase-orders', permission: 'PURCHASE_ORDER_READ', icon: FileText },
   { label: 'Approvals', to: '/approvals', permission: 'APPROVAL_READ', icon: CheckCircle },
   {
-    label: 'Staff & Visitors', to: '/security-operations', icon: UsersRound,
+    label: ' Staff & Visitors', to: '/security-operations', icon: UsersRound,
     children: [
-      { label: 'Manage Staff ', to: '/security-operations/staff', permission: 'STAFF_READ', icon: Users },
+      { label: 'Staff & documents', to: '/security-operations/staff', permission: 'STAFF_READ', icon: Users },
       { label: 'Attendance', to: '/security-operations/attendance', permission: 'STAFF_ATTENDANCE_READ', icon: ClipboardCheck },
       { label: 'Shifts & rosters', to: '/security-operations/rosters', permission: ['SHIFT_READ', 'ROSTER_READ'], icon: CalendarDays },
       { label: 'Tasks', to: '/security-operations/tasks', permission: 'STAFF_TASK_READ', icon: CheckCircle },
@@ -91,7 +91,7 @@ const NAV_ITEMS = [
       { label: 'Emergencies', to: '/security-operations/emergencies', permission: 'EMERGENCY_READ', icon: Siren },
       
       {
-        label: 'Gates & visitor access', to: '/security', icon: Shield,
+        label: 'Gates & visitor access', to: '/security-operations/gates', icon: Shield,
         permission: ['GATE_READ', 'VISITOR_PROFILE_READ', 'DELIVERY_READ'],
       },
     ],

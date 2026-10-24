@@ -1,4 +1,4 @@
-import { legacyApi as axiosClient } from "../../../lib/axios";
+import apiClient, { legacyApi as axiosClient } from "../../../lib/axios";
 
 const societyParams = () => {
     const societyId = String(localStorage.getItem("selectedSocietyId") || "").replace(/^:+/, "").trim();
@@ -6,6 +6,8 @@ const societyParams = () => {
 };
 
 const securityApi = {
+    // Gates are mounted on the versioned API, unlike these legacy security endpoints.
+    getGates: async () => (await apiClient.get("/gates", societyParams())).data,
     updateResource: async (resource, id, data) => (await axiosClient.put(`/${resource}/${id}`, data, data instanceof FormData ? { headers: { "Content-Type": "multipart/form-data" } } : undefined)).data,
     deleteResource: async (resource, id) => (await axiosClient.delete(`/${resource}/${id}`)).data,
     updateAttendance: async (id, data) => (await axiosClient.put(`/staff-attendance/${id}`, data)).data,

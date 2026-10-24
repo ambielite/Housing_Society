@@ -1,6 +1,8 @@
 const repository = require("./societyCommittee.repository");
 const Society = require("../society/society.model");
 const { saveProfilePicture, removeProfilePicture } = require("../../users/profilePicture.storage");
+const assertUniqueEmail = require("../../../common/assertUniqueEmail");
+const SocietyCommitteeMember = require("./societyCommittee.model");
 
 const writableFields = ["memberName", "designation", "unitNumber", "phone", "email", "termStart", "termEnd", "notes", "isActive"];
 const pickFields = (data) => Object.fromEntries(writableFields
@@ -29,6 +31,8 @@ const listMembers = async (societyId) => {
 
 const createMember = async (societyId, data, profilePicture) => {
   await ensureSociety(societyId);
+  if (data.email) data.email = data.email.trim().toLowerCase();
+  await assertUniqueEmail({ model: SocietyCommitteeMember, email: data.email, where: { societyId }, message: "A committee member with this email already exists in this society." });
   const profilePictureUrl = profilePicture ? saveProfilePicture(profilePicture) : null;
   try {
     return await repository.create({ ...pickFields(data), profilePictureUrl, societyId });
@@ -51,6 +55,8 @@ const getMember = async (societyId, id) => {
 
 const updateMember = async (societyId, id, data, profilePicture) => {
   const member = await getMember(societyId, id);
+  if (data.email) data.email = data.email.trim().toLowerCase();
+  if (data.email !== undefined) await assertUniqueEmail({ model: SocietyCommitteeMember, email: data.email, where: { societyId }, excludeId: id, message: "A committee member with this email already exists in this society." });
   const previousPictureUrl = member.profilePictureUrl;
   const profilePictureUrl = profilePicture ? saveProfilePicture(profilePicture) : undefined;
   try {

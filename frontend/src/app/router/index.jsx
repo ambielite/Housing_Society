@@ -35,7 +35,6 @@ const PurchaseOrderFormPage = lazy(() => import('../../features/purchase-orders/
 const PurchaseOrderDetailPage = lazy(() => import('../../features/purchase-orders/pages/PurchaseOrderDetailPage'));
 const ApprovalListPage = lazy(() => import('../../features/approvals/pages/ApprovalListPage'));
 const ApprovalDetailPage = lazy(() => import('../../features/approvals/pages/ApprovalDetailPage'));
-const SecurityPage = lazy(() => import('../../features/security/pages/SecurityPage'));
 const AmenitiesHomePage = lazy(() => import('../../features/amenities/pages/AmenitiesHomePage'));
 const AmenityListPage = lazy(() => import('../../features/amenities/pages/AmenityListPage'));
 const AmenityDetailPage = lazy(() => import('../../features/amenities/pages/AmenityDetailPage'));
@@ -290,7 +289,7 @@ export default function AppRoutes() {
 
              {/* Phase 9 - Security, Gate, Visitor & Delivery */}
             <Route element={<ProtectedRoute permission={['GATE_READ', 'VISITOR_PROFILE_READ', 'DELIVERY_READ']} />}>
-              <Route path="/security" element={<SecurityPage />} />
+              <Route path="/security" element={<Navigate to="/security-operations/gates" replace />} />
             </Route>
 
             {/* Phase 12 - Amenities & Booking */}

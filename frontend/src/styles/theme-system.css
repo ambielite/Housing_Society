@@ -676,7 +676,7 @@ body :is(.society-search, .search-box) input:focus { background: transparent; }
 .security-page .society-stats .security-summary-green { --summary-accent: #159b63; border-left-color: var(--summary-accent); }
 .security-page .society-stats .security-summary-blue { --summary-accent: #2878d0; border-left-color: var(--summary-accent); }
 .security-page .society-stats .security-summary-orange { --summary-accent: #df7900; border-left-color: var(--summary-accent); }
-.security-page .security-summary-card:hover { border-color: var(--summary-accent); border-left-color: var(--summary-accent); box-shadow: 0 7px 18px color-mix(in srgb, var(--summary-accent) 16%, transparent); transform: translateY(-1px); }
+.security-page .security-summary-card:hover { border-color: var(--summary-accent); border-left-color: var(--summary-accent); box-shadow: 0 5px 14px rgba(15, 23, 42, .07); transform: translateY(-1px); }
 .security-page .security-summary-card:focus-visible { outline: 2px solid var(--summary-accent); outline-offset: 3px; }
 .security-page .security-summary-card .security-summary-note { color: var(--summary-accent); font-size: 11px; }
 .security-page .security-summary-orange .society-stat-icon-orange { background: #fff1df; color: #df7900; }

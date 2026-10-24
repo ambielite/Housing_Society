@@ -14,6 +14,8 @@ const { saveProfilePicture, removeProfilePicture } = require("../../users/profil
 
 const createResident = async (data, profilePicture) => {
 
+    if (data.email) data.email = data.email.trim().toLowerCase();
+
     const errors = validateCreateResident(data);
 
     if (errors.length > 0) {
@@ -150,6 +152,8 @@ const updateResident = async (
     data,
     profilePicture
 ) => {
+
+    if (data.email) data.email = data.email.trim().toLowerCase();
 
     const resident =
         await residentRepository.findByIdAndSociety(

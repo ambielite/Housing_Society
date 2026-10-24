@@ -30,6 +30,16 @@ const Patrol = sequelize.define(
             }
         },
 
+        gateId: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            field: "gate_id",
+            references: {
+                model: "gates",
+                key: "id"
+            }
+        },
+
         patrolCode: {
             type: DataTypes.STRING(50),
             allowNull: false,
@@ -142,6 +152,9 @@ const Patrol = sequelize.define(
             },
             {
                 fields: ["staff_id"]
+            },
+            {
+                fields: ["gate_id"]
             },
             {
                 fields: ["patrol_date"]

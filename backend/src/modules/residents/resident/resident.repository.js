@@ -35,11 +35,12 @@ const findByMobile = async (societyId, mobile) => {
 
 
 const findByEmail = async (societyId, email) => {
+    const { Op } = require("sequelize");
 
     return await Resident.findOne({
         where: {
             societyId,
-            email
+            email: { [Op.iLike]: String(email).trim() }
         }
     });
 };

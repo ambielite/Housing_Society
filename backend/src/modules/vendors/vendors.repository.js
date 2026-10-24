@@ -34,6 +34,17 @@ const findById = async (id) => {
   return result.rows[0] || null;
 };
 
+const findByContactEmail = async (societyId, email, excludeId) => {
+  const result = await db.query(
+    `SELECT id FROM vendors
+     WHERE society_id = $1 AND lower(contact_email) = lower($2)
+       AND ($3::uuid IS NULL OR id <> $3::uuid)
+     LIMIT 1`,
+    [societyId, String(email).trim(), excludeId || null]
+  );
+  return result.rows[0] || null;
+};
+
 // Mapping table is authoritative; legacy vendors.user_id remains a fallback.
 const findByUserId = async (userId) => {
   const result = await db.query(
@@ -209,6 +220,14 @@ const addContact = async ({ vendorId, name, designation, email, phone, isPrimary
   return result.rows[0];
 };
 
+const findContactByEmail = async (vendorId, email) => {
+  const result = await db.query(
+    'SELECT id FROM vendor_contacts WHERE vendor_id = $1 AND lower(email) = lower($2) LIMIT 1',
+    [vendorId, String(email).trim()]
+  );
+  return result.rows[0] || null;
+};
+
 const listContacts = async (vendorId) => {
   const result = await db.query(
     'SELECT * FROM vendor_contacts WHERE vendor_id = $1 ORDER BY is_primary DESC, created_at ASC',
@@ -334,6 +353,7 @@ const updateContractStatus = async (id, status) => {
 module.exports = {
   createVendor,
   findById,
+  findByContactEmail,
   findByUserId,
   listVendorIdsByUserId,
   listVendorUsers,
@@ -345,6 +365,7 @@ module.exports = {
   updateStatus,
   deleteVendor,
   addContact,
+  findContactByEmail,
   listContacts,
   findContactById,
   deleteContact,

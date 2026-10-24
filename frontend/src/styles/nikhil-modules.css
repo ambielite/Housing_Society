@@ -1653,6 +1653,18 @@ tbody tr:hover {
 .security-page .society-stat-card { min-height: 96px; border-radius: 10px; }
 .security-page .society-list-panel { border-radius: 10px; }
 .security-page .society-list-heading h2 { margin: 0; }
+.security-access-panel { min-width: 0; }
+.security-access-panel > .tabs-bar { margin: 0; padding: 0 18px; overflow-x: auto; scrollbar-width: thin; }
+.security-access-panel > .tabs-bar .tabs { min-width: max-content; }
+.security-access-panel .security-access-content { min-width: 0; padding: 20px; }
+.security-access-panel .security-access-content > .section { min-width: 0; margin: 24px 0 0; }
+.security-access-panel .security-access-content .section-head { align-items: center; margin: 0 0 12px; }
+.security-access-panel .security-access-content .table-card { min-width: 0; max-width: 100%; margin: 0 0 24px; overflow: hidden; }
+.security-access-panel .security-access-content > .society-error,
+.security-access-panel .security-access-content > .alert { margin: 0 0 16px; }
+.security-access-panel .security-access-content .table-wrap { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
+.security-access-panel .security-access-content .table { min-width: 680px; }
+.security-access-panel .security-access-content .table-state { min-height: 120px; display: grid; align-content: center; justify-items: center; padding: 20px; border: 1px solid #e5eaf2; border-radius: 10px; }
 .security-page .society-toolbar { flex-wrap: wrap; justify-content: flex-start; }
 .security-page .society-search { flex: 1 1 250px; }
 .security-page .society-toolbar select { min-height: 38px; padding: 0 10px; border: 1px solid #d1d5db; border-radius: 7px; background: #fff; color: #374151; font-size: 12px; }
@@ -1661,6 +1673,11 @@ tbody tr:hover {
 .security-page .society-row-actions { flex-wrap: nowrap; }
 .security-page .society-row-actions button { min-height: 30px; padding: 0 9px; border: 1px solid #e2e5eb; border-radius: 6px; background: #fff; color: #475467; font-size: 11px; font-weight: 550; cursor: pointer; }
 .security-page .society-row-actions button:hover { border-color: #c7d2fe; background: #f8f9ff; color: #4338ca; }
+@media(max-width: 700px) {
+  .security-access-panel .security-access-content { padding: 14px; }
+  .security-access-panel > .tabs-bar { padding: 0 12px; }
+  .security-access-panel .security-access-content .section-head { align-items: flex-start; }
+}
 .security-manage-button { min-height: 30px; padding: 0 12px; border: 1px solid #c7d2fe; border-radius: 6px; background: #f5f6ff; color: #4338ca; font-size: 11px; font-weight: 600; cursor: pointer; }
 .security-status-pill { display: inline-flex; align-items: center; min-height: 23px; padding: 0 8px; border-radius: 99px; background: #f2f4f7; color: #475467; font-size: 10px; font-weight: 600; white-space: nowrap; }
 .security-status-pill.active,.security-status-pill.present,.security-status-pill.completed,.security-status-pill.resolved,.security-status-pill.confirmed,.security-status-pill.verified { background: #ecfdf3; color: #027a48; }
@@ -1685,6 +1702,48 @@ tbody tr:hover {
 .security-quick-card > small { grid-column: 2 / 4; grid-row: 2; color: var(--quick-accent); font-size: 11px; }
 :root[data-theme='dark'] .security-quick-card { border-top-color: var(--card-border); border-right-color: var(--card-border); border-bottom-color: var(--card-border); }
 :root[data-theme='dark'] .security-quick-card:hover { border-left-color: var(--quick-accent); border-top-color: var(--quick-accent); border-right-color: var(--quick-accent); border-bottom-color: var(--quick-accent); }
+
+/* Keep the overview shortcuts aligned with the metric cards above them. */
+.security-page:has(.security-quick-card) {
+  border-radius: 18px;
+  background-image:
+    radial-gradient(ellipse at 8% 0%, rgba(99, 102, 241, .055), transparent 34%),
+    radial-gradient(ellipse at 96% 18%, rgba(14, 165, 233, .045), transparent 30%);
+}
+.security-page:has(.security-quick-card) .security-tabs {
+  border-color: color-mix(in srgb, var(--card-border) 82%, #8b9cff);
+  box-shadow: 0 5px 16px rgba(31, 47, 78, .035);
+}
+.security-page .society-lifecycle-grid:has(.security-quick-card) {
+  align-items: stretch;
+  margin-top: 16px;
+}
+.security-page .security-quick-card {
+  box-sizing: border-box;
+  min-height: 96px;
+  height: 96px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border-left-color: var(--metric-accent, #7158df);
+  background: var(--surface, #fff);
+  box-shadow: 0 1px 2px rgba(31, 47, 78, .025);
+}
+.security-page .security-quick-card > .security-quick-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  background: var(--metric-soft, #f0edff);
+  color: var(--metric-accent, #7158df);
+}
+.security-page .security-quick-card:hover {
+  border-color: var(--metric-accent, #7158df);
+  box-shadow: 0 5px 14px rgba(15, 23, 42, .07);
+  transform: translateY(-1px);
+}
+.security-page .security-quick-card:focus-visible {
+  outline: 2px solid var(--metric-accent, #7158df);
+  outline-offset: 3px;
+}
 .security-subpanels { display: grid; grid-template-columns: minmax(240px, .85fr) minmax(0, 1.5fr); gap: 13px; margin: 14px 18px 18px; }
 .security-subpanels section, .security-shifts { min-width: 0; border: 1px solid #eaecf0; border-radius: 9px; background: #fff; }
 .security-subpanels section { padding: 14px; }

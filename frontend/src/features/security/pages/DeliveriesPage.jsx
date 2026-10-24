@@ -102,11 +102,10 @@ export default function DeliveriesPage({ societyId, currentUser, profiles, unitN
   };
 
   const deliveryColumns = [
-    { key: 'delivery', header: 'Delivery', render: (d) => <><span className="cell-title">{label(d.delivery_type)}</span><span className="cell-sub">{d.courier_name || 'Unknown courier'}{d.tracking_no ? ` · ${d.tracking_no}` : ''}</span></> },
+    { key: 'delivery', header: 'Delivery', render: (d) => <><span className="cell-title">{label(d.delivery_type)}</span>{d.courier_name && <span className="cell-sub">Courier / source: {d.courier_name}</span>}{d.tracking_no && <span className="cell-sub">Tracking number: {d.tracking_no}</span>}</> },
     { key: 'unit', header: 'Unit', render: (d) => <span>{unitNames[d.unit_id] || d.unit_id}</span> },
     { key: 'visitor', header: 'Visitor', render: (d) => d.visitor_profile_id ? <span>{profiles.find((p) => p.id === d.visitor_profile_id)?.name || d.visitor_profile_id}</span> : '-' },
     { key: 'status', header: 'Status', render: (d) => <SecurityBadge value={d.status} /> },
-    { key: 'received', header: 'Received', render: (d) => formatDateTime(d.received_at) },
     { key: 'actions', header: 'Actions', render: (d) => <div className="row-actions">
       {hasPermission('DELIVERY_READ') && <button className="btn btn-secondary btn-sm" onClick={async () => { try { setDetail(await api.getDelivery(d.id)); setDialog('delivery-detail'); } catch (e) { setError(getErrorMessage(e)); } }}>View</button>}
       {hasPermission('DELIVERY_UPDATE') && (deliveryTransitions[d.status] || []).length > 0 && <button className="btn btn-primary btn-sm" onClick={() => { setSelected(d); setDialog('delivery-status'); }}>Change status</button>}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import {
   Activity,
   AlertOctagon,
@@ -15,8 +15,10 @@ import {
   X,
 } from "lucide-react";
 import securityApi from "../api/security.legacy.api";
+import SecurityBadge from "../components/SecurityBadge";
 import unitApi from "../../units/api/unit.api";
 import { recordToSections, RecordDetailsModal } from "../../../components/ui/Modal";
+import GateVisitorAccessPage from "./SecurityPage";
 
 const rowsFrom = (response) => {
   let rows = Array.isArray(response)
@@ -170,30 +172,12 @@ const configs = {
       ["dueDate", "Due date", "date"],
     ],
   },
-  checkpoint: {
-    title: "Patrol checkpoint",
-    api: "createCheckpoint",
-    fields: [
-      ["checkpointCode", "Checkpoint code"],
-      ["checkpointName", "Checkpoint name"],
-      ["locationName", "Location"],
-      ["sequenceOrder", "Sequence", "number"],
-      [
-        "verificationMethod",
-        "Verification method",
-        "select",
-        ["QR", "NFC", "GPS", "QR_NFC", "QR_GPS", "NFC_GPS", "QR_NFC_GPS"],
-      ],
-      ["gpsLatitude", "GPS latitude", "number"],
-      ["gpsLongitude", "GPS longitude", "number"],
-      ["gpsRadiusMeters", "GPS radius (m)", "number"],
-    ],
-  },
   patrol: {
     title: "Patrol",
     api: "createPatrol",
     fields: [
       ["staffId", "Staff", "staff"],
+      ["gateId", "Assigned gate", "gate"],
       ["patrolCode", "Patrol code"],
       ["patrolName", "Patrol name"],
       ["patrolDate", "Patrol date", "date"],
@@ -308,7 +292,6 @@ const display = (value) =>
 
 export default function SecurityPage() {
   const { section } = useParams();
-  const navigate = useNavigate();
   const [tab, setTab] = useState(section || "overview");
   const [data, setData] = useState({});
   const [loading, setLoading] = useState(true);
@@ -330,7 +313,7 @@ export default function SecurityPage() {
         "shifts",
         "rosters",
         "tasks",
-        "checkpoints",
+        "gates",
         "patrols",
         "incidents",
         "emergencies",
@@ -342,7 +325,7 @@ export default function SecurityPage() {
         securityApi.getShifts,
         securityApi.getRosters,
         securityApi.getTasks,
-        securityApi.getCheckpoints,
+        securityApi.getGates,
         securityApi.getPatrols,
         securityApi.getIncidents,
         securityApi.getEmergencies,
@@ -358,7 +341,7 @@ export default function SecurityPage() {
         if (result.status === "fulfilled") next[key] = rowsFrom(result.value);
         else {
           next[key] = [];
-          failed.push(key);
+          if (key !== "gates") failed.push(key);
         }
       });
       setData(next);
@@ -486,7 +469,6 @@ export default function SecurityPage() {
         "shift",
         "roster",
         "task",
-        "checkpoint",
         "patrol",
         "incident",
         "emergency",
@@ -562,17 +544,7 @@ export default function SecurityPage() {
       return (
         <button
           className="security-manage-button"
-          onClick={async () => {
-            try {
-              const response = await securityApi.getPatrolCheckpoints(id);
-              setWorkflow({ type: tab, item, checkpoints: rowsFrom(response) });
-            } catch (err) {
-              setError(
-                err.response?.data?.message ||
-                  "Could not load patrol checkpoints.",
-              );
-            }
-          }}
+          onClick={() => setWorkflow({ type: tab, item })}
         >
           Manage
         </button>
@@ -593,7 +565,7 @@ export default function SecurityPage() {
     attendance: ["Staff", "Date", "Check in", "Check out", "Status"],
     rosters: ["Staff", "Shift", "Date", "Type", "Status"],
     tasks: ["Title", "Staff", "Type", "Due", "Priority", "Status"],
-    patrols: ["Patrol", "Staff", "Date", "Window", "Status"],
+    patrols: ["Patrol", "Staff", "Gate", "Date", "Window", "Status"],
     incidents: ["Number", "Incident", "Severity", "Location", "Status"],
     emergencies: ["Number", "Emergency", "Priority", "Location", "Status"],
     audit: ["When", "Module", "Action", "Actor", "Severity"],
@@ -605,21 +577,21 @@ export default function SecurityPage() {
         titleCase(item.staffType),
         item.mobileNumber,
         item.joiningDate?.slice(0, 10),
-        titleCase(item.status),
+        <SecurityBadge value={item.status} />,
       ],
       attendance: [
         staffName(item.staffId),
         item.attendanceDate?.slice(0, 10),
         formatTime(item.checkInTime),
         formatTime(item.checkOutTime),
-        titleCase(item.status),
+        <SecurityBadge value={item.status} />,
       ],
       rosters: [
         staffName(item.staffId),
         shiftName(item.shiftId),
         item.rosterDate?.slice(0, 10),
         titleCase(item.rosterType),
-        titleCase(item.status),
+        <SecurityBadge value={item.status} />,
       ],
       tasks: [
         item.title,
@@ -627,14 +599,15 @@ export default function SecurityPage() {
         titleCase(item.taskType),
         item.dueDate?.slice(0, 10),
         titleCase(item.priority),
-        titleCase(item.status),
+        <SecurityBadge value={item.status} />,
       ],
       patrols: [
         item.patrolName,
         staffName(item.staffId),
+        (data.gates || []).find((gate) => String(gate.id) === String(item.gateId))?.name || "—",
         item.patrolDate?.slice(0, 10),
         `${item.plannedStartTime || "—"} – ${item.plannedEndTime || "—"}`,
-        titleCase(item.status),
+        <SecurityBadge value={item.status} />,
       ],
       incidents: [
         item.incidentNumber,
@@ -643,7 +616,7 @@ export default function SecurityPage() {
         </>,
         titleCase(item.severity),
         display(item.location),
-        titleCase(item.status),
+        <SecurityBadge value={item.status} />,
       ],
       emergencies: [
         item.emergencyNumber,
@@ -652,7 +625,7 @@ export default function SecurityPage() {
         </>,
         titleCase(item.priority),
         display(item.location),
-        titleCase(item.status),
+        <SecurityBadge value={item.status} />,
       ],
       audit: [
         item.createdAt?.slice(0, 16)?.replace("T", " "),
@@ -695,10 +668,6 @@ export default function SecurityPage() {
             key={key}
             className={tab === key ? "active" : ""}
             onClick={() => {
-              if (key === "gates") {
-                navigate("/security");
-                return;
-              }
               setTab(key);
               setSearch("");
             }}
@@ -732,18 +701,21 @@ export default function SecurityPage() {
               ["Staff tasks", "tasks", "tasks", ClipboardCheck, "slate"],
             ].map(([label, key, route, Icon, color]) => (
               <button
-                className={`security-quick-card security-quick-card-${color}`}
+                className={`society-stat-card assets-quick-card security-quick-card security-quick-card-${color}`}
                 key={key}
                 onClick={() => setTab(route)}
               >
-                <span className="security-quick-icon"><Icon size={19} /></span>
-                <span className="security-quick-label">{label}</span>
-                <strong>{(data[key] || []).length}</strong>
-                <small>Open {label.toLowerCase()} →</small>
+                <span className="society-stat-icon security-quick-icon"><Icon size={19} /></span>
+                <div>
+                  <span className="society-stat-label security-quick-label">{label}</span>
+                  <strong>{(data[key] || []).length}</strong>
+                </div>
               </button>
             ))}
           </div>
         </>
+      ) : tab === "gates" ? (
+        <GateVisitorAccessPage embedded />
       ) : (
         <section className="society-list-panel">
           <div className="society-list-heading">
@@ -851,14 +823,6 @@ export default function SecurityPage() {
                     : tab.slice(0, -1)}
               </button>
             )}
-            {tab === "patrols" && (
-              <button
-                className="society-workflow-action"
-                onClick={() => setForm("checkpoint")}
-              >
-                + Add checkpoint
-              </button>
-            )}
           </div>
           {tab === "rosters" && (
             <section className="security-shifts">
@@ -901,59 +865,6 @@ export default function SecurityPage() {
                 </article>
               ))}
               {!data.shifts?.length && <small>No shifts configured.</small>}
-            </section>
-          )}
-          {tab === "patrols" && (
-            <section className="security-shifts">
-              <h3>Checkpoint register</h3>
-              {(data.checkpoints || []).map((checkpoint) => (
-                <article key={checkpoint.id}>
-                  <strong>
-                    {checkpoint.checkpointCode} · {checkpoint.checkpointName}
-                  </strong>
-                  <span>
-                    {checkpoint.locationName} ·{" "}
-                    {titleCase(checkpoint.verificationMethod)}
-                  </span>
-                  <em>{titleCase(checkpoint.status)}</em>
-                  <button
-                    onClick={() =>
-                      act(
-                        checkpoint.status === "ACTIVE"
-                          ? (id) =>
-                              securityApi.updateResource("checkpoints", id, {
-                                status: "INACTIVE",
-                              })
-                          : (id) =>
-                              securityApi.updateResource("checkpoints", id, {
-                                status: "ACTIVE",
-                              }),
-                        checkpoint.id,
-                      )
-                    }
-                  >
-                    {checkpoint.status === "ACTIVE" ? "Deactivate" : "Activate"}
-                  </button>
-                  <button
-                    onClick={() =>
-                      setEditRecord({ item: checkpoint, tab: "checkpoints" })
-                    }
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() =>
-                      window.confirm("Delete this checkpoint?") &&
-                      act(securityApi.deleteCheckpoint, checkpoint.id)
-                    }
-                  >
-                    Delete
-                  </button>
-                </article>
-              ))}
-              {!data.checkpoints?.length && (
-                <small>No checkpoints configured.</small>
-              )}
             </section>
           )}
           {loading ? (
@@ -1065,6 +976,15 @@ export default function SecurityPage() {
                             </option>
                           ))}
                         </select>
+                      ) : type === "gate" ? (
+                        <select name={name} required>
+                          <option value="">Select gate</option>
+                          {(data.gates || []).filter((gate) => gate.status === "ACTIVE").map((gate) => (
+                            <option key={gate.id} value={gate.id}>
+                              {gate.name}{gate.location ? ` · ${gate.location}` : ""}
+                            </option>
+                          ))}
+                        </select>
                       ) : type === "shift" ? (
                         <select name={name} required>
                           <option value="">Select shift</option>
@@ -1141,7 +1061,6 @@ export default function SecurityPage() {
               incidents: "incidents",
               emergencies: "emergencies",
               shifts: "shifts",
-              checkpoints: "checkpoints",
             }[sectionName];
             await act(
               (key, body) => securityApi.updateResource(resource, key, body),
@@ -1157,35 +1076,12 @@ export default function SecurityPage() {
         <SecurityWorkflowDialog
           workflow={workflow}
           staff={staff}
-          checkpoints={data.checkpoints || []}
-          patrolCheckpoints={workflow.checkpoints || []}
           busy={busy}
           onClose={() => setWorkflow(null)}
-          onSubmit={async (action, payload, checkpointId) => {
+          onSubmit={async (action, payload) => {
             const { type, item } = workflow;
             if (type === "patrols") {
-              if (["verify", "missed"].includes(action)) {
-                setBusy(true);
-                try {
-                  const alreadyAssigned = (workflow.checkpoints || []).some(
-                    (stop) => String(stop.checkpointId || stop.id) === String(checkpointId),
-                  );
-                  if (!alreadyAssigned) {
-                    await securityApi.addPatrolCheckpoint(item.id, { checkpointId });
-                  }
-                  if (action === "verify")
-                    await securityApi.verifyCheckpoint(item.id, checkpointId, payload);
-                  else await securityApi.missCheckpoint(item.id, checkpointId, payload);
-                  await loadData();
-                } finally {
-                  setBusy(false);
-                }
-              }
-              else if (action === "add-checkpoint")
-                await act(securityApi.addPatrolCheckpoint, item.id, {
-                  checkpointId,
-                });
-              else await act(securityApi.patrolAction, item.id, action);
+              await act(securityApi.patrolAction, item.id, action);
             } else if (type === "tasks")
               await act(securityApi.taskAction, item.id, action, payload);
             else if (type === "rosters")
@@ -1350,8 +1246,6 @@ function RecordEditModal({ record, tab, onClose, onSave }) {
 function SecurityWorkflowDialog({
   workflow,
   staff,
-  checkpoints,
-  patrolCheckpoints,
   busy,
   onClose,
   onSubmit,
@@ -1359,29 +1253,17 @@ function SecurityWorkflowDialog({
   const { type, item } = workflow;
   const [action, setAction] = useState(
     type === "patrols"
-      ? "verify"
+      ? "start"
       : type === "tasks"
         ? "start"
         : type === "rosters"
           ? "confirm"
           : "acknowledge",
   );
-  const [gps, setGps] = useState(null);
   const [error, setError] = useState("");
-  const checkpointLabel = (stop) => {
-    const checkpointId = stop.checkpointId || stop.id;
-    const checkpoint = checkpoints.find((item) => String(item.id) === String(checkpointId));
-    return [
-      stop.checkpointName || stop.checkpoint?.checkpointName || checkpoint?.checkpointName,
-      stop.locationName || stop.checkpoint?.locationName || checkpoint?.locationName,
-    ].filter(Boolean).join(" · ") || checkpoint?.checkpointCode || "Checkpoint";
-  };
   const actionOptions =
     type === "patrols"
       ? [
-          ["verify", "Verify checkpoint"],
-          ["missed", "Mark checkpoint missed"],
-          ["add-checkpoint", "Add checkpoint to patrol"],
           ["start", "Start patrol"],
           ["complete", "Complete patrol"],
           ["cancel", "Cancel patrol"],
@@ -1429,7 +1311,7 @@ function SecurityWorkflowDialog({
       payload = { investigationNotes: values.notes };
     if (action === "resolve") payload = { resolutionDetails: values.notes };
     if (action === "respond") payload = { responseNotes: values.notes };
-    if (["cancel", "false-alarm", "missed"].includes(action))
+    if (["cancel", "false-alarm"].includes(action))
       payload = { remarks: values.notes };
     if (action === "external-contacts")
       payload = {
@@ -1437,36 +1319,13 @@ function SecurityWorkflowDialog({
         ambulanceContacted: values.ambulance === "on",
         fireBrigadeContacted: values.fire === "on",
       };
-    if (action === "verify")
-      payload = {
-        verificationMethod: values.method,
-        verificationReference: values.reference,
-        remarks: values.notes,
-        ...(gps || {}),
-      };
     try {
-      await onSubmit(action, payload, values.checkpointId);
+      await onSubmit(action, payload);
     } catch (err) {
       setError(
         err.response?.data?.message || "Could not complete this action.",
       );
     }
-  };
-  const captureGps = () => {
-    if (!navigator.geolocation) {
-      setError("This browser does not support location access.");
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setGps({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        });
-        setError("");
-      },
-      () => setError("Location permission was denied."),
-    );
   };
   const needsNotes = [
     "investigate",
@@ -1474,8 +1333,6 @@ function SecurityWorkflowDialog({
     "respond",
     "cancel",
     "false-alarm",
-    "missed",
-    "verify",
   ].includes(action);
   return (
     <div
@@ -1536,64 +1393,6 @@ function SecurityWorkflowDialog({
                 </select>
               </label>
             )}
-            {["verify", "missed"].includes(action) && (
-              <label className="security-field">
-                Checkpoint
-                <select name="checkpointId" required>
-                  <option value="" disabled>
-                    {checkpoints.some((stop) => stop.status === "ACTIVE") ? "Choose checkpoint" : "No active checkpoints configured"}
-                  </option>
-                  {checkpoints.filter((stop) => stop.status === "ACTIVE").map((stop) => (
-                    <option key={stop.id} value={stop.checkpointId || stop.id}>
-                      {checkpointLabel(stop)}
-                    </option>
-                  ))}
-                </select>
-                <small>Choose a checkpoint for this patrol. If it is not assigned yet, it will be added automatically.</small>
-              </label>
-            )}
-            {action === "add-checkpoint" && (
-              <label className="security-field">
-                Checkpoint
-                <select name="checkpointId" required>
-                  <option value="" disabled>
-                    {checkpoints.length ? "Choose checkpoint" : "No checkpoints configured"}
-                  </option>
-                  {checkpoints.filter((stop) => stop.status === "ACTIVE").map((stop) => (
-                    <option key={stop.id} value={stop.id}>
-                      {checkpointLabel(stop)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            {action === "verify" && (
-              <>
-                <label className="security-field">
-                  Verification method
-                  <select name="method">
-                    <option>QR</option>
-                    <option>NFC</option>
-                    <option>GPS</option>
-                  </select>
-                </label>
-                <button
-                  type="button"
-                  className="security-location-button"
-                  onClick={captureGps}
-                >
-                  <MapPin size={15} />
-                  {gps ? "Location captured" : "Use current GPS location"}
-                </button>
-                <label className="security-field">
-                  QR / NFC reference
-                  <input
-                    name="reference"
-                    placeholder="Enter scanned or tag reference"
-                  />
-                </label>
-              </>
-            )}
             {action === "external-contacts" && (
               <div className="security-checkboxes">
                 {[
@@ -1616,13 +1415,11 @@ function SecurityWorkflowDialog({
                     ? "Investigation notes"
                     : action === "respond"
                       ? "Response notes"
-                      : action === "verify"
-                        ? "Visit notes"
-                        : "Reason / remarks"}
+                      : "Reason / remarks"}
                 <textarea
                   name="notes"
                   rows="3"
-                  required={action !== "verify"}
+                  required
                 />
               </label>
             )}
