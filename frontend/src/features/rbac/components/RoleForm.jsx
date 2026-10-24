@@ -17,7 +17,7 @@ const toCode = (text) =>
  * mode="create": name, code, description. The code follows the name until you edit it yourself.
  * mode="edit":   name, description, status (the code can never change). Sends only what changed.
  */
-export default function RoleForm({ mode, initialValues, onSubmit, submitting, submitError, cancelTo }) {
+export default function RoleForm({ mode, initialValues, onSubmit, submitting, submitError, cancelTo, onCancel, compact = false }) {
   const isEdit = mode === 'edit';
   const [values, setValues] = useState({ ...EMPTY, ...initialValues });
   const [codeTouched, setCodeTouched] = useState(false);
@@ -79,7 +79,7 @@ export default function RoleForm({ mode, initialValues, onSubmit, submitting, su
   };
 
   return (
-    <form className="card form-narrow" onSubmit={handleSubmit} noValidate>
+    <form className={compact ? 'role-form-dialog-body' : 'card form-narrow'} onSubmit={handleSubmit} noValidate>
       {submitError && <Alert>{submitError}</Alert>}
       {note && <Alert variant="success">{note}</Alert>}
 
@@ -120,9 +120,11 @@ export default function RoleForm({ mode, initialValues, onSubmit, submitting, su
         <button type="submit" className="btn btn-primary" disabled={submitting}>
           {submitting ? 'Saving...' : isEdit ? 'Save changes' : 'Create role'}
         </button>
-        <Link to={cancelTo} className="btn btn-secondary">
-          Cancel
-        </Link>
+        {onCancel ? (
+          <button type="button" className="btn btn-secondary" onClick={onCancel}>Cancel</button>
+        ) : (
+          <Link to={cancelTo} className="btn btn-secondary">Cancel</Link>
+        )}
       </div>
     </form>
   );

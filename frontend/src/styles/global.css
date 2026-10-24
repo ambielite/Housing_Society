@@ -427,6 +427,8 @@ a.cell-title:hover { color: var(--action); }
 .tabs-note { font-size: 12px; }
 
 .dialog-form { width: min(560px, calc(100% - 32px)); max-height: calc(100vh - 48px); overflow-y: auto; }
+.role-create-dialog { width: min(520px, calc(100% - 32px)); }
+.role-form-dialog-body { margin: 0; }
 .dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
 .dialog-head h2 { margin-bottom: 0; }
 .slot-area-note { margin: 0 0 14px; }

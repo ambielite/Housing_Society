@@ -8,6 +8,8 @@ import * as rbacApi from '../api/rbac.api';
 import PageContainer from '../../../components/layout/PageContainer';
 import DataTable from '../../../components/tables/DataTable';
 import Alert from '../../../components/ui/Alert';
+import Modal from '../../../components/ui/Modal';
+import RoleForm from '../components/RoleForm';
 import { RoleStatusBadge, RoleTypeBadge } from '../components/RoleBadges';
 
 export default function RoleListPage() {
@@ -15,6 +17,10 @@ export default function RoleListPage() {
   const notice = useLocation().state?.notice;
   const [search, setSearch] = useState('');
   const [type, setType] = useState('');
+  const [createOpen, setCreateOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState('');
+  const [successNotice, setSuccessNotice] = useState('');
 
   const { data, loading, error, reload } = useFetch(() => rbacApi.listRoles(), []);
 
@@ -28,6 +34,21 @@ export default function RoleListPage() {
       })
     : null;
   const filtersActive = Boolean(term || type);
+
+  const handleCreateRole = async (payload) => {
+    setCreating(true);
+    setCreateError('');
+    try {
+      const role = await rbacApi.createRole(payload);
+      setCreateOpen(false);
+      setSuccessNotice(`Role "${role?.name || payload.name}" created.`);
+      reload();
+    } catch (requestError) {
+      setCreateError(getErrorMessage(requestError));
+    } finally {
+      setCreating(false);
+    }
+  };
 
   const columns = [
     {
@@ -48,9 +69,9 @@ export default function RoleListPage() {
   ];
 
   const newRoleButton = hasPermission('ROLE_CREATE') && (
-    <Link to="/roles/new" className="btn btn-primary">
+    <button type="button" className="btn btn-primary" onClick={() => { setCreateError(''); setCreateOpen(true); }}>
       <Plus size={16} /> Add role
-    </Link>
+    </button>
   );
 
   return (
@@ -60,6 +81,7 @@ export default function RoleListPage() {
       actions={newRoleButton}
     >
       {notice && <Alert variant="success">{notice}</Alert>}
+      {successNotice && <Alert variant="success">{successNotice}</Alert>}
 
       <div className="toolbar">
         <input
@@ -102,6 +124,19 @@ export default function RoleListPage() {
           )
         }
       />
+      {createOpen && (
+        <Modal title="Create role" busy={creating} onClose={() => setCreateOpen(false)} className="role-create-dialog">
+          <RoleForm
+            mode="create"
+            initialValues={{}}
+            onSubmit={handleCreateRole}
+            submitting={creating}
+            submitError={createError}
+            onCancel={() => setCreateOpen(false)}
+            compact
+          />
+        </Modal>
+      )}
     </PageContainer>
   );
 }
