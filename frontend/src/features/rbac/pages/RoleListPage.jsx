@@ -49,7 +49,7 @@ export default function RoleListPage() {
 
   const newRoleButton = hasPermission('ROLE_CREATE') && (
     <Link to="/roles/new" className="btn btn-primary">
-      <Plus size={16} /> New role
+      <Plus size={16} /> Add role
     </Link>
   );
 
