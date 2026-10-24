@@ -1,5 +1,5 @@
 import { legacyApi as axiosClient, societyStorage } from "../../../lib/axios";
-import { createVendor as createSharedVendor, deleteVendor as deleteSharedVendor, listVendors, updateVendor as updateSharedVendor, updateVendorStatus } from "../../vendors/api/vendors.api";
+import { listVendors } from "../../vendors/api/vendors.api";
 
 const societyParams = () => {
     const societyId = String(societyStorage.get() || "").replace(/^:+/, "").trim();
@@ -55,15 +55,6 @@ const assetsApi = {
             phone: vendor.phone,
         })) };
     },
-    createVendor: (data) => createSharedVendor({ ...data, societyId: societyStorage.get() }),
-    updateVendor: (id, data) => {
-        const { societyId: _societyId, ...vendorData } = data;
-        return updateSharedVendor(id, vendorData);
-    },
-    vendorAction: (id, action) => ["activate", "deactivate", "blacklist"].includes(action)
-        ? updateVendorStatus(id, action === "activate" ? "ACTIVE" : action === "blacklist" ? "BLACKLISTED" : "SUSPENDED")
-        : Promise.reject(new Error(`Unsupported vendor action: ${action}`)),
-    deleteVendor: (id) => deleteSharedVendor(id),
     getSchedules: () => request(axiosClient.get("/maintenance-schedules", societyParams())),
     createSchedule: (data) => request(axiosClient.post("/maintenance-schedules", data)),
     updateSchedule: (id, data) => request(axiosClient.put(`/maintenance-schedules/${id}`, data)),

@@ -97,7 +97,7 @@ const NAV_ITEMS = [
     ],
   },
   {
-    label: 'Assets', to: '/assets', permission: ['ASSET_READ', 'INVENTORY_READ', 'ASSET_MAINTENANCE_READ'], icon: Package,
+    label: 'Assets & Inventory', to: '/assets', permission: ['ASSET_READ', 'INVENTORY_READ', 'ASSET_MAINTENANCE_READ'], icon: Package,
     children: [
       { label: 'Asset register', to: '/assets/assets', permission: 'ASSET_READ', icon: Package },
       { label: 'Inventory', to: '/assets/inventory', permission: 'INVENTORY_READ', icon: Boxes },
