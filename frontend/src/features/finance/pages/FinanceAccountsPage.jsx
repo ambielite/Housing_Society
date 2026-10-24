@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, Edit, Plus, Search, Trash2 } from "lucide-react";
+import { BookOpen, SquarePen, Plus, Search, Trash2 } from "lucide-react";
 import accountApi from "../api/account.api";
 import AccountForm from "../components/AccountForm";
 
@@ -110,7 +110,7 @@ const FinanceAccountsPage = () => {
                             <td>{account.accountName || "—"}</td>
                             <td>{account.accountType || "—"}</td>
                             <td>{account.isActive === false ? "Inactive" : "Active"}</td>
-                            <td><div className="society-row-actions"><button className="society-icon-action" title="Edit account" onClick={() => { setEditingAccount(account); setShowForm(true); }}><Edit size={16} /></button><button className="society-icon-action society-delete-action" title="Delete account" onClick={() => handleDelete(account.id)}><Trash2 size={16} /></button></div></td>
+                            <td><div className="society-row-actions"><button className="society-icon-action" title="Edit account" onClick={() => { setEditingAccount(account); setShowForm(true); }}><SquarePen size={16} /></button><button className="society-icon-action society-delete-action" title="Delete account" onClick={() => handleDelete(account.id)}><Trash2 size={16} /></button></div></td>
                         </tr>
                     ))}</tbody></table></div>
                 )}

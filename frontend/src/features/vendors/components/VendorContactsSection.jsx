@@ -66,7 +66,7 @@ export default function VendorContactsSection({ vendorId }) {
     { key: 'primary', header: '', render: (c) => (c.is_primary ? <span className="badge badge-system">Primary</span> : null) },
     {
       key: 'actions',
-      header: '',
+      header: 'Actions',
       render: (c) =>
         canEdit ? (
           <div className="row-actions">

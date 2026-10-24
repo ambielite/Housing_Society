@@ -65,7 +65,7 @@ export default function VendorBankSection({ vendorId }) {
     { key: 'verified', header: 'Verified on', render: (a) => formatDateTime(a.verified_at) },
     {
       key: 'actions',
-      header: '',
+      header: 'Actions',
       render: (a) =>
         canEdit && a.status !== 'VERIFIED' ? (
           <div className="row-actions">

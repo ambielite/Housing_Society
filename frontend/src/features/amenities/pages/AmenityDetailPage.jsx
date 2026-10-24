@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { SquarePen, Trash2 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useFetch from '../../../utils/useFetch';
@@ -155,9 +156,9 @@ export default function AmenityDetailPage() {
               { key: 'price', header: 'Price', render: (r) => formatMoney(r.price) },
               { key: 'from', header: 'From', render: (r) => formatDate(r.effective_from) },
               { key: 'to', header: 'To', render: (r) => formatDate(r.effective_to) },
-              { key: 'actions', header: '', render: (r) => <div className="row-actions">
-                {hasPermission('AMENITY_PRICING_RULE_UPDATE') && <button className="btn btn-secondary btn-sm" onClick={() => open({ type: 'rule-edit', rule: r })}>Edit</button>}
-                {hasPermission('AMENITY_PRICING_RULE_DELETE') && <button className="btn btn-secondary btn-sm" onClick={() => setDeleteTarget({ type: 'rule', item: r })}>Delete</button>}
+              { key: 'actions', header: 'Actions', render: (r) => <div className="row-actions">
+                {hasPermission('AMENITY_PRICING_RULE_UPDATE') && <button type="button" className="society-icon-action" title="Edit pricing rule" aria-label="Edit pricing rule" onClick={() => open({ type: 'rule-edit', rule: r })}><SquarePen size={16} /></button>}
+                {hasPermission('AMENITY_PRICING_RULE_DELETE') && <button type="button" className="society-icon-action society-delete-action" title="Delete pricing rule" aria-label="Delete pricing rule" onClick={() => setDeleteTarget({ type: 'rule', item: r })}><Trash2 size={16} /></button>}
               </div> },
             ]}
             rows={rules.data}
@@ -181,7 +182,7 @@ export default function AmenityDetailPage() {
               { key: 'start', header: 'Starts', render: (b) => formatDateTime(b.start_at) },
               { key: 'end', header: 'Ends', render: (b) => formatDateTime(b.end_at) },
               { key: 'reason', header: 'Reason', render: (b) => b.reason || '-' },
-              { key: 'actions', header: '', render: (b) => hasPermission('AMENITY_BLOCKOUT_DELETE') ? <div className="row-actions"><button className="btn btn-secondary btn-sm" onClick={() => setDeleteTarget({ type: 'blockout', item: b })}>Remove</button></div> : null },
+              { key: 'actions', header: 'Actions', render: (b) => hasPermission('AMENITY_BLOCKOUT_DELETE') ? <div className="row-actions"><button type="button" className="society-icon-action society-delete-action" title="Delete blockout" aria-label="Delete blockout" onClick={() => setDeleteTarget({ type: 'blockout', item: b })}><Trash2 size={16} /></button></div> : null },
             ]}
             rows={blockouts.data}
             loading={blockouts.loading}

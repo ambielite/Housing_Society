@@ -158,7 +158,7 @@ export default function GateLogPage() {
     { key: 'status', header: 'Status', render: (visit) => <VisitStatusBadge status={visit.status} /> },
     {
       key: 'actions',
-      header: '',
+      header: 'Actions',
       render: (visit) =>
         visit.status === 'INSIDE' && hasPermission('PARKING_VISIT_UPDATE') ? (
           <div className="row-actions">

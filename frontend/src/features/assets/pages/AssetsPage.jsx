@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Activity, Archive, Bell, Boxes, CalendarClock, ClipboardList, FileText, Gauge, Package, Pencil, Plus, QrCode, RefreshCw, Search, ShieldCheck, Tag, Trash2, Truck, Wrench, X } from "lucide-react";
+import { Activity, Archive, Bell, Boxes, CalendarClock, ClipboardList, FileText, Gauge, Package, SquarePen, Plus, QrCode, RefreshCw, Search, ShieldCheck, Tag, Trash2, Truck, Wrench, X } from "lucide-react";
 import { legacyApi as axiosClient } from "../../../lib/axios";
 import assetsApi from "../api/assets.api";
 
@@ -146,7 +146,7 @@ export default function AssetsPage() {
         const buttons = [];
         const add = (label, fn, ...args) => buttons.push(<button key={label} type="button" className="assets-row-action" disabled={busy} onClick={() => act(fn, ...args)}>{label}</button>);
         const remove = (fn, noun) => buttons.push(<button key="delete" type="button" className="society-icon-action society-delete-action" title={`Delete ${noun}`} aria-label={`Delete ${noun}`} disabled={busy} onClick={() => window.confirm(`Delete this ${noun}?`) && act(fn, item.id)}><Trash2 size={15}/></button>);
-        const edit = (key, record = item) => buttons.push(<button key="edit" type="button" className="society-icon-action" title="Edit record" aria-label="Edit record" disabled={busy} onClick={() => openForm(key, record)}><Pencil size={15}/></button>);
+        const edit = (key, record = item) => buttons.push(<button key="edit" type="button" className="society-icon-action" title="Edit record" aria-label="Edit record" disabled={busy} onClick={() => openForm(key, record)}><SquarePen size={16}/></button>);
         if (active === "assets") {
             edit("asset");
             if (item.status === "PURCHASED") add("Activate", assetsApi.assetAction, item.id, "activate");

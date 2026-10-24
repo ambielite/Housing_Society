@@ -134,7 +134,7 @@ export default function AllocationListPage() {
     { key: 'status', header: 'Status', render: (allocation) => <AllocationStatusBadge status={allocation.status} /> },
     {
       key: 'actions',
-      header: '',
+      header: 'Actions',
       render: (allocation) => (
         <div className="row-actions">
           {allocation.status === 'ACTIVE' && hasPermission('PARKING_ALLOCATION_UPDATE') && (

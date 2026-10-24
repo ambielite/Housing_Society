@@ -116,7 +116,7 @@ export default function AreaListPage() {
     { key: 'status', header: 'Status', render: (area) => <ActiveBadge status={area.status} /> },
     {
       key: 'actions',
-      header: '',
+      header: 'Actions',
       render: (area) => (
         <div className="row-actions">
           {hasPermission('PARKING_AREA_UPDATE') && (

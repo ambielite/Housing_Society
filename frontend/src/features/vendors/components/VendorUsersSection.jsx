@@ -147,7 +147,7 @@ const candidates = useFetch(
     {
       key: 'phone',
       header: 'Phone',
-      render: (user) => user.phone || '—',
+      render: (user) => user.phone || 'â€”',
     },
     {
       key: 'status',
@@ -160,7 +160,7 @@ const candidates = useFetch(
               : 'badge-system'
           }`}
         >
-          {user.status || '—'}
+          {user.status || 'â€”'}
         </span>
       ),
     },
@@ -170,11 +170,11 @@ const candidates = useFetch(
       render: (user) =>
         user.linked_at
           ? new Date(user.linked_at).toLocaleDateString()
-          : '—',
+          : 'â€”',
     },
     {
       key: 'actions',
-      header: '',
+      header: 'Actions',
       render: (user) =>
         canManage ? (
           <button
@@ -212,7 +212,7 @@ const candidates = useFetch(
               id="vendor-user-link"
               label="Active user in this society"
               placeholder={
-                candidates.loading ? 'Loading users…' : 'Select user'
+                candidates.loading ? 'Loading usersâ€¦' : 'Select user'
               }
               options={userOptions}
               value={selectedUserId}
@@ -229,7 +229,7 @@ const candidates = useFetch(
                 }
                 onClick={link}
               >
-                {saving ? 'Saving…' : 'Link user'}
+                {saving ? 'Savingâ€¦' : 'Link user'}
               </button>
             </div>
           </div>

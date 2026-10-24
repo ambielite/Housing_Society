@@ -91,7 +91,11 @@ export default function DocumentVaultPage() {
     { key: 'type', header: 'Type', render: (doc) => pretty(doc.document_type) },
     { key: 'sensitivity', header: 'Sensitivity', render: (doc) => pretty(doc.sensitivity) },
     { key: 'size', header: 'Size', render: (doc) => formatBytes(doc.size_bytes) },
-    { key: 'status', header: 'Status', render: (doc) => pretty(doc.status) },
+    { key: 'status', header: 'Status', render: (doc) => {
+      const status = String(doc.status || '').toUpperCase();
+      const tone = status === 'ACTIVE' ? 'success' : ['EXPIRED', 'DELETED', 'REVOKED'].includes(status) ? 'danger' : 'neutral';
+      return <span className={`moveinout-status moveinout-status-${tone}`}>{pretty(status)}</span>;
+    } },
     { key: 'created', header: 'Uploaded', render: (doc) => formatDate(doc.created_at) },
     { key: 'share', header: 'Share', render: (doc) => <button type="button" className="btn btn-ghost btn-sm" title={`Share ${doc.title || 'document'}`} aria-label={`Share ${doc.title || 'document'}`} onClick={() => shareDocument(doc)}><Share2 size={16} aria-hidden="true" /></button> },
   ];

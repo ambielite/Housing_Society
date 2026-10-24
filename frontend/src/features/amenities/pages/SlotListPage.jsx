@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, SquarePen, Trash2 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
@@ -98,9 +98,9 @@ export default function SlotListPage() {
           { key: 'capacity', header: 'Capacity', render: (s) => s.capacity },
           { key: 'price', header: 'Price', render: (s) => formatMoney(s.price) },
           { key: 'status', header: 'Status', render: (s) => <SlotStatusBadge status={s.status} /> },
-          { key: 'actions', header: '', render: (s) => <div className="row-actions">
-            {hasPermission('AMENITY_SLOT_UPDATE') && <button className="btn btn-secondary btn-sm" onClick={() => { setError(''); setDialog({ type: 'edit', slot: s }); }}>Edit</button>}
-            {hasPermission('AMENITY_SLOT_DELETE') && <button className="btn btn-secondary btn-sm" onClick={() => setDeleting(s)}>Delete</button>}
+          { key: 'actions', header: 'Actions', render: (s) => <div className="row-actions">
+            {hasPermission('AMENITY_SLOT_UPDATE') && <button type="button" className="society-icon-action" title="Edit slot" aria-label={`Edit slot ${s.slot_date}`} onClick={() => { setError(''); setDialog({ type: 'edit', slot: s }); }}><SquarePen size={16} /></button>}
+            {hasPermission('AMENITY_SLOT_DELETE') && <button type="button" className="society-icon-action society-delete-action" title="Delete slot" aria-label={`Delete slot ${s.slot_date}`} onClick={() => setDeleting(s)}><Trash2 size={16} /></button>}
           </div> },
         ]}
         rows={rows}

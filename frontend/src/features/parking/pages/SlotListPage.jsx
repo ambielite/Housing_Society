@@ -150,7 +150,7 @@ export default function SlotListPage() {
       : []),
     {
       key: 'actions',
-      header: '',
+      header: 'Actions',
       render: (slot) => {
         const free = slot.status === 'ACTIVE' && !allocationBySlot.has(slot.id);
         return (

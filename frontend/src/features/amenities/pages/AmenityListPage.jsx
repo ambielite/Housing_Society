@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, SquarePen, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
@@ -79,11 +79,11 @@ export default function AmenityListPage() {
     { key: 'booking', header: 'Booking', render: (a) => a.booking_required ? 'Required' : 'Not required' },
     { key: 'status', header: 'Status', render: (a) => <AmenityStatusBadge status={a.status} /> },
     {
-      key: 'actions', header: '',
+      key: 'actions', header: 'Actions',
       render: (a) => <div className="row-actions">
         <Link className="btn btn-secondary btn-sm" to={`/amenities/${a.id}`}>Manage</Link>
-        {hasPermission('AMENITY_UPDATE') && <button className="btn btn-secondary btn-sm" onClick={() => { setError(''); setDialog({ mode: 'edit', amenity: a }); }}>Edit</button>}
-        {hasPermission('AMENITY_DELETE') && <button className="btn btn-secondary btn-sm" onClick={() => setDeleting(a)}>Delete</button>}
+        {hasPermission('AMENITY_UPDATE') && <button type="button" className="society-icon-action" title="Edit amenity" aria-label={`Edit ${a.name}`} onClick={() => { setError(''); setDialog({ mode: 'edit', amenity: a }); }}><SquarePen size={16} /></button>}
+        {hasPermission('AMENITY_DELETE') && <button type="button" className="society-icon-action society-delete-action" title="Delete amenity" aria-label={`Delete ${a.name}`} onClick={() => setDeleting(a)}><Trash2 size={16} /></button>}
       </div>,
     },
   ];
