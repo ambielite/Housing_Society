@@ -649,6 +649,22 @@ body input[aria-label*='search' i]:focus-visible {
 }
 body :is(.society-search, .search-box) input:focus { background: transparent; }
 
+/* Keep the Assets dashboard metric colors visible after the shared card theme. */
+body .assets-page .assets-stats > .society-stat-card:nth-child(1) { --metric-accent: #7158df; --metric-soft: #f0edff; background: #fbfaff; }
+body .assets-page .assets-stats > .society-stat-card:nth-child(2) { --metric-accent: #22985a; --metric-soft: #e8f7ef; background: #f8fdf9; }
+body .assets-page .assets-stats > .society-stat-card:nth-child(3) { --metric-accent: #3182ce; --metric-soft: #eaf3ff; background: #f8fbff; }
+body .assets-page .assets-stats > .society-stat-card:nth-child(4) { --metric-accent: #dc7900; --metric-soft: #fff3e2; background: #fffdf9; }
+body .assets-page .assets-quick-stats > .society-stat-card:nth-child(5) { --metric-accent: #e64565; --metric-soft: #fff0f3; background: #fffafb; }
+body .assets-page .assets-quick-stats > .society-stat-card:nth-child(6) { --metric-accent: #7158df; --metric-soft: #f0edff; background: #fbfaff; }
+body .assets-page .assets-stats:not(.assets-quick-stats) > .society-stat-card {
+  transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+body .assets-page .assets-stats:not(.assets-quick-stats) > .society-stat-card:hover {
+  border-color: var(--metric-accent);
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--metric-accent) 18%, transparent);
+  transform: translateY(-1px);
+}
+
 .record-details-dialog {
   width: min(720px, calc(100vw - 32px));
   padding: 24px;

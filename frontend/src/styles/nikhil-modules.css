@@ -1795,6 +1795,14 @@ tbody tr:hover {
 .assets-page .security-tabs button:focus:not(:focus-visible) { outline: none; }
 .assets-page .society-stats { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 14px; margin-bottom: 18px; }
 .assets-page .assets-quick-stats { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 14px; margin-bottom: 18px; }
+.assets-page .assets-stats > .society-stat-card { border-left: 3px solid var(--metric-accent); }
+.assets-page .assets-stats > .society-stat-card:nth-child(1) { --metric-accent: #7158e8; --metric-soft: #f0edff; }
+.assets-page .assets-stats > .society-stat-card:nth-child(2) { --metric-accent: #22985a; --metric-soft: #e8f7ef; }
+.assets-page .assets-stats > .society-stat-card:nth-child(3) { --metric-accent: #3182ce; --metric-soft: #eaf3ff; }
+.assets-page .assets-stats > .society-stat-card:nth-child(4) { --metric-accent: #dc7900; --metric-soft: #fff3e2; }
+.assets-page .assets-quick-stats > .society-stat-card:nth-child(5) { --metric-accent: #e64565; --metric-soft: #fff0f3; }
+.assets-page .assets-quick-stats > .society-stat-card:nth-child(6) { --metric-accent: #7158e8; --metric-soft: #f0edff; }
+.assets-page .assets-stats > .society-stat-card .society-stat-icon { color: var(--metric-accent); background: var(--metric-soft); border-color: transparent; }
 .assets-page .assets-quick-card { width: 100%; min-width: 0; color: var(--text-primary); text-align: left; cursor: pointer; font: inherit; transition: border-color .15s ease,box-shadow .15s ease,transform .15s ease; }
 .assets-page .assets-quick-card:hover { border-color: var(--metric-accent,#a99bff); box-shadow: 0 5px 14px rgba(15,23,42,.07); transform: translateY(-1px); }
 .assets-page .assets-quick-card .society-stat-icon { color: var(--metric-accent,#7158df); background: var(--metric-soft,#f0edff); }
