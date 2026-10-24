@@ -7,7 +7,7 @@ const createStaff = async (req, res) => {
     try {
 
         const staff =
-            await StaffService.createStaff(req.body);
+            await StaffService.createStaff(req.body, req.file);
 
         return res.status(201).json({
             success: true,
@@ -106,7 +106,8 @@ const updateStaff = async (req, res) => {
         const staff =
             await StaffService.updateStaff(
                 req.params.id,
-                req.body
+                req.body,
+                req.file
             );
 
         return res.status(200).json({

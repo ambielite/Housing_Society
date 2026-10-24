@@ -5,9 +5,10 @@ const {
     validateCreateStaff,
     validateStaffType
 } = require("./staff.validation");
+const { saveProfilePicture, removeProfilePicture } = require("../../users/profilePicture.storage");
 
 
-const createStaff = async (data) => {
+const createStaff = async (data, profilePicture) => {
 
     const validationError =
         validateCreateStaff(data);
@@ -35,7 +36,13 @@ const createStaff = async (data) => {
         );
     }
 
-    return await StaffRepository.create(data);
+    const photoPath = profilePicture ? saveProfilePicture(profilePicture) : null;
+    try {
+        return await StaffRepository.create({ ...data, ...(photoPath ? { photoPath } : {}) });
+    } catch (error) {
+        if (photoPath) removeProfilePicture(photoPath);
+        throw error;
+    }
 };
 
 
@@ -58,7 +65,7 @@ const getAllStaff = async (filters = {}) => {
 };
 
 
-const updateStaff = async (id, data) => {
+const updateStaff = async (id, data, profilePicture) => {
 
     const staff =
         await StaffRepository.findById(id);
@@ -95,10 +102,19 @@ const updateStaff = async (id, data) => {
         }
     }
 
-    return await StaffRepository.update(
-        staff,
-        data
-    );
+    const previousPhotoPath = staff.photoPath;
+    const photoPath = profilePicture ? saveProfilePicture(profilePicture) : null;
+    try {
+        const updated = await StaffRepository.update(staff, {
+            ...data,
+            ...(photoPath ? { photoPath } : {}),
+        });
+        if (photoPath && previousPhotoPath) removeProfilePicture(previousPhotoPath);
+        return updated;
+    } catch (error) {
+        if (photoPath) removeProfilePicture(photoPath);
+        throw error;
+    }
 };
 
 
@@ -148,6 +164,7 @@ const deleteStaff = async (id) => {
     }
 
     await StaffRepository.remove(staff);
+    if (staff.photoPath) removeProfilePicture(staff.photoPath);
 
     return {
         message: "Staff deleted successfully"

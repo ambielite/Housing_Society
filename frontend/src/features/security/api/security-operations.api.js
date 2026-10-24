@@ -6,37 +6,16 @@ const societyParams = () => {
 };
 
 const securityApi = {
-    updateResource: async (resource, id, data) => (await axiosClient.put(`/${resource}/${id}`, data)).data,
+    updateResource: async (resource, id, data) => (await axiosClient.put(`/${resource}/${id}`, data, data instanceof FormData ? { headers: { "Content-Type": "multipart/form-data" } } : undefined)).data,
     deleteResource: async (resource, id) => (await axiosClient.delete(`/${resource}/${id}`)).data,
     updateAttendance: async (id, data) => (await axiosClient.put(`/staff-attendance/${id}`, data)).data,
     createAttendance: async (data) => (await axiosClient.post("/staff-attendance", data)).data,
-    updateDocument: async (id, data) => (await axiosClient.put(`/staff-documents/${id}`, data)).data,
-    deleteDocument: async (id) => (await axiosClient.delete(`/staff-documents/${id}`)).data,
     getStaff: async () => (await axiosClient.get("/staff", societyParams())).data,
-    createStaff: async (data) => (await axiosClient.post("/staff", data)).data,
+    createStaff: async (data) => (await axiosClient.post("/staff", data, data instanceof FormData ? { headers: { "Content-Type": "multipart/form-data" } } : undefined)).data,
     deleteStaff: async (id) => (await axiosClient.delete(`/staff/${id}`)).data,
     updateStaff: async (id, data) => (await axiosClient.put(`/staff/${id}`, data)).data,
     activateStaff: async (id) => (await axiosClient.post(`/staff/${id}/activate`)).data,
     deactivateStaff: async (id) => (await axiosClient.post(`/staff/${id}/deactivate`)).data,
-    getAssignments: async () => {
-        const staff = (await axiosClient.get("/staff", societyParams())).data;
-        const records = Array.isArray(staff?.data) ? staff.data : [];
-        const responses = await Promise.all(records.map((person) => axiosClient.get(`/staff-unit-assignments/staff/${person.id}`)));
-        return { data: responses.flatMap((response) => Array.isArray(response.data?.data) ? response.data.data : []) };
-    },
-    createAssignment: async (data) => (await axiosClient.post("/staff-unit-assignments", data)).data,
-    deleteAssignment: async (id) => (await axiosClient.delete(`/staff-unit-assignments/${id}`)).data,
-    assignmentAction: async (id, action) => (await axiosClient.post(`/staff-unit-assignments/${id}/${action}`)).data,
-    getDocuments: async () => {
-        const staff = (await axiosClient.get("/staff", societyParams())).data;
-        const records = Array.isArray(staff?.data) ? staff.data : [];
-        const responses = await Promise.all(records.map((person) => axiosClient.get(`/staff-documents/staff/${person.id}`)));
-        return { data: responses.flatMap((response) => Array.isArray(response.data?.data) ? response.data.data : []) };
-    },
-    createDocument: async (data) => (await axiosClient.post("/staff-documents", data)).data,
-    uploadDocument: async (data) => (await axiosClient.post("/staff-documents", data, { headers: { "Content-Type": "multipart/form-data" } })).data,
-    verifyDocument: async (id) => (await axiosClient.post(`/staff-documents/${id}/verify`)).data,
-    rejectDocument: async (id, data) => (await axiosClient.post(`/staff-documents/${id}/reject`, data)).data,
     getAttendance: async () => {
         const staff = (await axiosClient.get("/staff", societyParams())).data;
         const records = Array.isArray(staff?.data) ? staff.data : [];

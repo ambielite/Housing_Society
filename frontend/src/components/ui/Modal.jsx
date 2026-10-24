@@ -64,7 +64,7 @@ const displayValue = (value) => {
   return String(value);
 };
 
-export function RecordDetailsModal({ title, subtitle, icon: Icon = Building2, image, sections, record, onClose }) {
+export function RecordDetailsModal({ title, subtitle, icon: Icon = Building2, image, sections, record, onClose, children }) {
   const detailSections = sections || recordToSections(record);
   return (
     <Modal title={title} onClose={onClose} className="record-details-dialog">
@@ -85,6 +85,7 @@ export function RecordDetailsModal({ title, subtitle, icon: Icon = Building2, im
             </dl>
           </section>
         ))}
+        {children}
       </div>
       <div className="record-details-footer">
         <button type="button" className="btn btn-secondary" onClick={onClose}>Close</button>

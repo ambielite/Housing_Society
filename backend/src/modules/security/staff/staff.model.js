@@ -65,6 +65,7 @@ const Staff = sequelize.define(
             type: DataTypes.ENUM(
                 "SECURITY_GUARD",
                 "SECURITY_SUPERVISOR",
+                "MAID",
                 "HOUSEKEEPING",
                 "MAINTENANCE",
                 "ELECTRICIAN",

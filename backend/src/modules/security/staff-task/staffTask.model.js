@@ -49,6 +49,7 @@ const StaffTask = sequelize.define(
         taskType: {
             type: DataTypes.ENUM(
                 "SECURITY",
+                "MAID",
                 "HOUSEKEEPING",
                 "MAINTENANCE",
                 "INSPECTION",

@@ -1,5 +1,6 @@
 const allowedTaskTypes = [
     "SECURITY",
+    "MAID",
     "HOUSEKEEPING",
     "MAINTENANCE",
     "INSPECTION",
