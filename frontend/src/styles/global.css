@@ -211,6 +211,9 @@ a { text-decoration: none; color: inherit; }
 .btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .btn-primary { background: var(--action); color: #fff; box-shadow: 0 5px 12px rgba(49, 94, 232, 0.17); }
 .btn-primary:hover:not(:disabled) { background: var(--action-hover); }
+.button-plus { position: relative; display: inline-block; width: 16px; height: 16px; flex: 0 0 16px; overflow: hidden; font-size: 0; vertical-align: middle; }
+.button-plus::before, .button-plus::after { content: ''; position: absolute; top: 50%; left: 50%; width: 10px; height: 1.75px; border-radius: 1px; background: currentColor; transform: translate(-50%, -50%); }
+.button-plus::after { transform: translate(-50%, -50%) rotate(90deg); }
 .btn-secondary { background: var(--btn2-bg); color: var(--btn2-text); border-color: var(--field-border); }
 .btn-secondary:hover:not(:disabled) { background: var(--btn2-hover); }
 .btn-ghost { background: transparent; color: var(--text-primary); }

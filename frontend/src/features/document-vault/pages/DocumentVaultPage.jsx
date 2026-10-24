@@ -81,7 +81,7 @@ export default function DocumentVaultPage() {
   const actions = (
     <>
       {hasPermission('DOCUMENT_FOLDER_CREATE') && <button className="btn btn-secondary" onClick={() => { setFormError(''); setShowFolder(true); }}><Plus size={16} /> New folder</button>}
-      {hasPermission('DOCUMENT_CREATE') && <button className="btn btn-primary" onClick={() => { setFormError(''); setShowUpload(true); }}>Upload document</button>}
+      {hasPermission('DOCUMENT_CREATE') && <button className="btn btn-primary" onClick={() => { setFormError(''); setShowUpload(true); }}><span className="button-plus" aria-hidden="true">+</span> Upload document</button>}
     </>
   );
 

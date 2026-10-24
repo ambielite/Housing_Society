@@ -56,7 +56,7 @@ export default function PurchaseOrderDetailPage() {
     <PageContainer title={target.po_no} subtitle={nameOf(target.vendor_id)} actions={
       <>
         {canEdit && transitions.length > 0 && <button className="btn btn-secondary" type="button" onClick={() => { setError(''); setShowStatus(true); }}>Change status</button>}
-        {canEdit && <button className="btn btn-secondary" type="button" onClick={() => { setError(''); setShowLine(true); }}>Add line</button>}
+        {canEdit && <button className="btn btn-secondary" type="button" onClick={() => { setError(''); setShowLine(true); }}><span className="button-plus" aria-hidden="true">+</span> Add line</button>}
         {canReceive && orderLines.length > 0 && <button className="btn btn-primary" type="button" onClick={() => { setError(''); setShowReceipt(true); }}>Record receipt</button>}
       </>
     }>

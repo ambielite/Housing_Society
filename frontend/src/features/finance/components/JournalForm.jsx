@@ -264,7 +264,7 @@ const JournalForm = ({ journal, onClose, onSuccess }) => {
                     <div className="form-section">
                         <div className="form-section-title">
                             <h3>Journal lines</h3>
-                            <button type="button" className="btn-secondary btn-small" onClick={addLine}>Add line</button>
+                            <button type="button" className="btn-secondary btn-small" onClick={addLine}><span className="button-plus" aria-hidden="true">+</span> Add line</button>
                         </div>
 
                         <div className="form-grid">

@@ -268,7 +268,7 @@ export default function BookingDetailPage() {
             {canUpdate && b.status === 'PENDING_PAYMENT' && <button className="btn btn-primary" onClick={() => { setError(''); setDialog({ type: 'confirm' }); }}>Confirm payment</button>}
             {canUpdate && !['CANCELLED', 'EXPIRED'].includes(b.status) && <button className="btn btn-secondary" onClick={() => act(api.cancelBooking)}>Cancel booking</button>}
             {canUpdate && b.status === 'CONFIRMED' && <button className="btn btn-secondary" onClick={() => act(api.markNoShow)}>Mark no-show</button>}
-            {hasPermission('AMENITY_BOOKING_CREATE') && <button className="btn btn-secondary" onClick={() => { setError(''); setDialog({ type: 'guest' }); }}>Add guest</button>}
+            {hasPermission('AMENITY_BOOKING_CREATE') && <button className="btn btn-secondary" onClick={() => { setError(''); setDialog({ type: 'guest' }); }}><span className="button-plus" aria-hidden="true">+</span> Add guest</button>}
             {hasPermission('AMENITY_BOOKING_DELETE') && <button className="btn btn-secondary" onClick={() => setDeleteOpen(true)}>Delete</button>}
           </div>
         </section>

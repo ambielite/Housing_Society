@@ -5,18 +5,11 @@ import agreementApi from "../api/agreement.api";
 import societyApi from "../../societies/api/society.api";
 import unitApi from "../../units/api/unit.api";
 import residentApi from "../../residents/api/resident.api";
+import { openMoveInDocument } from "../utils/openMoveInDocument";
 
 const rowsFrom = (response) => {
     const rows = Array.isArray(response) ? response : response?.data || response?.records || [];
     return Array.isArray(rows) ? rows : [];
-};
-
-const documentHref = (storedPath) => {
-    if (!storedPath) return "";
-    if (/^https?:\/\//i.test(storedPath)) return storedPath;
-    const apiBase = import.meta.env.VITE_LEGACY_API_BASE_URL || (import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api/v1").replace(/\/api\/v1\/?$/, "/api");
-    const serverOrigin = new URL(apiBase, window.location.origin).origin;
-    return `${serverOrigin}${storedPath.startsWith("/") ? storedPath : `/${storedPath}`}`;
 };
 
 const initialValues = (agreement) => ({
@@ -86,6 +79,14 @@ const AgreementForm = ({ agreement, onClose, onSuccess }) => {
     const updateDocument = (event) => {
         const { name, files: selectedFiles } = event.target;
         setDocuments((current) => ({ ...current, [name]: selectedFiles?.[0] || null }));
+    };
+
+    const viewDocument = async (documentPath) => {
+        try {
+            await openMoveInDocument(documentPath);
+        } catch (documentError) {
+            setError(documentError.response?.data?.message || documentError.message || "Could not open the document.");
+        }
     };
 
     const submit = async (event) => {
@@ -225,13 +226,13 @@ const AgreementForm = ({ agreement, onClose, onSuccess }) => {
                             <div className="form-group">
                                 <label htmlFor="agreement-document">Agreement document</label>
                                 <input id="agreement-document" name="agreementDocument" type="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" onChange={updateDocument} />
-                                {values.agreementDocument && <small>Current file: <a href={documentHref(values.agreementDocument)} target="_blank" rel="noreferrer">View document</a></small>}
+                                {values.agreementDocument && <small>Current file: <button type="button" className="btn-link" onClick={() => viewDocument(values.agreementDocument)}>View document</button></small>}
                             </div>
                             <div className="form-group"><label htmlFor="agreement-uploaded-at">Uploaded date</label><input id="agreement-uploaded-at" type="date" name="uploadedAt" value={values.uploadedAt} onChange={updateField} /></div>
                             <div className="form-group">
                                 <label htmlFor="agreement-signed-copy">Signed agreement copy</label>
                                 <input id="agreement-signed-copy" name="signedAgreementCopy" type="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" onChange={updateDocument} />
-                                {values.signedAgreementCopy && <small>Current file: <a href={documentHref(values.signedAgreementCopy)} target="_blank" rel="noreferrer">View signed copy</a></small>}
+                                {values.signedAgreementCopy && <small>Current file: <button type="button" className="btn-link" onClick={() => viewDocument(values.signedAgreementCopy)}>View signed copy</button></small>}
                             </div>
                             <div className="form-group"><label htmlFor="agreement-signed-at">Signed date</label><input id="agreement-signed-at" type="date" name="signedAt" value={values.signedAt} onChange={updateField} /></div>
 

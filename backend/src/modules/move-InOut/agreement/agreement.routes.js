@@ -100,6 +100,12 @@ router.get(
 
 
 router.get(
+    "/:id/documents/:documentType",
+    validation.validateId,
+    controller.getAgreementDocument
+);
+
+router.get(
     "/:id",
     validation.validateId,
     controller.getAgreement

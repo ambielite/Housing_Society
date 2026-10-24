@@ -1699,7 +1699,7 @@ function StaffExtras({ data, act, setForm, setEditRecord }) {
       <section>
         <h3>
           Unit mapping
-          <button onClick={() => setForm("assignment")}>Add mapping</button>
+          <button onClick={() => setForm("assignment")}><span className="button-plus" aria-hidden="true">+</span> Add mapping</button>
         </h3>
 
         <div>
@@ -1761,7 +1761,7 @@ function StaffExtras({ data, act, setForm, setEditRecord }) {
       <section>
         <h3>
           Staff documents{" "}
-          <button onClick={() => setForm("document")}>Upload document</button>
+          <button onClick={() => setForm("document")}><span className="button-plus" aria-hidden="true">+</span> Upload document</button>
         </h3>
         <div>
           {(data.documents || []).map((item) => (

@@ -11,6 +11,11 @@ const agreementApi = {
         return response.data;
     },
 
+    getDocument: async (id, documentType) => {
+        const response = await axiosClient.get(`/agreements/${id}/documents/${documentType}`, { responseType: "blob" });
+        return response;
+    },
+
     getByReference: async (reference) => {
         const response = await axiosClient.get(`/agreements/reference/${reference}`);
         return response.data;

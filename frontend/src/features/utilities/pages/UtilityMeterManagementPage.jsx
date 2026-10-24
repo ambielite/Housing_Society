@@ -484,7 +484,7 @@ export default function UtilityMeterManagementPage() {
       {hasPermission('METER_UPDATE') && <button className="btn btn-ghost btn-sm" onClick={() => openModal('meter', r)}>Edit</button>}
       {hasPermission('METER_UPDATE') && r.status !== 'REPLACED' && <button className="btn btn-ghost btn-sm" onClick={() => openModal('replace', r)}>Replace</button>}
       {hasPermission('METER_DELETE') && <button className="btn btn-ghost btn-sm text-danger" onClick={() => remove('meter', r)}>Delete</button>}
-      {hasPermission('METER_READING_CREATE') && <button className="btn btn-ghost btn-sm" onClick={() => { setSelectedMeter(r.id); openModal('reading'); }}>Add reading</button>}
+      {hasPermission('METER_READING_CREATE') && <button className="btn btn-ghost btn-sm" onClick={() => { setSelectedMeter(r.id); openModal('reading'); }}><span className="button-plus" aria-hidden="true">+</span> Add reading</button>}
     </div> },
   ];
   const columnsTypes = [

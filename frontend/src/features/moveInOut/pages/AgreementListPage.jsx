@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { BadgeCheck, Ban, CheckCircle2, SquarePen, FileText, Plus, RefreshCw, Search, Trash2, XCircle } from "lucide-react";
+import { BadgeCheck, Ban, CheckCircle2, SquarePen, FileText, Plus, RefreshCw, Search, Trash2, X, XCircle } from "lucide-react";
 import agreementApi from "../api/agreement.api";
 import residentApi from "../../residents/api/resident.api";
 import unitApi from "../../units/api/unit.api";
 import AgreementForm from "../components/AgreementForm";
+import { openMoveInDocument } from "../utils/openMoveInDocument";
 
 const rowsFrom = (response) => {
     const rows = Array.isArray(response) ? response : response?.data || response?.records || [];
@@ -11,6 +12,10 @@ const rowsFrom = (response) => {
 };
 
 const statusTone = (status) => ["ACTIVE", "APPROVED", "RENEWED"].includes(status) ? "success" : ["TERMINATED", "EXPIRED"].includes(status) ? "danger" : ["SUBMITTED", "UNDER_VERIFICATION", "EXPIRING_SOON", "RENEWAL_INITIATED"].includes(status) ? "pending" : "neutral";
+const agreementDocuments = (agreement) => [
+    ["Agreement document", agreement.agreementDocument],
+    ["Signed agreement copy", agreement.signedAgreementCopy]
+].filter(([, filePath]) => Boolean(filePath));
 
 const AgreementListPage = () => {
     const [agreements, setAgreements] = useState([]);
@@ -21,6 +26,7 @@ const AgreementListPage = () => {
     const [search, setSearch] = useState("");
     const [showForm, setShowForm] = useState(false);
     const [editingAgreement, setEditingAgreement] = useState(null);
+    const [viewingDocuments, setViewingDocuments] = useState(null);
     const [submitting, setSubmitting] = useState(false);
 
     const loadData = async () => {
@@ -174,6 +180,7 @@ const AgreementListPage = () => {
                                     <th>Unit</th>
                                     <th>Type</th>
                                     <th>Status</th>
+                                    <th>Documents</th>
                                     <th className="society-actions-heading">Actions</th>
                                 </tr>
                             </thead>
@@ -197,6 +204,7 @@ const AgreementListPage = () => {
                                             <td>{unit?.unitNumber || unit?.name || agreement.unitId}</td>
                                             <td>{agreement.agreementType || "LEASE"}</td>
                                             <td><span className={`moveinout-status moveinout-status-${statusTone(agreement.status)}`}>{agreement.status || "DRAFT"}</span></td>
+                                            <td>{agreementDocuments(agreement).length ? <button className="society-workflow-action movein-documents-button" type="button" onClick={() => setViewingDocuments(agreement)}><FileText size={15} /> View documents ({agreementDocuments(agreement).length})</button> : <span aria-label="No uploaded documents">—</span>}</td>
                                             <td>
                                                 <div className="society-row-actions moveinout-actions">
                                                     <button className="society-icon-action" title="Edit agreement" aria-label={`Edit ${agreement.id}`} onClick={() => { setEditingAgreement(agreement); setShowForm(true); }}><SquarePen size={16} /></button>
@@ -215,6 +223,26 @@ const AgreementListPage = () => {
                 )}
             </section>
 
+            {viewingDocuments && <div className="society-modal-layer" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setViewingDocuments(null); }}>
+                <section className="society-form-modal movein-documents-modal" role="dialog" aria-modal="true" aria-labelledby="agreement-documents-title">
+                    <header className="society-form-header">
+                        <div><h2 id="agreement-documents-title">Agreement documents</h2><p>{viewingDocuments.agreementReference || "Agreement"}</p></div>
+                        <button type="button" className="modal-close-btn" onClick={() => setViewingDocuments(null)} aria-label="Close documents"><X size={20} /></button>
+                    </header>
+                    <div className="movein-documents-list">
+                        {agreementDocuments(viewingDocuments).map(([label, filePath]) => (
+                            <button key={label} type="button" className="movein-document-link" onClick={async () => {
+                                try { await openMoveInDocument(filePath); }
+                                catch (documentError) { setError(documentError.response?.data?.message || documentError.message || "Could not open the document."); }
+                            }}>
+                                <FileText size={18} />
+                                <span><strong>{label}</strong><small>Open uploaded file</small></span>
+                                <span aria-hidden="true">↗</span>
+                            </button>
+                        ))}
+                    </div>
+                </section>
+            </div>}
             {showForm && <div className="society-modal-layer" onMouseDown={(event) => { if (event.target === event.currentTarget) { setShowForm(false); setEditingAgreement(null); } }}><AgreementForm key={editingAgreement?.id || "new-agreement"} agreement={editingAgreement} onClose={() => { setShowForm(false); setEditingAgreement(null); }} onSuccess={async () => { setShowForm(false); setEditingAgreement(null); await loadData(); }} /></div>}
         </section>
     );

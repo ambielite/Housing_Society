@@ -65,7 +65,7 @@ export default function ApprovalListPage() {
     <PageContainer
       title="Approvals"
       subtitle="Raise, review and decide generic approval requests."
-      actions={hasPermission('APPROVAL_CREATE') && <button className="btn btn-primary" onClick={() => { setSaveError(''); setDialog(true); }}>Raise approval</button>}
+      actions={hasPermission('APPROVAL_CREATE') && <button className="btn btn-primary" onClick={() => { setSaveError(''); setDialog(true); }}><span className="button-plus" aria-hidden="true">+</span> Raise approval</button>}
     >
       {notice && <Alert variant="success">{notice}</Alert>}
 

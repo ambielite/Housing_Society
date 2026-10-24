@@ -1,41 +1,13 @@
 const repository = require("./agreement.repository");
-const fs = require("node:fs");
-const path = require("node:path");
-const crypto = require("node:crypto");
-
-const saveAgreementDocuments = (files = {}) => {
-    const uploadDirectory = path.join(process.cwd(), "uploads", "agreement-documents");
-    const documentPaths = {};
-    const savedFiles = [];
-    const fields = ["agreementDocument", "signedAgreementCopy"];
-
-    fs.mkdirSync(uploadDirectory, { recursive: true });
-    for (const field of fields) {
-        const file = files[field]?.[0];
-        if (!file) continue;
-        const extension = path.extname(file.originalname).toLowerCase();
-        const fileName = `${crypto.randomUUID()}${extension}`;
-        const fullPath = path.join(uploadDirectory, fileName);
-        fs.writeFileSync(fullPath, file.buffer, { flag: "wx" });
-        savedFiles.push(fullPath);
-        documentPaths[field] = `/uploads/agreement-documents/${fileName}`;
-    }
-
-    return { documentPaths, savedFiles };
-};
-
-const removeSavedFiles = (savedFiles) => {
-    for (const filePath of savedFiles) {
-        try {
-            fs.unlinkSync(filePath);
-        } catch {
-            // Preserve the original database error if cleanup also fails.
-        }
-    }
-};
+const documentFields = ["agreementDocument", "signedAgreementCopy"];
+const documentPath = (agreementId, field) => `/agreements/${agreementId}/documents/${field}`;
+const uploadedDocumentPaths = (agreementId, files = {}) => Object.fromEntries(
+    documentFields.filter((field) => files[field]?.[0]).map((field) => [field, documentPath(agreementId, field)])
+);
+const asPlainRecord = (record) => record?.toJSON ? record.toJSON() : record;
 
 const normalizeAgreementData = (data = {}) => {
-    const { agreementDocument, signedAgreementCopy, ...fields } = data;
+    const { agreementDocument, signedAgreementCopy, renewalAgreementDocument, ...fields } = data;
     return {
         ...fields,
         ownerId: fields.ownerId || null,
@@ -79,16 +51,18 @@ const createAgreement = async (data, files) => {
         );
     }
 
-    const { documentPaths, savedFiles } = saveAgreementDocuments(files);
+    const agreement = await repository.create({
+        ...data,
+        status: "DRAFT",
+        renewalStatus: "NOT_REQUIRED"
+    });
     try {
-        return await repository.create({
-            ...data,
-            ...documentPaths,
-            status: "DRAFT",
-            renewalStatus: "NOT_REQUIRED"
-        });
+        await repository.saveDocuments(agreement.id, files, documentFields);
+        const paths = uploadedDocumentPaths(agreement.id, files);
+        if (Object.keys(paths).length) await repository.update(agreement.id, paths);
+        return asPlainRecord(await repository.findById(agreement.id));
     } catch (error) {
-        removeSavedFiles(savedFiles);
+        await repository.deleteById(agreement.id).catch(() => {});
         throw error;
     }
 };
@@ -110,7 +84,12 @@ const getAgreement = async (id) => {
         );
     }
 
-    return agreement;
+    return asPlainRecord(agreement);
+};
+
+const getAgreementDocument = async (id, documentType) => {
+    if (!documentFields.includes(documentType)) return null;
+    return repository.findDocument(id, documentType);
 };
 
 
@@ -367,13 +346,14 @@ const updateAgreement = async (id, data, files) => {
         );
     }
 
-    const { documentPaths, savedFiles } = saveAgreementDocuments(files);
-    try {
-        return await repository.update(id, { ...data, ...documentPaths });
-    } catch (error) {
-        removeSavedFiles(savedFiles);
-        throw error;
-    }
+    const updateFields = { ...data };
+    for (const field of documentFields) delete updateFields[field];
+    const updated = await repository.update(id, updateFields);
+    if (!updated) return null;
+    await repository.saveDocuments(id, files, documentFields);
+    const paths = uploadedDocumentPaths(id, files);
+    if (Object.keys(paths).length) await repository.update(id, paths);
+    return asPlainRecord(await repository.findById(id));
 };
 
 
@@ -396,6 +376,7 @@ module.exports = {
     createAgreement,
     getAgreements,
     getAgreement,
+    getAgreementDocument,
     getAgreementByReference,
     getAgreementsByUnit,
     getAgreementsByTenant,

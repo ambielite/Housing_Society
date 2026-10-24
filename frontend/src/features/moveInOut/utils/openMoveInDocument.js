@@ -6,8 +6,8 @@ export async function openMoveInDocument(path) {
     if (!path) return;
 
     // Old uploads remain available at their existing server path. New uploads
-    // are served by the authenticated endpoint and returned as a Blob.
-    if (!path.startsWith("/move-ins/")) {
+    // are served by authenticated endpoints and returned as a Blob.
+    if (!path.startsWith("/move-ins/") && !path.startsWith("/agreements/")) {
         window.open(/^https?:\/\//i.test(path) ? path : `${documentBaseUrl}${path}`, "_blank", "noopener,noreferrer");
         return;
     }
