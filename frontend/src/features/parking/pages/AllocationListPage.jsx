@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
 import useFetch from '../../../utils/useFetch';
@@ -18,8 +18,10 @@ import AllocationForm from '../components/AllocationForm';
 import EndAllocationForm from '../components/EndAllocationForm';
 import { AllocationStatusBadge } from '../components/ParkingBadges';
 import { ALLOCATION_TYPES, friendlyDeleteError, labelOf } from '../components/parkingOptions';
+import { filterRecords } from '../utils/searchRecords';
+import ParkingSearchToolbar from '../components/ParkingSearchToolbar';
 
-export default function AllocationListPage() {
+export default function AllocationListPage({ embedded = false, searchTerm = '', searchValue = '', onSearchChange }) {
   const { hasPermission } = useAuth();
   const { societyId } = useSociety();
   const [statusFilter, setStatusFilter] = useState('');
@@ -53,8 +55,8 @@ export default function AllocationListPage() {
 
   if (!societyId) {
     return (
-      <PageContainer title="Parking" subtitle="Areas, slots and who they are allocated to.">
-        <ParkingTabs />
+      <PageContainer title="Parking" subtitle="Areas, slots and who they are allocated to." hideHeader={embedded}>
+        {!embedded && <ParkingTabs />}
         <SocietyIdPrompt />
       </PageContainer>
     );
@@ -143,8 +145,8 @@ export default function AllocationListPage() {
             </button>
           )}
           {hasPermission('PARKING_ALLOCATION_DELETE') && (
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDeleting(allocation)}>
-              Delete
+            <button type="button" className="table-action-button danger" aria-label={`Delete allocation for ${slotById.get(allocation.slot_id)?.slot_code || 'slot'}`} title="Delete" onClick={() => setDeleting(allocation)}>
+              <Trash2 size={17} aria-hidden="true" />
             </button>
           )}
         </div>
@@ -153,10 +155,11 @@ export default function AllocationListPage() {
   ];
 
   return (
-    <PageContainer title="Parking" subtitle="Areas, slots and who they are allocated to." actions={newButton}>
-      <ParkingTabs />
+    <PageContainer title="Parking" subtitle="Areas, slots and who they are allocated to." actions={embedded ? null : newButton} hideHeader={embedded}>
+      {!embedded && <ParkingTabs />}
       {notice && <Alert variant="success">{notice}</Alert>}
       {pageError && <Alert>{pageError}</Alert>}
+      {embedded && <ParkingSearchToolbar value={searchValue} onChange={onSearchChange} placeholder="Search slots, units, allocation types, dates, fees…" action={newButton} />}
 
       <div className="toolbar">
         <select className="input toolbar-select" aria-label="Filter by status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
@@ -169,12 +172,16 @@ export default function AllocationListPage() {
 
       <DataTable
         columns={columns}
-        rows={rows}
+        tableClassName="parking-vehicle-table parking-allocation-table"
+        rows={filterRecords(rows, searchTerm, (allocation) => {
+          const slot = slotById.get(allocation.slot_id);
+          return `${slot?.slot_code || ''} ${areaById.get(slot?.parking_area_id)?.name || ''} ${allocation.unit_id || ''} ${labelOf(ALLOCATION_TYPES, allocation.allocation_type)} ${allocation.start_date || ''} ${allocation.end_date || ''} ${allocation.fee || ''} ${allocation.status || ''}`;
+        })}
         loading={allocations.loading}
         error={allocations.error ? getErrorMessage(allocations.error) : ''}
         onRetry={allocations.reload}
-        emptyTitle={statusFilter ? 'No allocations with this status' : 'No allocations yet'}
-        emptyMessage={statusFilter ? 'Try a different status.' : 'Allocate a free slot to a unit to see it here.'}
+        emptyTitle={searchTerm ? 'No matching allocations' : statusFilter ? 'No allocations with this status' : 'No allocations yet'}
+        emptyMessage={searchTerm ? 'Try a slot, unit, allocation type, period, fee, or status.' : statusFilter ? 'Try a different status.' : 'Allocate a free slot to a unit to see it here.'}
         emptyAction={
           statusFilter ? (
             <button type="button" className="btn btn-secondary" onClick={() => setStatusFilter('')}>

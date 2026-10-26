@@ -13,6 +13,7 @@ import { displayRecordName, RecordDetailsModal } from '../ui/Modal';
  */
 export default function DataTable({
   columns,
+  tableClassName = '',
   rows,
   rowKey = 'id',
   loading = false,
@@ -61,7 +62,7 @@ export default function DataTable({
   return (
     <div className="table-card">
       <div className={`table-wrap${loading ? ' is-loading' : ''}`} aria-busy={loading}>
-        <table className="table">
+        <table className={`table ${tableClassName}`.trim()}>
           <thead>
             <tr>
               {columns.map((col) => (

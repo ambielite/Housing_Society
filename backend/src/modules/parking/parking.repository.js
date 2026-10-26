@@ -135,7 +135,7 @@ const createAllocation = async ({ slotId, unitId, userId, allocationType, startD
        (slot_id, unit_id, user_id, allocation_type, start_date, end_date, fee)
      VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *`,
-    [slotId, unitId, userId || null, allocationType, startDate, endDate || null, fee || null]
+    [slotId, unitId || null, userId || null, allocationType, startDate, endDate || null, fee || null]
   );
   return result.rows[0];
 };

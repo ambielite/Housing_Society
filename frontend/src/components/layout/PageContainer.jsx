@@ -31,16 +31,17 @@ function addCreationIcons(node) {
   return cloneElement(node, {}, addCreationIcons(children));
 }
 
-export default function PageContainer({ title, subtitle, actions, children }) {
+export default function PageContainer({ title, subtitle, eyebrow, actions, children, hideHeader = false, className = '' }) {
   return (
-    <section className="page">
-      <header className="page-header">
+    <section className={`page ${className}`.trim()}>
+      {!hideHeader && <header className="page-header">
         <div>
+          {eyebrow && <div className="society-eyebrow"><span className="society-eyebrow-dot" /> {eyebrow}</div>}
           <h1>{title}</h1>
           {subtitle && <p className="page-subtitle">{subtitle}</p>}
         </div>
         {actions && <div className="page-actions">{addCreationIcons(actions)}</div>}
-      </header>
+      </header>}
       {children}
     </section>
   );

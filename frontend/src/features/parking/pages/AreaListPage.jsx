@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
 import useFetch from '../../../utils/useFetch';
@@ -16,8 +15,10 @@ import ParkingTabs from '../components/ParkingTabs';
 import AreaForm from '../components/AreaForm';
 import { ActiveBadge } from '../components/ParkingBadges';
 import { PARKING_TYPES, friendlyDeleteError, labelOf } from '../components/parkingOptions';
+import { filterRecords } from '../utils/searchRecords';
+import ParkingSearchToolbar from '../components/ParkingSearchToolbar';
 
-export default function AreaListPage() {
+export default function AreaListPage({ embedded = false, searchTerm = '', searchValue = '', onSearchChange }) {
   const { hasPermission } = useAuth();
   const { societyId } = useSociety();
   const canSeeSlots = hasPermission('PARKING_SLOT_READ');
@@ -48,8 +49,8 @@ export default function AreaListPage() {
 
   if (!societyId) {
     return (
-      <PageContainer title="Parking" subtitle="Areas, slots and who they are allocated to.">
-        <ParkingTabs />
+      <PageContainer title="Parking" subtitle="Areas, slots and who they are allocated to." hideHeader={embedded}>
+        {!embedded && <ParkingTabs />}
         <SocietyIdPrompt />
       </PageContainer>
     );
@@ -100,13 +101,7 @@ export default function AreaListPage() {
       header: 'Area',
       render: (area) => (
         <>
-          {canSeeSlots ? (
-            <Link to={`/parking/slots?area=${area.id}`} className="cell-title">
-              {area.name}
-            </Link>
-          ) : (
-            <span className="cell-title">{area.name}</span>
-          )}
+          <span className="cell-title">{area.name}</span>
           {area.zone && <span className="cell-sub">Zone {area.zone}</span>}
         </>
       ),
@@ -120,13 +115,13 @@ export default function AreaListPage() {
       render: (area) => (
         <div className="row-actions">
           {hasPermission('PARKING_AREA_UPDATE') && (
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => openDialog({ mode: 'edit', area })}>
-              Edit
+            <button type="button" className="table-action-button" aria-label={`Edit ${area.name}`} title="Edit" onClick={() => openDialog({ mode: 'edit', area })}>
+              <Pencil size={17} aria-hidden="true" />
             </button>
           )}
           {hasPermission('PARKING_AREA_DELETE') && (
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDeleting(area)}>
-              Delete
+            <button type="button" className="table-action-button danger" aria-label={`Delete ${area.name}`} title="Delete" onClick={() => setDeleting(area)}>
+              <Trash2 size={17} aria-hidden="true" />
             </button>
           )}
         </div>
@@ -135,19 +130,21 @@ export default function AreaListPage() {
   ];
 
   return (
-    <PageContainer title="Parking" subtitle="Areas, slots and who they are allocated to." actions={newButton}>
-      <ParkingTabs />
+    <PageContainer title="Parking" subtitle="Areas, slots and who they are allocated to." actions={embedded ? null : newButton} hideHeader={embedded}>
+      {!embedded && <ParkingTabs />}
       {notice && <Alert variant="success">{notice}</Alert>}
       {pageError && <Alert>{pageError}</Alert>}
+      {embedded && <ParkingSearchToolbar value={searchValue} onChange={onSearchChange} placeholder="Search areas, zones, types, and status…" action={newButton} />}
 
       <DataTable
         columns={columns}
-        rows={areas.data}
+        tableClassName="parking-vehicle-table"
+        rows={filterRecords(areas.data, searchTerm, (area) => `${labelOf(PARKING_TYPES, area.parking_type)} ${area.zone || ''} ${countByArea[area.id] || 0}`)}
         loading={areas.loading}
         error={areas.error ? getErrorMessage(areas.error) : ''}
         onRetry={areas.reload}
-        emptyTitle="No parking areas yet"
-        emptyMessage="An area is a zone such as a basement or open yard. Create one, then add slots to it."
+        emptyTitle={searchTerm ? 'No matching parking areas' : 'No parking areas yet'}
+        emptyMessage={searchTerm ? 'Try another area name, zone, type, or status.' : 'An area is a zone such as a basement or open yard. Create one, then add slots to it.'}
         emptyAction={newButton || null}
       />
 

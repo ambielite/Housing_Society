@@ -281,6 +281,18 @@ textarea.input { resize: vertical; }
 .table-wrap { overflow-x: auto; transition: opacity 0.15s; }
 .table-wrap.is-loading { opacity: 0.55; }
 .table { width: 100%; min-width: 640px; border-collapse: collapse; text-align: left; }
+.table.parking-vehicle-table { width: max-content; min-width: 100%; table-layout: fixed; }
+.table.parking-vehicle-table th,
+.table.parking-vehicle-table td { box-sizing: border-box; width: 170px; min-width: 170px; max-width: 170px; overflow-wrap: anywhere; text-align: center; }
+.table.parking-vehicle-table th { text-align: center; }
+.table.parking-allocation-table th:nth-child(4),
+.table.parking-allocation-table td:nth-child(4) { width: 220px; min-width: 220px; max-width: 220px; }
+.table.parking-allocation-table th:nth-child(5),
+.table.parking-allocation-table td:nth-child(5) { width: 130px; min-width: 130px; max-width: 130px; }
+.table.parking-vehicle-table th:last-child,
+.table.parking-vehicle-table td:last-child { text-align: center; }
+.table.parking-vehicle-table td:last-child .row-actions { justify-content: center; }
+.table.parking-vehicle-table .table-action-button { text-decoration: none; }
 .table thead { background: var(--thead-bg); }
 .table th { padding: 12px 18px; color: var(--th-color); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; white-space: nowrap; border-bottom: 1px solid var(--row-divider); }
 .table td { padding: 14px 18px; border-bottom: 1px solid var(--row-divider); color: var(--td-color); font-size: 12px; line-height: 1.6; vertical-align: middle; }

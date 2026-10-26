@@ -26,8 +26,7 @@ export default function AllocationForm({ slotOptions, defaultSlotId = '', onSubm
     event.preventDefault();
     const next = {};
     if (!values.slotId) next.slotId = 'Choose a slot.';
-    if (!values.unitId.trim()) next.unitId = 'Enter the unit.';
-    else if (!isUuid(values.unitId)) next.unitId = "That doesn't look like a valid unit ID.";
+    if (values.unitId.trim() && !isUuid(values.unitId)) next.unitId = "That doesn't look like a valid unit ID.";
     if (!values.allocationType) next.allocationType = 'Choose an allocation type.';
     if (!values.startDate) next.startDate = 'Choose a start date.';
     if (values.endDate && values.endDate < values.startDate) next.endDate = 'The end date must be on or after the start date.';
@@ -37,10 +36,10 @@ export default function AllocationForm({ slotOptions, defaultSlotId = '', onSubm
 
     const payload = {
       slotId: values.slotId,
-      unitId: values.unitId.trim(),
       allocationType: values.allocationType,
       startDate: values.startDate,
     };
+    if (values.unitId.trim()) payload.unitId = values.unitId.trim();
     if (values.endDate) payload.endDate = values.endDate;
     if (values.fee !== '') payload.fee = Number(values.fee);
     onSubmit(payload);
@@ -59,7 +58,7 @@ export default function AllocationForm({ slotOptions, defaultSlotId = '', onSubm
         onChange={onChange}
         error={errors.slotId}
       />
-      <UnitSelect value={values.unitId} onChange={(unitId) => setValues((v) => ({ ...v, unitId }))} error={errors.unitId} />
+      <UnitSelect label="Unit (optional)" value={values.unitId} onChange={(unitId) => setValues((v) => ({ ...v, unitId }))} error={errors.unitId} />
       <SelectField
         id="allocationType"
         name="allocationType"

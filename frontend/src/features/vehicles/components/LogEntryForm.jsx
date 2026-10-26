@@ -1,32 +1,35 @@
 import { useState } from 'react';
-import TextField from '../../../components/ui/TextField';
 import SelectField from '../../../components/ui/SelectField';
 import Alert from '../../../components/ui/Alert';
-import { isUuid } from '../../../utils/validators';
 
-/** vehicleOptions / slotOptions: [{ value, label }]. Visitors are entered by ID until the visitors screens exist. */
-export default function LogEntryForm({ vehicleOptions, slotOptions, onSubmit, onCancel, saving, error }) {
-  const [who, setWho] = useState('vehicle'); // 'vehicle' | 'visitor'
+/** vehicleOptions / visitorOptions / slotOptions: [{ value, label }]. */
+export default function LogEntryForm({ vehicleOptions, visitorOptions, slotOptions, onSubmit, onCancel, saving, error }) {
+  const [who, setWho] = useState('resident'); // 'resident' | 'visitor'
   const [values, setValues] = useState({ vehicleId: '', visitorId: '', slotId: '' });
   const [errors, setErrors] = useState({});
+  const availableSlotOptions = who === 'visitor'
+    ? slotOptions.filter((slot) => slot.slotType === 'VISITOR')
+    : slotOptions.filter((slot) => slot.slotType !== 'VISITOR');
 
   const onChange = (event) => setValues((v) => ({ ...v, [event.target.name]: event.target.value }));
+  const changeWho = (nextWho) => {
+    setWho(nextWho);
+    setValues((current) => ({ ...current, slotId: '' }));
+    setErrors({});
+  };
 
   const handleSubmit = (event) => {
     event.preventDefault();
     const next = {};
-    if (who === 'vehicle' && !values.vehicleId) next.vehicleId = 'Choose a vehicle.';
-    if (who === 'visitor') {
-      if (!values.visitorId.trim()) next.visitorId = 'Enter the visitor ID.';
-      else if (!isUuid(values.visitorId)) next.visitorId = "That doesn't look like a valid visitor ID.";
-    }
+    if (who === 'resident' && !values.vehicleId) next.vehicleId = 'Choose a resident vehicle.';
+    if (who === 'visitor' && !values.visitorId) next.visitorId = 'Choose a visitor.';
     if (!values.slotId) next.slotId = 'Choose a slot.';
     setErrors(next);
     if (Object.keys(next).length) return;
 
     onSubmit({
       slotId: values.slotId,
-      ...(who === 'vehicle' ? { vehicleId: values.vehicleId } : { visitorId: values.visitorId.trim() }),
+      ...(who === 'resident' ? { vehicleId: values.vehicleId } : { visitorId: values.visitorId.trim() }),
     });
   };
 
@@ -37,18 +40,18 @@ export default function LogEntryForm({ vehicleOptions, slotOptions, onSubmit, on
       <fieldset className="choice-group">
         <legend>Who is entering?</legend>
         <label>
-          <input type="radio" name="who" checked={who === 'vehicle'} onChange={() => setWho('vehicle')} /> Registered vehicle
+          <input type="radio" name="who" checked={who === 'resident'} onChange={() => changeWho('resident')} /> Resident
         </label>
         <label>
-          <input type="radio" name="who" checked={who === 'visitor'} onChange={() => setWho('visitor')} /> Visitor
+          <input type="radio" name="who" checked={who === 'visitor'} onChange={() => changeWho('visitor')} /> Visitor
         </label>
       </fieldset>
 
-      {who === 'vehicle' ? (
+      {who === 'resident' ? (
         <SelectField
           id="vehicleId"
           name="vehicleId"
-          label="Vehicle"
+          label="Resident vehicle"
           placeholder={vehicleOptions.length ? 'Choose a vehicle' : 'No active vehicles found'}
           options={vehicleOptions}
           value={values.vehicleId}
@@ -56,15 +59,15 @@ export default function LogEntryForm({ vehicleOptions, slotOptions, onSubmit, on
           error={errors.vehicleId}
         />
       ) : (
-        <TextField
+        <SelectField
           id="visitorId"
           name="visitorId"
-          label="Visitor ID"
-          placeholder="Paste the visitor's ID"
+          label="Visitor"
+          placeholder={visitorOptions.length ? 'Choose a visitor' : 'No visitors or active invites found'}
+          options={visitorOptions}
           value={values.visitorId}
           onChange={onChange}
           error={errors.visitorId}
-          hint="Temporary: visitor IDs come from the visitors section."
         />
       )}
 
@@ -72,8 +75,8 @@ export default function LogEntryForm({ vehicleOptions, slotOptions, onSubmit, on
         id="slotId"
         name="slotId"
         label="Parking slot"
-        placeholder={slotOptions.length ? 'Choose a free slot' : 'No free slots available'}
-        options={slotOptions}
+        placeholder={availableSlotOptions.length ? 'Choose a free slot' : who === 'visitor' ? 'No free visitor slots available' : 'No free resident slots available'}
+        options={availableSlotOptions}
         value={values.slotId}
         onChange={onChange}
         error={errors.slotId}

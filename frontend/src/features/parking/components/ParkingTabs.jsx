@@ -19,7 +19,7 @@ export default function ParkingTabs() {
     <div className="tabs-bar">
       <nav className="tabs" aria-label="Parking sections">
         {TABS.filter((tab) => hasPermission(tab.permission)).map((tab) => (
-          <NavLink key={tab.to} to={tab.to} className={({ isActive }) => `tab${isActive ? ' active' : ''}`}>
+          <NavLink key={tab.to} to={tab.to} end={tab.end} className={({ isActive }) => `tab${isActive ? ' active' : ''}`}>
             {tab.label}
           </NavLink>
         ))}

@@ -27,7 +27,7 @@ const QUICK_CREATE_GROUPS = [
   {
     label: 'Operations',
     actions: [
-      { label: 'Vehicle', description: 'Register a society vehicle', to: '/vehicles/new', permission: 'VEHICLE_CREATE', icon: Car },
+      { label: 'Vehicle', description: 'Register a society vehicle', to: '/parking?tab=vehicles&action=new', permission: 'VEHICLE_CREATE', icon: Car },
       { label: 'Vendor', description: 'Add a service provider', to: '/vendors/new', permission: 'VENDOR_CREATE', icon: Truck },
       { label: 'Purchase request', description: 'Start a procurement request', to: '/procurement/requests/new', permission: 'PURCHASE_REQUEST_CREATE', icon: ClipboardList },
       { label: 'Role', description: 'Create an access role', to: '/roles/new', permission: 'ROLE_CREATE', icon: Shield },

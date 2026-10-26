@@ -6,6 +6,7 @@ import { formatDateTime, formatDuration, shortId } from '../../../utils/format';
 import { getErrorMessage } from '../../../lib/axios';
 import * as vehiclesApi from '../api/vehicles.api';
 import * as parkingApi from '../../parking/api/parking.api';
+import * as visitorsApi from '../../security/api/security.api';
 import PageContainer from '../../../components/layout/PageContainer';
 import DataTable from '../../../components/tables/DataTable';
 import Alert from '../../../components/ui/Alert';
@@ -15,8 +16,17 @@ import SocietyIdPrompt from '../../../components/ui/SocietyIdPrompt';
 import VehiclesTabs from '../components/VehiclesTabs';
 import LogEntryForm from '../components/LogEntryForm';
 import { VisitStatusBadge } from '../components/VehicleBadges';
+import { filterRecords } from '../../parking/utils/searchRecords';
+import ParkingSearchToolbar from '../../parking/components/ParkingSearchToolbar';
 
-export default function GateLogPage() {
+const rowsFrom = (value, keys) => {
+  if (Array.isArray(value)) return value;
+  if (value?.data) return rowsFrom(value.data, keys);
+  for (const key of keys) if (Array.isArray(value?.[key])) return value[key];
+  return [];
+};
+
+export default function GateLogPage({ embedded = false, searchTerm = '', searchValue = '', onSearchChange }) {
   const { hasPermission } = useAuth();
   const { societyId } = useSociety();
   const [statusFilter, setStatusFilter] = useState('');
@@ -40,6 +50,16 @@ export default function GateLogPage() {
   );
   const slots = useFetch(() => (societyId && canSeeSlots ? parkingApi.listSlots() : Promise.resolve(null)), [societyId, canSeeSlots]);
   const areas = useFetch(() => (societyId && canSeeSlots ? parkingApi.listAreas({ societyId }) : Promise.resolve(null)), [societyId, canSeeSlots]);
+  const canSeeVisitorProfiles = hasPermission('VISITOR_PROFILE_READ');
+  const canSeeVisitorInvites = hasPermission('VISITOR_INVITE_READ');
+  const visitorProfiles = useFetch(
+    () => (societyId && canSeeVisitorProfiles ? visitorsApi.listVisitorProfiles({ societyId }) : Promise.resolve([])),
+    [societyId, canSeeVisitorProfiles]
+  );
+  const visitorInvites = useFetch(
+    () => (societyId && canSeeVisitorInvites ? visitorsApi.listVisitorInvites({ societyId }) : Promise.resolve([])),
+    [societyId, canSeeVisitorInvites]
+  );
 
   const [showEntry, setShowEntry] = useState(false);
   const [exiting, setExiting] = useState(null);
@@ -66,8 +86,8 @@ export default function GateLogPage() {
 
   if (!societyId) {
     return (
-      <PageContainer title="Vehicles" subtitle="Registered vehicles, their access credentials and the gate log.">
-        <VehiclesTabs />
+      <PageContainer title="Vehicles" subtitle="Registered vehicles, their access credentials and the gate log." hideHeader={embedded}>
+        {!embedded && <VehiclesTabs />}
         <SocietyIdPrompt />
       </PageContainer>
     );
@@ -82,10 +102,28 @@ export default function GateLogPage() {
   const occupiedSlotIds = new Set((insideNow.data || []).map((v) => v.slot_id));
   const slotOptions = societySlots
     .filter((s) => s.status === 'ACTIVE' && !occupiedSlotIds.has(s.id))
-    .map((s) => ({ value: s.id, label: `${s.slot_code} - ${areaById.get(s.parking_area_id)?.name || 'Unknown area'}` }));
+    .map((s) => ({ value: s.id, slotType: String(s.slot_type || '').toUpperCase(), label: `${s.slot_code} - ${areaById.get(s.parking_area_id)?.name || 'Unknown area'}` }));
   const vehicleOptions = vehicleList
     .filter((v) => v.status === 'ACTIVE')
     .map((v) => ({ value: v.id, label: `${v.registration_no}${v.make ? ` - ${v.make}` : ''}` }));
+  const profileRows = rowsFrom(visitorProfiles.data, ['profiles', 'visitorProfiles', 'visitors']);
+  const activeInvites = rowsFrom(visitorInvites.data, ['invites', 'visitorInvites'])
+    .filter((invite) => ['PENDING', 'APPROVED'].includes(String(invite.status || '').toUpperCase()));
+  const invitedProfileIds = new Set(activeInvites.map((invite) => invite.visitor_profile_id).filter(Boolean));
+  const visitorOptionsById = new Map(profileRows.filter((profile) => profile.id).map((profile) => [
+    profile.id,
+    {
+      value: profile.id,
+      label: `${profile.name || `Visitor ${shortId(profile.id)}`}${profile.phone ? ` - ${profile.phone}` : ''}${invitedProfileIds.has(profile.id) ? ' (Invited)' : ''}`,
+    },
+  ]));
+  for (const invite of activeInvites) {
+    const profileId = invite.visitor_profile_id;
+    if (profileId && !visitorOptionsById.has(profileId)) {
+      visitorOptionsById.set(profileId, { value: profileId, label: `Visitor ${shortId(profileId)} (Invited)` });
+    }
+  }
+  const visitorOptions = [...visitorOptionsById.values()];
 
   const refresh = () => {
     visits.reload();
@@ -171,8 +209,9 @@ export default function GateLogPage() {
   ];
 
   return (
-    <PageContainer title="Vehicles" subtitle="Registered vehicles, their access credentials and the gate log." actions={entryButton}>
-      <VehiclesTabs />
+    <PageContainer title="Vehicles" subtitle="Registered vehicles, their access credentials and the gate log." actions={embedded ? null : entryButton} hideHeader={embedded}>
+      {!embedded && <VehiclesTabs />}
+      {embedded && <ParkingSearchToolbar value={searchValue} onChange={onSearchChange} placeholder="Search vehicles, visitors, slots, dates, and status…" action={entryButton} />}
       {notice && <Alert variant="success">{notice}</Alert>}
       {pageError && <Alert>{pageError}</Alert>}
 
@@ -188,12 +227,17 @@ export default function GateLogPage() {
 
       <DataTable
         columns={columns}
-        rows={visits.data}
+        tableClassName="parking-vehicle-table"
+        rows={filterRecords(visits.data, searchTerm, (visit) => {
+          const slot = slotById.get(visit.slot_id);
+          const vehicle = vehicleById.get(visit.vehicle_id);
+          return `${whoLabel(visit)} ${vehicle?.make || ''} ${vehicle?.model || ''} ${slot?.slot_code || ''} ${areaById.get(slot?.parking_area_id)?.name || ''} ${visit.entry_at || ''} ${visit.exit_at || ''} ${visit.status || ''}`;
+        })}
         loading={visits.loading}
         error={visits.error ? getErrorMessage(visits.error) : ''}
         onRetry={visits.reload}
-        emptyTitle={statusFilter ? 'No entries with this status' : 'No gate activity yet'}
-        emptyMessage={statusFilter ? 'Try a different status.' : 'Log a vehicle entry to start the gate log.'}
+        emptyTitle={searchTerm ? 'No matching gate records' : statusFilter ? 'No entries with this status' : 'No gate activity yet'}
+        emptyMessage={searchTerm ? 'Try a vehicle, visitor, slot, area, date, or status.' : statusFilter ? 'Try a different status.' : 'Log a vehicle entry to start the gate log.'}
         emptyAction={
           statusFilter ? (
             <button type="button" className="btn btn-secondary" onClick={() => setStatusFilter('')}>
@@ -209,6 +253,7 @@ export default function GateLogPage() {
         <Modal title="Log vehicle entry" onClose={() => setShowEntry(false)} busy={saving}>
           <LogEntryForm
             vehicleOptions={vehicleOptions}
+            visitorOptions={visitorOptions}
             slotOptions={slotOptions}
             onSubmit={saveEntry}
             onCancel={() => setShowEntry(false)}

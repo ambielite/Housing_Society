@@ -15,13 +15,7 @@ const RoleListPage = lazy(() => import('../../features/rbac/pages/RoleListPage')
 const RoleDetailPage = lazy(() => import('../../features/rbac/pages/RoleDetailPage'));
 const RoleFormPage = lazy(() => import('../../features/rbac/pages/RoleFormPage'));
 const ParkingHomePage = lazy(() => import('../../features/parking/pages/ParkingHomePage'));
-const AreaListPage = lazy(() => import('../../features/parking/pages/AreaListPage'));
-const SlotListPage = lazy(() => import('../../features/parking/pages/SlotListPage'));
-const AllocationListPage = lazy(() => import('../../features/parking/pages/AllocationListPage'));
-const VehicleListPage = lazy(() => import('../../features/vehicles/pages/VehicleListPage'));
 const VehicleDetailPage = lazy(() => import('../../features/vehicles/pages/VehicleDetailPage'));
-const VehicleFormPage = lazy(() => import('../../features/vehicles/pages/VehicleFormPage'));
-const GateLogPage = lazy(() => import('../../features/vehicles/pages/GateLogPage'));
 const VendorListPage = lazy(() => import('../../features/vendors/pages/VendorListPage'));
 const VendorDetailPage = lazy(() => import('../../features/vendors/pages/VendorDetailPage'));
 const VendorFormPage = lazy(() => import('../../features/vendors/pages/VendorFormPage'));
@@ -221,31 +215,31 @@ export default function AppRoutes() {
               <Route path="/roles/:roleId/edit" element={<RoleFormPage />} />
             </Route>
             {/* Parking */}
-            <Route element={<ProtectedRoute permission={['PARKING_AREA_READ', 'PARKING_SLOT_READ', 'PARKING_ALLOCATION_READ']} />}>
+            <Route element={<ProtectedRoute permission={['PARKING_AREA_READ', 'PARKING_SLOT_READ', 'PARKING_ALLOCATION_READ', 'VEHICLE_READ']} />}>
               <Route path="/parking" element={<ParkingHomePage />} />
             </Route>
             <Route element={<ProtectedRoute permission="PARKING_AREA_READ" />}>
-              <Route path="/parking/areas" element={<AreaListPage />} />
+              <Route path="/parking/areas" element={<Navigate to="/parking?tab=areas" replace />} />
             </Route>
             <Route element={<ProtectedRoute permission="PARKING_SLOT_READ" />}>
-              <Route path="/parking/slots" element={<SlotListPage />} />
+              <Route path="/parking/slots" element={<Navigate to="/parking?tab=slots" replace />} />
             </Route>
             <Route element={<ProtectedRoute permission="PARKING_ALLOCATION_READ" />}>
-              <Route path="/parking/allocations" element={<AllocationListPage />} />
+              <Route path="/parking/allocations" element={<Navigate to="/parking?tab=allocations" replace />} />
             </Route>
             {/* Vehicles */}
             <Route element={<ProtectedRoute permission="VEHICLE_READ" />}>
-              <Route path="/vehicles" element={<VehicleListPage />} />
+              <Route path="/vehicles" element={<Navigate to="/parking?tab=vehicles" replace />} />
               <Route path="/vehicles/:vehicleId" element={<VehicleDetailPage />} />
             </Route>
             <Route element={<ProtectedRoute permission="VEHICLE_CREATE" />}>
-              <Route path="/vehicles/new" element={<VehicleFormPage />} />
+              <Route path="/vehicles/new" element={<Navigate to="/parking?tab=vehicles&action=new" replace />} />
             </Route>
             <Route element={<ProtectedRoute permission="VEHICLE_UPDATE" />}>
-              <Route path="/vehicles/:vehicleId/edit" element={<VehicleFormPage />} />
+              <Route path="/vehicles/:vehicleId/edit" element={<Navigate to="/parking?tab=vehicles" replace />} />
             </Route>
             <Route element={<ProtectedRoute permission="PARKING_VISIT_READ" />}>
-              <Route path="/vehicles/visits" element={<GateLogPage />} />
+              <Route path="/vehicles/visits" element={<Navigate to="/parking?tab=gate-log" replace />} />
             </Route>
             {/* Vendors */}
             <Route element={<ProtectedRoute permission="VENDOR_READ" />}>

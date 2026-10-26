@@ -68,6 +68,7 @@ export default function VehicleFormPage() {
         vehicle={existing.data}
         onSubmit={handleSubmit}
         cancelTo={isEdit ? `/vehicles/${vehicleId}` : '/vehicles'}
+        onCancel={() => navigate(isEdit ? `/vehicles/${vehicleId}` : '/vehicles')}
         saving={saving}
         error={submitError}
       />

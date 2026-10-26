@@ -13,7 +13,7 @@ const normalizeReg = (text) => text.toUpperCase().replace(/\s+/g, ' ').trim();
  * Create: registration number, type, unit, make, model, colour.
  * Edit:   unit, make, model, colour (registration number and type can't change). Sends only what changed.
  */
-export default function VehicleForm({ mode, vehicle, onSubmit, cancelTo, saving, error }) {
+export default function VehicleForm({ mode, vehicle, onSubmit, cancelTo, onCancel, saving, error }) {
   const isEdit = mode === 'edit';
   const [values, setValues] = useState({
     registrationNo: vehicle?.registration_no || '',
@@ -112,9 +112,11 @@ export default function VehicleForm({ mode, vehicle, onSubmit, cancelTo, saving,
         <button type="submit" className="btn btn-primary" disabled={saving}>
           {saving ? 'Saving...' : isEdit ? 'Save changes' : 'Register vehicle'}
         </button>
-        <Link to={cancelTo} className="btn btn-secondary">
-          Cancel
-        </Link>
+        {onCancel ? (
+          <button type="button" className="btn btn-secondary" onClick={onCancel} disabled={saving}>Cancel</button>
+        ) : (
+          <Link to={cancelTo} className="btn btn-secondary">Cancel</Link>
+        )}
       </div>
     </form>
   );

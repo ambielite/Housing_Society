@@ -189,6 +189,7 @@ export default function VehicleDetailPage() {
         </div>
         <DataTable
           columns={credentialColumns}
+          tableClassName="parking-vehicle-table"
           rows={credentials.data}
           loading={credentials.loading}
           error={credentials.error ? getErrorMessage(credentials.error) : ''}

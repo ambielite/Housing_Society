@@ -807,3 +807,8 @@ body :is(.modal-close-btn, .modal-close, .quick-add-close, .profile-close, .dial
   background: color-mix(in srgb, var(--danger) 14%, var(--surface)) !important;
   color: var(--danger) !important;
 }
+
+/* Center resident table action controls within their action column. */
+body .society-dashboard .society-table th,
+body .society-dashboard .society-table td { text-align: center; }
+body .society-dashboard .society-table .society-row-actions { justify-content: center; }

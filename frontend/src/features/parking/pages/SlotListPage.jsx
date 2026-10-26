@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
@@ -17,9 +17,11 @@ import ParkingTabs from '../components/ParkingTabs';
 import SlotForm from '../components/SlotForm';
 import AllocationForm from '../components/AllocationForm';
 import { ActiveBadge } from '../components/ParkingBadges';
-import { SLOT_TYPES, VEHICLE_TYPES, friendlyDeleteError, labelOf } from '../components/parkingOptions';
+import { ALLOCATION_TYPES, SLOT_TYPES, VEHICLE_TYPES, friendlyDeleteError, labelOf } from '../components/parkingOptions';
+import { filterRecords } from '../utils/searchRecords';
+import ParkingSearchToolbar from '../components/ParkingSearchToolbar';
 
-export default function SlotListPage() {
+export default function SlotListPage({ embedded = false, searchTerm = '', searchValue = '', onSearchChange }) {
   const { hasPermission } = useAuth();
   const { societyId } = useSociety();
   const [searchParams] = useSearchParams();
@@ -61,8 +63,8 @@ export default function SlotListPage() {
 
   if (!societyId) {
     return (
-      <PageContainer title="Parking" subtitle="Areas, slots and who they are allocated to.">
-        <ParkingTabs />
+      <PageContainer title="Parking" subtitle="Areas, slots and who they are allocated to." hideHeader={embedded}>
+        {!embedded && <ParkingTabs />}
         <SocietyIdPrompt />
       </PageContainer>
     );
@@ -138,7 +140,7 @@ export default function SlotListPage() {
                 <>
                   <span className="badge badge-pending">Allocated</span>{' '}
                   <span className="muted">
-                    to <UnitLabel unitId={allocation.unit_id} />
+                    to {allocation.unit_id ? <UnitLabel unitId={allocation.unit_id} /> : labelOf(ALLOCATION_TYPES, allocation.allocation_type)}
                   </span>
                 </>
               ) : (
@@ -161,13 +163,13 @@ export default function SlotListPage() {
               </button>
             )}
             {hasPermission('PARKING_SLOT_UPDATE') && (
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => openDialog({ type: 'edit', slot })}>
-                Edit
+              <button type="button" className="table-action-button" aria-label={`Edit ${slot.slot_code}`} title="Edit" onClick={() => openDialog({ type: 'edit', slot })}>
+                <Pencil size={17} aria-hidden="true" />
               </button>
             )}
             {hasPermission('PARKING_SLOT_DELETE') && (
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDeleting(slot)}>
-                Delete
+              <button type="button" className="table-action-button danger" aria-label={`Delete ${slot.slot_code}`} title="Delete" onClick={() => setDeleting(slot)}>
+                <Trash2 size={17} aria-hidden="true" />
               </button>
             )}
           </div>
@@ -180,10 +182,11 @@ export default function SlotListPage() {
   const dialogTitle = { create: 'New parking slot', edit: 'Edit parking slot', allocate: 'Allocate slot' };
 
   return (
-    <PageContainer title="Parking" subtitle="Areas, slots and who they are allocated to." actions={newButton}>
-      <ParkingTabs />
+    <PageContainer title="Parking" subtitle="Areas, slots and who they are allocated to." actions={embedded ? null : newButton} hideHeader={embedded}>
+      {!embedded && <ParkingTabs />}
       {notice && <Alert variant="success">{notice}</Alert>}
       {pageError && <Alert>{pageError}</Alert>}
+      {embedded && <ParkingSearchToolbar value={searchValue} onChange={onSearchChange} placeholder="Search slots, areas, allocations, and vehicle types…" action={newButton} />}
 
       <div className="toolbar">
         <select className="input toolbar-select" aria-label="Filter by area" value={areaFilter} onChange={(e) => setAreaFilter(e.target.value)}>
@@ -203,15 +206,19 @@ export default function SlotListPage() {
 
       <DataTable
         columns={columns}
-        rows={rows}
+        tableClassName="parking-vehicle-table"
+        rows={filterRecords(rows, searchTerm, (slot) => {
+          const allocation = allocationBySlot.get(slot.id);
+          return `${areaById.get(slot.parking_area_id)?.name || ''} ${labelOf(SLOT_TYPES, slot.slot_type)} ${labelOf(VEHICLE_TYPES, slot.vehicle_type)} ${allocation?.unit_id || ''} ${labelOf(ALLOCATION_TYPES, allocation?.allocation_type)}`;
+        })}
         loading={slots.loading || areas.loading}
         error={slots.error || areas.error ? getErrorMessage(slots.error || areas.error) : ''}
         onRetry={() => {
           slots.reload();
           areas.reload();
         }}
-        emptyTitle={filtersActive ? 'No slots match these filters' : 'No parking slots yet'}
-        emptyMessage={filtersActive ? 'Try a different area or status.' : 'Create an area first, then add slots (bays) to it.'}
+        emptyTitle={searchTerm ? 'No matching parking slots' : filtersActive ? 'No slots match these filters' : 'No parking slots yet'}
+        emptyMessage={searchTerm ? 'Try a slot code, area, allocation, vehicle type, or status.' : filtersActive ? 'Try a different area or status.' : 'Create an area first, then add slots (bays) to it.'}
         emptyAction={
           filtersActive ? (
             <button

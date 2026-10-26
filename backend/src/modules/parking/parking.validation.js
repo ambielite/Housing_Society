@@ -40,7 +40,7 @@ const listSlotsQuerySchema = Joi.object({
 
 const createAllocationSchema = Joi.object({
   slotId: Joi.string().uuid().required(),
-  unitId: Joi.string().uuid().required(),
+  unitId: Joi.string().uuid(),
   userId: Joi.string().uuid().allow(null),
   allocationType: Joi.string().valid(...ALLOCATION_TYPES).required(),
   startDate: Joi.date().iso().required(),

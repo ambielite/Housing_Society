@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import {
-  Archive, Bell, Boxes, Building2, CalendarClock, CalendarDays, Car,
+  Archive, Bell, Boxes, Building2, CalendarClock, CalendarDays, Car, CircleParking,
   ChartNoAxesCombined, CheckCircle, ChevronDown, ClipboardCheck, ClipboardList,
   FileCheck2, FileText, FolderArchive, Gauge, Home, KeyRound, Layers3,
   LayoutDashboard, Landmark, LifeBuoy, LogOut, Megaphone, MessageSquare, Network,
@@ -70,11 +70,6 @@ const NAV_ITEMS = [
   },
   { label: 'Users', to: '/users', permission: 'USER_READ', icon: Users },
   { label: 'Roles', to: '/roles', permission: 'ROLE_READ', icon: ShieldCheck },
-  {
-    label: 'Parking', to: '/parking',
-    permission: ['PARKING_AREA_READ', 'PARKING_SLOT_READ', 'PARKING_ALLOCATION_READ'], icon: ParkingSquare,
-  },
-  { label: 'Vehicles', to: '/vehicles', permission: 'VEHICLE_READ', icon: Car },
   { label: 'Vendors', to: '/vendors', permission: 'VENDOR_READ', icon: Truck },
   { label: 'Procurement', to: '/procurement', permission: 'PURCHASE_REQUEST_READ', icon: ClipboardList },
   { label: 'Purchase Orders', to: '/purchase-orders', permission: 'PURCHASE_ORDER_READ', icon: FileText },
@@ -130,6 +125,14 @@ const NAV_ITEMS = [
       { label: 'Voting & rules', to: '/community/voting', permission: 'COMMUNITY_VOTING_READ', icon: CheckCircle },
     ],
   },
+  {
+    key: 'parking-management', label: 'Parking Management', to: '/parking',
+    permission: ['PARKING_AREA_READ', 'PARKING_SLOT_READ', 'PARKING_ALLOCATION_READ', 'VEHICLE_READ'], icon: CircleParking,
+    children: [
+      { label: 'Parking', to: '/parking?tab=areas', parkingTab: 'areas', permission: ['PARKING_AREA_READ', 'PARKING_SLOT_READ', 'PARKING_ALLOCATION_READ'], icon: ParkingSquare },
+      { label: 'Vehicles', to: '/parking?tab=vehicles', parkingTab: 'vehicles', permission: 'VEHICLE_READ', icon: Car },
+    ],
+  },
   { label: 'Reports', to: '/reports', permission: ['REPORT_DASHBOARD_READ', 'REPORT_FINANCE_READ', 'REPORT_OPERATIONS_READ', 'REPORT_SECURITY_READ', 'REPORT_APPROVAL_READ', 'REPORT_HELPDESK_READ', 'REPORT_VENDOR_READ', 'REPORT_PROCUREMENT_READ', 'REPORT_AMENITY_READ', 'REPORT_UTILITY_READ'], icon: ChartNoAxesCombined },
   { label: 'Multi-society', to: '/multi-society', permission: ['ORGANIZATION_READ', 'CLUSTER_READ', 'MULTI_SOCIETY_READ'], icon: Network },
   { label: 'Amenities', to: '/amenities', permission: ['AMENITY_READ', 'AMENITY_SLOT_READ', 'AMENITY_BOOKING_READ'], icon: CalendarDays },
@@ -143,8 +146,10 @@ const matchesPath = (pathname, path) => pathname === path || pathname.startsWith
 const visibleTree = (items, hasAnyPermission) => items
   .map((item) => ({ ...item, children: item.children ? visibleTree(item.children, hasAnyPermission) : undefined }))
   .filter((item) => canSee(item, hasAnyPermission) || item.children?.length);
-const itemIsActive = (item, pathname) => matchesPath(pathname, item.to)
-  || item.children?.some((child) => itemIsActive(child, pathname));
+const itemIsActive = (item, pathname, search) => (item.parkingTab
+  ? pathname === '/parking' && new URLSearchParams(search).get('tab') === item.parkingTab
+  : matchesPath(pathname, item.to))
+  || item.children?.some((child) => itemIsActive(child, pathname, search));
 const groupAncestors = (items, targetKey, ancestors = []) => {
   for (const item of items) {
     const key = item.key || item.to;
@@ -159,7 +164,7 @@ const groupAncestors = (items, targetKey, ancestors = []) => {
 export default function Sidebar() {
   const { hasAnyPermission, logout } = useAuth();
   const { sidebarOpen, closeSidebar } = useUi();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const [openGroups, setOpenGroups] = useState(() => new Set());
 
   const visibleItems = visibleTree(NAV_ITEMS, hasAnyPermission);
@@ -195,7 +200,7 @@ export default function Sidebar() {
     const hasChildren = children.length > 0;
     const key = item.key || item.to;
     const expanded = openGroups.has(key);
-    const active = itemIsActive(item, pathname);
+    const active = itemIsActive(item, pathname, search);
     const destination = canSee(item, hasAnyPermission) ? item.to : children[0]?.to || item.to;
     const submenuId = `sidebar-submenu-${key.replaceAll('/', '-').replaceAll(' ', '-').toLowerCase()}`;
 
@@ -214,15 +219,27 @@ export default function Sidebar() {
               <span>{item.label}</span>
             </button>
           ) : (
-            <NavLink
-              to={destination}
-              end={!hasChildren}
-              onClick={() => handleNavigationClick(key, hasChildren)}
-              className={`${depth ? 'sidebar-subnav-item' : 'nav-item'}${active ? ' active' : ''}`}
-            >
-              <Icon size={depth ? 16 : 18} aria-hidden="true" />
-              <span>{item.label}</span>
-            </NavLink>
+            item.parkingTab ? (
+              <Link
+                to={destination}
+                onClick={() => handleNavigationClick(key, hasChildren)}
+                className={`sidebar-subnav-item${active ? ' active' : ''}`}
+                aria-current={active ? 'page' : undefined}
+              >
+                <Icon size={depth ? 16 : 18} aria-hidden="true" />
+                <span>{item.label}</span>
+              </Link>
+            ) : (
+              <NavLink
+                to={destination}
+                end={!hasChildren}
+                onClick={() => handleNavigationClick(key, hasChildren)}
+                className={() => `${depth ? 'sidebar-subnav-item' : 'nav-item'}${active ? ' active' : ''}`}
+              >
+                <Icon size={depth ? 16 : 18} aria-hidden="true" />
+                <span>{item.label}</span>
+              </NavLink>
+            )
           )}
           {hasChildren && (
             <button
