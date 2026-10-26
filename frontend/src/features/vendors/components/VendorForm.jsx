@@ -11,7 +11,7 @@ import { GSTIN_PATTERN, PAN_PATTERN, PHONE_PATTERN } from './vendorOptions';
  * Edit:   business details only; sends just what changed. The linked login can't be changed later.
  * userOptions: [{ value, label }] - empty when the viewer can't see users.
  */
-export default function VendorForm({ mode, vendor, userOptions = [], onSubmit, cancelTo, saving, error }) {
+export default function VendorForm({ mode, vendor, userOptions = [], onSubmit, onCancel, cancelTo, saving, error }) {
   const isEdit = mode === 'edit';
   const [values, setValues] = useState({
     legalName: vendor?.legal_name || '',
@@ -82,7 +82,7 @@ export default function VendorForm({ mode, vendor, userOptions = [], onSubmit, c
   };
 
   return (
-    <form className="card form-wide" onSubmit={handleSubmit} noValidate>
+    <form className="vendor-form" onSubmit={handleSubmit} noValidate>
       {error && <Alert>{error}</Alert>}
       {note && <Alert variant="success">{note}</Alert>}
 
@@ -112,9 +112,7 @@ export default function VendorForm({ mode, vendor, userOptions = [], onSubmit, c
         <button type="submit" className="btn btn-primary" disabled={saving}>
           {saving ? 'Saving...' : isEdit ? 'Save changes' : 'Create vendor'}
         </button>
-        <Link to={cancelTo} className="btn btn-secondary">
-          Cancel
-        </Link>
+        {onCancel ? <button type="button" className="btn btn-secondary" onClick={onCancel} disabled={saving}>Cancel</button> : <Link to={cancelTo} className="btn btn-secondary">Cancel</Link>}
       </div>
     </form>
   );

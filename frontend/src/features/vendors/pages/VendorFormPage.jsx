@@ -7,7 +7,6 @@ import { fullName } from '../../../utils/format';
 import { getErrorMessage } from '../../../lib/axios';
 import * as vendorsApi from '../api/vendors.api';
 import * as userApi from '../../users/api/user.api';
-import PageContainer from '../../../components/layout/PageContainer';
 import { FullPageLoader } from '../../../components/ui/Spinner';
 import SocietyIdPrompt from '../../../components/ui/SocietyIdPrompt';
 import VendorForm from '../components/VendorForm';
@@ -47,9 +46,7 @@ export default function VendorFormPage() {
 
   if (!isEdit && !societyId) {
     return (
-      <PageContainer title="New vendor" subtitle="Add a service provider or supplier.">
-        <SocietyIdPrompt />
-      </PageContainer>
+      <section className="society-dashboard purchase-orders-page vendor-module-page"><header className="society-heading"><div><div className="society-eyebrow"><span className="society-eyebrow-dot" /> SUPPLIERS</div><h1>New Vendor</h1><p>Add a service provider or supplier.</p></div></header><SocietyIdPrompt /></section>
     );
   }
 
@@ -73,11 +70,12 @@ export default function VendorFormPage() {
   };
 
   return (
-    <PageContainer
-      title={isEdit ? 'Edit vendor' : 'New vendor'}
-      subtitle={isEdit ? existing.data.legal_name : 'Add a service provider or supplier.'}
-    >
-      <VendorForm
+    <section className="society-dashboard purchase-orders-page vendor-module-page">
+      <header className="society-heading"><div><div className="society-eyebrow"><span className="society-eyebrow-dot" /> SUPPLIERS</div><h1>{isEdit ? 'Edit Vendor' : 'New Vendor'}</h1><p>{isEdit ? existing.data.legal_name : 'Add a service provider or supplier.'}</p></div></header>
+      <p className="purchase-orders-back-link"><Link to={isEdit ? `/vendors/${vendorId}` : '/vendors'}>← {isEdit ? 'Back to vendor' : 'All vendors'}</Link></p>
+      <section className="society-list-panel purchase-orders-form-panel">
+        <div className="society-list-heading"><div><h2>Vendor details</h2><p>Enter registered business and primary contact information.</p></div></div>
+        <VendorForm
         mode={isEdit ? 'edit' : 'create'}
         vendor={existing.data}
         userOptions={userOptions}
@@ -85,7 +83,8 @@ export default function VendorFormPage() {
         cancelTo={isEdit ? `/vendors/${vendorId}` : '/vendors'}
         saving={saving}
         error={submitError}
-      />
-    </PageContainer>
+        />
+      </section>
+    </section>
   );
 }

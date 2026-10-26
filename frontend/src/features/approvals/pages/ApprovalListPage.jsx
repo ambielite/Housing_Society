@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Plus, RefreshCw } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
@@ -6,7 +7,6 @@ import useFetch from '../../../utils/useFetch';
 import { formatDateTime } from '../../../utils/format';
 import { getErrorMessage } from '../../../lib/axios';
 import * as approvalsApi from '../api/approvals.api';
-import PageContainer from '../../../components/layout/PageContainer';
 import DataTable from '../../../components/tables/DataTable';
 import Alert from '../../../components/ui/Alert';
 import SocietyIdPrompt from '../../../components/ui/SocietyIdPrompt';
@@ -48,7 +48,7 @@ export default function ApprovalListPage() {
   };
 
   if (!societyId) {
-    return <PageContainer title="Approvals" subtitle="Raise and act on approval requests."><SocietyIdPrompt /></PageContainer>;
+    return <section className="society-dashboard purchase-orders-page approvals-page"><header className="society-heading"><div><div className="society-eyebrow"><span className="society-eyebrow-dot" /> PROCUREMENT</div><h1>Approvals</h1><p>Raise and act on approval requests.</p></div></header><SocietyIdPrompt /></section>;
   }
 
   const columns = [
@@ -62,14 +62,13 @@ export default function ApprovalListPage() {
   ];
 
   return (
-    <PageContainer
-      title="Approvals"
-      subtitle="Raise, review and decide generic approval requests."
-      actions={hasPermission('APPROVAL_CREATE') && <button className="btn btn-primary" onClick={() => { setSaveError(''); setDialog(true); }}><span className="button-plus" aria-hidden="true">+</span> Raise approval</button>}
-    >
+    <section className="society-dashboard purchase-orders-page approvals-page">
+      <header className="society-heading"><div><div className="society-eyebrow"><span className="society-eyebrow-dot" /> PROCUREMENT</div><h1>Approvals</h1><p>Raise, review and decide approval requests.</p></div><div className="purchase-orders-actions"><button type="button" className="society-workflow-action" onClick={requests.reload} disabled={requests.loading}><RefreshCw size={16} /> Refresh</button>{hasPermission('APPROVAL_CREATE') && <button className="society-add-button" onClick={() => { setSaveError(''); setDialog(true); }}><Plus size={16} /> Raise approval</button>}</div></header>
       {notice && <Alert variant="success">{notice}</Alert>}
 
-      <div className="toolbar">
+      <section className="society-list-panel purchase-orders-panel">
+        <div className="society-list-heading"><div><h2>Approval requests</h2><p>Review linked records, approval levels, and current status.</p></div><span className="society-count">{requests.loading ? 'Loading' : `${requests.data?.length || 0} requests`}</span></div>
+      <div className="society-toolbar purchase-orders-toolbar">
         <select className="input toolbar-select" value={entityType} onChange={(e) => setEntityType(e.target.value)} aria-label="Filter by entity type">
           <option value="">All entity types</option>
           {ENTITY_TYPES.map((type) => <option key={type} value={type}>{type.replaceAll('_', ' ')}</option>)}
@@ -80,7 +79,7 @@ export default function ApprovalListPage() {
         </select>
       </div>
 
-      <DataTable
+      <div className="purchase-orders-table"><DataTable
         columns={columns}
         rows={requests.data}
         loading={requests.loading}
@@ -88,13 +87,14 @@ export default function ApprovalListPage() {
         onRetry={requests.reload}
         emptyTitle="No approval requests"
         emptyMessage="Raise an approval request for a purchase request, purchase order or vendor invoice."
-      />
+      /></div>
+      </section>
 
       {dialog && (
         <Modal title="Raise approval request" onClose={() => !saving && setDialog(false)} busy={saving}>
           <ApprovalForm onSubmit={raise} onCancel={() => setDialog(false)} saving={saving} error={saveError} />
         </Modal>
       )}
-    </PageContainer>
+    </section>
   );
 }

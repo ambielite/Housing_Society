@@ -40,7 +40,7 @@ export default function PurchaseRequestForm({ onSubmit, cancelTo, saving, error 
   };
 
   return (
-    <form className="card form-wide" onSubmit={handleSubmit} noValidate>
+    <form className="purchase-request-form" onSubmit={handleSubmit} noValidate>
       {error && <Alert>{error}</Alert>}
       <div className="form-grid">
         <TextField id="requestNo" name="requestNo" label="Request number" value={values.requestNo} onChange={onChange} error={errors.requestNo} hint="Must be unique in this society." />

@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
 import { getErrorMessage } from '../../../lib/axios';
 import * as procurementApi from '../api/procurement.api';
-import PageContainer from '../../../components/layout/PageContainer';
 import SocietyIdPrompt from '../../../components/ui/SocietyIdPrompt';
 import PurchaseRequestForm from '../components/PurchaseRequestForm';
 
@@ -17,11 +16,7 @@ export default function PurchaseRequestFormPage() {
   const [submitError, setSubmitError] = useState('');
 
   if (!societyId) {
-    return (
-      <PageContainer title="New purchase request" subtitle="Ask for something the society needs to buy.">
-        <SocietyIdPrompt />
-      </PageContainer>
-    );
+    return <section className="society-dashboard purchase-orders-page"><header className="society-heading"><div><div className="society-eyebrow"><span className="society-eyebrow-dot" /> PROCUREMENT</div><h1>New Purchase Request</h1><p>Ask for something the society needs to buy.</p></div></header><SocietyIdPrompt /></section>;
   }
 
   const handleSubmit = async (payload) => {
@@ -38,8 +33,13 @@ export default function PurchaseRequestFormPage() {
   };
 
   return (
-    <PageContainer title="New purchase request" subtitle="Ask for something the society needs to buy.">
-      <PurchaseRequestForm onSubmit={handleSubmit} cancelTo="/procurement/requests" saving={saving} error={submitError} />
-    </PageContainer>
+    <section className="society-dashboard purchase-orders-page">
+      <header className="society-heading"><div><div className="society-eyebrow"><span className="society-eyebrow-dot" /> PROCUREMENT</div><h1>New Purchase Request</h1><p>Ask for something the society needs to buy.</p></div></header>
+      <p className="purchase-orders-back-link"><Link to="/procurement/requests">← All purchase requests</Link></p>
+      <section className="society-list-panel purchase-orders-form-panel">
+        <div className="society-list-heading"><div><h2>Request details</h2><p>Enter the request reference, date, department, estimate, and reason.</p></div></div>
+        <PurchaseRequestForm onSubmit={handleSubmit} cancelTo="/procurement/requests" saving={saving} error={submitError} />
+      </section>
+    </section>
   );
 }

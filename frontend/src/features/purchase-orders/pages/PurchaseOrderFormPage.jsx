@@ -6,7 +6,6 @@ import * as procurementApi from '../../procurement/api/procurement.api';
 import useFetch from '../../../utils/useFetch';
 import { getErrorMessage } from '../../../lib/axios';
 import * as poApi from '../api/purchase-orders.api';
-import PageContainer from '../../../components/layout/PageContainer';
 import Alert from '../../../components/ui/Alert';
 import SocietyIdPrompt from '../../../components/ui/SocietyIdPrompt';
 import PurchaseOrderForm from '../components/PurchaseOrderForm';
@@ -22,7 +21,7 @@ export default function PurchaseOrderFormPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  if (!societyId) return <PageContainer title="New Purchase Order"><SocietyIdPrompt /></PageContainer>;
+  if (!societyId) return <section className="society-dashboard purchase-orders-page"><header className="society-heading"><div><div className="society-eyebrow"><span className="society-eyebrow-dot" /> PROCUREMENT</div><h1>New Purchase Order</h1></div></header><SocietyIdPrompt /></section>;
 
   const submit = async (payload) => {
     setSaving(true); setError('');
@@ -33,10 +32,14 @@ export default function PurchaseOrderFormPage() {
   };
 
   return (
-    <PageContainer title="New Purchase Order" subtitle="Create an issued purchase order for an active vendor.">
-      <p className="back-link"><Link to="/purchase-orders">&larr; All purchase orders</Link></p>
+    <section className="society-dashboard purchase-orders-page">
+      <header className="society-heading"><div><div className="society-eyebrow"><span className="society-eyebrow-dot" /> PROCUREMENT</div><h1>New Purchase Order</h1><p>Create an issued purchase order for an active vendor.</p></div></header>
+      <p className="purchase-orders-back-link"><Link to="/purchase-orders">← All purchase orders</Link></p>
       {vendorsError && <Alert>{getErrorMessage(vendorsError)}</Alert>}
-      {vendorsLoading ? <p>Loading vendors...</p> : purchaseRequests.loading ? <p>Loading purchase requests...</p> : <PurchaseOrderForm vendors={vendors} purchaseRequests={purchaseRequests.data || []} purchaseRequestsLoading={purchaseRequests.loading} saving={saving} error={error || (purchaseRequests.error ? getErrorMessage(purchaseRequests.error) : '')} onSubmit={submit} onCancel={() => navigate('/purchase-orders')} />}
-    </PageContainer>
+      <section className="society-list-panel purchase-orders-form-panel">
+        <div className="society-list-heading"><div><h2>Order details</h2><p>Set the supplier, order number, dates, and linked purchase request.</p></div></div>
+        {vendorsLoading ? <p className="purchase-orders-loading">Loading vendors...</p> : purchaseRequests.loading ? <p className="purchase-orders-loading">Loading purchase requests...</p> : <PurchaseOrderForm vendors={vendors} purchaseRequests={purchaseRequests.data || []} purchaseRequestsLoading={purchaseRequests.loading} saving={saving} error={error || (purchaseRequests.error ? getErrorMessage(purchaseRequests.error) : '')} onSubmit={submit} onCancel={() => navigate('/purchase-orders')} />}
+      </section>
+    </section>
   );
 }

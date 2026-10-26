@@ -75,10 +75,6 @@ const NAV_ITEMS = [
     permission: ['PARKING_AREA_READ', 'PARKING_SLOT_READ', 'PARKING_ALLOCATION_READ'], icon: ParkingSquare,
   },
   { label: 'Vehicles', to: '/vehicles', permission: 'VEHICLE_READ', icon: Car },
-  { label: 'Vendors', to: '/vendors', permission: 'VENDOR_READ', icon: Truck },
-  { label: 'Procurement', to: '/procurement', permission: 'PURCHASE_REQUEST_READ', icon: ClipboardList },
-  { label: 'Purchase Orders', to: '/purchase-orders', permission: 'PURCHASE_ORDER_READ', icon: FileText },
-  { label: 'Approvals', to: '/approvals', permission: 'APPROVAL_READ', icon: CheckCircle },
   {
     label: ' Staff & Visitors', to: '/security-operations', icon: UsersRound,
     children: [
@@ -107,6 +103,15 @@ const NAV_ITEMS = [
       { label: 'Categories', to: '/assets/categories', permission: 'ASSET_CATEGORY_READ', icon: Tag },
     ],
   },
+  {
+    key: 'purchase-workflow', label: 'Purchase request & order', to: '/procurement/requests', permission: ['PURCHASE_REQUEST_READ', 'PURCHASE_ORDER_READ'], icon: ClipboardList,
+    children: [
+      { label: 'Purchase Requests', to: '/procurement/requests', permission: 'PURCHASE_REQUEST_READ', icon: ClipboardList },
+      { label: 'Purchase Orders', to: '/purchase-orders', permission: 'PURCHASE_ORDER_READ', icon: FileText },
+      { label: 'Approvals', to: '/approvals', permission: 'APPROVAL_READ', icon: CheckCircle },
+    ],
+  },
+  { label: 'Manage Vendors', to: '/vendors', permission: 'VENDOR_READ', icon: Truck },
   {
     label: 'Notifications', to: '/notifications', permission: ['NOTIFICATION_READ', 'NOTIFICATION_TEMPLATE_READ', 'BROADCAST_READ'], icon: CalendarDays,
     children: [
@@ -169,6 +174,24 @@ export default function Sidebar() {
     ...visibleItems.filter((item) => item !== societyOverview && item.children?.length),
     ...visibleItems.filter((item) => item !== societyOverview && !item.children?.length),
   ];
+  const manageVendors = orderedItems.find((item) => item.to === '/vendors');
+  const purchaseWorkflowIndex = orderedItems.findIndex((item) => item.key === 'purchase-workflow');
+  if (manageVendors && purchaseWorkflowIndex >= 0) {
+    orderedItems.splice(orderedItems.indexOf(manageVendors), 1);
+    orderedItems.splice(purchaseWorkflowIndex + 1, 0, { ...manageVendors, label: 'Manage Vendors' });
+  }
+  const amenitiesItem = orderedItems.find((item) => item.to === '/amenities');
+  const manageVendorsIndex = orderedItems.findIndex((item) => item.to === '/vendors');
+  if (amenitiesItem && manageVendorsIndex >= 0) {
+    orderedItems.splice(orderedItems.indexOf(amenitiesItem), 1);
+    orderedItems.splice(manageVendorsIndex + 1, 0, amenitiesItem);
+  }
+  const helpdeskItem = orderedItems.find((item) => item.to === '/helpdesk/tickets');
+  const amenitiesIndex = orderedItems.findIndex((item) => item.to === '/amenities');
+  if (helpdeskItem && amenitiesIndex >= 0) {
+    orderedItems.splice(orderedItems.indexOf(helpdeskItem), 1);
+    orderedItems.splice(orderedItems.findIndex((item) => item.to === '/amenities') + 1, 0, helpdeskItem);
+  }
 
   const toggleGroup = (key) => setOpenGroups((current) => {
     const next = new Set(current);
@@ -202,7 +225,7 @@ export default function Sidebar() {
     return (
       <div className={`sidebar-nav-group${depth ? ' sidebar-nested-group' : ''}`} key={key}>
         <div className={`sidebar-nav-group-heading${depth ? ' sidebar-subnav-group-heading' : ''}`}>
-          {['manage-society', 'manage-resident'].includes(key) ? (
+          {['manage-society', 'manage-resident', 'purchase-workflow'].includes(key) ? (
             <button
               type="button"
               className={`nav-item${active ? ' active' : ''}`}

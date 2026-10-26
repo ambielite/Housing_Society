@@ -31,9 +31,9 @@ function addCreationIcons(node) {
   return cloneElement(node, {}, addCreationIcons(children));
 }
 
-export default function PageContainer({ title, subtitle, actions, children }) {
+export default function PageContainer({ title, subtitle, actions, children, className = '' }) {
   return (
-    <section className="page">
+    <section className={`page ${className}`.trim()}>
       <header className="page-header">
         <div>
           <h1>{title}</h1>

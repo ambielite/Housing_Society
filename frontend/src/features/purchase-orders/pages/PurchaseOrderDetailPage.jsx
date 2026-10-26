@@ -5,7 +5,6 @@ import useFetch from '../../../utils/useFetch';
 import { formatCurrency, formatDate, formatDateTime } from '../../../utils/format';
 import { getErrorMessage } from '../../../lib/axios';
 import * as poApi from '../api/purchase-orders.api';
-import PageContainer from '../../../components/layout/PageContainer';
 import Alert from '../../../components/ui/Alert';
 import Modal from '../../../components/ui/Modal';
 import { FullPageLoader } from '../../../components/ui/Spinner';
@@ -53,20 +52,19 @@ export default function PurchaseOrderDetailPage() {
   const canReceive = hasPermission('GOODS_RECEIPT_CREATE') && !['CANCELLED', 'PAID'].includes(target.status);
 
   return (
-    <PageContainer title={target.po_no} subtitle={nameOf(target.vendor_id)} actions={
-      <>
-        {canEdit && transitions.length > 0 && <button className="btn btn-secondary" type="button" onClick={() => { setError(''); setShowStatus(true); }}>Change status</button>}
-        {canEdit && <button className="btn btn-secondary" type="button" onClick={() => { setError(''); setShowLine(true); }}><span className="button-plus" aria-hidden="true">+</span> Add line</button>}
-        {canReceive && orderLines.length > 0 && <button className="btn btn-primary" type="button" onClick={() => { setError(''); setShowReceipt(true); }}>Record receipt</button>}
-      </>
-    }>
-      <p className="back-link"><Link to="/purchase-orders">&larr; All purchase orders</Link></p>
+    <section className="society-dashboard purchase-orders-page">
+      <header className="society-heading"><div><div className="society-eyebrow"><span className="society-eyebrow-dot" /> PROCUREMENT</div><h1>{target.po_no}</h1><p>{nameOf(target.vendor_id)}</p></div><div className="purchase-orders-actions">
+        {canEdit && transitions.length > 0 && <button className="society-workflow-action" type="button" onClick={() => { setError(''); setShowStatus(true); }}>Change status</button>}
+        {canEdit && <button className="society-workflow-action" type="button" onClick={() => { setError(''); setShowLine(true); }}>+ Add line</button>}
+        {canReceive && orderLines.length > 0 && <button className="society-add-button" type="button" onClick={() => { setError(''); setShowReceipt(true); }}>Record receipt</button>}
+      </div></header>
+      <p className="purchase-orders-back-link"><Link to="/purchase-orders">← All purchase orders</Link></p>
       {notice && <Alert variant="success">{notice}</Alert>}
       {error && !showLine && !showReceipt && !showStatus && <Alert>{error}</Alert>}
 
-      <div className="card">
+      <section className="society-list-panel purchase-orders-detail-panel">
+        <div className="society-list-heading"><div><h2>Order details</h2><p>Supplier, schedule, status, and linked request.</p></div><PurchaseOrderStatusBadge status={target.status} /></div>
         <dl className="details">
-          <dt>Status</dt><dd><PurchaseOrderStatusBadge status={target.status} /></dd>
           <dt>Vendor</dt><dd>{nameOf(target.vendor_id)}</dd>
           <dt>PO date</dt><dd>{formatDate(target.po_date)}</dd>
           <dt>Delivery date</dt><dd>{formatDate(target.delivery_date)}</dd>
@@ -74,20 +72,24 @@ export default function PurchaseOrderDetailPage() {
           <dt>Created</dt><dd>{formatDateTime(target.created_at)}</dd>
           <dt>Updated</dt><dd>{formatDateTime(target.updated_at)}</dd>
         </dl>
-      </div>
+      </section>
 
-      <section className="section">
-        <div className="section-heading"><div><h2>Order lines</h2><p>Items, quantities, prices and calculated totals.</p></div></div>
-        <div className="table-wrap"><table className="table"><thead><tr><th>Item</th><th>Asset category</th><th>Qty</th><th>Unit price</th><th>Tax</th><th>Total</th></tr></thead><tbody>
+      <section className="society-list-panel purchase-orders-detail-panel">
+        <div className="society-list-heading"><div><h2>Order lines</h2><p>Items, quantities, prices and calculated totals.</p></div></div>
+        <div className="society-table-wrap"><table className="society-table"><thead><tr><th>Item</th><th>Asset category</th><th>Qty</th><th>Unit price</th><th>Tax</th><th>Total</th></tr></thead><tbody>
           {orderLines.map((line) => <tr key={line.id}><td>{line.item_description}</td><td>{line.asset_category_name || '—'}</td><td>{line.quantity}</td><td>{formatCurrency(line.unit_price)}</td><td>{formatCurrency(line.tax)}</td><td>{formatCurrency(line.total)}</td></tr>)}
           {orderLines.length === 0 && <tr><td colSpan="6">No lines added yet.</td></tr>}
         </tbody></table></div>
-        <div className="card summary-card"><div><span>Subtotal</span><strong>{formatCurrency(target.subtotal)}</strong></div><div><span>Tax</span><strong>{formatCurrency(target.tax)}</strong></div><div><span>Total</span><strong>{formatCurrency(target.total)}</strong></div></div>
+        <div className="po-total-summary" aria-label="Purchase order totals">
+          <div className="po-total-row"><span>Subtotal</span><strong>{formatCurrency(target.subtotal)}</strong></div>
+          <div className="po-total-row"><span>Tax</span><strong>{formatCurrency(target.tax)}</strong></div>
+          <div className="po-total-row po-grand-total"><span>Total</span><strong>{formatCurrency(target.total)}</strong></div>
+        </div>
       </section>
 
-      <section className="section">
-        <div className="section-heading"><div><h2>Goods receipts</h2><p>Receipts recorded against this purchase order.</p></div></div>
-        <div className="table-wrap"><table className="table"><thead><tr><th>Receipt</th><th>Received</th><th>Status</th></tr></thead><tbody>
+      <section className="society-list-panel purchase-orders-detail-panel">
+        <div className="society-list-heading"><div><h2>Goods receipts</h2><p>Receipts recorded against this purchase order.</p></div></div>
+        <div className="society-table-wrap"><table className="society-table"><thead><tr><th>Receipt</th><th>Received</th><th>Status</th></tr></thead><tbody>
           {(receipts.data || []).map((receipt) => <tr key={receipt.id}><td className="mono"><button type="button" className="btn btn-link" onClick={() => setSelectedReceiptId(receipt.id)}>{receipt.receipt_no}</button></td><td>{formatDateTime(receipt.received_at)}</td><td>{receipt.status}</td></tr>)}
           {receipts.data && receipts.data.length === 0 && <tr><td colSpan="3">No goods receipts yet.</td></tr>}
         </tbody></table></div>
@@ -167,7 +169,7 @@ export default function PurchaseOrderDetailPage() {
     </div>
   </Modal>
 )}
-      <p className="field-hint">Last updated {formatDateTime(target.updated_at)}</p>
-    </PageContainer>
+      <p className="field-hint purchase-orders-updated">Last updated {formatDateTime(target.updated_at)}</p>
+    </section>
   );
 }
