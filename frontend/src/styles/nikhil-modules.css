@@ -1700,6 +1700,7 @@ tbody tr:hover {
 .security-quick-card > .security-quick-label { grid-column: 2; grid-row: 1; align-self: center; color: var(--text-primary, #344054); font-size: 13px; font-weight: 650; }
 .security-quick-card > strong { grid-column: 3; grid-row: 1; color: var(--text-primary, #101828); font-size: 25px; }
 .security-quick-card > small { grid-column: 2 / 4; grid-row: 2; color: var(--quick-accent); font-size: 11px; }
+.security-page .security-quick-card .security-summary-note { display: block; margin-top: 4px; color: var(--quick-accent); font-size: 11px; }
 :root[data-theme='dark'] .security-quick-card { border-top-color: var(--card-border); border-right-color: var(--card-border); border-bottom-color: var(--card-border); }
 :root[data-theme='dark'] .security-quick-card:hover { border-left-color: var(--quick-accent); border-top-color: var(--quick-accent); border-right-color: var(--quick-accent); border-bottom-color: var(--quick-accent); }
 
@@ -1724,7 +1725,7 @@ tbody tr:hover {
   height: 96px;
   padding: 14px 16px;
   border-radius: 10px;
-  border-left-color: var(--metric-accent, #7158df);
+  border-left-color: var(--quick-accent, #7158df);
   background: var(--surface, #fff);
   box-shadow: 0 1px 2px rgba(31, 47, 78, .025);
 }
@@ -1732,16 +1733,16 @@ tbody tr:hover {
   width: 42px;
   height: 42px;
   border-radius: 13px;
-  background: var(--metric-soft, #f0edff);
-  color: var(--metric-accent, #7158df);
+  background: color-mix(in srgb, var(--quick-accent, #7158df) 11%, var(--surface, #fff));
+  color: var(--quick-accent, #7158df);
 }
 .security-page .security-quick-card:hover {
-  border-color: var(--metric-accent, #7158df);
+  border-color: var(--quick-accent, #7158df);
   box-shadow: 0 5px 14px rgba(15, 23, 42, .07);
   transform: translateY(-1px);
 }
 .security-page .security-quick-card:focus-visible {
-  outline: 2px solid var(--metric-accent, #7158df);
+  outline: 2px solid var(--quick-accent, #7158df);
   outline-offset: 3px;
 }
 .security-subpanels { display: grid; grid-template-columns: minmax(240px, .85fr) minmax(0, 1.5fr); gap: 13px; margin: 14px 18px 18px; }
@@ -1795,6 +1796,10 @@ tbody tr:hover {
 .assets-page .security-tabs button:focus:not(:focus-visible) { outline: none; }
 .assets-page .society-stats { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 14px; margin-bottom: 18px; }
 .assets-page .assets-quick-stats { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 14px; margin-bottom: 18px; }
+.assets-page .assets-quick-stats > .society-stat-card:nth-child(1) { --metric-accent: #7158e8; --metric-soft: #f0edff; }
+.assets-page .assets-quick-stats > .society-stat-card:nth-child(2) { --metric-accent: #22985a; --metric-soft: #e8f7ef; }
+.assets-page .assets-quick-stats > .society-stat-card:nth-child(3) { --metric-accent: #3182ce; --metric-soft: #eaf3ff; }
+.assets-page .assets-quick-stats > .society-stat-card:nth-child(4) { --metric-accent: #dc7900; --metric-soft: #fff3e2; }
 .assets-page .assets-stats > .society-stat-card { border-left: 3px solid var(--metric-accent); }
 .assets-page .assets-stats > .society-stat-card:nth-child(1) { --metric-accent: #7158e8; --metric-soft: #f0edff; }
 .assets-page .assets-stats > .society-stat-card:nth-child(2) { --metric-accent: #22985a; --metric-soft: #e8f7ef; }
@@ -1807,6 +1812,7 @@ tbody tr:hover {
 .assets-page .assets-quick-card:hover { border-color: var(--metric-accent,#a99bff); box-shadow: 0 5px 14px rgba(15,23,42,.07); transform: translateY(-1px); }
 .assets-page .assets-quick-card .society-stat-icon { color: var(--metric-accent,#7158df); background: var(--metric-soft,#f0edff); }
 .assets-page .assets-quick-card .society-stat-label { min-width: 0; color: var(--text-primary); font-size: 14px; font-weight: 700; line-height: 1.35; }
+.assets-page .assets-quick-card .assets-quick-link { display: block; margin-top: 4px; color: var(--metric-accent,#7158df); font-size: 11px; line-height: 1.3; }
 .assets-page .assets-quick-card strong { color: var(--text-primary); font-size: 25px; line-height: 1; }
 .assets-page .society-list-panel { overflow: hidden; border-radius: 10px; }
 .assets-page .society-list-heading { gap: 14px; padding: 18px 20px; }

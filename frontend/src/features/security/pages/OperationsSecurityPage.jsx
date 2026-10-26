@@ -708,6 +708,7 @@ export default function SecurityPage() {
                 <span className="society-stat-icon security-quick-icon"><Icon size={19} /></span>
                 <div>
                   <span className="society-stat-label security-quick-label">{label}</span>
+                  <small className="society-stat-note security-summary-note">Open {route} →</small>
                   <strong>{(data[key] || []).length}</strong>
                 </div>
               </button>
