@@ -338,7 +338,7 @@ export default function UtilityMeterManagementPage() {
   const activeMeters = meters.filter((m) => m.status === 'ACTIVE').length;
   const pendingReadings = readings.filter((r) => ['SUBMITTED', 'ESTIMATED', 'PENDING'].includes(r.status)).length;
 
-  if (!societyId) return <PageContainer title="Utility & Meter Management" subtitle="Configure utilities, meters, readings, tariffs and consumption bills."><SocietyIdPrompt /></PageContainer>;
+  if (!societyId) return <PageContainer eyebrow="UTILITY OPERATIONS" title="Utility & Meter Management" subtitle="Configure utilities, meters, readings, tariffs and consumption bills."><SocietyIdPrompt /></PageContainer>;
 
   const canCreateType = hasPermission('UTILITY_TYPE_CREATE');
   const canCreateMeter = hasPermission('METER_CREATE');
@@ -535,7 +535,7 @@ export default function UtilityMeterManagementPage() {
     {tab === 'tariffs' && canCreateTariff && <button className="btn btn-primary" onClick={() => openModal('tariff')}><Plus size={16} /> New tariff</button>}
   </div>;
 
-  return <PageContainer title="Utility & Meter Management" subtitle="Manage utility types, meters, readings, tariffs and consumption-based bills." actions={actions}>
+  return <PageContainer eyebrow="UTILITY OPERATIONS" title="Utility & Meter Management" subtitle="Manage utility types, meters, readings, tariffs and consumption-based bills." actions={actions}>
     {error && <Alert variant="error">{error}</Alert>}
     {notice && <Alert variant="success">{notice}</Alert>}
     {bulkResult && <div className="um-bulk-summary"><div><strong>Bulk upload results</strong><span>{bulkResult.succeeded} succeeded · {bulkResult.failed} failed of {bulkResult.total}</span></div><button className="btn btn-ghost btn-sm" onClick={() => setBulkResult(null)}>Dismiss</button>{bulkResult.results?.map((r) => <p key={r.index} className={r.success ? 'um-result-ok' : 'um-result-fail'}>Row {r.index + 1}: {r.success ? 'Submitted' : r.error}</p>)}</div>}

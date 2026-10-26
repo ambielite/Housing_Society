@@ -76,7 +76,7 @@ export default function DocumentVaultPage() {
     }
   };
 
-  if (!societyId) return <PageContainer title="Document Vault" subtitle="Manage society documents, versions and access."><SocietyIdPrompt /></PageContainer>;
+  if (!societyId) return <PageContainer eyebrow="SOCIETY RECORDS" title="Document Vault" subtitle="Manage society documents, versions and access."><SocietyIdPrompt /></PageContainer>;
 
   const actions = (
     <>
@@ -101,7 +101,7 @@ export default function DocumentVaultPage() {
   ];
 
   return (
-    <PageContainer title="Document Vault" subtitle="Organize society records, upload files, manage versions and control access." actions={actions}>
+    <PageContainer eyebrow="SOCIETY RECORDS" title="Document Vault" subtitle="Organize society records, upload files, manage versions and control access." actions={actions}>
       {pageNotice && <Alert variant="success">{pageNotice}</Alert>}
       {pageError && <Alert variant="error">{pageError}</Alert>}
       {canReadFolders && <section className="card section">
