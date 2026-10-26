@@ -232,14 +232,14 @@ export default function BookingDetailPage() {
     finally { setSaving(false); setDeleteOpen(false); }
   };
 
-  if (booking.error) return <PageContainer title="Booking"><AmenityTabs /><Alert>{getErrorMessage(booking.error)}</Alert></PageContainer>;
-  if (!booking.data) return <PageContainer title="Booking"><AmenityTabs /><div className="table-state">Loading...</div></PageContainer>;
+  if (booking.error) return <PageContainer className="amenities-page" title="Booking"><AmenityTabs /><Alert>{getErrorMessage(booking.error)}</Alert></PageContainer>;
+  if (!booking.data) return <PageContainer className="amenities-page" title="Booking"><AmenityTabs /><div className="table-state">Loading...</div></PageContainer>;
 
   const canUpdate = hasPermission('AMENITY_BOOKING_UPDATE');
   const canCreateFinancePayment = hasPermission('INVOICE_CREATE') && hasPermission('PAYMENT_CREATE');
 
   return (
-    <PageContainer title={b.booking_no} subtitle="Booking details and lifecycle actions.">
+    <PageContainer className="amenities-page" title={b.booking_no} subtitle="Booking details and lifecycle actions.">
       <AmenityTabs />
       <div className="back-link"><Link to="/amenities/bookings">← Back to bookings</Link></div>
       {notice && <Alert variant="success">{notice}</Alert>}

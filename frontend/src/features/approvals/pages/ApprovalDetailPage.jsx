@@ -62,23 +62,23 @@ export default function ApprovalDetailPage() {
 
   return (
     <PageContainer
+      className="purchase-orders-page approvals-page"
       title="Approval request"
       subtitle={`${target.entity_type} • ${target.approval_type}`}
       actions={
         <>
-          {canDecide && <button className="btn btn-primary" onClick={() => { setSaveError(''); setDialog(true); }}>Record decision</button>}
-          {canCancel && <button className="btn btn-danger" onClick={cancel} disabled={saving}>Cancel request</button>}
+          {canDecide && <button className="society-add-button" onClick={() => { setSaveError(''); setDialog(true); }}>Record decision</button>}
+          {canCancel && <button className="society-workflow-action approval-cancel-action" onClick={cancel} disabled={saving}>Cancel request</button>}
         </>
       }
     >
-      <p className="back-link"><Link to="/approvals">&larr; All approvals</Link></p>
+      <p className="purchase-orders-back-link"><Link to="/approvals">&larr; All approvals</Link></p>
       {notice && <Alert variant="success">{notice}</Alert>}
       {pageError && <Alert>{pageError}</Alert>}
 
-      <div className="card section">
-        <h2 className="section-title">Details</h2>
+      <section className="society-list-panel purchase-orders-detail-panel">
+        <div className="society-list-heading"><div><h2>Approval details</h2><p>Current status, approval level, and related record.</p></div><ApprovalStatusBadge status={target.status} /></div>
         <dl className="details">
-          <dt>Status</dt><dd><ApprovalStatusBadge status={target.status} /></dd>
           <dt>Entity type</dt><dd>{target.entity_type}</dd>
           <dt>Related record</dt><dd>{entityPath ? <Link to={entityPath}>{entityName}</Link> : entityName}</dd>
           <dt>Approval type</dt><dd>{target.approval_type}</dd>
@@ -87,12 +87,9 @@ export default function ApprovalDetailPage() {
           <dt>Created</dt><dd>{formatDateTime(target.created_at)}</dd>
           <dt>Updated</dt><dd>{formatDateTime(target.updated_at)}</dd>
         </dl>
-      </div>
+      </section>
 
-      <div className="section">
-        <div className="section-head"><div><h2 className="section-title">Action history</h2><p className="muted section-hint">Every approval decision is recorded against its level.</p></div></div>
-        <DataTable columns={actionColumns} rows={target.actions || []} emptyTitle="No actions yet" emptyMessage="This request is waiting for an approval action." />
-      </div>
+      <section className="society-list-panel purchase-orders-detail-panel"><div className="society-list-heading"><div><h2>Action history</h2><p>Every approval decision is recorded against its level.</p></div><span className="society-count">{target.actions?.length || 0} actions</span></div><div className="purchase-orders-table"><DataTable columns={actionColumns} rows={target.actions || []} emptyTitle="No actions yet" emptyMessage="This request is waiting for an approval action." /></div></section>
 
       {dialog && <Modal title="Record approval decision" onClose={() => !saving && setDialog(false)} busy={saving}><ApprovalDecisionForm onSubmit={decide} onCancel={() => setDialog(false)} saving={saving} error={saveError} /></Modal>}
     </PageContainer>

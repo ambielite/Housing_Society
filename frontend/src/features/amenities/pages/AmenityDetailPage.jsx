@@ -89,14 +89,14 @@ export default function AmenityDetailPage() {
     finally { setSaving(false); setDeleteTarget(null); }
   };
 
-  if (amenity.error) return <PageContainer title="Amenity"><AmenityTabs /><Alert>{getErrorMessage(amenity.error)}</Alert></PageContainer>;
-  if (!amenity.data) return <PageContainer title="Amenity"><AmenityTabs /><div className="table-state">Loading...</div></PageContainer>;
+  if (amenity.error) return <PageContainer className="amenities-page" title="Amenity"><AmenityTabs /><Alert>{getErrorMessage(amenity.error)}</Alert></PageContainer>;
+  if (!amenity.data) return <PageContainer className="amenities-page" title="Amenity"><AmenityTabs /><div className="table-state">Loading...</div></PageContainer>;
 
   const a = amenity.data;
   const slotOptions = [{ value: a.id, label: a.name }];
 
   return (
-    <PageContainer title={a.name} subtitle="Amenity configuration, slots, pricing rules and maintenance windows.">
+    <PageContainer className="amenities-page" title={a.name} subtitle="Amenity configuration, slots, pricing rules and maintenance windows.">
       <AmenityTabs />
       <div className="back-link"><Link to="/amenities/list">← Back to amenities</Link></div>
       {notice && <Alert variant="success">{notice}</Alert>}

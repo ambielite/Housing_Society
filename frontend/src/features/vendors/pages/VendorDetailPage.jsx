@@ -5,7 +5,6 @@ import useFetch from '../../../utils/useFetch';
 import { formatDateTime } from '../../../utils/format';
 import { getErrorMessage } from '../../../lib/axios';
 import * as vendorsApi from '../api/vendors.api';
-import PageContainer from '../../../components/layout/PageContainer';
 import Alert from '../../../components/ui/Alert';
 import Modal from '../../../components/ui/Modal';
 import ConfirmDialog from '../../../components/ui/ConfirmDialog';
@@ -93,14 +92,14 @@ export default function VendorDetailPage() {
   const actions = (
     <>
       {hasPermission('VENDOR_UPDATE') && (
-        <Link to={`/vendors/${vendorId}/edit`} className="btn btn-secondary">
+        <Link to={`/vendors/${vendorId}/edit`} className="society-workflow-action">
           Edit
         </Link>
       )}
       {hasPermission('VENDOR_STATUS_UPDATE') && (
         <button
           type="button"
-          className="btn btn-secondary"
+          className="society-workflow-action"
           onClick={() => {
             setSaveError('');
             setNotice('');
@@ -111,7 +110,7 @@ export default function VendorDetailPage() {
         </button>
       )}
       {hasPermission('VENDOR_DELETE') && (
-        <button type="button" className="btn btn-danger" onClick={() => setConfirmDelete(true)}>
+        <button type="button" className="society-workflow-action vendor-delete-action" onClick={() => setConfirmDelete(true)}>
           Delete
         </button>
       )}
@@ -119,10 +118,9 @@ export default function VendorDetailPage() {
   );
 
   return (
-    <PageContainer title={target.legal_name} subtitle={target.trade_name || ''} actions={actions}>
-      <p className="back-link">
-        <Link to="/vendors">&larr; All vendors</Link>
-      </p>
+    <section className="society-dashboard purchase-orders-page vendor-module-page">
+      <header className="society-heading"><div><div className="society-eyebrow"><span className="society-eyebrow-dot" /> SUPPLIERS</div><h1>{target.legal_name}</h1><p>{target.trade_name || 'Vendor profile and supplier management.'}</p></div><div className="purchase-orders-actions">{actions}</div></header>
+      <p className="purchase-orders-back-link"><Link to="/vendors">← All vendors</Link></p>
 
       {notice && <Alert variant="success">{notice}</Alert>}
       {pageError && <Alert>{pageError}</Alert>}
@@ -130,32 +128,27 @@ export default function VendorDetailPage() {
         <Alert variant="success">This vendor is Pending. Only Active vendors can be invited to quotations or receive purchase orders.</Alert>
       )}
 
-      <div className="tabs-bar">
-        <div className="tabs" role="tablist" aria-label="Vendor sections">
+      <nav className="security-tabs vendor-tabs" role="tablist" aria-label="Vendor sections">
           {SECTIONS.filter((section) => section.key !== 'users' || hasPermission('USER_READ')).map((section) => (
             <button
               key={section.key}
               type="button"
               role="tab"
               aria-selected={active === section.key}
-              className={`tab${active === section.key ? ' active' : ''}`}
+              className={active === section.key ? 'active' : ''}
               onClick={() => setActive(section.key)}
             >
               {section.label}
             </button>
           ))}
-        </div>
-      </div>
+      </nav>
 
-      {active === 'users' && hasPermission('USER_READ') && <VendorUsersSection vendorId={vendorId} societyId={target.society_id} />}
+      {active === 'users' && hasPermission('USER_READ') && <section className="society-list-panel vendor-detail-content"><VendorUsersSection vendorId={vendorId} societyId={target.society_id} /></section>}
 
       {active === 'overview' && (
-        <div className="card">
+        <section className="society-list-panel purchase-orders-detail-panel">
+          <div className="society-list-heading"><div><h2>Vendor details</h2><p>Business, contact, and account information.</p></div><VendorStatusBadge status={target.status} /></div>
           <dl className="details">
-            <dt>Status</dt>
-            <dd>
-              <VendorStatusBadge status={target.status} />
-            </dd>
             <dt>Legal name</dt>
             <dd>{target.legal_name}</dd>
             <dt>Trade name</dt>
@@ -175,12 +168,12 @@ export default function VendorDetailPage() {
             <dt>Last updated</dt>
             <dd>{formatDateTime(target.updated_at)}</dd>
           </dl>
-        </div>
+        </section>
       )}
-      {active === 'contacts' && <VendorContactsSection vendorId={vendorId} />}
-      {active === 'documents' && <VendorDocumentsSection vendorId={vendorId} />}
-      {active === 'bank' && <VendorBankSection vendorId={vendorId} />}
-      {active === 'contracts' && <VendorContractsSection vendorId={vendorId} />}
+      {active === 'contacts' && <section className="society-list-panel vendor-detail-content"><VendorContactsSection vendorId={vendorId} /></section>}
+      {active === 'documents' && <section className="society-list-panel vendor-detail-content"><VendorDocumentsSection vendorId={vendorId} /></section>}
+      {active === 'bank' && <section className="society-list-panel vendor-detail-content"><VendorBankSection vendorId={vendorId} /></section>}
+      {active === 'contracts' && <section className="society-list-panel vendor-detail-content"><VendorContractsSection vendorId={vendorId} /></section>}
 
       {showStatus && (
         <Modal title="Change vendor status" onClose={() => setShowStatus(false)} busy={saving}>
@@ -206,6 +199,6 @@ export default function VendorDetailPage() {
         onConfirm={remove}
         onCancel={() => setConfirmDelete(false)}
       />
-    </PageContainer>
+    </section>
   );
 }

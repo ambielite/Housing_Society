@@ -6,7 +6,6 @@ import useFetch from '../../../utils/useFetch';
 import { formatCurrency, formatDate, formatDateTime } from '../../../utils/format';
 import { getErrorMessage } from '../../../lib/axios';
 import * as procurementApi from '../api/procurement.api';
-import PageContainer from '../../../components/layout/PageContainer';
 import DataTable from '../../../components/tables/DataTable';
 import Alert from '../../../components/ui/Alert';
 import Modal from '../../../components/ui/Modal';
@@ -135,12 +134,12 @@ export default function PurchaseRequestDetailPage() {
   const actions = (
     <>
       {canChangeStatus && (
-        <button type="button" className="btn btn-secondary" onClick={() => openDialog('status')}>
+        <button type="button" className="society-workflow-action" onClick={() => openDialog('status')}>
           Change status
         </button>
       )}
       {hasPermission('PURCHASE_REQUEST_DELETE') && (
-        <button type="button" className="btn btn-danger" onClick={() => setConfirmDelete(true)}>
+        <button type="button" className="society-workflow-action purchase-request-delete" onClick={() => setConfirmDelete(true)}>
           Delete
         </button>
       )}
@@ -148,21 +147,16 @@ export default function PurchaseRequestDetailPage() {
   );
 
   return (
-    <PageContainer title={target.request_no} subtitle={target.department || 'Purchase request'} actions={actions}>
-      <p className="back-link">
-        <Link to="/procurement/requests">&larr; All purchase requests</Link>
-      </p>
+    <section className="society-dashboard purchase-orders-page">
+      <header className="society-heading"><div><div className="society-eyebrow"><span className="society-eyebrow-dot" /> PROCUREMENT</div><h1>{target.request_no}</h1><p>{target.department || 'Purchase request'}</p></div><div className="purchase-orders-actions">{actions}</div></header>
+      <p className="purchase-orders-back-link"><Link to="/procurement/requests">← All purchase requests</Link></p>
 
       {notice && <Alert variant="success">{notice}</Alert>}
       {pageError && <Alert>{pageError}</Alert>}
 
-      <div className="card section">
-        <h2 className="section-title">Details</h2>
+      <section className="society-list-panel purchase-orders-detail-panel">
+        <div className="society-list-heading"><div><h2>Request details</h2><p>Current status, estimate, and request context.</p></div><RequestStatusBadge status={target.status} /></div>
         <dl className="details">
-          <dt>Status</dt>
-          <dd>
-            <RequestStatusBadge status={target.status} />
-          </dd>
           <dt>Requested on</dt>
           <dd>{formatDate(target.requested_date)}</dd>
           <dt>Department</dt>
@@ -174,44 +168,44 @@ export default function PurchaseRequestDetailPage() {
           <dt>Created</dt>
           <dd>{formatDateTime(target.created_at)}</dd>
         </dl>
-      </div>
+      </section>
 
-      <div className="section">
-        <div className="section-head">
+      <section className="society-list-panel purchase-orders-detail-panel">
+        <div className="society-list-heading">
           <div>
-            <h2 className="section-title">Items requested</h2>
-            <p className="muted section-hint">
+            <h2>Items requested</h2>
+            <p>
               {lines.length ? `Estimated total ${formatCurrency(estimateTotal)}.` : 'What the society needs to buy.'}
               {!canAddLine && hasPermission('PURCHASE_REQUEST_UPDATE') && ' Items can only be added while the request is a Draft.'}
             </p>
           </div>
           {canAddLine && (
-            <button type="button" className="btn btn-primary" onClick={() => openDialog('line')}>
+              <button type="button" className="society-add-button" onClick={() => openDialog('line')}>
               Add item
             </button>
           )}
         </div>
-        <DataTable columns={lineColumns} rows={lines} emptyTitle="No items yet" emptyMessage="Add each item or service this request is for." />
-      </div>
+        <div className="purchase-orders-table"><DataTable columns={lineColumns} rows={lines} emptyTitle="No items yet" emptyMessage="Add each item or service this request is for." /></div>
+      </section>
 
       {canSeeRfqs && (
-        <div className="section">
-          <div className="section-head">
+        <section className="society-list-panel purchase-orders-detail-panel">
+          <div className="society-list-heading">
             <div>
-              <h2 className="section-title">Requests for quotation (RFQs)</h2>
-              <p className="muted section-hint">
+              <h2>Requests for quotation (RFQs)</h2>
+              <p>
                 {canCreateRfq || !hasPermission('RFQ_CREATE')
                   ? 'Ask vendors to quote for this request.'
                   : 'Submit the request first. RFQs can be created once it is Submitted or in Quotation.'}
               </p>
             </div>
             {canCreateRfq && (
-              <button type="button" className="btn btn-primary" onClick={() => openDialog('rfq')}>
+              <button type="button" className="society-add-button" onClick={() => openDialog('rfq')}>
                 <Plus size={16} /> New RFQ
               </button>
             )}
           </div>
-          <DataTable
+          <div className="purchase-orders-table"><DataTable
             columns={rfqColumns}
             rows={rfqs.data}
             loading={rfqs.loading}
@@ -219,8 +213,8 @@ export default function PurchaseRequestDetailPage() {
             onRetry={rfqs.reload}
             emptyTitle="No RFQs yet"
             emptyMessage="An RFQ is where you invite vendors and collect their quotations."
-          />
-        </div>
+          /></div>
+        </section>
       )}
 
       {dialog === 'status' && (
@@ -257,6 +251,6 @@ export default function PurchaseRequestDetailPage() {
         onConfirm={remove}
         onCancel={() => setConfirmDelete(false)}
       />
-    </PageContainer>
+    </section>
   );
 }

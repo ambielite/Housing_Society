@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { Plus, SquarePen, Trash2 } from 'lucide-react';
+import { Plus, RefreshCw, SquarePen, Trash2 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
 import useFetch from '../../../utils/useFetch';
 import { formatDate, formatMoney } from '../../../utils/format';
 import { getErrorMessage } from '../../../lib/axios';
-import PageContainer from '../../../components/layout/PageContainer';
 import DataTable from '../../../components/tables/DataTable';
 import Alert from '../../../components/ui/Alert';
 import Modal from '../../../components/ui/Modal';
@@ -37,7 +36,7 @@ export default function SlotListPage() {
     [societyId, amenityFilter, dateFilter, status]
   );
 
-  if (!societyId) return <PageContainer title="Amenity slots"><AmenityTabs /><SocietyIdPrompt /></PageContainer>;
+  if (!societyId) return <section className="society-dashboard security-page amenities-page"><header className="society-heading"><div><div className="society-eyebrow"><span className="society-eyebrow-dot" /> COMMUNITY FACILITIES</div><h1>Availability slots</h1><p>Create and maintain bookable time windows.</p></div></header><AmenityTabs /><SocietyIdPrompt /></section>;
 
   const amenityById = new Map((amenities.data || []).map((a) => [a.id, a]));
   const rows = slots.data && amenities.data ? slots.data.filter((slot) => amenityById.has(slot.amenity_id)) : null;
@@ -70,15 +69,18 @@ export default function SlotListPage() {
   };
 
   const newButton = hasPermission('AMENITY_SLOT_CREATE')
-    ? <button className="btn btn-primary" onClick={() => { setError(''); setDialog({ type: 'create' }); }}><Plus size={16} /> New slot</button>
+    ? <button className="society-add-button" onClick={() => { setError(''); setDialog({ type: 'create' }); }}><Plus size={16} /> New slot</button>
     : null;
 
   return (
-    <PageContainer title="Amenity slots" subtitle="Create and maintain bookable time windows." actions={newButton}>
+    <section className="society-dashboard security-page amenities-page">
+      <header className="society-heading"><div><div className="society-eyebrow"><span className="society-eyebrow-dot" /> COMMUNITY FACILITIES</div><h1>Availability slots</h1><p>Create and maintain bookable time windows.</p></div><div className="purchase-orders-actions"><button type="button" className="society-workflow-action" onClick={() => { slots.reload(); amenities.reload(); }} disabled={slots.loading || amenities.loading}><RefreshCw size={16} /> Refresh</button>{newButton}</div></header>
       <AmenityTabs />
       {notice && <Alert variant="success">{notice}</Alert>}
       {error && <Alert>{error}</Alert>}
-      <div className="toolbar">
+      <section className="society-list-panel amenities-data-panel">
+        <div className="society-list-heading"><div><h2>Availability slots</h2><p>Review dates, times, capacity, price, and availability.</p></div><span className="society-count">{slots.loading ? 'Loading' : `${rows?.length || 0} slots`}</span></div>
+      <div className="society-toolbar amenities-toolbar">
         <select className="input toolbar-select" value={amenityFilter} onChange={(e) => setAmenityFilter(e.target.value)} aria-label="Filter by amenity">
           <option value="">All amenities</option>
           {options.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
@@ -90,7 +92,7 @@ export default function SlotListPage() {
         </select>
         {(amenityFilter || dateFilter || status) && <button className="btn btn-secondary" onClick={() => { setAmenityFilter(''); setDateFilter(''); setStatus(''); }}>Clear filters</button>}
       </div>
-      <DataTable
+      <div className="amenity-table"><DataTable
         columns={[
           { key: 'amenity', header: 'Amenity', render: (s) => <span className="cell-title">{amenityById.get(s.amenity_id)?.name || 'Unknown'}</span> },
           { key: 'date', header: 'Date', render: (s) => formatDate(s.slot_date) },
@@ -110,11 +112,12 @@ export default function SlotListPage() {
         emptyTitle="No slots found"
         emptyMessage="Create slots from here or from an amenity's detail page."
         emptyAction={(amenityFilter || dateFilter || status) ? <button className="btn btn-secondary" onClick={() => { setAmenityFilter(''); setDateFilter(''); setStatus(''); }}>Clear filters</button> : null}
-      />
+      /></div>
+      </section>
       {dialog && <Modal title={dialog.type === 'edit' ? 'Edit slot' : 'New slot'} onClose={() => !saving && setDialog(null)} busy={saving}>
         <SlotForm slot={dialog.slot} amenityOptions={options} onSubmit={save} onCancel={() => setDialog(null)} saving={saving} error={error} />
       </Modal>}
       <ConfirmDialog open={Boolean(deleting)} title="Delete this slot?" message="A slot cannot be deleted while bookings are attached to it." confirmLabel="Delete slot" danger busy={saving} onConfirm={remove} onCancel={() => setDeleting(null)} />
-    </PageContainer>
+    </section>
   );
 }

@@ -1,17 +1,19 @@
 import { useMemo } from 'react';
-import { Link } from 'react-router-dom';
-import { CalendarDays, Building2, Clock3 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import {
+  Building2, CalendarDays, Clock3, RefreshCw, Sparkles, TicketCheck,
+} from 'lucide-react';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
 import useFetch from '../../../utils/useFetch';
 import { getErrorMessage } from '../../../lib/axios';
-import PageContainer from '../../../components/layout/PageContainer';
 import Alert from '../../../components/ui/Alert';
 import SocietyIdPrompt from '../../../components/ui/SocietyIdPrompt';
 import AmenityTabs from '../components/AmenityTabs';
 import * as api from '../api/amenities.api';
 
 export default function AmenitiesHomePage() {
+  const navigate = useNavigate();
   const { hasPermission } = useAuth();
   const { societyId } = useSociety();
   const canReadAmenities = hasPermission('AMENITY_READ');
@@ -26,9 +28,13 @@ export default function AmenitiesHomePage() {
     () => (canReadSlots ? api.listSlots({ status: 'AVAILABLE' }) : Promise.resolve(null)),
     [canReadSlots]
   );
-  const bookings = useFetch(
-    () => (canReadBookings ? api.listBookings({ status: 'CONFIRMED' }) : Promise.resolve(null)),
-    [canReadBookings]
+  const confirmedBookings = useFetch(
+    () => (societyId && canReadBookings ? api.listBookings({ societyId, status: 'CONFIRMED' }) : Promise.resolve(null)),
+    [societyId, canReadBookings]
+  );
+  const pendingBookings = useFetch(
+    () => (societyId && canReadBookings ? api.listBookings({ societyId, status: 'PENDING_PAYMENT' }) : Promise.resolve(null)),
+    [societyId, canReadBookings]
   );
 
   const amenityIds = useMemo(() => new Set((amenities.data || []).map((item) => item.id)), [amenities.data]);
@@ -36,63 +42,58 @@ export default function AmenitiesHomePage() {
     () => (slots.data || []).filter((slot) => !canReadAmenities || amenityIds.has(slot.amenity_id)),
     [slots.data, amenityIds, canReadAmenities]
   );
+  const error = amenities.error || slots.error || confirmedBookings.error || pendingBookings.error;
+  const loading = amenities.loading || slots.loading || confirmedBookings.loading || pendingBookings.loading;
+  const refresh = () => {
+    amenities.reload();
+    slots.reload();
+    confirmedBookings.reload();
+    pendingBookings.reload();
+  };
 
   if (!societyId && canReadAmenities) {
     return (
-      <PageContainer title="Amenities & Booking" subtitle="Manage society amenities, bookable slots and reservations.">
+      <section className="society-dashboard security-page amenities-page">
+        <header className="society-heading"><div><div className="society-eyebrow"><span className="society-eyebrow-dot" /> COMMUNITY FACILITIES</div><h1>Amenities & booking</h1><p>Manage facilities, availability, and resident reservations.</p></div></header>
         <AmenityTabs />
         <SocietyIdPrompt />
-      </PageContainer>
+      </section>
     );
   }
 
-  const error = amenities.error || slots.error || bookings.error;
+  const metrics = [
+    ...(canReadAmenities ? [[
+      'Active amenities', (amenities.data || []).filter((item) => item.status === 'ACTIVE').length,
+      Building2, 'violet', '/amenities/list', 'Manage facilities', amenities.loading,
+    ]] : []),
+    ...(canReadSlots ? [[
+      'Available slots', societySlots.length, Clock3, 'green', '/amenities/slots', 'View availability', slots.loading || amenities.loading,
+    ]] : []),
+    ...(canReadBookings ? [[
+      'Confirmed bookings', (confirmedBookings.data || []).length, CalendarDays, 'blue', '/amenities/bookings', 'Open bookings', confirmedBookings.loading,
+    ], [
+      'Pending payments', (pendingBookings.data || []).length, TicketCheck, 'orange', '/amenities/bookings', 'Review bookings', pendingBookings.loading,
+    ]] : []),
+  ];
 
   return (
-    <PageContainer title="Amenities & Booking" subtitle="A practical overview of amenities, availability and reservations.">
+    <section className="society-dashboard security-page amenities-page">
+      <header className="society-heading">
+        <div><div className="society-eyebrow"><span className="society-eyebrow-dot" /> COMMUNITY FACILITIES</div><h1>Amenities & booking</h1><p>Manage facilities, availability, and resident reservations.</p></div>
+        <button className="society-add-button" onClick={refresh} disabled={loading}><RefreshCw size={16} /> Refresh</button>
+      </header>
       <AmenityTabs />
-      {error && <Alert>{getErrorMessage(error)}</Alert>}
+      {error && <div className="society-error" role="alert">{getErrorMessage(error)}<button onClick={refresh}>Try again</button></div>}
 
-      <div className="dashboard-cards">
-        {canReadAmenities && (
-          <div className="stat-card">
-            <div className="stat-icon"><Building2 size={21} /></div>
-            <div><span>Active amenities</span><h2>{(amenities.data || []).filter((a) => a.status === 'ACTIVE').length}</h2></div>
-          </div>
-        )}
-        {canReadSlots && (
-          <div className="stat-card">
-            <div className="stat-icon"><Clock3 size={21} /></div>
-            <div><span>Available slots</span><h2>{societySlots.length}</h2></div>
-          </div>
-        )}
-        {canReadBookings && (
-          <div className="stat-card">
-            <div className="stat-icon"><CalendarDays size={21} /></div>
-            <div><span>Confirmed bookings</span><h2>{(bookings.data || []).length}</h2></div>
-          </div>
-        )}
+      <div className="society-stats amenities-summary-grid">
+        {metrics.map(([label, count, Icon, color, path, note, isLoading]) => (
+          <button type="button" className={`society-stat-card security-summary-card security-summary-${color}`} key={label} onClick={() => navigate(path)}>
+            <span className={`society-stat-icon society-stat-icon-${color}`}><Icon size={19} /></span>
+            <div><span className="society-stat-label">{label}</span><small className="society-stat-note security-summary-note">{note} →</small><strong>{isLoading ? '—' : count}</strong></div>
+          </button>
+        ))}
       </div>
 
-      <div className="dashboard-grid">
-        <section className="dashboard-panel">
-          <h3>Quick actions</h3>
-          <div className="assign-row">
-            {hasPermission('AMENITY_CREATE') && <Link className="btn btn-primary" to="/amenities/list">Manage amenities</Link>}
-            {hasPermission('AMENITY_SLOT_CREATE') && <Link className="btn btn-secondary" to="/amenities/slots">Manage slots</Link>}
-            {hasPermission('AMENITY_BOOKING_CREATE') && <Link className="btn btn-secondary" to="/amenities/bookings">Manage bookings</Link>}
-          </div>
-          <p className="muted" style={{ marginTop: 18 }}>
-            Pricing rules and maintenance/event blockouts are managed from an amenity's detail page.
-          </p>
-        </section>
-
-        <section className="dashboard-panel">
-          <h3>Booking workflow</h3>
-          <p className="muted">Choose an available slot, select the unit and guest count, then create the reservation. New bookings start as pending payment.</p>
-          <p className="muted" style={{ marginTop: 10 }}>Confirmed bookings consume capacity; cancellation releases the held capacity.</p>
-        </section>
-      </div>
-    </PageContainer>
+    </section>
   );
 }

@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { Plus, SquarePen, Trash2 } from 'lucide-react';
+import { Plus, RefreshCw, SquarePen, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
 import useFetch from '../../../utils/useFetch';
 import { getErrorMessage } from '../../../lib/axios';
-import PageContainer from '../../../components/layout/PageContainer';
 import DataTable from '../../../components/tables/DataTable';
 import Alert from '../../../components/ui/Alert';
 import Modal from '../../../components/ui/Modal';
@@ -33,7 +32,7 @@ export default function AmenityListPage() {
   );
 
   if (!societyId) {
-    return <PageContainer title="Amenities" subtitle="Manage the society's bookable facilities."><AmenityTabs /><SocietyIdPrompt /></PageContainer>;
+    return <section className="society-dashboard security-page amenities-page"><header className="society-heading"><div><div className="society-eyebrow"><span className="society-eyebrow-dot" /> COMMUNITY FACILITIES</div><h1>Amenities</h1><p>Manage the society's bookable facilities.</p></div></header><AmenityTabs /><SocietyIdPrompt /></section>;
   }
 
   const save = async (payload) => {
@@ -68,7 +67,7 @@ export default function AmenityListPage() {
   };
 
   const newButton = hasPermission('AMENITY_CREATE')
-    ? <button className="btn btn-primary" onClick={() => { setError(''); setDialog({ mode: 'create' }); }}><Plus size={16} /> New amenity</button>
+    ? <button className="society-add-button" onClick={() => { setError(''); setDialog({ mode: 'create' }); }}><Plus size={16} /> New amenity</button>
     : null;
 
   const columns = [
@@ -89,17 +88,20 @@ export default function AmenityListPage() {
   ];
 
   return (
-    <PageContainer title="Amenities" subtitle="Manage amenities and their booking configuration." actions={newButton}>
+    <section className="society-dashboard security-page amenities-page">
+      <header className="society-heading"><div><div className="society-eyebrow"><span className="society-eyebrow-dot" /> COMMUNITY FACILITIES</div><h1>Amenities</h1><p>Manage facilities and their booking configuration.</p></div><div className="purchase-orders-actions"><button type="button" className="society-workflow-action" onClick={amenities.reload} disabled={amenities.loading}><RefreshCw size={16} /> Refresh</button>{newButton}</div></header>
       <AmenityTabs />
       {notice && <Alert variant="success">{notice}</Alert>}
       {error && <Alert>{error}</Alert>}
-      <div className="toolbar">
+      <section className="society-list-panel amenities-data-panel">
+      <div className="society-list-heading"><div><h2>Amenities</h2><p>Manage facility details, capacity, and booking status.</p></div><span className="society-count">{amenities.loading ? 'Loading' : `${amenities.data?.length || 0} amenities`}</span></div>
+      <div className="society-toolbar amenities-toolbar">
         <select className="input toolbar-select" value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter amenities by status">
           <option value="">All statuses</option>
           {AMENITY_STATUSES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
         </select>
       </div>
-      <DataTable
+      <div className="amenity-table"><DataTable
         columns={columns}
         rows={amenities.data}
         loading={amenities.loading}
@@ -108,11 +110,12 @@ export default function AmenityListPage() {
         emptyTitle="No amenities yet"
         emptyMessage="Create an amenity such as a clubhouse, gym, pool or party hall."
         emptyAction={status ? <button className="btn btn-secondary" onClick={() => setStatus('')}>Clear filters</button> : null}
-      />
+      /></div>
+      </section>
       {dialog && <Modal title={dialog.mode === 'edit' ? 'Edit amenity' : 'New amenity'} onClose={() => !saving && setDialog(null)} busy={saving}>
         <AmenityForm amenity={dialog.amenity} onSubmit={save} onCancel={() => setDialog(null)} saving={saving} error={error} />
       </Modal>}
       <ConfirmDialog open={Boolean(deleting)} title="Delete this amenity?" message={`"${deleting?.name || ''}" can only be deleted when no slots are attached.`} confirmLabel="Delete amenity" danger busy={saving} onConfirm={remove} onCancel={() => setDeleting(null)} />
-    </PageContainer>
+    </section>
   );
 }
