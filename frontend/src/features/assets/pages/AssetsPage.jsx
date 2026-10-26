@@ -225,7 +225,7 @@ export default function AssetsPage() {
     };
     const sectionAdd = { assets: "asset", inventory: "inventory", maintenance: "maintenance", contracts: "amc", schedules: "schedule", documents: "document", categories: "category" }[active];
 
-    return <section className="society-dashboard assets-page">
+    return <section className="society-dashboard assets-page module-shell-page">
         <header className="society-heading"><div><div className="society-eyebrow"><span className="society-eyebrow-dot"/> PROPERTY OPERATIONS</div><h1>Assets & maintenance</h1><p>Track asset ownership, inventory, service contracts, and maintenance from purchase to retirement.</p></div><button className="society-add-button" onClick={load} disabled={loading}><RefreshCw size={16}/> Refresh</button></header>
         {error && <div className="society-error" role="alert">{error}<button onClick={load}>Try again</button></div>}
         <nav className="security-tabs assets-tabs" aria-label="Assets sections">{sections.map(([id, label, Icon]) => <button key={id} className={active === id ? "active" : ""} onClick={() => { setActive(id); setSearch(""); }}><Icon size={16}/>{label}</button>)}</nav>

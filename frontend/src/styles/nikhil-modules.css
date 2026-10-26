@@ -1926,11 +1926,34 @@ tbody tr:hover {
   border-radius: 18px;
   background-image: radial-gradient(ellipse at 8% 0%, rgba(99, 102, 241, .055), transparent 34%), radial-gradient(ellipse at 96% 18%, rgba(14, 165, 233, .045), transparent 30%);
 }
+.society-dashboard.module-shell-page {
+  box-sizing: border-box;
+  margin: 0 auto;
+  border-radius: 18px;
+  background-image: radial-gradient(ellipse at 8% 0%, rgba(99, 102, 241, .055), transparent 34%), radial-gradient(ellipse at 96% 18%, rgba(14, 165, 233, .045), transparent 30%);
+}
+.main-content > .society-dashboard,
+.main-content > .page.module-shell-page,
+.main-content > .home-overview-page,
+.main-content > .dashboard-page {
+  box-sizing: border-box;
+  border-radius: 18px;
+  background-image: radial-gradient(ellipse at 8% 0%, rgba(99, 102, 241, .055), transparent 34%), radial-gradient(ellipse at 96% 18%, rgba(14, 165, 233, .045), transparent 30%);
+}
+.main-content > .page.module-shell-page { padding: 26px 28px 32px; }
+.main-content > .dashboard-page:not(.dashboard-home) { padding: 26px 28px 32px; }
 .parking-management-page .page-header { align-items: center; margin-bottom: 20px; }
 .parking-management-page .page-header h1 { font-size: 27px; }
 .parking-management-page > .security-tabs { margin-bottom: 20px; border-color: color-mix(in srgb, var(--card-border) 82%, #8b9cff); box-shadow: 0 5px 16px rgba(31, 47, 78, .035); }
 @media(max-width:650px) {
   .page.parking-management-page { padding: 20px 16px 24px; }
+  .society-dashboard.module-shell-page { padding: 20px 16px 24px; }
+  .main-content > .society-dashboard,
+  .main-content > .page.module-shell-page,
+  .main-content > .home-overview-page,
+  .main-content > .dashboard-page { border-radius: 16px; }
+  .main-content > .page.module-shell-page { padding: 20px 16px 24px; }
+  .main-content > .dashboard-page:not(.dashboard-home) { padding: 20px 16px 24px; }
   .parking-management-page .page-header { align-items: flex-start; flex-direction: column; gap: 14px; }
   .parking-management-page .page-header h1 { font-size: 23px; }
 }
@@ -2283,6 +2306,9 @@ tbody tr:hover {
 
 /* Keep the account dashboard summary values readable at every card width. */
 body .dashboard-page .dashboard-cards > .stat-card { grid-template-columns: 42px minmax(0, 1fr); }
+body .dashboard-page { box-sizing: border-box; width: 100%; min-width: 0; }
+body .dashboard-page .dashboard-cards { grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); }
+body .dashboard-page .dashboard-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); }
 body .dashboard-page .stat-card > .stat-card-content { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; }
 body .dashboard-page .stat-card > .stat-card-content > span { grid-column: auto; grid-row: auto; align-self: center; min-width: 0; }
 body .dashboard-page .stat-card > .stat-card-content > h2 { grid-column: auto; grid-row: auto; min-width: 0; overflow-wrap: anywhere; text-align: right; }

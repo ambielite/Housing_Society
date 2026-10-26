@@ -377,14 +377,15 @@ export default function ReportsCenterPage() {
     } finally { setExporting(''); }
   };
 
-  if (!visibleGroups.length) return <PageContainer title="Reports Center" subtitle="Reports available to your account"><div className="rc-empty">Your account does not have access to any reports in this module.</div></PageContainer>;
-  if (needsSociety) return <PageContainer title="Reports Center" subtitle="Choose a society to view its reporting data"><SocietyIdPrompt /></PageContainer>;
+  if (!visibleGroups.length) return <PageContainer moduleShell={false} title="Reports Center" subtitle="Reports available to your account"><div className="rc-empty">Your account does not have access to any reports in this module.</div></PageContainer>;
+  if (needsSociety) return <PageContainer moduleShell={false} title="Reports Center" subtitle="Choose a society to view its reporting data"><SocietyIdPrompt /></PageContainer>;
 
   const selectedGroup = visibleGroups.find((group) => group.key === activeGroup) || currentGroup;
   const showFilters = Boolean(currentReport?.dates || currentReport?.rfqId || currentReport?.expiringDays);
 
   return (
     <PageContainer
+      moduleShell={false}
       title="Reports Center"
       subtitle="Explore operational performance and export the reports your role is allowed to access."
       actions={<button type="button" className="btn btn-secondary" onClick={() => runReport()} disabled={loading}><RefreshCw size={15} className={loading ? 'rc-spin' : ''} /> Refresh</button>}

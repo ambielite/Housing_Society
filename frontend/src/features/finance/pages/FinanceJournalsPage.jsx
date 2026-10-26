@@ -34,7 +34,7 @@ export default function FinanceJournalsPage() {
         catch (err) { window.alert(err.response?.data?.message || "Only draft journals can be deleted."); }
     };
 
-    return <section className="society-dashboard">
+    return <section className="society-dashboard module-shell-page finance-module-page">
         <header className="society-heading"><div><div className="society-eyebrow"><span className="society-eyebrow-dot" /> FINANCE</div><h1>Journal entries</h1><p>Review balanced journal transactions for the selected society.</p></div><button className="society-add-button" onClick={() => setShowForm(true)}><Plus size={18} /> Add journal</button></header>
         {error && <div className="society-error" role="alert">{error}<button onClick={loadData}>Try again</button></div>}
         <section className="society-list-panel"><div className="society-list-heading"><div><h2>Journal register</h2><p>Totals and references from each journal header.</p></div><span className="society-count">{loading ? "Loading" : `${filtered.length} journals`}</span></div>

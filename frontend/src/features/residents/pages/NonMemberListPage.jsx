@@ -125,7 +125,7 @@ const NonMemberListPage = () => {
     };
 
     return (
-        <section className="society-dashboard">
+        <section className="society-dashboard module-shell-page resident-module-page">
             <header className="society-heading">
                 <div>
                     <div className="society-eyebrow"><span className="society-eyebrow-dot" /> NON-MEMBER REGISTRY</div>

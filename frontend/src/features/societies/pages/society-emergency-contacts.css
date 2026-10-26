@@ -42,10 +42,20 @@
 .emergency-category-filters button.active { border-color: var(--action); background: var(--action); color: #fff; }
 .emergency-directory-state,.emergency-directory-empty { min-height: 210px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 28px; color: var(--text-muted); text-align: center; font-size: 12px; }
 .emergency-contact-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; padding: 17px; }
-.emergency-contact-card { min-width: 0; display: flex; flex-direction: column; gap: 11px; padding: 15px; border: 1px solid var(--border-color); border-radius: 13px; background: var(--surface); box-shadow: 0 3px 12px rgba(15, 23, 42, .035); }
+.emergency-contact-card { --contact-accent: #7557e8; min-width: 0; display: flex; flex-direction: column; gap: 11px; padding: 16px; border: 1px solid var(--border-color); border-left: 3px solid var(--contact-accent); border-radius: 15px; background: linear-gradient(115deg, color-mix(in srgb, var(--contact-accent) 3%, var(--surface)), var(--surface) 58%); box-shadow: 0 5px 16px rgba(31, 47, 78, .045); }
+.emergency-contact-card.category-fire { --contact-accent: #e5484d; }
+.emergency-contact-card.category-ambulance { --contact-accent: #e87918; }
+.emergency-contact-card.category-hospital { --contact-accent: #2f80ed; }
+.emergency-contact-card.category-security { --contact-accent: #7357e8; }
+.emergency-contact-card.category-electricity { --contact-accent: #d99012; }
+.emergency-contact-card.category-water { --contact-accent: #0891b2; }
+.emergency-contact-card.category-gas { --contact-accent: #db6c1b; }
+.emergency-contact-card.category-disaster_response { --contact-accent: #d94675; }
+.emergency-contact-card.category-society_office { --contact-accent: #15966b; }
+.emergency-contact-card.category-other { --contact-accent: #64748b; }
 .emergency-contact-card.is-inactive { opacity: .7; }
 .emergency-contact-card-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.emergency-contact-icon { display: grid; flex: 0 0 34px; width: 34px; height: 34px; place-items: center; border-radius: 10px; background: color-mix(in srgb, var(--action) 10%, var(--surface)); color: var(--action); }
+.emergency-contact-icon { display: grid; flex: 0 0 38px; width: 38px; height: 38px; place-items: center; border-radius: 12px; background: color-mix(in srgb, var(--contact-accent, var(--action)) 11%, var(--surface)); color: var(--contact-accent, var(--action)); }
 .emergency-contact-icon.category-fire,.emergency-contact-icon.category-ambulance,.emergency-contact-icon.category-disaster_response { background: color-mix(in srgb, #dc4545 10%, var(--surface)); color: #c03535; }
 .emergency-contact-icon.category-police,.emergency-contact-icon.category-security { background: color-mix(in srgb, #7557e8 10%, var(--surface)); color: #694bd7; }
 .emergency-contact-icon.category-electricity,.emergency-contact-icon.category-gas { background: color-mix(in srgb, #df8512 12%, var(--surface)); color: #b76205; }

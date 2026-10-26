@@ -31,9 +31,9 @@ function addCreationIcons(node) {
   return cloneElement(node, {}, addCreationIcons(children));
 }
 
-export default function PageContainer({ title, subtitle, eyebrow, actions, children, hideHeader = false, className = '' }) {
+export default function PageContainer({ title, subtitle, eyebrow, actions, children, hideHeader = false, className = '', moduleShell = true }) {
   return (
-    <section className={`page ${className}`.trim()}>
+    <section className={`page ${moduleShell ? 'module-shell-page' : ''} ${className}`.trim()}>
       {!hideHeader && <header className="page-header">
         <div>
           {eyebrow && <div className="society-eyebrow"><span className="society-eyebrow-dot" /> {eyebrow}</div>}

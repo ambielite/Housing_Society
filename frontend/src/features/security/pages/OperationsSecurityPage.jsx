@@ -636,7 +636,7 @@ export default function SecurityPage() {
       ],
     })[tab] || [];
   return (
-    <section className="society-dashboard security-page">
+    <section className="society-dashboard security-page module-shell-page">
       <header className="society-heading">
         <div>
           <div className="society-eyebrow">

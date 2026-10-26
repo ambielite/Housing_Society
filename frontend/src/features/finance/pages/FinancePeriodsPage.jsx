@@ -63,7 +63,7 @@ export default function FinancePeriodsPage() {
     };
 
     return (
-        <section className="society-dashboard">
+        <section className="society-dashboard module-shell-page finance-module-page">
             <header className="society-heading">
                 <div><div className="society-eyebrow"><span className="society-eyebrow-dot" /> FINANCE</div><h1>Accounting periods</h1><p>Manage posting windows and lock periods after close.</p></div>
             </header>

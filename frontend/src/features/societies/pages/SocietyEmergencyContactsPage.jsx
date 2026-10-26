@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
+  Ambulance,
+  Building2,
   Clock3,
+  Droplets,
   Edit2,
   Eye,
+  Flame,
+  Fuel,
+  Hospital,
   Mail,
   MapPin,
   Phone,
@@ -11,7 +17,11 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Shield,
+  ShieldCheck,
+  Siren,
   Trash2,
+  Zap,
   X,
 } from "lucide-react";
 import { legacyApi } from "../../../lib/axios";
@@ -51,6 +61,19 @@ const pretty = (value) =>
     .replaceAll("_", " ")
     .toLowerCase()
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
+const CATEGORY_ICONS = {
+  POLICE: Shield,
+  FIRE: Flame,
+  AMBULANCE: Ambulance,
+  HOSPITAL: Hospital,
+  SECURITY: ShieldCheck,
+  ELECTRICITY: Zap,
+  WATER: Droplets,
+  GAS: Fuel,
+  DISASTER_RESPONSE: Siren,
+  SOCIETY_OFFICE: Building2,
+  OTHER: PhoneCall,
+};
 
 export default function SocietyEmergencyContactsPage() {
   const { hasPermission } = useAuth();
@@ -336,7 +359,9 @@ export default function SocietyEmergencyContactsPage() {
           </div>
         ) : filteredContacts.length ? (
           <div className="emergency-contact-grid">
-            {filteredContacts.map((contact) => (
+            {filteredContacts.map((contact) => {
+              const ContactIcon = CATEGORY_ICONS[contact.category] || PhoneCall;
+              return (
               <article
                 className={`emergency-contact-card category-${contact.category.toLowerCase()}${contact.isActive ? "" : " is-inactive"}`}
                 key={contact.id}
@@ -345,7 +370,7 @@ export default function SocietyEmergencyContactsPage() {
                   <span
                     className={`emergency-contact-icon category-${contact.category.toLowerCase()}`}
                   >
-                    <PhoneCall size={18} />
+                    <ContactIcon size={19} />
                   </span>
                   <span className="emergency-contact-category">
                     {pretty(contact.category)}
@@ -414,7 +439,8 @@ export default function SocietyEmergencyContactsPage() {
                   </div>
                 )}
               </article>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="emergency-directory-empty">

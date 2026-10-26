@@ -339,7 +339,7 @@ const ResidentListPage = () => {
 
     return (
 
-        <section className="society-dashboard">
+        <section className="society-dashboard module-shell-page resident-module-page">
 
             {/* Heading */}
 

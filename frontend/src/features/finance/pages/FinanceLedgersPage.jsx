@@ -29,7 +29,7 @@ export default function FinanceLedgersPage() {
     const query = search.trim().toLowerCase();
     const filteredEntries = useMemo(() => entries.filter((entry) => !query || [entry.account?.name, entry.account?.code, entry.journalNumber, entry.referenceType, entry.referenceId, entry.journalDescription, entry.description].join(" ").toLowerCase().includes(query)), [entries, query]);
     const filteredAccounts = useMemo(() => accounts.filter((item) => !query || [item.ledgerCode, item.ledgerName, item.unitId, item.memberId, item.accountId].join(" ").toLowerCase().includes(query)), [accounts, query]);
-    return <section className="society-dashboard">
+    return <section className="society-dashboard module-shell-page finance-module-page">
         <header className="society-heading"><div><div className="society-eyebrow"><span className="society-eyebrow-dot" /> FINANCE</div><h1>Ledgers</h1><p>Resident and unit ledger accounts alongside posted general ledger activity.</p></div></header>
         {error && <div className="society-error" role="alert">{error}<button onClick={loadData}>Try again</button></div>}
         <section className="society-list-panel"><div className="society-list-heading"><div><h2>Member and unit ledger accounts</h2><p>Ledger accounts linked to residents, units, and chart accounts.</p></div><span className="society-count">{loading ? "Loading" : `${filteredAccounts.length} accounts`}</span></div><div className="society-toolbar"><label className="society-search"><Search size={17} /><input aria-label="Search ledgers" placeholder="Search ledger, unit, member, or account" value={search} onChange={(event) => setSearch(event.target.value)} /></label></div>
