@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, ShieldCheck, UserRound, UsersRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
@@ -62,12 +62,19 @@ export default function UserListPage() {
   );
 
   return (
-    <PageContainer title="Users" subtitle="Everyone who can sign in to the admin panel." actions={newUserButton}>
-      <div className="toolbar">
+    <PageContainer eyebrow="USER MANAGEMENT" title="Users" subtitle="Manage accounts, contact details, and access to your society." actions={newUserButton} className="user-module-page user-directory-page">
+      <div className="user-directory-overview" aria-label="User directory summary">
+        <article className="user-directory-metric user-directory-metric-total"><span><UsersRound size={19} /></span><div><small>Registered users</small><strong>{loading ? '—' : data?.pagination?.total ?? data?.users?.length ?? 0}</strong></div></article>
+        <article className="user-directory-metric user-directory-metric-visible"><span><UserRound size={19} /></span><div><small>Users on this page</small><strong>{loading ? '—' : data?.users?.length ?? 0}</strong></div></article>
+        <article className="user-directory-metric user-directory-metric-access"><span><ShieldCheck size={19} /></span><div><small>Access</small><strong>Role based</strong></div></article>
+      </div>
+      <section className="user-directory-panel">
+        <div className="user-directory-heading"><div><span className="user-directory-kicker">ACCOUNT DIRECTORY</span><h2>User accounts</h2><p>Search by name, email, or phone number, then manage each account.</p></div><span className="user-directory-count">{loading ? 'Loading…' : `${data?.pagination?.total ?? data?.users?.length ?? 0} records`}</span></div>
+      <div className="toolbar user-directory-toolbar">
         <input
           type="search"
           className="input toolbar-search"
-          placeholder="Search by name or email"
+          placeholder="Search by name, email, or phone"
           aria-label="Search users"
           value={search}
           onChange={(event) => {
@@ -94,6 +101,7 @@ export default function UserListPage() {
       </div>
 
       <DataTable
+        tableClassName="user-directory-table"
         columns={columns}
         rows={data ? data.users : null}
         loading={loading}
@@ -112,6 +120,7 @@ export default function UserListPage() {
         }
         pagination={data ? { ...data.pagination, onPageChange: setPage } : null}
       />
+      </section>
     </PageContainer>
   );
 }

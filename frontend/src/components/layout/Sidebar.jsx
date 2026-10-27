@@ -30,6 +30,9 @@ const NAV_ITEMS = [
       { label: 'Notice', to: '/notices', permission: 'NOTICE_READ', icon: Bell },
       { label: 'Emergency contacts', to: '/emergency-contacts', permission: 'SOCIETY_EMERGENCY_CONTACT_READ', icon: PhoneCall },
       { label: 'Management committee', to: '/management-committee', permission: 'SOCIETY_COMMITTEE_READ', icon: UsersRound },
+      { label: 'Document Vault', to: '/document-vault', icon: FolderArchive },
+      { label: 'Users', to: '/users', permission: 'USER_READ', icon: Users },
+      { label: 'Roles', to: '/roles', permission: 'ROLE_READ', icon: ShieldCheck },
     ],
   },
   {
@@ -68,8 +71,6 @@ const NAV_ITEMS = [
       
     ],
   },
-  { label: 'Users', to: '/users', permission: 'USER_READ', icon: Users },
-  { label: 'Roles', to: '/roles', permission: 'ROLE_READ', icon: ShieldCheck },
   {
     label: ' Staff & Visitors', to: '/security-operations', icon: UsersRound,
     children: [
@@ -142,7 +143,6 @@ const NAV_ITEMS = [
   { label: 'Multi-society', to: '/multi-society', permission: ['ORGANIZATION_READ', 'CLUSTER_READ', 'MULTI_SOCIETY_READ'], icon: Network },
   { label: 'Amenities', to: '/amenities', permission: ['AMENITY_READ', 'AMENITY_SLOT_READ', 'AMENITY_BOOKING_READ'], icon: CalendarDays },
   { label: 'Helpdesk', to: '/helpdesk/tickets', permission: 'TICKET_READ', icon: LifeBuoy },
-  { label: 'Document Vault', to: '/document-vault', icon: FolderArchive },
   { label: 'Utility & Meters', to: '/utilities', permission: ['UTILITY_TYPE_READ', 'METER_READ', 'METER_READING_READ', 'UTILITY_TARIFF_READ', 'UTILITY_BILL_READ'], icon: Gauge },
 ];
 

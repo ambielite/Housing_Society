@@ -145,7 +145,7 @@ export default function UserDetailPage() {
   );
 
   return (
-    <PageContainer title={name} subtitle={target.email} actions={actionButtons}>
+    <PageContainer eyebrow="USER MANAGEMENT" title={<span className="user-detail-title"><span className="user-detail-title-avatar">{profilePictureUrl && !profilePictureFailed ? <img src={profilePictureUrl} alt="" onError={() => setProfilePictureFailed(true)} /> : name.charAt(0).toUpperCase() || '?'}</span><span>{name}</span></span>} subtitle={target.email} actions={actionButtons} className="user-module-page user-detail-page">
       <p className="back-link">
         <Link to="/users">&larr; All users</Link>
       </p>
@@ -154,23 +154,8 @@ export default function UserDetailPage() {
       {actionError && <Alert>{actionError}</Alert>}
       {isSelf && <Alert variant="success">This is your own account, so suspend, sign-out and archive are hidden.</Alert>}
 
-      <div className="card section">
-        <h2 className="section-title">Profile</h2>
-        <div className="user-detail-photo-row">
-          {profilePictureUrl && !profilePictureFailed ? (
-            <img
-              className="user-detail-profile-photo"
-              src={profilePictureUrl}
-              alt={`${name} profile`}
-              onError={() => setProfilePictureFailed(true)}
-            />
-          ) : (
-            <span className="user-detail-profile-photo user-profile-picture-placeholder" aria-hidden="true">
-              {name.charAt(0).toUpperCase() || '?'}
-            </span>
-          )}
-          <span>{target.profile_picture_url ? 'Profile picture' : 'No profile picture added'}</span>
-        </div>
+      <div className="card section user-detail-profile-panel">
+        <div className="user-detail-panel-heading"><div><span className="user-directory-kicker">ACCOUNT PROFILE</span><h2 className="section-title">Profile</h2><p className="muted">Identity and account activity for this user.</p></div><UserStatusBadge status={target.status} /></div>
         <dl className="details">
           <dt>Status</dt>
           <dd>

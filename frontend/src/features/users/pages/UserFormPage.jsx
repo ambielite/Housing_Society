@@ -66,8 +66,10 @@ export default function UserFormPage() {
 
   return (
     <PageContainer
+      eyebrow="USER MANAGEMENT"
       title={isEdit ? 'Edit user' : 'New user'}
       subtitle={isEdit ? 'Update the user’s details and profile picture.' : 'Create an account for someone who needs to sign in.'}
+      className="user-module-page user-form-page"
     >
       <UserForm
         mode={isEdit ? 'edit' : 'create'}

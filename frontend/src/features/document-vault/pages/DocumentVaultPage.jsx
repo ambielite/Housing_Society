@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Plus, Share2 } from 'lucide-react';
+import { FileText, FolderClosed, FolderOpen, Plus, Share2, ShieldCheck } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
@@ -101,18 +101,23 @@ export default function DocumentVaultPage() {
   ];
 
   return (
-    <PageContainer eyebrow="SOCIETY RECORDS" title="Document Vault" subtitle="Organize society records, upload files, manage versions and control access." actions={actions}>
+    <PageContainer eyebrow="SOCIETY RECORDS" title="Document Vault" subtitle="Organize society records, upload files, manage versions and control access." actions={actions} className="document-vault-page">
       {pageNotice && <Alert variant="success">{pageNotice}</Alert>}
       {pageError && <Alert variant="error">{pageError}</Alert>}
-      {canReadFolders && <section className="card section">
-        <div className="section-heading"><div><h2 className="section-title">Folders</h2><p className="muted">Browse by document category.</p></div></div>
+      <div className="document-vault-overview" aria-label="Document vault summary">
+        <article className="document-vault-metric document-vault-metric-files"><span className="document-vault-metric-icon"><FileText size={19} /></span><div><span>Files in view</span><strong>{docs.loading ? '—' : documentList.length}</strong></div></article>
+        {canReadFolders && <article className="document-vault-metric document-vault-metric-folders"><span className="document-vault-metric-icon"><FolderOpen size={19} /></span><div><span>Folders</span><strong>{folders.loading ? '—' : folderList.length}</strong></div></article>}
+        <article className="document-vault-metric document-vault-metric-access"><span className="document-vault-metric-icon"><ShieldCheck size={19} /></span><div><span>Access controlled</span><strong>Private</strong></div></article>
+      </div>
+      {canReadFolders && <section className="card section document-vault-panel document-vault-folders">
+        <div className="document-vault-section-heading"><div><span className="document-vault-kicker">LIBRARY</span><h2 className="section-title">Browse folders</h2><p className="muted">Choose a category to narrow the documents below.</p></div><span className="document-vault-count">{folderList.length} {folderList.length === 1 ? 'folder' : 'folders'}</span></div>
         {folders.error && <Alert variant="error">{getErrorMessage(folders.error)}</Alert>}
         {folders.loading ? <p className="muted">Loading folders…</p> : folderList.length ? (
           <div className="folder-grid">
             {folderList.map((folder) => (
-              <div className={`folder-tile${folderFilter === folder.id ? ' selected' : ''}`} key={folder.id}>
+              <div className={`folder-tile document-vault-folder${folderFilter === folder.id ? ' selected' : ''}`} key={folder.id}>
                 <button type="button" className="folder-select" onClick={() => setFolderFilter(folderFilter === folder.id ? '' : folder.id)} aria-pressed={folderFilter === folder.id}>
-                  <span className="folder-icon">▰</span><strong>{folder.name}</strong><span className="cell-sub">{pretty(folder.folder_type)} · {pretty(folder.status)}</span>
+                  <span className="document-vault-folder-icon"><FolderClosed size={21} /></span><span className="document-vault-folder-title"><strong>{folder.name}</strong><span className="document-vault-folder-count">{documentList.filter((doc) => doc.folder_id === folder.id).length} files</span></span><span className="cell-sub">{pretty(folder.folder_type)} · {pretty(folder.status)}</span>
                 </button>
                 <div className="folder-actions">
                   {hasPermission('DOCUMENT_FOLDER_UPDATE') && <button className="btn btn-ghost btn-sm" onClick={() => { setFormError(''); setEditingFolder(folder); }}>Edit</button>}
@@ -124,8 +129,8 @@ export default function DocumentVaultPage() {
         ) : <div className="empty-state compact"><h3>No folders yet</h3><p>Create a folder to organize uploaded documents.</p></div>}
       </section>}
 
-      <section className="card section">
-        <div className="section-heading"><div><h2 className="section-title">Documents</h2><p className="muted">Search, filter and open a document to manage its details.</p></div></div>
+      <section className="card section document-vault-panel document-vault-documents">
+        <div className="document-vault-section-heading"><div><span className="document-vault-kicker">YOUR RECORDS</span><h2 className="section-title">Documents</h2><p className="muted">Search, filter and open a document to manage its details.</p></div><span className="document-vault-count">{docs.loading ? 'Loading…' : `${documentList.length} ${documentList.length === 1 ? 'file' : 'files'}`}</span></div>
         <div className="toolbar document-toolbar">
           <input className="input toolbar-search" type="search" placeholder="Search document title" aria-label="Search document title" value={search} onChange={(e) => setSearch(e.target.value)} />
           {canReadFolders && <select className="input toolbar-select" aria-label="Filter folder" value={folderFilter} onChange={(e) => setFolderFilter(e.target.value)}><option value="">All folders</option>{folderList.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}</select>}

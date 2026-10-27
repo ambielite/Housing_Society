@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Share2 } from 'lucide-react';
+import { FileText, Share2 } from 'lucide-react';
 import useAuth from '../../../app/providers/useAuth';
 import useFetch from '../../../utils/useFetch';
 import api, { getErrorMessage } from '../../../lib/axios';
@@ -159,7 +159,7 @@ export default function DocumentDetailPage() {
   const roleName = (id) => { const r = roleList.find((item) => item.id === id); return r ? (r.name || r.code || 'Role') : id; };
 
   return (
-    <PageContainer title={target.title || 'Document details'} subtitle={target.file_name || ''} actions={
+    <PageContainer eyebrow="DOCUMENT RECORD" title={target.title || 'Document details'} subtitle={target.file_name || ''} className="document-detail-page" actions={
       <>
         <button className="btn btn-secondary" onClick={shareDocument}><Share2 size={16} /> Share</button>
         {(hasPermission('DOCUMENT_DOWNLOAD') || (target.visibility === 'PUBLIC' && target.sensitivity !== 'CONFIDENTIAL')) && <button className="btn btn-primary" disabled={saving} onClick={download}>Download file</button>}
@@ -172,9 +172,18 @@ export default function DocumentDetailPage() {
       {notice && <Alert variant="success">{notice}</Alert>}
       {error && <Alert variant="error">{error}</Alert>}
       {detailError && <Alert>{detailError}</Alert>}
+      <article className="document-detail-banner">
+        <span className="document-detail-file-mark"><FileText size={28} /></span>
+        <div className="document-detail-file-copy">
+          <span className="document-vault-kicker">DOCUMENT FILE</span>
+          <h2>{target.file_name || target.title || 'Document file'}</h2>
+          <div className="document-detail-badges"><span>{pretty(target.document_type)}</span><span>{formatBytes(target.size_bytes)}</span><span className={`document-detail-status ${String(target.status || '').toLowerCase()}`}>{pretty(target.status)}</span></div>
+        </div>
+        <div className="document-detail-reference"><span>RECORD ID</span><strong>{String(target.id || documentId).slice(0, 8).toUpperCase()}</strong></div>
+      </article>
       <div className="tabs-bar"><div className="tabs" role="tablist" aria-label="Document sections">{sections.map(([key, label]) => <button key={key} type="button" role="tab" aria-selected={active === key} className={`tab${active === key ? ' active' : ''}`} onClick={() => setActive(key)}>{label}</button>)}</div></div>
 
-      {active === 'details' && <section className="card section"><h2 className="section-title">Document information</h2><dl className="details">
+      {active === 'details' && <section className="card section document-detail-panel"><div className="document-vault-section-heading"><div><span className="document-vault-kicker">FILE PROFILE</span><h2 className="section-title">Document information</h2><p className="muted">Key metadata and lifecycle dates for this record.</p></div></div><dl className="details document-detail-metadata">
         <dt>Title</dt><dd>{target.title}</dd><dt>File name</dt><dd>{target.file_name}</dd><dt>Document type</dt><dd>{pretty(target.document_type)}</dd><dt>Size</dt><dd>{formatBytes(target.size_bytes)}</dd><dt>MIME type</dt><dd>{target.mime_type || '-'}</dd><dt>Sensitivity</dt><dd>{pretty(target.sensitivity)}</dd><dt>Visibility</dt><dd>{pretty(target.visibility)}</dd><dt>Status</dt><dd>{pretty(target.status)}</dd><dt>Effective date</dt><dd>{target.effective_date ? dateOnly(target.effective_date) : '-'}</dd><dt>Expiry date</dt><dd>{target.expiry_date ? dateOnly(target.expiry_date) : '-'}</dd><dt>Checksum (SHA-256)</dt><dd className="mono break-word">{target.checksum || '-'}</dd><dt>Uploaded</dt><dd>{formatDate(target.created_at)}</dd><dt>Last updated</dt><dd>{formatDate(target.updated_at)}</dd>
       </dl></section>}
 
