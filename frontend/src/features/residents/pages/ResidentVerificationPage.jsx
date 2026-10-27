@@ -10,6 +10,33 @@ const rowsFrom = (response) => {
     return Array.isArray(rows) ? rows : [];
 };
 
+const profileImageUrl = (url) => {
+    if (!url) return undefined;
+    const value = String(url).trim().replaceAll("\\", "/");
+    if (/^https?:\/\//i.test(value)) return value;
+    const base = import.meta.env.VITE_LEGACY_API_BASE_URL || "http://localhost:5000/api";
+    return `${new URL(base, window.location.origin).origin}/${value.replace(/^\/+/, "")}`;
+};
+
+const verificationStatus = (status) => {
+    const value = String(status || "PENDING").toUpperCase();
+    const labels = {
+        PENDING: "Pending",
+        APPROVED: "Approved",
+        REJECTED: "Rejected",
+        MORE_INFORMATION_REQUIRED: "More information",
+        UNDER_REVIEW: "Under review"
+    };
+    const tone = {
+        PENDING: "pending",
+        APPROVED: "approved",
+        REJECTED: "rejected",
+        MORE_INFORMATION_REQUIRED: "information",
+        UNDER_REVIEW: "review"
+    }[value] || "neutral";
+    return <span className={`verification-status-badge is-${tone}`}><span className="verification-status-dot" />{labels[value] || value.replaceAll("_", " ").toLowerCase()}</span>;
+};
+
 const emptyForm = () => ({
     societyId: "",
     residentId: "",
@@ -162,7 +189,7 @@ const ResidentVerificationPage = () => {
                     </div>
                 ) : (
                     <div className="society-table-wrap">
-                        <table className="society-table">
+                        <table className="society-table verification-table">
                             <thead>
                                 <tr>
                                     <th>Resident</th>
@@ -173,25 +200,25 @@ const ResidentVerificationPage = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {filtered.map((item) => (
-                                    <tr key={item.id}>
+                                {filtered.map((item) => {
+                                    const resident = residents.find((record) => String(record.id) === String(item.residentId));
+                                    const residentName = resident?.displayName || item.residentDisplayName || item.residentId || "Resident";
+                                    const photo = profileImageUrl(resident?.profilePhoto || resident?.profilePictureUrl || resident?.profile_picture_url || item.avatarUrl);
+                                    return <tr key={item.id}>
                                         <td>
                                             <div className="society-name-cell">
                                                 <span className="society-avatar">
-                                                    {item.avatarUrl ? (
-                                                        <img src={item.avatarUrl} alt={item.residentDisplayName || item.residentId || "Resident"} className="society-avatar-img" />
-                                                    ) : (
-                                                        <UserRound size={19} />
-                                                    )}
+                                                    <UserRound size={19} />
+                                                    {photo && <img src={photo} alt={`${residentName} profile`} className="resident-table-photo" loading="lazy" onError={(event) => { event.currentTarget.hidden = true; }} />}
                                                 </span>
-                                                <span>
-                                                    <strong>{(residents.find((r) => r.id === item.residentId)?.displayName) || item.residentDisplayName || item.residentId || "Resident"}</strong>
+                                                <span className="verification-resident-copy">
+                                                    <strong title={residentName}>{residentName}</strong>
                                                     <small>{item.reviewerName ? `Reviewed by ${item.reviewerName}` : item.reviewedBy ? "Reviewed" : "Awaiting review"}</small>
                                                 </span>
                                             </div>
                                         </td>
                                         <td>{item.verificationType || "INITIAL_REGISTRATION"}</td>
-                                        <td><span className="society-tax-label">{item.status || "PENDING"}</span></td>
+                                        <td>{verificationStatus(item.status)}</td>
                                         <td>{item.submittedAt ? new Date(item.submittedAt).toLocaleDateString() : "—"}</td>
                                         <td>
                                             <div className="society-row-actions">
@@ -199,8 +226,8 @@ const ResidentVerificationPage = () => {
                                                 <button className="society-icon-action" type="button" onClick={() => handleReview(item.id, "reject")} title="Reject"><XCircle size={16} /></button>
                                             </div>
                                         </td>
-                                    </tr>
-                                ))}
+                                    </tr>;
+                                })}
                             </tbody>
                         </table>
                     </div>

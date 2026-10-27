@@ -9,6 +9,24 @@ const rowsFrom = (response) => {
     return Array.isArray(rows) ? rows : [];
 };
 
+const memberTypeLabel = (type) => ({
+    SHOP: "Shop",
+    SERVICE_PROVIDER: "Service provider",
+    TUTOR: "Tutor",
+    COMMERCIAL_OCCUPANT: "Commercial occupant",
+    DOMESTIC_WORKER: "Domestic worker",
+    CONTRACTOR: "Contractor",
+    VENDOR: "Vendor",
+    OTHER: "Other"
+}[type] || String(type || "Other").replaceAll("_", " ").toLowerCase().replace(/^\w/, (letter) => letter.toUpperCase()));
+
+const nonMemberStatus = (status) => {
+    const value = String(status || "PENDING").toUpperCase();
+    const labels = { ACTIVE: "Active", PENDING: "Pending", SUSPENDED: "Suspended", BLACKLISTED: "Blacklisted", ARCHIVED: "Archived" };
+    const tone = { ACTIVE: "approved", PENDING: "pending", SUSPENDED: "review", BLACKLISTED: "rejected", ARCHIVED: "neutral" }[value] || "neutral";
+    return <span className={`verification-status-badge is-${tone}`}>{labels[value] || value.replaceAll("_", " ").toLowerCase()}</span>;
+};
+
 const emptyForm = () => ({
     societyId: "",
     name: "",
@@ -187,7 +205,7 @@ const NonMemberListPage = () => {
                     </div>
                 ) : (
                     <div className="society-table-wrap">
-                        <table className="society-table">
+                        <table className="society-table non-member-table">
                             <thead>
                                 <tr>
                                     <th>Name</th>
@@ -203,21 +221,17 @@ const NonMemberListPage = () => {
                                         <td>
                                             <div className="society-name-cell">
                                                 <span className="society-avatar">
-                                                    {member.logoUrl ? (
-                                                        <img src={member.logoUrl} alt={member.name} className="society-avatar-img" />
-                                                    ) : (
-                                                        <UserRound size={19} />
-                                                    )}
+                                                    {member.logoUrl ? <img src={member.logoUrl} alt={member.name} className="society-avatar-img" /> : <UserRound size={19} />}
                                                 </span>
-                                                <span>
+                                                <span className="non-member-name-copy">
                                                     <strong>{member.name}</strong>
                                                     <small>{member.businessName || member.organizationName || "External stakeholder"}</small>
                                                 </span>
                                             </div>
                                         </td>
-                                        <td><span className="society-tax-label">{member.memberType || "OTHER"}</span></td>
+                                        <td><span className="non-member-type-label">{memberTypeLabel(member.memberType)}</span></td>
                                         <td>{member.mobile || member.email || "No contact"}</td>
-                                        <td><span className={member.status === "ACTIVE" ? "society-registration" : "society-muted"}>{member.status || "PENDING"}</span></td>
+                                        <td>{nonMemberStatus(member.status)}</td>
                                         <td>
                                             <div className="society-row-actions">
                                                 <button

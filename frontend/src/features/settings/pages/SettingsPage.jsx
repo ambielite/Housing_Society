@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
+  ArrowLeft,
   ArrowUpRight,
   BellRing,
   Building2,
@@ -7,6 +8,7 @@ import {
   ChevronRight,
   CreditCard,
   DoorOpen,
+  FileText,
   Gauge,
   Layers3,
   PlugZap,
@@ -14,6 +16,7 @@ import {
   ShieldCheck,
   Sparkles,
   ExternalLink,
+  Users,
   Workflow,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -64,7 +67,7 @@ const GROUPS = [
     id: 'notifications', label: 'Notifications', summary: 'Default communication preferences and delivery.', icon: BellRing,
     state: 'Connected', configurable: false, scope: 'Society-wide', links: [
       { label: 'Notification queue', description: 'Review sent, queued, and failed messages.', to: '/notifications/notifications', icon: BellRing },
-      { label: 'Templates', description: 'Manage reusable message templates.', to: '/notifications/templates', icon: BellRing },
+      { label: 'Templates', description: 'Manage reusable message templates.', to: '/notifications/templates', icon: FileText },
       { label: 'Preferences', description: 'Manage user channel preferences.', to: '/notifications/preferences', icon: BellRing },
       { label: 'Delivery reports', description: 'Review delivery and read status.', to: '/notifications/reports', icon: BellRing },
     ],
@@ -73,7 +76,7 @@ const GROUPS = [
   {
     id: 'security', label: 'Access & security', summary: 'Security controls and administrative activity.', icon: ShieldCheck,
     state: 'Connected', configurable: false, scope: 'Platform / role controlled', links: [
-      { label: 'Users', description: 'Manage accounts and access status.', to: '/users', icon: ShieldCheck },
+      { label: 'Users', description: 'Manage accounts and access status.', to: '/users', icon: Users },
       { label: 'Roles & permissions', description: 'Review roles and permission grants.', to: '/roles', icon: ShieldCheck },
       { label: 'Security operations', description: 'Review staff, gates, incidents, and audits.', to: '/security-operations', icon: ShieldCheck },
     ],
@@ -101,31 +104,44 @@ function asObject(value) {
   return {};
 }
 
-function asArray(value) {
-  if (Array.isArray(value)) return value;
+function ruleText(value) {
   if (typeof value === 'string') {
-    try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed : []; }
-    catch { return []; }
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && typeof parsed === 'object') return ruleText(parsed);
+    } catch { /* Keep normal prose as entered. */ }
+    return value;
   }
-  return [];
+  if (Array.isArray(value)) return value.map((item) => {
+    if (typeof item === 'string') return item;
+    if (!item || typeof item !== 'object') return String(item ?? '');
+    const preferred = item.ruleText || item.rule || item.description || item.name || item.label || item.role;
+    if (preferred) return String(preferred);
+    return Object.entries(item).map(([key, entry]) => `${key}: ${entry && typeof entry === 'object' ? Object.values(entry).join(', ') : entry}`).join(' · ');
+  }).filter(Boolean).join('\n');
+  const object = asObject(value);
+  if (typeof object.ruleText === 'string') return object.ruleText;
+  if (typeof object.rules === 'string') return object.rules;
+  if (Array.isArray(object.rules)) return ruleText(object.rules);
+  return Object.entries(object).map(([key, entry]) => `${key}: ${entry && typeof entry === 'object' ? Object.values(entry).join(', ') : entry}`).join('\n');
 }
 
 function draftFromSettings(settings) {
   return {
     billingCycle: settings?.billingCycle || DEFAULT_SETTINGS.billingCycle,
     dueDate: settings?.dueDate ?? DEFAULT_SETTINGS.dueDate,
-    penaltyRules: JSON.stringify(asObject(settings?.penaltyRules), null, 2),
-    approvalHierarchy: JSON.stringify(asArray(settings?.approvalHierarchy), null, 2),
-    visitorCategories: JSON.stringify(asArray(settings?.visitorCategories), null, 2),
-    amenityRules: JSON.stringify(asObject(settings?.amenityRules), null, 2),
+    penaltyRules: ruleText(settings?.penaltyRules),
+    approvalHierarchy: ruleText(settings?.approvalHierarchy),
+    visitorCategories: ruleText(settings?.visitorCategories),
+    amenityRules: ruleText(settings?.amenityRules),
   };
 }
 
-const JSON_FIELDS = {
-  penaltyRules: { label: 'Penalty rules', root: 'object', hint: 'Enter a JSON object. Example: {}' },
-  approvalHierarchy: { label: 'Approval hierarchy', root: 'array', hint: 'Enter a JSON array. Example: []' },
-  visitorCategories: { label: 'Visitor categories', root: 'array', hint: 'Enter a JSON array. Example: []' },
-  amenityRules: { label: 'Amenity rules', root: 'object', hint: 'Enter a JSON object. Example: {}' },
+const RULE_FIELDS = {
+  penaltyRules: { label: 'Penalty rules', hint: 'Describe fees, grace periods, and exceptions in your own words.' },
+  approvalHierarchy: { label: 'Approval rules', hint: 'Explain who approves requests and any conditions that apply.' },
+  visitorCategories: { label: 'Visitor guidance', hint: 'Describe how visitors and service providers should be handled.' },
+  amenityRules: { label: 'Amenity booking rules', hint: 'Describe booking limits, time windows, and cancellation rules in your own words.' },
 };
 
 function SettingsEditor({ category, societyId }) {
@@ -191,23 +207,6 @@ function SettingsEditor({ category, societyId }) {
     return () => { current = false; };
   }, [societyId, isConfigurable]);
 
-  const jsonValues = useMemo(() => {
-    const values = {};
-    for (const [key, definition] of Object.entries(JSON_FIELDS)) {
-      try {
-        const parsed = JSON.parse(draft[key]);
-        const isArray = Array.isArray(parsed);
-        if (definition.root === 'array' ? !isArray : !parsed || typeof parsed !== 'object' || isArray) {
-          return { error: `${definition.label} must be a JSON ${definition.root}.` };
-        }
-        values[key] = parsed;
-      } catch {
-        return { error: `${definition.label} must contain valid JSON.` };
-      }
-    }
-    return { values };
-  }, [draft]);
-
   const change = (field, value) => {
     setDraft((current) => ({ ...current, [field]: value }));
     setNotice('');
@@ -221,9 +220,16 @@ function SettingsEditor({ category, societyId }) {
     if (!canSave) return setError('Your role does not have permission to save these settings.');
     const dueDate = Number(draft.dueDate);
     if (!Number.isInteger(dueDate) || dueDate < 1 || dueDate > 31) return setError('The billing due date must be a day from 1 to 31.');
-    if (jsonValues.error) return setError(jsonValues.error);
-
-    const values = { ...jsonValues.values };
+    // Keep the admin's complete entry as free-form prose. These fields are
+    // stored in structured API columns, but the editor never asks admins to
+    // write JSON or follow a line-by-line format.
+    const rule = (value) => value.trim() ? [{ ruleText: value.trim() }] : [];
+    const values = {
+      penaltyRules: draft.penaltyRules.trim() ? { ruleText: draft.penaltyRules.trim() } : {},
+      approvalHierarchy: rule(draft.approvalHierarchy),
+      visitorCategories: rule(draft.visitorCategories),
+      amenityRules: draft.amenityRules.trim() ? { ruleText: draft.amenityRules.trim() } : {},
+    };
     if (category.id === 'billing') {
       values.billingCycle = draft.billingCycle;
       values.dueDate = dueDate;
@@ -261,9 +267,10 @@ function SettingsEditor({ category, societyId }) {
 
   if (!isConfigurable) {
     if (category.links?.length) return <div className="settings-detail-body">
-      <div className="settings-next-step"><div className="settings-next-step-icon"><ExternalLink size={18} /></div><div><strong>Use the existing workspace tools</strong><p>These controls are managed by their dedicated modules. Open a section below to make changes there.</p></div></div>
-      <div className="settings-links-grid">{category.links.map((item) => { const Icon = item.icon; return <Link className="settings-link-card" to={item.to} key={item.to}><span className="settings-link-icon"><Icon size={17} /></span><span><strong>{item.label}</strong><small>{item.description}</small></span><ArrowUpRight size={16} /></Link>; })}</div>
-      {category.id === 'integrations' && <p className="settings-implementation-note">Integration credentials are configured on the server and are intentionally not exposed in browser settings. This page links to the available user-managed export workflow.</p>}
+      <div className="settings-connected-hero"><div className="settings-connected-orbit"><ExternalLink size={22} /></div><div><span className="settings-mini-label">CONNECTED WORKSPACE</span><h3>{category.id === 'notifications' ? 'Communication control room' : category.id === 'security' ? 'Identity and access center' : 'External data workflows'}</h3><p>{category.id === 'notifications' ? 'Manage delivery, preferences, templates, and reports in the notification workspace.' : category.id === 'security' ? 'Manage people, permissions, and operational security through their dedicated tools.' : 'Use the export tools to move finance data into external accounting workflows.'}</p></div><span className="settings-connected-count">{category.links.length}<small> tools</small></span></div>
+      <div className="settings-subsection-heading"><div><span className="settings-mini-label">AVAILABLE TOOLS</span><h3>Choose where to continue</h3></div><span>Opens the existing module</span></div>
+      <div className="settings-links-grid">{category.links.map((item, index) => { const Icon = item.icon; return <Link className="settings-link-card" to={item.to} key={item.to}><span className="settings-link-index">{String(index + 1).padStart(2, '0')}</span><span className="settings-link-icon"><Icon size={18} /></span><span className="settings-link-copy"><strong>{item.label}</strong><small>{item.description}</small></span><span className="settings-link-open"><ArrowUpRight size={16} /></span></Link>; })}</div>
+      {category.id === 'integrations' && <div className="settings-managed-note"><ShieldCheck size={17} /><span><strong>Credentials are protected.</strong> Integration secrets are configured on the server and are not exposed in browser settings.</span></div>}
     </div>;
     return (
       <div className="settings-detail-body">
@@ -279,11 +286,11 @@ function SettingsEditor({ category, societyId }) {
     {regionError && <Alert>{regionError}</Alert>}{regionNotice && <Alert variant="success">{regionNotice}</Alert>}
     {!societyId && <Alert>Select a society in the top bar to load its regional defaults.</Alert>}
     {!society && societyId ? <div className="settings-loading"><span className="home-loading-spinner" /> Loading society details…</div> : society && <form className="settings-form" onSubmit={saveRegion}>
-      <div className="settings-form-section"><h3>{society.name || 'Selected society'}</h3><p>{society.address || 'Society profile details are managed in the Societies module.'}</p></div>
-      <div className="settings-fields-grid">
-        <label className="settings-field"><span>Currency</span><select value={regionDraft.currency} onChange={(event) => setRegionDraft((current) => ({ ...current, currency: event.target.value }))} disabled={!hasPermission('SOCIETY_UPDATE') || regionSaving}><option value="INR">INR · Indian Rupee</option><option value="USD">USD · US Dollar</option><option value="EUR">EUR · Euro</option><option value="GBP">GBP · Pound Sterling</option><option value="AED">AED · UAE Dirham</option></select></label>
-        <label className="settings-field"><span>Timezone</span><select value={regionDraft.timezone} onChange={(event) => setRegionDraft((current) => ({ ...current, timezone: event.target.value }))} disabled={!hasPermission('SOCIETY_UPDATE') || regionSaving}><option value="Asia/Kolkata">Asia/Kolkata</option><option value="Asia/Dubai">Asia/Dubai</option><option value="Europe/London">Europe/London</option><option value="Europe/Paris">Europe/Paris</option><option value="America/New_York">America/New_York</option><option value="America/Los_Angeles">America/Los_Angeles</option><option value="UTC">UTC</option></select></label>
-      </div>
+      <div className="settings-society-card"><div className="settings-society-card-icon"><Building2 size={21} /></div><div><span className="settings-mini-label">ACTIVE COMMUNITY</span><h3>{society.name || 'Selected society'}</h3><p>{society.address || 'Set the region and financial display conventions used across this society.'}</p></div><span className="settings-society-id">{society.reraNumber || 'SOCIETY PROFILE'}</span></div>
+      <div className="settings-form-card"><div className="settings-subsection-heading"><div><span className="settings-mini-label">REGIONAL DEFAULTS</span><h3>Locale & display</h3></div><span>Applied across society workflows</span></div><div className="settings-fields-grid">
+        <label className="settings-field"><span>Currency</span><select value={regionDraft.currency} onChange={(event) => setRegionDraft((current) => ({ ...current, currency: event.target.value }))} disabled={!hasPermission('SOCIETY_UPDATE') || regionSaving}><option value="INR">INR · Indian Rupee</option><option value="USD">USD · US Dollar</option><option value="EUR">EUR · Euro</option><option value="GBP">GBP · Pound Sterling</option><option value="AED">AED · UAE Dirham</option></select><small>Used when showing financial amounts.</small></label>
+        <label className="settings-field"><span>Timezone</span><select value={regionDraft.timezone} onChange={(event) => setRegionDraft((current) => ({ ...current, timezone: event.target.value }))} disabled={!hasPermission('SOCIETY_UPDATE') || regionSaving}><option value="Asia/Kolkata">Asia/Kolkata</option><option value="Asia/Dubai">Asia/Dubai</option><option value="Europe/London">Europe/London</option><option value="Europe/Paris">Europe/Paris</option><option value="America/New_York">America/New_York</option><option value="America/Los_Angeles">America/Los_Angeles</option><option value="UTC">UTC</option></select><small>Used for dates, reminders, and activity times.</small></label>
+      </div></div>
       {!hasPermission('SOCIETY_UPDATE') && <p className="settings-permission-hint">Your role can view these defaults but cannot update the society profile.</p>}
       <div className="settings-form-actions"><button className="btn btn-primary" type="submit" disabled={!societyId || !hasPermission('SOCIETY_UPDATE') || regionSaving}>{regionSaving ? 'Saving…' : 'Save regional defaults'}</button><Link className="settings-secondary-link" to="/societies">Open full society profile <ArrowUpRight size={14} /></Link></div>
     </form>}
@@ -303,12 +310,12 @@ function SettingsEditor({ category, societyId }) {
               <label className="settings-field"><span>Billing cycle</span><select value={draft.billingCycle} onChange={(event) => change('billingCycle', event.target.value)} disabled={!editable}><option value="MONTHLY">Monthly</option><option value="QUARTERLY">Quarterly</option><option value="HALF_YEARLY">Half yearly</option><option value="YEARLY">Yearly</option></select></label>
               <label className="settings-field"><span>Due day of month</span><input type="number" min="1" max="31" value={draft.dueDate} onChange={(event) => change('dueDate', event.target.value)} disabled={!editable} /><small>Choose a day between 1 and 31.</small></label>
             </div>
-            <JsonSettingField field="penaltyRules" value={draft.penaltyRules} onChange={change} disabled={!editable} />
+            <TextRuleField field="penaltyRules" value={draft.penaltyRules} onChange={change} disabled={!editable} />
           </>}
 
-          {category.id === 'approvals' && <JsonSettingField field="approvalHierarchy" value={draft.approvalHierarchy} onChange={change} disabled={!editable} />}
-          {category.id === 'visitors' && <JsonSettingField field="visitorCategories" value={draft.visitorCategories} onChange={change} disabled={!editable} />}
-          {category.id === 'amenities' && <JsonSettingField field="amenityRules" value={draft.amenityRules} onChange={change} disabled={!editable} />}
+          {category.id === 'approvals' && <TextRuleField field="approvalHierarchy" value={draft.approvalHierarchy} onChange={change} disabled={!editable} />}
+          {category.id === 'visitors' && <TextRuleField field="visitorCategories" value={draft.visitorCategories} onChange={change} disabled={!editable} />}
+          {category.id === 'amenities' && <TextRuleField field="amenityRules" value={draft.amenityRules} onChange={change} disabled={!editable} />}
 
           {!canSave && societyId && <p className="settings-permission-hint">You have read access to settings but need the society settings create or update permission to save changes.</p>}
           <div className="settings-form-actions"><button className="btn btn-primary" type="submit" disabled={!editable}>{saving ? 'Saving…' : record?.id ? 'Save changes' : 'Save settings'}</button><span>Changes apply to the selected society.</span></div>
@@ -318,9 +325,9 @@ function SettingsEditor({ category, societyId }) {
   );
 }
 
-function JsonSettingField({ field, value, onChange, disabled }) {
-  const definition = JSON_FIELDS[field];
-  return <label className="settings-field settings-json-field" htmlFor={`settings-${field}`}><span>{definition.label}</span><textarea id={`settings-${field}`} rows="8" spellCheck="false" value={value} onChange={(event) => onChange(field, event.target.value)} disabled={disabled} /><small>{definition.hint} Keep the root value as a JSON {definition.root}; the backend currently does not enforce a deeper structure.</small></label>;
+function TextRuleField({ field, value, onChange, disabled }) {
+  const definition = RULE_FIELDS[field];
+  return <div className="settings-form-card settings-json-card"><div className="settings-subsection-heading"><div><span className="settings-mini-label">WRITE IN YOUR OWN WORDS</span><h3>{definition.label}</h3></div><span>Free-form text</span></div><label className="settings-field settings-json-field" htmlFor={`settings-${field}`}><textarea id={`settings-${field}`} rows="7" value={value} onChange={(event) => onChange(field, event.target.value)} disabled={disabled} placeholder={`Describe ${definition.label.toLowerCase()} in your own words…`} /><small>{definition.hint} No special format is needed; write naturally and use as much detail as you need.</small></label></div>;
 }
 
 export default function SettingsPage() {
@@ -373,6 +380,9 @@ export default function SettingsPage() {
           {selected ? (
             <>
               <div className="settings-detail-heading">
+                <button type="button" className="settings-back-button" onClick={() => setActiveId('overview')} aria-label="Back to settings overview">
+                  <ArrowLeft size={16} /><span>Settings overview</span>
+                </button>
                 <div className="settings-detail-icon">{(() => { const Icon = selected.icon; return <Icon size={21} />; })()}</div>
                 <div>
                   <span className="settings-mini-label">SETTINGS AREA</span>
@@ -393,12 +403,18 @@ export default function SettingsPage() {
                 </div>
                 <div className="settings-overview-mark"><Settings2 size={25} /></div>
               </div>
+              <div className="settings-overview-stats">
+                <div className="settings-overview-stat"><span className="settings-stat-icon purple"><Settings2 size={17} /></span><div><strong>{GROUPS.filter((group) => group.configurable).length}</strong><small>Configurable here</small></div></div>
+                <div className="settings-overview-stat"><span className="settings-stat-icon green"><Check size={17} /></span><div><strong>{GROUPS.filter((group) => group.links?.length).length}</strong><small>Connected workspaces</small></div></div>
+                <div className="settings-overview-stat"><span className="settings-stat-icon blue"><Building2 size={17} /></span><div><strong>{societyId ? 'Active' : 'Select'}</strong><small>{societyId ? 'Society scope' : 'Society first'}</small></div></div>
+              </div>
+              <div className="settings-categories-heading"><div><span className="settings-mini-label">SETTINGS DIRECTORY</span><h3>Configuration areas</h3></div><span>Choose a section to view its controls</span></div>
               <div className="settings-card-grid">
                 {GROUPS.map((group) => {
                   const Icon = group.icon;
                   const hasModel = group.configurable || Boolean(group.links?.length);
                   return (
-                    <button key={group.id} type="button" className="settings-category-card" onClick={() => setActiveId(group.id)}>
+                    <button key={group.id} type="button" className={`settings-category-card settings-category-${group.id}`} onClick={() => setActiveId(group.id)}>
                       <span className="settings-category-icon"><Icon size={19} /></span>
                       <span className="settings-category-copy"><strong>{group.label}</strong><small>{group.summary}</small></span>
                       <span className="settings-category-footer"><StatusPill ready={hasModel}>{group.state}</StatusPill><ArrowUpRight size={15} /></span>

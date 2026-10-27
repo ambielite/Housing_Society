@@ -326,6 +326,52 @@ body .resident-module-page .society-list-panel .society-avatar .resident-table-p
 }
 body .resident-module-page .society-list-panel .society-table tbody tr { min-height: 82px; }
 
+/* Verification queue: compact resident identity and readable workflow states. */
+body .resident-module-page .society-list-panel .verification-table th:first-child,
+body .resident-module-page .society-list-panel .verification-table td:first-child { width: 27%; }
+body .resident-module-page .society-list-panel .verification-table th:nth-child(2),
+body .resident-module-page .society-list-panel .verification-table td:nth-child(2) { width: 21%; }
+body .resident-module-page .society-list-panel .verification-table th:nth-child(3),
+body .resident-module-page .society-list-panel .verification-table td:nth-child(3) { width: 18%; }
+body .resident-module-page .society-list-panel .verification-table th:nth-child(4),
+body .resident-module-page .society-list-panel .verification-table td:nth-child(4) { width: 16%; }
+body .resident-module-page .society-list-panel .verification-table th:last-child,
+body .resident-module-page .society-list-panel .verification-table td:last-child { width: 18%; }
+body .resident-module-page .society-list-panel .verification-table .society-name-cell { grid-template-columns:40px minmax(0,1fr); gap:10px; }
+body .resident-module-page .society-list-panel .verification-table .society-avatar { width:40px; height:40px; flex-basis:40px; }
+body .resident-module-page .society-list-panel .verification-table .society-avatar { position:relative; overflow:hidden; }
+body .resident-module-page .society-list-panel .verification-table .society-avatar > svg { position:relative; z-index:0; }
+body .resident-module-page .society-list-panel .verification-table .society-avatar > .resident-table-photo { position:absolute; z-index:1; inset:0; width:100%; height:100%; border-radius:inherit; object-fit:cover; object-position:center; }
+body .resident-module-page .society-list-panel .non-member-table { width:100%; min-width:760px; table-layout:fixed; }
+body .resident-module-page .society-list-panel .non-member-table th:first-child,
+body .resident-module-page .society-list-panel .non-member-table td:first-child { width:26%; }
+body .resident-module-page .society-list-panel .non-member-table th:nth-child(2),
+body .resident-module-page .society-list-panel .non-member-table td:nth-child(2) { width:20%; }
+body .resident-module-page .society-list-panel .non-member-table th:nth-child(3),
+body .resident-module-page .society-list-panel .non-member-table td:nth-child(3) { width:20%; }
+body .resident-module-page .society-list-panel .non-member-table th:nth-child(4),
+body .resident-module-page .society-list-panel .non-member-table td:nth-child(4) { width:16%; }
+body .resident-module-page .society-list-panel .non-member-table th:last-child,
+body .resident-module-page .society-list-panel .non-member-table td:last-child { width:18%; }
+body .resident-module-page .society-list-panel .non-member-table .society-name-cell { grid-template-columns:40px minmax(0,1fr); gap:10px; text-align:left; }
+body .resident-module-page .society-list-panel .non-member-table .society-avatar { width:40px; height:40px; flex-basis:40px; }
+body .resident-module-page .society-list-panel .non-member-name-copy { display:grid; justify-self:start; gap:4px; min-width:0; max-width:100%; text-align:left; }
+body .resident-module-page .society-list-panel .non-member-name-copy strong,
+body .resident-module-page .society-list-panel .non-member-name-copy small { display:block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.non-member-type-label { display:inline-flex; max-width:100%; padding:6px 9px; border:1px solid #e2e8f0; border-radius:8px; color:#52627a; background:#f7f9fc; font-size:10px; font-weight:650; line-height:1.3; }
+body .resident-module-page .society-list-panel .verification-resident-copy { display:grid; justify-self:start; gap:4px; min-width:0; text-align:left; }
+body .resident-module-page .society-list-panel .verification-resident-copy strong,
+body .resident-module-page .society-list-panel .verification-resident-copy small { display:block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.verification-status-badge { display:inline-flex; align-items:center; gap:7px; max-width:100%; padding:6px 10px; border:1px solid transparent; border-radius:999px; font-size:10px; font-weight:750; line-height:1.2; white-space:nowrap; }
+.verification-status-dot { width:6px; height:6px; flex:0 0 6px; border-radius:50%; background:currentColor; }
+.verification-status-badge.is-pending { color:#a76308; border-color:#f3dfbd; background:#fff7e8; }
+.verification-status-badge.is-approved { color:#128252; border-color:#ccebdc; background:#ecfaf3; }
+.verification-status-badge.is-approved .verification-status-dot { display:none; }
+.verification-status-badge.is-rejected { color:#bd3c43; border-color:#f1d0d2; background:#fff1f1; }
+.verification-status-badge.is-information { color:#286ab6; border-color:#d1e3fb; background:#eff6ff; }
+.verification-status-badge.is-review { color:#684ac4; border-color:#e1d9fa; background:#f5f1ff; }
+.verification-status-badge.is-neutral { color:#59677c; border-color:#dce3eb; background:#f4f6f9; }
+
 @media (max-width: 640px) {
   body table th,
   body :is(.table, .society-table, .data-table) th { padding: 11px 13px; }
