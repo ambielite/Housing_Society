@@ -163,7 +163,7 @@ const listUsers = async ({ societyId, status, search, limit, offset }) => {
     params.push(status);
   }
   if (search) {
-    conditions.push(`(email ILIKE $${idx} OR first_name ILIKE $${idx} OR last_name ILIKE $${idx})`);
+    conditions.push(`(email ILIKE $${idx} OR first_name ILIKE $${idx} OR last_name ILIKE $${idx} OR phone ILIKE $${idx})`);
     params.push(`%${search}%`);
     idx += 1;
   }

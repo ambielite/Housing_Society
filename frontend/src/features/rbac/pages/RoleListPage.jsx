@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { KeyRound, Plus, ShieldCheck, UsersRound } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useFetch from '../../../utils/useFetch';
@@ -17,6 +17,7 @@ export default function RoleListPage() {
   const notice = useLocation().state?.notice;
   const [search, setSearch] = useState('');
   const [type, setType] = useState('');
+  const [status, setStatus] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
@@ -30,10 +31,13 @@ export default function RoleListPage() {
     ? data.filter((role) => {
         if (type === 'system' && !role.is_system_role) return false;
         if (type === 'custom' && role.is_system_role) return false;
+        if (status && String(role.status || '').toLowerCase() !== status) return false;
         return !term || `${role.name} ${role.code}`.toLowerCase().includes(term);
       })
     : null;
-  const filtersActive = Boolean(term || type);
+  const filtersActive = Boolean(term || type || status);
+  const systemRoles = data?.filter((role) => role.is_system_role).length || 0;
+  const customRoles = data?.filter((role) => !role.is_system_role).length || 0;
 
   const handleCreateRole = async (payload) => {
     setCreating(true);
@@ -76,14 +80,24 @@ export default function RoleListPage() {
 
   return (
     <PageContainer
+      eyebrow="ACCESS CONTROL"
       title="Roles"
       subtitle="A role is a named set of permissions. Give users roles to control what they can see and do."
       actions={newRoleButton}
+      className="roles-module-page role-directory-page"
     >
       {notice && <Alert variant="success">{notice}</Alert>}
       {successNotice && <Alert variant="success">{successNotice}</Alert>}
 
-      <div className="toolbar">
+      <div className="role-directory-overview" aria-label="Role directory summary">
+        <article className="role-directory-metric role-directory-metric-total"><span><ShieldCheck size={19} /></span><div><small>All roles</small><strong>{loading ? '—' : data?.length || 0}</strong></div></article>
+        <article className="role-directory-metric role-directory-metric-system"><span><KeyRound size={19} /></span><div><small>Built-in roles</small><strong>{loading ? '—' : systemRoles}</strong></div></article>
+        <article className="role-directory-metric role-directory-metric-custom"><span><UsersRound size={19} /></span><div><small>Custom roles</small><strong>{loading ? '—' : customRoles}</strong></div></article>
+      </div>
+
+      <section className="role-directory-panel">
+      <div className="role-directory-heading"><div><span className="role-directory-kicker">ACCESS DIRECTORY</span><h2>Roles & permissions</h2><p>Review built-in roles or manage custom access profiles.</p></div><span className="role-directory-count">{loading ? 'Loading…' : `${rows?.length ?? 0} shown`}</span></div>
+      <div className="toolbar role-directory-toolbar">
         <input
           type="search"
           className="input toolbar-search"
@@ -97,9 +111,15 @@ export default function RoleListPage() {
           <option value="system">System roles</option>
           <option value="custom">Custom roles</option>
         </select>
+        <select className="input toolbar-select" aria-label="Filter by status" value={status} onChange={(event) => setStatus(event.target.value)}>
+          <option value="">All statuses</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
       </div>
 
       <DataTable
+        tableClassName="role-directory-table"
         columns={columns}
         rows={rows}
         loading={loading}
@@ -115,6 +135,7 @@ export default function RoleListPage() {
               onClick={() => {
                 setSearch('');
                 setType('');
+                setStatus('');
               }}
             >
               Clear filters
@@ -124,6 +145,7 @@ export default function RoleListPage() {
           )
         }
       />
+      </section>
       {createOpen && (
         <Modal title="Create role" busy={creating} onClose={() => setCreateOpen(false)} className="role-create-dialog">
           <RoleForm

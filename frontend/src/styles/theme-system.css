@@ -980,5 +980,3 @@ body :is(.modal-close-btn, .modal-close, .quick-add-close, .profile-close, .dial
 body .society-dashboard .society-table th,
 body .society-dashboard .society-table td { text-align: center; }
 body .society-dashboard .society-table .society-row-actions { justify-content: center; }
-body .resident-module-page .society-table td:first-child { text-align: left; }
-body .resident-module-page .society-table .society-name-cell > span:last-child { justify-items: start; text-align: left; }

@@ -66,8 +66,10 @@ export default function RoleFormPage() {
 
   return (
     <PageContainer
+      eyebrow="ACCESS CONTROL"
       title={isEdit ? 'Edit role' : 'New role'}
       subtitle={isEdit ? 'Change the name, description or status.' : 'Name the role first. You choose its permissions on the next screen.'}
+      className="roles-module-page role-form-page"
     >
       <RoleForm
         mode={isEdit ? 'edit' : 'create'}

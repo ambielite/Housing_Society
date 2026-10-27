@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { ShieldCheck } from 'lucide-react';
 import useAuth from '../../../app/providers/useAuth';
 import useFetch from '../../../utils/useFetch';
 import { getErrorMessage } from '../../../lib/axios';
@@ -81,7 +82,7 @@ export default function RoleDetailPage() {
   );
 
   return (
-    <PageContainer title={role.name} subtitle={role.code} actions={actionButtons}>
+    <PageContainer eyebrow="ACCESS CONTROL" title={role.name} subtitle={role.code} actions={actionButtons} className="roles-module-page role-detail-page">
       <p className="back-link">
         <Link to="/roles">&larr; All roles</Link>
       </p>
@@ -89,8 +90,11 @@ export default function RoleDetailPage() {
       {notice && <Alert variant="success">{notice}</Alert>}
       {actionError && <Alert>{actionError}</Alert>}
 
-      <div className="card section">
-        <dl className="details">
+      <article className="role-detail-banner"><span className="role-detail-icon"><ShieldCheck size={25} /></span><div className="role-detail-copy"><span className="role-directory-kicker">{isSystem ? 'BUILT-IN ACCESS ROLE' : 'CUSTOM ACCESS ROLE'}</span><h2>{role.name}</h2><p>{role.description || 'Role permissions define what assigned users can access and manage.'}</p></div><div className="role-detail-badges"><RoleTypeBadge isSystem={isSystem} /><RoleStatusBadge status={role.status} /></div></article>
+
+      <div className="card section role-detail-overview">
+        <div className="role-detail-panel-heading"><div><span className="role-directory-kicker">ROLE PROFILE</span><h2 className="section-title">Role overview</h2></div></div>
+        <dl className="details role-detail-metadata">
           <dt>Type</dt>
           <dd>
             <RoleTypeBadge isSystem={isSystem} />
@@ -104,8 +108,8 @@ export default function RoleDetailPage() {
         </dl>
       </div>
 
-      <div className="section">
-        <h2 className="section-title">Permissions</h2>
+      <div className="section role-permissions-panel">
+        <div className="role-detail-panel-heading"><div><span className="role-directory-kicker">ACCESS POLICY</span><h2 className="section-title">Permissions</h2><p className="muted">Review capabilities grouped by module.</p></div><span className="role-permissions-count">{grantedRows?.length ?? 0} assigned</span></div>
         {isSystem && (
           <p className="muted section-hint">
             System roles are built in, so their permissions are read-only. To build your own set, create a custom role.
