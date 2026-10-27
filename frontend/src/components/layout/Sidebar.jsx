@@ -5,7 +5,7 @@ import {
   ChartNoAxesCombined, CheckCircle, ChevronDown, ClipboardCheck, ClipboardList, Coins,
   FileCheck2, FileText, FolderArchive, Gauge, Home, KeyRound, Layers3,
   LayoutDashboard, Landmark, LifeBuoy, LogOut, Megaphone, MessageSquare, Network,
-  Package, ParkingSquare, PhoneCall, Settings2, Shield, ShieldCheck, Siren, Tag, Truck,
+  Package, ParkingSquare, PhoneCall, Settings, Settings2, Shield, ShieldCheck, Siren, Tag, Truck,
   Users, UsersRound, Wallet,
 } from 'lucide-react';
 import useAuth from '../../app/providers/useAuth';
@@ -146,7 +146,8 @@ const NAV_ITEMS = [
   { label: 'Amenities', to: '/amenities', permission: ['AMENITY_READ', 'AMENITY_SLOT_READ', 'AMENITY_BOOKING_READ'], icon: CalendarDays },
   { label: 'Helpdesk', to: '/helpdesk/tickets', permission: 'TICKET_READ', icon: LifeBuoy },
   { label: 'Utility & Meters', to: '/utilities', permission: ['UTILITY_TYPE_READ', 'METER_READ', 'METER_READING_READ', 'UTILITY_TARIFF_READ', 'UTILITY_BILL_READ'], icon: Gauge },
-  { label: 'Account Settings', to: '/finance/account-settings', permission: 'SOCIETY_BANK_ACCOUNT_READ', icon: Landmark }
+  { label: 'Account Settings', to: '/finance/account-settings', permission: 'SOCIETY_BANK_ACCOUNT_READ', icon: Landmark },
+  { label: 'Settings', to: '/settings', permission: 'SOCIETY_SETTING_READ', icon: Settings },
 ];
 
 const canSee = (item, hasAnyPermission) => !item.permission || hasAnyPermission(item.permission);

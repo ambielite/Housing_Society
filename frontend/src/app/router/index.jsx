@@ -44,6 +44,7 @@ const DocumentDetailPage = lazy(() => import('../../features/document-vault/page
 const UtilityMeterManagementPage = lazy(() => import('../../features/utilities/pages/UtilityMeterManagementPage'));
 // Nikhil's housing-management modules use the legacy /api namespace.
 const SocietyListPage = lazy(() => import('../../features/societies/pages/SocietyListPage'));
+const SettingsPage = lazy(() => import('../../features/settings/pages/SettingsPage'));
 const SocietyManagementCommitteePage = lazy(() => import('../../features/societies/pages/SocietyManagementCommitteePage'));
 const NoticesPage = lazy(() => import('../../features/notices/pages/NoticesPage'));
 const SocietyEmergencyContactsPage = lazy(() => import('../../features/societies/pages/SocietyEmergencyContactsPage'));
@@ -130,6 +131,9 @@ export default function AppRoutes() {
             </Route>
             <Route element={<ProtectedRoute permission="SOCIETY_COMMITTEE_READ" />}>
               <Route path="/management-committee" element={<SocietyManagementCommitteePage />} />
+            </Route>
+            <Route element={<ProtectedRoute permission="SOCIETY_SETTING_READ" />}>
+              <Route path="/settings" element={<SettingsPage />} />
             </Route>
             <Route element={<ProtectedRoute permission="TOWER_READ" />}><Route path="/towers" element={<TowerListPage />} /></Route>
             <Route element={<ProtectedRoute permission="FLOOR_READ" />}><Route path="/floors" element={<FloorListPage />} /></Route>
