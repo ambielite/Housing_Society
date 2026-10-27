@@ -57,6 +57,7 @@ export default function QuotationDetailPage() {
   const { quotation, vendor, rfq } = page.data;
   const lines = quotation.lines || [];
   const isSubmitted = quotation.status === 'SUBMITTED';
+  const rfqClosed = rfq?.status === 'CLOSED';
   const vendorName = vendor?.legal_name || `Vendor ${String(quotation.vendor_id).slice(0, 8)}`;
 
   const addLine = async (payload) => {
@@ -104,8 +105,8 @@ export default function QuotationDetailPage() {
         <button type="button" className="btn btn-danger" onClick={() => setDeciding('REJECTED')}>
           Reject
         </button>
-        <button type="button" className="btn btn-primary" onClick={() => setDeciding('ACCEPTED')}>
-          Accept
+        <button type="button" className="btn btn-primary" onClick={() => setDeciding('ACCEPTED')} disabled={!rfqClosed} title={!rfqClosed ? 'Close the RFQ before selecting a vendor.' : undefined}>
+          Select vendor
         </button>
       </>
     ) : null;
@@ -118,6 +119,7 @@ export default function QuotationDetailPage() {
 
       {notice && <Alert variant="success">{notice}</Alert>}
       {pageError && <Alert>{pageError}</Alert>}
+      {isSubmitted && !rfqClosed && <Alert>Close the RFQ after collecting vendor quotations. You can select one winning vendor after it is closed.</Alert>}
 
       <div className="card section">
         <h2 className="section-title">Details</h2>
@@ -179,7 +181,7 @@ export default function QuotationDetailPage() {
         title={deciding === 'ACCEPTED' ? 'Accept this quotation?' : 'Reject this quotation?'}
         message={
           deciding === 'ACCEPTED'
-            ? `${vendorName}'s quotation of ${formatCurrency(quotation.total)} will be marked Accepted. Other vendors' quotations are not changed, so decide each one. A decision can't be undone.`
+            ? `${vendorName}'s quotation of ${formatCurrency(quotation.total)} will be selected as the winning quote for this RFQ. Only one quotation can be selected. This decision can't be undone.`
             : `${vendorName}'s quotation will be marked Rejected. A decision can't be undone.`
         }
         confirmLabel={deciding === 'ACCEPTED' ? 'Accept quotation' : 'Reject quotation'}

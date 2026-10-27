@@ -63,6 +63,7 @@ const AgreementLifecyclePage = lazy(() => import('../../features/moveInOut/pages
 const FinancePage = lazy(() => import('../../features/finance/pages/FinancePage'));
 const FinanceDashboardPage = lazy(() => import('../../features/finance/pages/FinanceDashboardPage'));
 const FinanceAccountsPage = lazy(() => import('../../features/finance/pages/FinanceAccountsPage'));
+const FinanceAccountSettingsPage = lazy(() => import('../../features/finance/pages/FinanceAccountSettingsPage'));
 const FinanceJournalsPage = lazy(() => import('../../features/finance/pages/FinanceJournalsPage'));
 const FinancePaymentsPage = lazy(() => import('../../features/finance/pages/FinancePaymentsPage'));
 const FinanceLedgersPage = lazy(() => import('../../features/finance/pages/FinanceLedgersPage'));
@@ -73,6 +74,7 @@ const FinanceReconciliationPage = lazy(() => import('../../features/finance/page
 const FinanceTaxesPage = lazy(() => import('../../features/finance/pages/FinanceTaxesPage'));
 const FinanceExportsPage = lazy(() => import('../../features/finance/pages/FinanceExportsPage'));
 const FinancePeriodsPage = lazy(() => import('../../features/finance/pages/FinancePeriodsPage'));
+const FinanceOtherIncomePage = lazy(() => import('../../features/finance/pages/FinanceOtherIncomePage'));
 const OperationsSecurityPage = lazy(() => import('../../features/security/pages/OperationsSecurityPage'));
 const AssetsPage = lazy(() => import('../../features/assets/pages/AssetsPage'));
 const NotificationsPage = lazy(() => import('../../features/notifications/pages/NotificationsPage'));
@@ -150,11 +152,12 @@ export default function AppRoutes() {
               <Route path="renewals" element={<AgreementLifecyclePage />} />
             </Route>
             </Route>
-            <Route element={<ProtectedRoute permission={['ACCOUNT_READ', 'BILLING_READ', 'INVOICE_READ', 'PAYMENT_READ', 'FINANCIAL_REPORT_READ', 'JOURNAL_READ', 'LEDGER_ACCOUNT_READ', 'GENERAL_LEDGER_READ', 'TAX_READ', 'RECONCILIATION_READ', 'ACCOUNTING_EXPORT_READ', 'ACCOUNTING_PERIOD_READ']} />}>
+            <Route element={<ProtectedRoute permission={['ACCOUNT_READ', 'BILLING_READ', 'INVOICE_READ', 'PAYMENT_READ', 'FINANCIAL_REPORT_READ', 'JOURNAL_READ', 'LEDGER_ACCOUNT_READ', 'GENERAL_LEDGER_READ', 'TAX_READ', 'RECONCILIATION_READ', 'ACCOUNTING_EXPORT_READ', 'ACCOUNTING_PERIOD_READ', 'SOCIETY_BANK_ACCOUNT_READ']} />}>
             <Route path="/finance" element={<FinancePage />}>
               <Route index element={<FinanceDashboardPage />} />
               <Route path="dashboard" element={<FinanceDashboardPage />} />
               <Route path="accounts" element={<FinanceAccountsPage />} />
+              <Route path="account-settings" element={<FinanceAccountSettingsPage />} />
               <Route path="journals" element={<FinanceJournalsPage />} />
               <Route path="payments" element={<FinancePaymentsPage />} />
               <Route path="ledgers" element={<FinanceLedgersPage />} />
@@ -165,6 +168,7 @@ export default function AppRoutes() {
               <Route path="taxes" element={<FinanceTaxesPage />} />
               <Route path="exports" element={<FinanceExportsPage />} />
               <Route path="periods" element={<FinancePeriodsPage />} />
+              <Route path="other-income" element={<FinanceOtherIncomePage />} />
             </Route>
             </Route>
             <Route element={<ProtectedRoute permission={['STAFF_READ', 'PATROL_READ', 'INCIDENT_READ', 'EMERGENCY_READ', 'SECURITY_AUDIT_READ']} />}>

@@ -184,7 +184,13 @@ const findQuotationById = async (id) => {
 };
 
 const listQuotations = async (rfqId) => {
-  const result = await db.query('SELECT * FROM quotations WHERE rfq_id = $1 ORDER BY created_at DESC', [rfqId]);
+  const result = await db.query(
+    `SELECT id, rfq_id, vendor_id, quotation_no, quotation_date, valid_until,
+            subtotal, tax, total, status, document_name, document_mime_type,
+            document_size_bytes, created_at, updated_at
+     FROM quotations WHERE rfq_id = $1 ORDER BY created_at DESC`,
+    [rfqId]
+  );
   return result.rows;
 };
 
@@ -192,6 +198,14 @@ const updateQuotationStatus = async (id, status) => {
   const result = await db.query(
     'UPDATE quotations SET status = $2, updated_at = now() WHERE id = $1 RETURNING *',
     [id, status]
+  );
+  return result.rows[0] || null;
+};
+
+const findAcceptedQuotationByRfq = async (rfqId) => {
+  const result = await db.query(
+    "SELECT id FROM quotations WHERE rfq_id = $1 AND status = 'ACCEPTED' LIMIT 1",
+    [rfqId]
   );
   return result.rows[0] || null;
 };
@@ -227,6 +241,20 @@ const addQuotationLine = async ({ quotationId, description, quantity, unitPrice,
 const listQuotationLines = async (quotationId) => {
   const result = await db.query('SELECT * FROM quotation_lines WHERE quotation_id = $1', [quotationId]);
   return result.rows;
+};
+
+const updateQuotationDocument = async (id, { storageKey, name, mimeType, sizeBytes }) => {
+  const result = await db.query(
+    `UPDATE quotations
+     SET document_storage_key = $2, document_name = $3,
+         document_mime_type = $4, document_size_bytes = $5, updated_at = now()
+     WHERE id = $1
+     RETURNING id, rfq_id, vendor_id, quotation_no, quotation_date, valid_until,
+               subtotal, tax, total, status, document_name, document_mime_type,
+               document_size_bytes, created_at, updated_at`,
+    [id, storageKey, name, mimeType, sizeBytes]
+  );
+  return result.rows[0] || null;
 };
 
 // --- quotation_comparisons -------------------------------------------------------------
@@ -271,9 +299,11 @@ module.exports = {
   findQuotationById,
   listQuotations,
   updateQuotationStatus,
+  findAcceptedQuotationByRfq,
   recalculateQuotationTotals,
   addQuotationLine,
   listQuotationLines,
+  updateQuotationDocument,
   addComparison,
   listComparisons,
 };

@@ -53,6 +53,8 @@ const AgreementReminderConfig = require("../modules/move-InOut/agreement-reminde
 const AgreementReminder = require("../modules/move-InOut/agreement-reminder/agreementReminder.model");  
 const AgreementNotification = require("../modules/move-InOut/agreement-notification/agreementNotification.model");
 const Account = require("../modules/financial/account/account.model");
+const SocietyBankAccount = require("../modules/financial/society-bank-account/societyBankAccount.model");
+const OtherIncome = require("../modules/financial/other-income/otherIncome.model");
 const AccountingPeriod = require("../modules/financial/accounting-period/accountingPeriod.model");
 const Journal = require("../modules/financial/journal/journal.model");
 const JournalLine = require("../modules/financial/journal/journalLine.model");
@@ -1351,6 +1353,7 @@ module.exports = {
     AgreementNotification, 
 
     Account,
+    OtherIncome,
     AccountingPeriod,
     Journal,
     JournalLine,

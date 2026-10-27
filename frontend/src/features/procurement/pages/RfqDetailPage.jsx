@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Download } from 'lucide-react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useFetch from '../../../utils/useFetch';
@@ -16,6 +17,17 @@ import InviteVendorForm from '../components/InviteVendorForm';
 import QuotationForm from '../components/QuotationForm';
 import ComparisonForm from '../components/ComparisonForm';
 import useVendorDirectory from '../components/useVendorDirectory';
+
+const downloadBlob = (response, fallbackName) => {
+  const url = window.URL.createObjectURL(new Blob([response.data], { type: response.headers?.['content-type'] || 'application/octet-stream' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = (response.headers?.['content-disposition'] || '').match(/filename\s*=\s*"?([^";]+)"?/i)?.[1] || fallbackName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+};
 
 // The RFQ plus the request it belongs to (for the society and the back link).
 const load = async (rfqId) => {
@@ -49,6 +61,7 @@ export default function RfqDetailPage() {
   const [saveError, setSaveError] = useState('');
   const [notice, setNotice] = useState(location.state?.notice || '');
   const [pageError, setPageError] = useState('');
+  const [downloadingQuoteId, setDownloadingQuoteId] = useState('');
 
   if (page.loading && !page.data) return <FullPageLoader />;
 
@@ -107,9 +120,24 @@ export default function RfqDetailPage() {
 
   const invite = (vendorId) => run(() => procurementApi.inviteVendor(rfqId, vendorId), 'Vendor invited.', () => page.reload());
   const recordQuote = (payload) =>
-    run(() => procurementApi.submitQuotation({ ...payload, rfqId }), '', (q) =>
+    run(() => {
+      const { document: quoteDocument, ...quoteData } = payload;
+      return procurementApi.submitQuotation({ ...quoteData, rfqId }, quoteDocument);
+    }, 'Quotation recorded with its vendor document.', (q) =>
       navigate(`/procurement/quotations/${q.id}`, { state: { notice: 'Quotation recorded. Add its line items so the total is calculated.' } })
     );
+
+  const downloadQuote = async (quote) => {
+    try {
+      setDownloadingQuoteId(quote.id);
+      const response = await procurementApi.downloadQuotationDocument(quote.id);
+      downloadBlob(response, quote.document_name || `${quote.quotation_no}-quotation`);
+    } catch (error) {
+      setPageError(getErrorMessage(error));
+    } finally {
+      setDownloadingQuoteId('');
+    }
+  };
   const addScore = (payload) => run(() => procurementApi.addComparison(rfqId, payload), 'Score added.', () => comparisons.reload());
 
   const close = async () => {
@@ -145,6 +173,13 @@ export default function RfqDetailPage() {
     },
     { key: 'date', header: 'Date', render: (q) => formatDate(q.quotation_date) },
     { key: 'valid', header: 'Valid until', render: (q) => formatDate(q.valid_until) },
+    {
+      key: 'document',
+      header: 'Vendor document',
+      render: (q) => q.document_name
+        ? <button type="button" className="society-workflow-action" onClick={() => downloadQuote(q)} disabled={downloadingQuoteId === q.id}><Download size={15} /> {downloadingQuoteId === q.id ? 'Downloading...' : 'Download'}</button>
+        : 'Not attached',
+    },
     {
       key: 'total',
       header: 'Total',

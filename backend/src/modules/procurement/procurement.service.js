@@ -1,8 +1,67 @@
 const ApiError = require('../../common/ApiError');
+const fs = require('node:fs/promises');
+const path = require('node:path');
+const crypto = require('node:crypto');
 const repository = require('./procurement.repository');
 const vendorsRepository = require('../vendors/vendors.repository');
 const db = require('../../config/db');
 const { isVendorScoped } = require('../../common/vendorScope');
+
+const quotationDocumentDirectory = path.join(process.cwd(), 'private_uploads', 'procurement-quotations');
+const quotationDocumentTypes = {
+  'application/pdf': { extension: '.pdf', matches: (buffer) => buffer.subarray(0, 5).toString() === '%PDF-' },
+  'image/jpeg': { extension: '.jpg', matches: (buffer) => buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff },
+  'image/png': { extension: '.png', matches: (buffer) => buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) },
+  'image/webp': { extension: '.webp', matches: (buffer) => buffer.subarray(0, 4).toString() === 'RIFF' && buffer.subarray(8, 12).toString() === 'WEBP' },
+};
+
+const assertQuotationScope = async (quotationId, actingUser) => {
+  const quotation = await repository.findQuotationById(quotationId);
+  if (!quotation) throw new ApiError(404, 'Quotation not found');
+  const rfq = await repository.findRfqById(quotation.rfq_id);
+  const request = rfq && await repository.findRequestById(rfq.purchase_request_id);
+  if (!request || (actingUser?.societyId && request.society_id !== actingUser.societyId)) {
+    throw new ApiError(404, 'Quotation not found');
+  }
+  if (isVendorOnly(actingUser) && quotation.vendor_id !== requireVendorId(actingUser)) {
+    throw new ApiError(404, 'Quotation not found');
+  }
+  return quotation;
+};
+
+const safeQuotation = (quotation) => {
+  if (!quotation) return quotation;
+  const { document_storage_key: _storageKey, ...visible } = quotation;
+  return visible;
+};
+
+const saveQuotationDocument = async (quotation, file) => {
+  if (!file?.buffer || !file.size) throw new ApiError(400, 'Choose a quotation document to upload');
+  const type = quotationDocumentTypes[file.mimetype];
+  if (!type || !type.matches(file.buffer)) throw new ApiError(400, 'The uploaded file does not match a supported PDF or image format');
+
+  await fs.mkdir(quotationDocumentDirectory, { recursive: true });
+  const storageKey = `${crypto.randomUUID()}${type.extension}`;
+  const destination = path.join(quotationDocumentDirectory, storageKey);
+  await fs.writeFile(destination, file.buffer, { flag: 'wx' });
+
+  try {
+    const updated = await repository.updateQuotationDocument(quotation.id, {
+      storageKey,
+      name: path.basename(file.originalname || `quotation${type.extension}`).slice(0, 255),
+      mimeType: file.mimetype,
+      sizeBytes: file.size,
+    });
+    const previousKey = quotation.document_storage_key;
+    if (previousKey && previousKey !== storageKey) {
+      await fs.unlink(path.join(quotationDocumentDirectory, path.basename(previousKey))).catch(() => {});
+    }
+    return updated;
+  } catch (error) {
+    await fs.unlink(destination).catch(() => {});
+    throw error;
+  }
+};
 
 const isVendorOnly = isVendorScoped;
 const requireVendorId = (user) => {
@@ -169,7 +228,7 @@ const listInvitedVendors = async (rfqId, actingUser) => {
 
 // --- quotations ----------------------------------------------------------------
 
-const submitQuotation = async ({ rfqId, vendorId, quotationNo, quotationDate, validUntil }, actingUser) => {
+const submitQuotation = async ({ rfqId, vendorId, quotationNo, quotationDate, validUntil }, actingUser, file = null) => {
   if (isVendorOnly(actingUser)) {
     const ownVendorId = requireVendorId(actingUser);
     if (vendorId && vendorId !== ownVendorId) throw new ApiError(403, 'You can only submit quotations for your own vendor');
@@ -179,22 +238,35 @@ const submitQuotation = async ({ rfqId, vendorId, quotationNo, quotationDate, va
   if (!rfq) {
     throw new ApiError(404, 'RFQ not found');
   }
+  const request = await repository.findRequestById(rfq.purchase_request_id);
+  if (!request || (actingUser?.societyId && request.society_id !== actingUser.societyId)) {
+    throw new ApiError(404, 'RFQ not found');
+  }
   if (rfq.status === 'CLOSED') {
     throw new ApiError(400, 'This RFQ is closed and no longer accepting quotations');
+  }
+  const vendor = await vendorsRepository.findById(vendorId);
+  if (!vendor || vendor.society_id !== request.society_id || vendor.status !== 'ACTIVE') {
+    throw new ApiError(400, 'Choose an active vendor from the purchase request society');
   }
   const invite = await repository.findInvite(rfqId, vendorId);
   if (!invite) {
     throw new ApiError(403, 'This vendor was not invited to this RFQ');
   }
 
-  const quotation = await repository.createQuotation({ rfqId, vendorId, quotationNo, quotationDate, validUntil });
+  let quotation = await repository.createQuotation({ rfqId, vendorId, quotationNo, quotationDate, validUntil });
+  if (file) quotation = await saveQuotationDocument(quotation, file);
   await repository.updateInviteResponseStatus(rfqId, vendorId, 'RESPONDED');
-  return quotation;
+  return safeQuotation(quotation);
 };
 
 const listQuotations = async (rfqId, actingUser) => {
   const rfq = await repository.findRfqById(rfqId);
   if (!rfq) {
+    throw new ApiError(404, 'RFQ not found');
+  }
+  const request = await repository.findRequestById(rfq.purchase_request_id);
+  if (!request || (actingUser?.societyId && request.society_id !== actingUser.societyId)) {
     throw new ApiError(404, 'RFQ not found');
   }
   const quotations = await repository.listQuotations(rfqId);
@@ -203,13 +275,31 @@ const listQuotations = async (rfqId, actingUser) => {
 };
 
 const getQuotation = async (id, actingUser) => {
-  const quotation = await repository.findQuotationById(id);
-  if (!quotation) {
-    throw new ApiError(404, 'Quotation not found');
-  }
+  const quotation = await assertQuotationScope(id, actingUser);
   if (isVendorOnly(actingUser) && quotation.vendor_id !== requireVendorId(actingUser)) throw new ApiError(404, 'Quotation not found');
   const lines = await repository.listQuotationLines(id);
-  return { ...quotation, lines };
+  return { ...safeQuotation(quotation), lines };
+};
+
+const uploadQuotationDocument = async (id, actingUser, file) => {
+  const quotation = await assertQuotationScope(id, actingUser);
+  if (quotation.status !== 'SUBMITTED') {
+    throw new ApiError(400, 'Documents can only be added while a quotation is submitted and under review');
+  }
+  return safeQuotation(await saveQuotationDocument(quotation, file));
+};
+
+const getQuotationDocument = async (id, actingUser) => {
+  const quotation = await assertQuotationScope(id, actingUser);
+  if (!quotation.document_storage_key) throw new ApiError(404, 'No document is attached to this quotation');
+  const fileName = path.basename(quotation.document_storage_key);
+  const filePath = path.join(quotationDocumentDirectory, fileName);
+  try {
+    await fs.access(filePath);
+  } catch {
+    throw new ApiError(404, 'Quotation document is unavailable');
+  }
+  return { filePath, fileName: path.basename(quotation.document_name || fileName), mimeType: quotation.document_mime_type || 'application/octet-stream' };
 };
 
 const addQuotationLine = async (quotationId, payload, actingUser) => {
@@ -222,13 +312,20 @@ const addQuotationLine = async (quotationId, payload, actingUser) => {
   return repository.recalculateQuotationTotals(quotationId);
 };
 
-const decideQuotation = async (id, status) => {
-  const quotation = await repository.findQuotationById(id);
-  if (!quotation) {
-    throw new ApiError(404, 'Quotation not found');
-  }
+const decideQuotation = async (id, status, actingUser) => {
+  const quotation = await assertQuotationScope(id, actingUser);
   if (quotation.status !== 'SUBMITTED') {
     throw new ApiError(400, `This quotation is already ${quotation.status}`);
+  }
+  if (status === 'ACCEPTED') {
+    const rfq = await repository.findRfqById(quotation.rfq_id);
+    if (rfq?.status !== 'CLOSED') {
+      throw new ApiError(400, 'Close the RFQ before selecting a winning quotation');
+    }
+    const accepted = await repository.findAcceptedQuotationByRfq(quotation.rfq_id);
+    if (accepted && accepted.id !== quotation.id) {
+      throw new ApiError(409, 'A quotation has already been selected for this RFQ');
+    }
   }
   return repository.updateQuotationStatus(id, status);
 };
@@ -268,6 +365,8 @@ module.exports = {
   submitQuotation,
   listQuotations,
   getQuotation,
+  uploadQuotationDocument,
+  getQuotationDocument,
   addQuotationLine,
   decideQuotation,
   addComparison,

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import {
   Archive, Bell, Boxes, Building2, CalendarClock, CalendarDays, Car, CircleParking,
-  ChartNoAxesCombined, CheckCircle, ChevronDown, ClipboardCheck, ClipboardList,
+  ChartNoAxesCombined, CheckCircle, ChevronDown, ClipboardCheck, ClipboardList, Coins,
   FileCheck2, FileText, FolderArchive, Gauge, Home, KeyRound, Layers3,
   LayoutDashboard, Landmark, LifeBuoy, LogOut, Megaphone, MessageSquare, Network,
   Package, ParkingSquare, PhoneCall, Settings2, Shield, ShieldCheck, Siren, Tag, Truck,
@@ -58,14 +58,16 @@ const NAV_ITEMS = [
     ],
   },
   {
-    label: 'Finance', to: '/finance', permission: ['ACCOUNT_READ', 'BILLING_READ', 'INVOICE_READ', 'PAYMENT_READ', 'FINANCIAL_REPORT_READ'], icon: Wallet,
+    label: 'Finance', to: '/finance', permission: ['ACCOUNT_READ', 'BILLING_READ', 'INVOICE_READ', 'PAYMENT_READ', 'FINANCIAL_REPORT_READ', 'SOCIETY_BANK_ACCOUNT_READ', 'OTHER_INCOME_READ'], icon: Wallet,
     children: [
       { label: 'Periods', to: '/finance/periods', permission: 'ACCOUNTING_PERIOD_READ', icon: CalendarDays },
       { label: 'Accounts', to: '/finance/accounts', permission: 'ACCOUNT_READ', icon: LayoutDashboard },
+      
       { label: 'Billing', to: '/finance/billing', permission: 'BILLING_READ', icon: FileCheck2 },
       { label: 'Taxes', to: '/finance/taxes', permission: 'TAX_READ', icon: ChartNoAxesCombined },
       { label: 'Invoices', to: '/finance/invoices', permission: 'INVOICE_READ', icon: FileText },
       { label: 'Payments', to: '/finance/payments', permission: 'PAYMENT_READ', icon: Wallet },
+      { label: 'Other income', to: '/finance/other-income', permission: 'OTHER_INCOME_READ', icon: Coins },
       { label: 'Journals', to: '/finance/journals', permission: 'JOURNAL_READ', icon: FileText },
       { label: 'Ledgers', to: '/finance/ledgers', permission: ['LEDGER_ACCOUNT_READ', 'GENERAL_LEDGER_READ'], icon: Archive },
       
@@ -144,6 +146,7 @@ const NAV_ITEMS = [
   { label: 'Amenities', to: '/amenities', permission: ['AMENITY_READ', 'AMENITY_SLOT_READ', 'AMENITY_BOOKING_READ'], icon: CalendarDays },
   { label: 'Helpdesk', to: '/helpdesk/tickets', permission: 'TICKET_READ', icon: LifeBuoy },
   { label: 'Utility & Meters', to: '/utilities', permission: ['UTILITY_TYPE_READ', 'METER_READ', 'METER_READING_READ', 'UTILITY_TARIFF_READ', 'UTILITY_BILL_READ'], icon: Gauge },
+  { label: 'Account Settings', to: '/finance/account-settings', permission: 'SOCIETY_BANK_ACCOUNT_READ', icon: Landmark }
 ];
 
 const canSee = (item, hasAnyPermission) => !item.permission || hasAnyPermission(item.permission);

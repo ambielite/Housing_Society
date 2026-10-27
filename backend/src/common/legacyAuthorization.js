@@ -32,6 +32,8 @@ const ROUTE_MODULES = [
   ['/asset-maintenance', 'ASSET_MAINTENANCE'],
   ['/maintenance-schedules', 'MAINTENANCE_SCHEDULE'],
   ['/accounts', 'ACCOUNT'],
+  ['/society-bank-accounts', 'SOCIETY_BANK_ACCOUNT'],
+  ['/other-incomes', 'OTHER_INCOME'],
   ['/accounting-periods', 'ACCOUNTING_PERIOD'],
   ['/accounting-exports', 'ACCOUNTING_EXPORT'],
   ['/cluster-dashboard', 'CLUSTER_DASHBOARD'],

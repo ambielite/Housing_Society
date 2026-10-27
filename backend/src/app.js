@@ -137,6 +137,8 @@ const billingScheduleRoutes = require("./modules/financial/billing-scheduler/bil
 const paymentRoutes = require("./modules/financial/payment/payment.routes");
 const reconciliationRoutes = require("./modules/financial/reconciliation/reconciliation.routes");
 const taxRoutes = require("./modules/financial/tax/tax.routes");
+const societyBankAccountRoutes = require("./modules/financial/society-bank-account/societyBankAccount.routes");
+const otherIncomeRoutes = require("./modules/financial/other-income/otherIncome.routes");
 const accontingExportRoutes = require("./modules/financial/accounting-export/accountingExport.routes");
 const staffRoutes = require("./modules/security/staff/staff.routes");   
 const staffDocumentRoutes = require("./modules/security/staff-document/staffDocument.routes");
@@ -236,6 +238,8 @@ app.use("/api/billing-scheduler", billingScheduleRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/reconciliations", reconciliationRoutes);
 app.use("/api/taxes", taxRoutes);
+app.use("/api/society-bank-accounts", societyBankAccountRoutes);
+app.use("/api/other-incomes", otherIncomeRoutes);
 app.use("/api/accounting-exports", accontingExportRoutes);
 app.use("/api/staff", staffRoutes);
 app.use("/api/staff-documents", staffDocumentRoutes);

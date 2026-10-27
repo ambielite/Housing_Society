@@ -64,7 +64,40 @@ const FinanceBillingPage = () => {
     };
     const updateOverdue = async () => { try { setBusy("overdue"); await billingApi.updateOverdue(); await loadData(); } catch (err) { setError(err.response?.data?.message || "Could not update overdue bills."); } finally { setBusy(""); } };
     const openConfig = (item = null) => { setConfigForm(item ? { ...item, effectiveFrom: date(item.effectiveFrom), effectiveTo: date(item.effectiveTo) === "-" ? "" : date(item.effectiveTo) } : { societyId: society(), configType, code: "", name: "", effectiveFrom: new Date().toISOString().slice(0, 10), effectiveTo: "", chargeCategory: "MAINTENANCE", billingModel: "FLAT_RATE", flatAmount: "", ratePerArea: "", fixedAmount: "", billingFrequency: "MONTHLY", billingDay: 1, dueDays: 7, penaltyType: "PERCENTAGE", penaltyValue: "", gracePeriodDays: 0, isTaxable: false, taxRate: 0, description: "" }); };
-    const saveConfig = async (event) => { event.preventDefault(); try { setSavingConfig(true); const payload = { ...configForm, societyId: society(), effectiveTo: configForm.effectiveTo || null }; ["flatAmount", "ratePerArea", "fixedAmount", "billingDay", "dueDays", "penaltyValue", "gracePeriodDays", "taxRate"].forEach((k) => { if (payload[k] === "" || payload[k] == null) payload[k] = null; else payload[k] = Number(payload[k]); }); if (configForm.id) await billingConfigApi.update(configForm.id, payload); else await billingConfigApi.create(payload); setConfigForm(null); await loadData(); } catch (err) { setError(err.response?.data?.message || "Could not save billing configuration."); } finally { setSavingConfig(false); } };
+    const saveConfig = async (event) => {
+        event.preventDefault();
+        try {
+            setSavingConfig(true);
+            const payload = {
+                ...configForm,
+                societyId: society(),
+                effectiveTo: configForm.effectiveTo || null
+            };
+            const fieldsByType = {
+                CHARGE_HEAD: ["chargeCategory"],
+                BILLING_RULE: ["chargeCategory", "billingModel", "flatAmount", "ratePerArea", "fixedAmount", "isTaxable", "taxRate"],
+                BILLING_CYCLE: ["billingFrequency", "billingDay", "dueDays"],
+                PENALTY_RULE: ["penaltyType", "penaltyValue", "gracePeriodDays"]
+            };
+            const applicableFields = new Set(fieldsByType[configForm.configType] || []);
+            ["chargeCategory", "billingModel", "flatAmount", "ratePerArea", "fixedAmount", "billingFrequency", "billingDay", "dueDays", "penaltyType", "penaltyValue", "gracePeriodDays", "isTaxable", "taxRate"].forEach((field) => {
+                if (!applicableFields.has(field)) delete payload[field];
+            });
+            ["flatAmount", "ratePerArea", "fixedAmount", "billingDay", "dueDays", "penaltyValue", "gracePeriodDays", "taxRate"].forEach((field) => {
+                if (!applicableFields.has(field)) return;
+                if (payload[field] === "" || payload[field] == null) payload[field] = null;
+                else payload[field] = Number(payload[field]);
+            });
+            if (configForm.id) await billingConfigApi.update(configForm.id, payload);
+            else await billingConfigApi.create(payload);
+            setConfigForm(null);
+            await loadData();
+        } catch (err) {
+            setError(err.response?.data?.message || "Could not save billing configuration.");
+        } finally {
+            setSavingConfig(false);
+        }
+    };
     const deactivateConfig = async (row) => { if (!window.confirm(`Deactivate ${row.name}?`)) return; try { await billingConfigApi.remove(row.id); await loadData(); } catch (err) { setError(err.response?.data?.message || "Could not deactivate configuration."); } };
     const visibleConfigs = configs.filter((x) => x.configType === configType);
     return <section className="society-dashboard module-shell-page finance-module-page">

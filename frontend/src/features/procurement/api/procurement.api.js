@@ -24,7 +24,16 @@ export const inviteVendor = (rfqId, vendorId) => api.post(`/procurement/rfqs/${r
 // --- quotations ---
 export const listQuotations = (rfqId) => api.get(`/procurement/rfqs/${rfqId}/quotations`).then(unwrap);
 export const getQuotation = (id) => api.get(`/procurement/quotations/${id}`).then(unwrap); // includes .lines
-export const submitQuotation = (payload) => api.post('/procurement/quotations', payload).then(unwrap);
+export const submitQuotation = (payload, document = null) => {
+  if (!document) return api.post('/procurement/quotations', payload).then(unwrap);
+  const form = new FormData();
+  Object.entries(payload).forEach(([key, value]) => {
+    if (value !== null && value !== undefined) form.append(key, value);
+  });
+  form.append('document', document);
+  return api.post('/procurement/quotations', form, { headers: { 'Content-Type': 'multipart/form-data' } }).then(unwrap);
+};
+export const downloadQuotationDocument = (id) => api.get(`/procurement/quotations/${id}/document`, { responseType: 'blob' });
 export const addQuotationLine = (id, payload) => api.post(`/procurement/quotations/${id}/lines`, payload).then(unwrap); // returns the quotation with fresh totals
 export const decideQuotation = (id, status) => api.patch(`/procurement/quotations/${id}/decide`, { status }).then(unwrap);
 

@@ -1,4 +1,5 @@
 const express = require('express');
+const multer = require('multer');
 const controller = require('./procurement.controller');
 const validate = require('../../common/validate');
 const {
@@ -14,8 +15,28 @@ const {
   addComparisonSchema,
 } = require('./procurement.validation');
 const { authenticate, authorize } = require('../../common/authMiddleware');
+const ApiError = require('../../common/ApiError');
 
 const router = express.Router();
+
+const uploadQuotationDocument = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, callback) => {
+    const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+    if (!allowed.includes(file.mimetype)) {
+      return callback(new ApiError(400, 'Upload a PDF, JPEG, PNG, or WebP quotation document'));
+    }
+    callback(null, true);
+  },
+});
+const parseQuotationDocument = (req, res, next) => {
+  uploadQuotationDocument.single('document')(req, res, (error) => {
+    if (!error) return next();
+    if (error.code === 'LIMIT_FILE_SIZE') return next(new ApiError(413, 'Quotation documents must be 10 MB or smaller'));
+    return next(error instanceof ApiError ? error : new ApiError(400, error.message || 'Could not upload quotation document'));
+  });
+};
 
 router.use(authenticate);
 
@@ -49,8 +70,10 @@ router.post('/rfqs/:rfqId/vendors', authorize('RFQ_UPDATE'), validate(inviteVend
 router.get('/rfqs/:rfqId/vendors', authorize('RFQ_READ'), controller.listInvitedVendors);
 
 // Quotations
-router.post('/quotations', authorize('QUOTATION_CREATE'), validate(submitQuotationSchema), controller.submitQuotation);
+router.post('/quotations', authorize('QUOTATION_CREATE'), parseQuotationDocument, validate(submitQuotationSchema), controller.submitQuotation);
 router.get('/rfqs/:rfqId/quotations', authorize('QUOTATION_READ'), controller.listQuotations);
+router.post('/quotations/:quotationId/document', authorize('QUOTATION_CREATE'), parseQuotationDocument, controller.uploadQuotationDocument);
+router.get('/quotations/:quotationId/document', authorize('QUOTATION_READ'), controller.downloadQuotationDocument);
 router.get('/quotations/:quotationId', authorize('QUOTATION_READ'), controller.getQuotation);
 router.post(
   '/quotations/:quotationId/lines',

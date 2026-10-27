@@ -71,8 +71,20 @@ const listInvitedVendors = asyncHandler(async (req, res) => {
 
 // --- quotations ---
 const submitQuotation = asyncHandler(async (req, res) => {
-  const quotation = await service.submitQuotation(req.body, req.user);
+  const quotation = await service.submitQuotation(req.body, req.user, req.file);
   return ApiResponse.success(res, quotation, 'Quotation submitted successfully', 201);
+});
+
+const uploadQuotationDocument = asyncHandler(async (req, res) => {
+  const quotation = await service.uploadQuotationDocument(req.params.quotationId, req.user, req.file);
+  return ApiResponse.success(res, quotation, 'Quotation document uploaded successfully');
+});
+
+const downloadQuotationDocument = asyncHandler(async (req, res) => {
+  const document = await service.getQuotationDocument(req.params.quotationId, req.user);
+  res.setHeader('Content-Type', document.mimeType);
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  return res.download(document.filePath, document.fileName);
 });
 
 const listQuotations = asyncHandler(async (req, res) => {
@@ -91,7 +103,7 @@ const addQuotationLine = asyncHandler(async (req, res) => {
 });
 
 const decideQuotation = asyncHandler(async (req, res) => {
-  const quotation = await service.decideQuotation(req.params.quotationId, req.body.status);
+  const quotation = await service.decideQuotation(req.params.quotationId, req.body.status, req.user);
   return ApiResponse.success(res, quotation, 'Quotation decision recorded successfully');
 });
 
@@ -121,6 +133,8 @@ module.exports = {
   inviteVendor,
   listInvitedVendors,
   submitQuotation,
+  uploadQuotationDocument,
+  downloadQuotationDocument,
   listQuotations,
   getQuotation,
   addQuotationLine,

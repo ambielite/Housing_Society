@@ -4,6 +4,7 @@ import accountApi from "../api/account.api";
 import journalApi from "../api/journal.api";
 import paymentApi from "../api/payment.api";
 import accountingPeriodApi from "../api/accountingPeriod.api";
+import otherIncomeApi from "../api/otherIncome.api";
 
 const rowsFrom = (response) => {
     const rows = Array.isArray(response) ? response : response?.data || response?.records || [];
@@ -35,6 +36,7 @@ const FinanceDashboardPage = () => {
     const [accounts, setAccounts] = useState([]);
     const [journals, setJournals] = useState([]);
     const [payments, setPayments] = useState([]);
+    const [otherIncome, setOtherIncome] = useState([]);
     const [periods, setPeriods] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -44,17 +46,20 @@ const FinanceDashboardPage = () => {
             setLoading(true);
             setError("");
 
-            const [accountResponse, journalResponse, paymentResponse, periodResponse] = await Promise.all([
+            const societyId = String(localStorage.getItem("selectedSocietyId") || "").replace(/^:+/, "").trim();
+            const [accountResponse, journalResponse, paymentResponse, periodResponse, otherIncomeResponse] = await Promise.all([
                 accountApi.getAll(),
                 journalApi.getAll(),
                 paymentApi.getAll(),
-                accountingPeriodApi.getAll()
+                accountingPeriodApi.getAll(),
+                otherIncomeApi.list(societyId)
             ]);
 
             setAccounts(rowsFrom(accountResponse));
             setJournals(rowsFrom(journalResponse));
             setPayments(rowsFrom(paymentResponse));
             setPeriods(rowsFrom(periodResponse));
+            setOtherIncome(rowsFrom(otherIncomeResponse));
         } catch (err) {
             setError(err.response?.data?.message || "Could not load finance dashboard data.");
         } finally {
@@ -69,7 +74,8 @@ const FinanceDashboardPage = () => {
     const activePeriods = periods.filter((period) => period.status === "OPEN");
     const totalJournalDebit = journals.reduce((total, item) => total + Number(item.totalDebit || 0), 0);
     const totalJournalCredit = journals.reduce((total, item) => total + Number(item.totalCredit || 0), 0);
-    const totalCollected = payments.reduce((total, item) => total + Number(item.amount || 0), 0);
+    const totalCollected = payments.filter((item) => ["SUCCESS", "VERIFIED"].includes(String(item.status || "").toUpperCase())).reduce((total, item) => total + Number(item.amount || 0), 0)
+        + otherIncome.reduce((total, item) => total + Number(item.amount || 0), 0);
 
     return (
         <section className="society-dashboard module-shell-page finance-module-page">
@@ -101,8 +107,8 @@ const FinanceDashboardPage = () => {
                 </article>
                 <article className="society-stat-card">
                     <span className="society-stat-icon society-stat-icon-orange"><Wallet size={19} /></span>
-                    <div><span className="society-stat-label">Collections</span><strong>{loading ? "—" : formatCurrency(totalCollected)}</strong></div>
-                    <span className="society-stat-note">Payments received</span>
+                    <div><span className="society-stat-label">Total income</span><strong>{loading ? "—" : formatCurrency(totalCollected)}</strong></div>
+                    <span className="society-stat-note">Verified maintenance + other income receipts</span>
                 </article>
             </div>
 
