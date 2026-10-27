@@ -261,6 +261,71 @@ body .society-dashboard .society-list-panel .society-icon-action {
 }
 body .society-dashboard .society-list-panel .society-delete-action { color: var(--danger); }
 
+/* Keep resident portraits and profile details aligned in the directory. */
+body .resident-module-page .society-list-panel .society-table {
+  width: 100%;
+  min-width: 760px;
+  table-layout: fixed;
+}
+body .resident-module-page .society-list-panel .society-table th:first-child,
+body .resident-module-page .society-list-panel .society-table td:first-child { width: 36%; }
+body .resident-module-page .society-list-panel .society-table th:nth-child(2),
+body .resident-module-page .society-list-panel .society-table td:nth-child(2) { width: 22%; }
+body .resident-module-page .society-list-panel .society-table th:nth-child(3),
+body .resident-module-page .society-list-panel .society-table td:nth-child(3) { width: 17%; }
+body .resident-module-page .society-list-panel .society-table th:nth-child(4),
+body .resident-module-page .society-list-panel .society-table td:nth-child(4) { width: 13%; }
+body .resident-module-page .society-list-panel .society-table th:last-child,
+body .resident-module-page .society-list-panel .society-table td:last-child { width: 12%; }
+body .resident-module-page .society-list-panel .society-name-cell {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  min-width: 0;
+  gap: 12px;
+}
+body .resident-module-page .society-list-panel .resident-profile-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  min-width: 0;
+  gap: 4px;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+body .resident-module-page .society-list-panel .society-name-cell .record-details-trigger {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+  white-space: normal;
+}
+body .resident-module-page .society-list-panel .resident-profile-copy small {
+  display: block;
+  max-width: 100%;
+  margin: 0;
+  line-height: 1.4;
+  text-align: left;
+}
+body .resident-module-page .society-list-panel .society-avatar {
+  box-sizing: border-box;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  overflow: hidden;
+  border-radius: 12px;
+}
+body .resident-module-page .society-list-panel .society-avatar .resident-table-photo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+body .resident-module-page .society-list-panel .society-table tbody tr { min-height: 82px; }
+
 @media (max-width: 640px) {
   body table th,
   body :is(.table, .society-table, .data-table) th { padding: 11px 13px; }

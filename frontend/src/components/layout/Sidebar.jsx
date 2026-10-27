@@ -31,8 +31,8 @@ const NAV_ITEMS = [
       { label: 'Emergency contacts', to: '/emergency-contacts', permission: 'SOCIETY_EMERGENCY_CONTACT_READ', icon: PhoneCall },
       { label: 'Management committee', to: '/management-committee', permission: 'SOCIETY_COMMITTEE_READ', icon: UsersRound },
       { label: 'Document Vault', to: '/document-vault', icon: FolderArchive },
-      { label: 'Users', to: '/users', permission: 'USER_READ', icon: Users },
-      { label: 'Roles', to: '/roles', permission: 'ROLE_READ', icon: ShieldCheck },
+      { label: 'User Management', to: '/users', permission: 'USER_READ', icon: Users },
+      { label: 'Roles Management', to: '/roles', permission: 'ROLE_READ', icon: ShieldCheck },
     ],
   },
   {

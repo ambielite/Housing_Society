@@ -703,7 +703,7 @@ const ResidentListPage = () => {
 
                                                 <td>
 
-                                                    <div className="society-name-cell">
+                                                    <div className="society-name-cell resident-profile-cell">
 
                                                         <span className="society-avatar">
 
@@ -712,7 +712,7 @@ const ResidentListPage = () => {
                                                         </span>
 
 
-                                                        <span>
+                                                        <span className="resident-profile-copy">
 
                                                             <button type="button" className="record-details-trigger" onClick={() => setViewingResident(resident)}>
                                                                 {displayName}
