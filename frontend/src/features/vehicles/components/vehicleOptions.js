@@ -1,6 +1,7 @@
 export const VEHICLE_TYPES = [
   { value: 'TWO_WHEELER', label: 'Two-wheeler' },
   { value: 'FOUR_WHEELER', label: 'Four-wheeler' },
+  { value: 'EV', label: 'EV' },
   { value: 'OTHER', label: 'Other' },
 ];
 export const VEHICLE_STATUSES = [
