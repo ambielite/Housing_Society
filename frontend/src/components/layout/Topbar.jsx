@@ -204,6 +204,11 @@ export default function Topbar() {
         <button type="button" className="mobile-menu-button" onClick={toggleSidebar} aria-label="Open menu">
           <Menu size={20} />
         </button>
+        {user && societies.length > 0 && (
+          <div className="current-society" aria-label="Current society">
+            <strong>{societies.find((society) => String(society.id) === String(societyId))?.name || activeSociety?.name || 'Society'}</strong>
+          </div>
+        )}
       </div>
 
       <div className="topbar-right">
@@ -256,25 +261,6 @@ export default function Topbar() {
               </section>
             )}
           </div>
-        )}
-        {user && societies.length > 0 && (
-          <label className="current-society">
-            
-            <select
-              className="society-topbar-select"
-              aria-label="Select active society"
-              value={societyId || ''}
-              onChange={(event) => {
-                if (event.target.value === societyId) return;
-                setSocietyId(event.target.value);
-                window.location.reload();
-              }}
-            >
-              {societies.map((society) => (
-                <option key={society.id} value={society.id}>{society.name}</option>
-              ))}
-            </select>
-          </label>
         )}
         <button
           type="button"

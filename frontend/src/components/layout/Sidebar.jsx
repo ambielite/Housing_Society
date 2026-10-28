@@ -203,16 +203,10 @@ export default function Sidebar() {
   }
 
   const toggleGroup = (key) => setOpenGroups((current) => {
-    const next = new Set(current);
-    if (next.has(key)) {
-      next.delete(key);
-    } else {
-      // Opening a nested group also opens its ancestors, while keeping other
-      // expanded sections open as the user navigates around the application.
-      for (const ancestor of groupAncestors(orderedItems, key) || []) next.add(ancestor);
-      next.add(key);
-    }
-    return next;
+    const ancestors = groupAncestors(orderedItems, key) || [];
+    if (current.has(key)) return new Set(ancestors);
+    // Keep only this group's path open so other sections and nested groups close.
+    return new Set([...ancestors, key]);
   });
   const handleNavigationClick = (key, hasChildren) => {
     if (hasChildren) {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, AlertTriangle, Droplets, Gauge, Plus, Search, Zap } from 'lucide-react';
+import { Activity, AlertTriangle, Droplets, Gauge, Plus, Search, SquarePen, Trash2, Zap } from 'lucide-react';
 import PageContainer from '../../../components/layout/PageContainer';
 import DataTable from '../../../components/tables/DataTable';
 import Alert from '../../../components/ui/Alert';
@@ -481,9 +481,9 @@ export default function UtilityMeterManagementPage() {
     { key: 'installed', header: 'Installed', render: (r) => formatUtilityDate(r.installation_date) },
     { key: 'status', header: 'Status', render: (r) => <StatusPill value={r.status} /> },
     { key: 'actions', header: 'Actions', render: (r) => <div className="um-row-actions">
-      {hasPermission('METER_UPDATE') && <button className="btn btn-ghost btn-sm" onClick={() => openModal('meter', r)}>Edit</button>}
+      {hasPermission('METER_UPDATE') && <button type="button" className="society-icon-action" title={`Edit meter ${r.meter_no}`} aria-label={`Edit meter ${r.meter_no}`} onClick={() => openModal('meter', r)}><SquarePen size={16} /></button>}
       {hasPermission('METER_UPDATE') && r.status !== 'REPLACED' && <button className="btn btn-ghost btn-sm" onClick={() => openModal('replace', r)}>Replace</button>}
-      {hasPermission('METER_DELETE') && <button className="btn btn-ghost btn-sm text-danger" onClick={() => remove('meter', r)}>Delete</button>}
+      {hasPermission('METER_DELETE') && <button type="button" className="society-icon-action society-delete-action" title={`Delete meter ${r.meter_no}`} aria-label={`Delete meter ${r.meter_no}`} onClick={() => remove('meter', r)}><Trash2 size={16} /></button>}
       {hasPermission('METER_READING_CREATE') && <button className="btn btn-ghost btn-sm" onClick={() => { setSelectedMeter(r.id); openModal('reading'); }}><span className="button-plus" aria-hidden="true">+</span> Add reading</button>}
     </div> },
   ];
@@ -492,8 +492,8 @@ export default function UtilityMeterManagementPage() {
     { key: 'name', header: 'Utility type', render: (r) => <><strong>{r.name}</strong><span className="cell-sub">{r.unit_of_measure}</span></> },
     { key: 'status', header: 'Status', render: (r) => <StatusPill value={r.status} /> },
     { key: 'actions', header: 'Actions', render: (r) => <div className="um-row-actions">
-      {canUpdateType && <button className="btn btn-ghost btn-sm" onClick={() => openModal('type', r)}>Edit</button>}
-      {canDeleteType && <button className="btn btn-ghost btn-sm text-danger" onClick={() => remove('type', r)}>Delete</button>}
+      {canUpdateType && <button type="button" className="society-icon-action" title={`Edit ${r.name}`} aria-label={`Edit ${r.name}`} onClick={() => openModal('type', r)}><SquarePen size={16} /></button>}
+      {canDeleteType && <button type="button" className="society-icon-action society-delete-action" title={`Delete ${r.name}`} aria-label={`Delete ${r.name}`} onClick={() => remove('type', r)}><Trash2 size={16} /></button>}
     </div> },
   ];
   const columnsReadings = [
@@ -515,8 +515,8 @@ export default function UtilityMeterManagementPage() {
     { key: 'pricing', header: 'Rate structure', render: (r) => r.slab_config?.flatRate !== undefined ? `Flat · ₹${r.slab_config.flatRate}` : `${r.slab_config?.slabs?.length || 0} pricing slabs` },
     { key: 'effective', header: 'Effective period', render: (r) => `${formatUtilityDate(r.effective_from)} – ${formatUtilityDate(r.effective_to)}` },
     { key: 'actions', header: 'Actions', render: (r) => <div className="um-row-actions">
-      {canUpdateTariff && <button className="btn btn-ghost btn-sm" onClick={() => openModal('tariff', r)}>Edit</button>}
-      {canDeleteTariff && <button className="btn btn-ghost btn-sm text-danger" onClick={() => remove('tariff', r)}>Delete</button>}
+      {canUpdateTariff && <button type="button" className="society-icon-action" title="Edit tariff" aria-label="Edit tariff" onClick={() => openModal('tariff', r)}><SquarePen size={16} /></button>}
+      {canDeleteTariff && <button type="button" className="society-icon-action society-delete-action" title="Delete tariff" aria-label="Delete tariff" onClick={() => remove('tariff', r)}><Trash2 size={16} /></button>}
     </div> },
   ];
   const columnsBills = [

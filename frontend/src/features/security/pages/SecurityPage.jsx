@@ -341,16 +341,16 @@ function GatesPanel({ societyId, societyName, gates, guards, cards, userNames, v
   return <>
     <div className="section-head"><div><h2 className="section-title">Gates</h2><p className="muted section-hint">Society entry points and their hardware.</p></div>
       {hasPermission('GATE_CREATE') && <button className="btn btn-primary" onClick={() => setDialog('new-gate')}><Plus size={16} /> New gate</button>}</div>
-    <DataTable columns={gateColumns} rows={gates} emptyTitle="No gates" emptyMessage="Create a gate before registering devices." />
+    <DataTable tableClassName="society-table security-actions-table" columns={gateColumns} rows={gates} emptyTitle="No gates" emptyMessage="Create a gate before registering devices." />
     <div className="section">
       <div className="section-head"><div><h2 className="section-title">Security guards</h2><p className="muted section-hint">Guards are linked to existing user accounts.</p></div>
         {hasPermission('SECURITY_GUARD_CREATE') && <button className="btn btn-primary" onClick={() => setDialog('new-guard')}><span className="button-plus" aria-hidden="true">+</span> Add guard</button>}</div>
-      <DataTable columns={guardColumns} rows={guards} emptyTitle="No guards" emptyMessage="Add a security guard linked to a user." />
+      <DataTable tableClassName="society-table security-actions-table" columns={guardColumns} rows={guards} emptyTitle="No guards" emptyMessage="Add a security guard linked to a user." />
     </div>
     <div className="section">
       <div className="section-head"><div><h2 className="section-title">Access cards</h2><p className="muted section-hint">Credentials are issued to existing users.</p></div>
         {hasPermission('ACCESS_CARD_CREATE') && <button className="btn btn-primary" onClick={() => setDialog('new-card')}><span className="button-plus" aria-hidden="true">+</span> Issue access card</button>}</div>
-      <DataTable columns={cardColumns} rows={cards} emptyTitle="No access cards" emptyMessage="Issue a credential to an existing user." />
+      <DataTable tableClassName="society-table security-actions-table" columns={cardColumns} rows={cards} emptyTitle="No access cards" emptyMessage="Issue a credential to an existing user." />
     </div>
 
     {dialog === 'new-gate' && <Modal title="Create gate" onClose={() => setDialog(null)}><GateForm societyId={societyId} societyName={societyName} gates={gates} onSubmit={(p) => onRun(() => api.createGate(p), 'Gate created.')} onCancel={() => setDialog(null)} /></Modal>}
@@ -368,7 +368,7 @@ function GatesPanel({ societyId, societyName, gates, guards, cards, userNames, v
 
     {deviceDialog === 'list' && <Modal title={`${gateForDevices?.name || 'Gate'} devices`} onClose={() => setDeviceDialog(null)}>
       <div className="section-head"><p className="muted section-hint">Devices registered for this gate.</p>{hasPermission('GATE_DEVICE_CREATE') && <button className="btn btn-primary btn-sm" onClick={() => setDeviceDialog('new')}><span className="button-plus" aria-hidden="true">+</span> Register device</button>}</div>
-      <DataTable columns={[
+      <DataTable tableClassName="society-table security-actions-table" columns={[
         { key: 'device', header: 'Device', render: (d) => <><span className="cell-title">{label(d.device_type)}</span><span className="cell-sub">{d.serial_no}</span></> },
         { key: 'status', header: 'Status', render: (d) => <SecurityBadge value={d.status} /> },
         { key: 'ip', header: 'IP', render: (d) => d.ip_address || '-' },
@@ -385,6 +385,6 @@ function GatesPanel({ societyId, societyName, gates, guards, cards, userNames, v
     {deviceDialog === 'edit' && <Modal title="Update gate device" onClose={() => setDeviceDialog('list')}><DeviceForm gates={gates} value={selected} onSubmit={(p) => onRun(async () => { await api.updateGateDevice(selected.id, p); setGateDevices(await api.listGateDevices(gateForDevices.id)); setDeviceDialog('list'); }, 'Gate device updated.')} onCancel={() => setDeviceDialog('list')} /></Modal>}
     {deviceDialog === 'detail' && <Modal title="Gate device" onClose={() => setDeviceDialog('list')}><dl className="details"><dt>Type</dt><dd>{label(selected?.device_type)}</dd><dt>Serial</dt><dd>{selected?.serial_no}</dd><dt>IP</dt><dd>{selected?.ip_address || '-'}</dd><dt>Status</dt><dd><SecurityBadge value={selected?.status} /></dd><dt>Last seen</dt><dd>{formatDateTime(selected?.last_seen_at)}</dd></dl></Modal>}
     {deviceDialog === 'event' && <Modal title="Record device event" onClose={() => setDeviceDialog('list')}><form onSubmit={submitDeviceEvent}><ErrorBox error={formError} /><TextField id="externalEventId" label="External event ID" value={eventForm.externalEventId} onChange={(e) => setEventForm((f) => ({ ...f, externalEventId: e.target.value }))} /><TextField id="eventType" label="Event type" value={eventForm.eventType} onChange={(e) => setEventForm((f) => ({ ...f, eventType: e.target.value }))} required /><div className="field"><label htmlFor="devicePayload">Payload JSON</label><textarea id="devicePayload" className="input" rows="5" value={eventForm.payload} onChange={(e) => setEventForm((f) => ({ ...f, payload: e.target.value }))} /></div><FormActions saving={eventSaving} onCancel={() => setDeviceDialog('list')} submitLabel="Record event" /></form></Modal>}
-    {dialog === 'device-events' && <Modal title="Device event log" onClose={() => setDialog(null)}><DataTable columns={[{ key: 'type', header: 'Event', render: (e) => e.event_type }, { key: 'external', header: 'External ID', render: (e) => e.external_event_id || '-' }, { key: 'at', header: 'Event at', render: (e) => formatDateTime(e.event_at) }, { key: 'status', header: 'Status', render: (e) => <SecurityBadge value={e.status} /> }]} rows={deviceEvents || []} emptyTitle="No device events" emptyMessage="No events recorded for this device." /></Modal>}
+    {dialog === 'device-events' && <Modal title="Device event log" onClose={() => setDialog(null)}><DataTable tableClassName="society-table" columns={[{ key: 'type', header: 'Event', render: (e) => e.event_type }, { key: 'external', header: 'External ID', render: (e) => e.external_event_id || '-' }, { key: 'at', header: 'Event at', render: (e) => formatDateTime(e.event_at) }, { key: 'status', header: 'Status', render: (e) => <SecurityBadge value={e.status} /> }]} rows={deviceEvents || []} emptyTitle="No device events" emptyMessage="No events recorded for this device." /></Modal>}
   </>;
 }

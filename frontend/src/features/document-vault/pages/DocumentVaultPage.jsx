@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { FileText, FolderClosed, FolderOpen, Plus, Share2, ShieldCheck } from 'lucide-react';
+import { Download, FileText, FolderClosed, FolderOpen, Plus, Printer, Share2, ShieldCheck } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
@@ -75,6 +75,54 @@ export default function DocumentVaultPage() {
       if (error?.name !== 'AbortError') setPageError(error?.message || 'Could not open the share menu.');
     }
   };
+  const downloadDocument = async (doc) => {
+    setSaving(true); setPageError(''); setPageNotice('');
+    try {
+      const response = await vaultApi.downloadDocument(doc.id);
+      const url = URL.createObjectURL(response.data);
+      const anchor = window.document.createElement('a');
+      anchor.href = url;
+      anchor.download = doc.file_name || doc.title || 'document';
+      anchor.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setPageNotice('Document download started.');
+    } catch (error) { setPageError(getErrorMessage(error)); }
+    finally { setSaving(false); }
+  };
+  const printDocument = async (doc) => {
+    const printWindow = window.open('about:blank', '_blank');
+    if (!printWindow) {
+      setPageError('Allow pop-ups to print this document.');
+      return;
+    }
+    setSaving(true); setPageError(''); setPageNotice('');
+    try {
+      const response = await vaultApi.downloadDocument(doc.id);
+      const url = URL.createObjectURL(response.data);
+      let released = false;
+      const releaseUrl = () => {
+        if (released) return;
+        released = true;
+        URL.revokeObjectURL(url);
+      };
+      printWindow.document.title = doc.title || doc.file_name || 'Document';
+      printWindow.addEventListener('load', () => {
+        printWindow.focus();
+        window.setTimeout(() => printWindow.print(), 400);
+      }, { once: true });
+      printWindow.addEventListener('afterprint', () => {
+        releaseUrl();
+        printWindow.close();
+      }, { once: true });
+      printWindow.addEventListener('pagehide', releaseUrl, { once: true });
+      printWindow.location.href = url;
+      window.setTimeout(releaseUrl, 5 * 60 * 1000);
+      setPageNotice('Document opened for printing.');
+    } catch (error) {
+      printWindow.close();
+      setPageError(getErrorMessage(error));
+    } finally { setSaving(false); }
+  };
 
   if (!societyId) return <PageContainer eyebrow="SOCIETY RECORDS" title="Document Vault" subtitle="Manage society documents, versions and access."><SocietyIdPrompt /></PageContainer>;
 
@@ -97,7 +145,13 @@ export default function DocumentVaultPage() {
       return <span className={`moveinout-status moveinout-status-${tone}`}>{pretty(status)}</span>;
     } },
     { key: 'created', header: 'Uploaded', render: (doc) => formatDate(doc.created_at) },
-    { key: 'share', header: 'Share', render: (doc) => <button type="button" className="btn btn-ghost btn-sm" title={`Share ${doc.title || 'document'}`} aria-label={`Share ${doc.title || 'document'}`} onClick={() => shareDocument(doc)}><Share2 size={16} aria-hidden="true" /></button> },
+    { key: 'actions', header: 'Actions', render: (doc) => <div className="society-row-actions invoice-row-actions">
+      {(hasPermission('DOCUMENT_DOWNLOAD') || (doc.visibility === 'PUBLIC' && doc.sensitivity !== 'CONFIDENTIAL')) && <>
+        <button type="button" className="society-icon-action" title={`Download ${doc.title || 'document'}`} aria-label={`Download ${doc.title || 'document'}`} disabled={saving} onClick={() => downloadDocument(doc)}><Download size={16} aria-hidden="true" /></button>
+        <button type="button" className="society-icon-action" title={`Print ${doc.title || 'document'}`} aria-label={`Print ${doc.title || 'document'}`} disabled={saving} onClick={() => printDocument(doc)}><Printer size={16} aria-hidden="true" /></button>
+      </>}
+      <button type="button" className="society-icon-action" title={`Share ${doc.title || 'document'}`} aria-label={`Share ${doc.title || 'document'}`} disabled={saving} onClick={() => shareDocument(doc)}><Share2 size={16} aria-hidden="true" /></button>
+    </div> },
   ];
 
   return (
