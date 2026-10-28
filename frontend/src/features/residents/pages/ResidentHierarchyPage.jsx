@@ -82,10 +82,11 @@ const ResidentHierarchyPage = () => {
 
     const hierarchy = useMemo(() => {
         return filtered.map((resident) => {
-            const relationships = ownerUnits.filter((item) => item.ownerId === resident.id);
+            const relationships = ownerUnits.filter((item) => String(item.ownerId) === String(resident.id));
             return { ...resident, unitCount: relationships.length, ownerships: relationships };
         });
     }, [filtered, ownerUnits]);
+    const unitById = useMemo(() => new Map(units.map((unit) => [String(unit.id), unit])), [units]);
 
     const openCreate = () => {
         setEditingId(null);
@@ -205,10 +206,11 @@ const ResidentHierarchyPage = () => {
                     </div>
                 ) : (
                     <div className="society-table-wrap">
-                        <table className="society-table">
+                        <table className="society-table resident-ownership-table">
                             <thead>
                                 <tr>
                                     <th>Resident</th>
+                                    <th>Contact</th>
                                     <th>Role</th>
                                     <th>Units linked</th>
                                     <th>Ownership</th>
@@ -229,17 +231,30 @@ const ResidentHierarchyPage = () => {
                                                 </span>
                                                 <span>
                                                     <button type="button" className="record-details-trigger" onClick={() => setViewingResident(resident)}>{resident.displayName || `${resident.firstName || ""} ${resident.lastName || ""}`.trim() || "Unnamed resident"}</button>
-                                                    <small>{resident.email || resident.mobile || "No contact"}</small>
                                                 </span>
                                             </div>
                                         </td>
+                                        <td>
+                                            {resident.mobile || resident.email || "No contact"}
+                                            {resident.mobile && resident.email && <small className="ownership-contact-email">{resident.email}</small>}
+                                        </td>
                                         <td>{(resident.role || "PRIMARY_OWNER").replaceAll("_", " ")}</td>
-                                        <td>{resident.unitCount}</td>
-                                        <td>{resident.ownerships[0]?.ownershipType || "PRIMARY_OWNER"}</td>
+                                        <td>
+                                            <strong>{resident.unitCount}</strong>
+                                            {resident.ownerships.length > 0 && <small className="ownership-unit-list">{resident.ownerships.map((ownership) => unitById.get(String(ownership.unitId))?.unitNumber || unitById.get(String(ownership.unitId))?.name || "Unit").join(", ")}</small>}
+                                        </td>
+                                        <td>
+                                            {resident.ownerships[0] ? <>
+                                                <span>{(resident.ownerships[0].ownershipType || "PRIMARY_OWNER").replaceAll("_", " ")}</span>
+                                                <small className="ownership-share">{resident.ownerships[0].ownershipPercentage ?? 100}% share</small>
+                                            </> : <span className="muted">No ownership linked</span>}
+                                        </td>
                                         <td>
                                             <div className="society-row-actions">
-                                                <button className="society-icon-action" type="button" title="Edit relationship" onClick={() => openEdit(resident.ownerships[0])}><SquarePen size={16} /></button>
-                                                <button className="society-icon-action society-delete-action" type="button" title="Remove relationship" onClick={() => resident.ownerships[0] && handleDelete(resident.ownerships[0].id)}><Trash2 size={16} /></button>
+                                                {resident.ownerships[0] && <>
+                                                    <button className="society-icon-action" type="button" title="Edit relationship" aria-label={`Edit ownership for ${resident.displayName || resident.firstName || "resident"}`} onClick={() => openEdit(resident.ownerships[0])}><SquarePen size={16} /></button>
+                                                    <button className="society-icon-action society-delete-action" type="button" title="Remove relationship" aria-label={`Remove ownership for ${resident.displayName || resident.firstName || "resident"}`} onClick={() => handleDelete(resident.ownerships[0].id)}><Trash2 size={16} /></button>
+                                                </>}
                                             </div>
                                         </td>
                                     </tr>

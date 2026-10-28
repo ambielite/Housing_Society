@@ -296,6 +296,10 @@ body .resident-module-page .society-list-panel .society-table th:nth-child(4),
 body .resident-module-page .society-list-panel .society-table td:nth-child(4) { width: 13%; }
 body .resident-module-page .society-list-panel .society-table th:last-child,
 body .resident-module-page .society-list-panel .society-table td:last-child { width: 12%; }
+body .resident-module-page .society-list-panel .society-table.resident-ownership-table { min-width: 1000px; table-layout: fixed; }
+body .resident-module-page .society-list-panel .society-table.resident-ownership-table th,
+body .resident-module-page .society-list-panel .society-table.resident-ownership-table td { width: 16.6667%; min-width: 0; }
+body .resident-module-page .society-list-panel .society-table.resident-ownership-table td { overflow-wrap: anywhere; }
 body .resident-module-page .society-list-panel .society-name-cell {
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr);

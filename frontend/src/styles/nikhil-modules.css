@@ -1822,6 +1822,9 @@ tbody tr:hover {
 .security-actions-table .society-row-actions { width: 100%; max-width: 100%; flex-wrap: wrap; align-items: center; gap: 6px; }
 .security-actions-table .row-actions button,
 .security-actions-table .society-row-actions button { white-space: normal; }
+.resident-ownership-table .ownership-unit-list,
+.resident-ownership-table .ownership-share,
+.resident-ownership-table .ownership-contact-email { display: block; margin-top: 4px; color: #667085; font-size: 11px; line-height: 1.4; }
 @media(max-width: 700px) {
   .security-access-panel .security-access-content { padding: 14px; }
   .security-access-panel > .tabs-bar { padding: 0 12px; }

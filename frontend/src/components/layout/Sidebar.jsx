@@ -157,7 +157,7 @@ const visibleTree = (items, hasAnyPermission) => items
   .filter((item) => canSee(item, hasAnyPermission) || item.children?.length);
 const itemIsActive = (item, pathname, search) => (item.parkingTab
   ? pathname === '/parking' && new URLSearchParams(search).get('tab') === item.parkingTab
-  : matchesPath(pathname, item.to))
+  : pathname === item.to)
   || item.children?.some((child) => itemIsActive(child, pathname, search));
 const groupAncestors = (items, targetKey, ancestors = []) => {
   for (const item of items) {
