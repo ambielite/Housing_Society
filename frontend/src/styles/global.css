@@ -293,6 +293,35 @@ textarea.input { resize: vertical; }
 .table.parking-vehicle-table td:last-child { text-align: center; }
 .table.parking-vehicle-table td:last-child .row-actions { justify-content: center; }
 .table.parking-vehicle-table .table-action-button { text-decoration: none; }
+.table.parking-slot-table { width: 100%; min-width: 1040px; table-layout: fixed; }
+.table.parking-slot-table th,
+.table.parking-slot-table td { box-sizing: border-box; overflow-wrap: anywhere; text-align: center; }
+.table.parking-slot-table.has-availability th:nth-child(1),
+.table.parking-slot-table.has-availability td:nth-child(1) { width: 11%; }
+.table.parking-slot-table.has-availability th:nth-child(2),
+.table.parking-slot-table.has-availability td:nth-child(2) { width: 13%; }
+.table.parking-slot-table.has-availability th:nth-child(3),
+.table.parking-slot-table.has-availability td:nth-child(3),
+.table.parking-slot-table.has-availability th:nth-child(4),
+.table.parking-slot-table.has-availability td:nth-child(4),
+.table.parking-slot-table.has-availability th:nth-child(5),
+.table.parking-slot-table.has-availability td:nth-child(5) { width: 12%; }
+.table.parking-slot-table.has-availability th:nth-child(6),
+.table.parking-slot-table.has-availability td:nth-child(6) { width: 18%; }
+.table.parking-slot-table.no-availability th:nth-child(1),
+.table.parking-slot-table.no-availability td:nth-child(1),
+.table.parking-slot-table.no-availability th:nth-child(2),
+.table.parking-slot-table.no-availability td:nth-child(2) { width: 15%; }
+.table.parking-slot-table.no-availability th:nth-child(3),
+.table.parking-slot-table.no-availability td:nth-child(3),
+.table.parking-slot-table.no-availability th:nth-child(4),
+.table.parking-slot-table.no-availability td:nth-child(4) { width: 14%; }
+.table.parking-slot-table.no-availability th:nth-child(5),
+.table.parking-slot-table.no-availability td:nth-child(5) { width: 19%; }
+.table.parking-slot-table th:last-child,
+.table.parking-slot-table td:last-child { width: 22%; text-align: center; white-space: nowrap; }
+.table.parking-slot-table td:last-child .row-actions { flex-wrap: nowrap; justify-content: center; gap: 7px; }
+.table.parking-slot-table td:last-child .btn-sm { flex: 0 0 auto; white-space: nowrap; }
 .table thead { background: var(--thead-bg); }
 .table th { padding: 12px 18px; color: var(--th-color); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; white-space: nowrap; border-bottom: 1px solid var(--row-divider); }
 .table td { padding: 14px 18px; border-bottom: 1px solid var(--row-divider); color: var(--td-color); font-size: 12px; line-height: 1.6; vertical-align: middle; }

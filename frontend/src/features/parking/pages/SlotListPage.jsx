@@ -206,7 +206,7 @@ export default function SlotListPage({ embedded = false, searchTerm = '', search
 
       <DataTable
         columns={columns}
-        tableClassName="parking-vehicle-table"
+        tableClassName={`parking-slot-table ${canSeeAllocations ? 'has-availability' : 'no-availability'}`}
         rows={filterRecords(rows, searchTerm, (slot) => {
           const allocation = allocationBySlot.get(slot.id);
           return `${areaById.get(slot.parking_area_id)?.name || ''} ${labelOf(SLOT_TYPES, slot.slot_type)} ${labelOf(VEHICLE_TYPES, slot.vehicle_type)} ${allocation?.unit_id || ''} ${labelOf(ALLOCATION_TYPES, allocation?.allocation_type)}`;
