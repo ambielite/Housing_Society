@@ -1625,6 +1625,32 @@ button.tab.active { border-bottom-color: var(--action); }
   border-radius: 12px;
   background: var(--surface);
 }
+.rc-hidden-reports-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  margin: -7px 0 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+}
+.rc-hidden-reports-note button {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border: 1px solid var(--border-color);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--action);
+  font: inherit;
+  font-weight: 650;
+}
+.rc-hidden-reports-note button:hover {
+  border-color: var(--action);
+}
 .rc-overview-strip > div {
   display: flex;
   align-items: center;
@@ -2114,6 +2140,162 @@ button.tab.active { border-bottom-color: var(--action); }
 }
 .rc-spin {
   animation: rc-spin .8s linear infinite;
+}
+
+/* Reports stay within the same responsive layout at every breakpoint. */
+.reports-center-page {
+  min-width: 0;
+}
+.reports-center-page .rc-overview-strip,
+.reports-center-page .rc-workspace,
+.reports-center-page .rc-dashboard-card,
+.reports-center-page .rc-metric-card,
+.reports-center-page .rc-chart-card {
+  min-width: 0;
+}
+.reports-center-page .rc-data-section {
+  min-width: 0;
+  padding: 16px;
+  margin: 16px 0 0;
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.reports-center-page .rc-metric-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.reports-center-page .rc-metric-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 12px;
+  min-height: 88px;
+}
+.reports-center-page .rc-metric-card p {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+.reports-center-page .rc-metric-card strong {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-align: right;
+}
+.reports-center-page .rc-report-note {
+  padding: 13px 16px;
+  margin: 0 0 16px;
+  border: 1px solid var(--border-color);
+  border-left: 3px solid var(--action);
+  border-radius: 9px;
+  background: var(--surface-2);
+}
+.reports-center-page .rc-report-note strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+.reports-center-page .rc-report-note p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.reports-center-page .rc-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.reports-center-page .rc-table {
+  width: 100%;
+  min-width: 720px;
+  table-layout: fixed;
+}
+.reports-center-page .rc-table th,
+.reports-center-page .rc-table td {
+  padding: 12px 14px;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.reports-center-page .rc-table th {
+  white-space: normal;
+  text-align: left;
+}
+.reports-center-page .rc-table td {
+  max-width: 260px;
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.reports-center-page .rc-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 25px;
+  max-width: 100%;
+  padding: 3px 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.reports-center-page .rc-status-success {
+  border-color: #b7ebce;
+  background: #ecfdf3;
+  color: #027a48;
+}
+.reports-center-page .rc-status-pending {
+  border-color: #fedf89;
+  background: #fffaeb;
+  color: #b54708;
+}
+.reports-center-page .rc-status-danger {
+  border-color: #fecdca;
+  background: #fef3f2;
+  color: #b42318;
+}
+.reports-center-page .rc-status-neutral {
+  border-color: var(--border-color);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+}
+:root[data-theme='dark'] .reports-center-page .rc-status-success {
+  border-color: #285843;
+  background: #17352b;
+  color: #75e0a7;
+}
+:root[data-theme='dark'] .reports-center-page .rc-status-pending {
+  border-color: #66501f;
+  background: #3a301d;
+  color: #fdb022;
+}
+:root[data-theme='dark'] .reports-center-page .rc-status-danger {
+  border-color: #74363b;
+  background: #3b2024;
+  color: #fda29b;
+}
+@media (max-width: 1050px) {
+  .reports-center-page .rc-metric-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .reports-center-page .rc-workspace { padding: 16px; }
+  .reports-center-page .rc-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .reports-center-page .rc-results-head { align-items: flex-start; flex-direction: column; }
+}
+@media (max-width: 520px) {
+  .reports-center-page .rc-metric-grid { grid-template-columns: 1fr; }
+  .reports-center-page .rc-overview-strip { align-items: flex-start; flex-direction: column; }
+  .reports-center-page .rc-workspace { padding: 12px; }
+  .reports-center-page .rc-controls { padding: 12px; }
+  .rc-hidden-reports-note { align-items: flex-start; flex-direction: column; }
 }
 @keyframes rc-spin {
   to { transform: rotate(360deg); }
