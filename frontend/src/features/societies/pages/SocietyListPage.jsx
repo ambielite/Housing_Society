@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import societyApi from "../api/society.api";
 import SocietyForm from "../components/SocietyForm";
+import { societyLogoUrl } from "../utils/societyLogo";
 import { RecordDetailsModal } from "../../../components/ui/Modal";
 
 const SocietyPage = () => {
@@ -126,9 +127,10 @@ const SocietyPage = () => {
                 {loading ? <div className="society-loading"><span className="society-loader" />Loading your societies...</div> : filteredSocieties.length === 0 ? (
                     <div className="society-empty"><span className="society-empty-icon"><Building2 size={24} /></span><h3>{search ? "No matching societies" : "No societies yet"}</h3><p>{search ? "Try another name, registration number, or address." : "Add your first society to start managing your community."}</p>{!search && <button className="society-add-button" onClick={openCreate}><Plus size={17} /> Add your first society</button>}</div>
                 ) : (
-                    <div className="society-table-wrap"><table className="society-table"><thead><tr><th>Society</th><th>Registration</th><th>Tax details</th><th>Region</th><th className="society-actions-heading">Actions</th></tr></thead>
+                    <div className="society-table-wrap"><table className="society-table"><thead><tr><th>Logo</th><th>Society</th><th>Registration</th><th>Tax details</th><th>Region</th><th className="society-actions-heading">Actions</th></tr></thead>
                         <tbody>{filteredSocieties.map((society) => <tr key={society.id}>
-                            <td><div className="society-name-cell"><span className="society-avatar"><Building2 size={19} /></span><span><button type="button" className="record-details-trigger" onClick={() => setViewingSociety(society)}>{society.name || "Unnamed society"}</button><small>{society.address || "Address not added"}</small></span></div></td>
+                            <td><span className="society-logo-table-preview">{(society.logoUrl || society.logo_url) ? <img src={societyLogoUrl(society.logoUrl || society.logo_url)} alt={`${society.name || "Society"} logo`} /> : <Building2 size={19} />}</span></td>
+                            <td><div className="society-name-cell"><span><button type="button" className="record-details-trigger" onClick={() => setViewingSociety(society)}>{society.name || "Unnamed society"}</button><small>{society.address || "Address not added"}</small></span></div></td>
                             <td>{society.reraNumber ? <span className="society-registration"><CheckCircle2 size={14} /> {society.reraNumber}</span> : <span className="society-muted">Not provided</span>}</td>
                             <td><span className="society-tax-label">PAN:-</span> {society.pan || "—"}<br /><span className="society-tax-label">GSTIN:-</span> {society.gstin || "—"}</td>
                             <td><span className="society-region"><span className="society-region-dot" />{society.currency || "INR"}<small>{society.timezone || "Asia/Kolkata"}</small></span></td>

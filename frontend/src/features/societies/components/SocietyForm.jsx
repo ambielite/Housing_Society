@@ -1,8 +1,9 @@
 
-import { useState } from "react";
-import { X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ImagePlus, Trash2, X } from "lucide-react";
 
 import societyApi from "../api/society.api";
+import { societyLogoUrl } from "../utils/societyLogo";
 
 const createInitialForm = (society) => ({
     name: society?.name || "",
@@ -20,8 +21,16 @@ const createInitialForm = (society) => ({
 
 const SocietyForm = ({ society, onClose, onSuccess }) => {
     const [formData, setFormData] = useState(() => createInitialForm(society));
+    const existingLogo = societyLogoUrl(society?.logoUrl || society?.logo_url);
+    const [logoFile, setLogoFile] = useState(null);
+    const [logoPreview, setLogoPreview] = useState(existingLogo);
+    const [removeLogo, setRemoveLogo] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+
+    useEffect(() => () => {
+        if (logoPreview.startsWith("blob:")) URL.revokeObjectURL(logoPreview);
+    }, [logoPreview]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -30,6 +39,31 @@ const SocietyForm = ({ society, onClose, onSuccess }) => {
             ...prev,
             [name]: value
         }));
+    };
+
+    const handleLogoChange = (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+            setError("Society logo must be a JPG, PNG, or WEBP image.");
+            event.target.value = "";
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            setError("Society logo must be 5 MB or smaller.");
+            event.target.value = "";
+            return;
+        }
+        setError("");
+        setLogoFile(file);
+        setLogoPreview(URL.createObjectURL(file));
+        setRemoveLogo(false);
+    };
+
+    const clearLogo = () => {
+        setLogoFile(null);
+        setLogoPreview("");
+        setRemoveLogo(Boolean(society?.logoUrl || society?.logo_url));
     };
 
     const handleSubmit = async (e) => {
@@ -52,6 +86,8 @@ const SocietyForm = ({ society, onClose, onSuccess }) => {
 
             const payload = {
                 ...formData,
+                logoFile,
+                removeLogo,
                 structuralArea:
                     formData.structuralArea === ""
                         ? null
@@ -116,6 +152,26 @@ const SocietyForm = ({ society, onClose, onSuccess }) => {
                                 {error}
                             </div>
                         )}
+
+                        <div className="form-section">
+                            <div className="form-section-title">
+                                <h3>Society Logo</h3>
+                                <span>Optional branding</span>
+                            </div>
+                            <div className="society-logo-field">
+                                <div className="society-logo-preview" aria-label={logoPreview ? "Selected society logo" : "No society logo selected"}>
+                                    {logoPreview ? <img src={logoPreview} alt="Society logo preview" /> : <ImagePlus size={24} />}
+                                </div>
+                                <div className="society-logo-controls">
+                                    <label className="society-logo-upload">
+                                        <span>{logoPreview ? "Change logo" : "Upload logo"}</span>
+                                        <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleLogoChange} disabled={loading} />
+                                    </label>
+                                    <small>JPG, PNG, or WEBP. Maximum size 5 MB.</small>
+                                    {logoPreview && <button type="button" className="society-logo-remove" onClick={clearLogo} disabled={loading}><Trash2 size={14} /> Remove logo</button>}
+                                </div>
+                            </div>
+                        </div>
 
                         {/* Basic Information */}
                         <div className="form-section">

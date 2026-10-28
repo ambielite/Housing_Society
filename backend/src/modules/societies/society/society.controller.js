@@ -4,7 +4,7 @@ const societyService = require("./society.service");
 const createSociety = async (req, res, next) => {
     try {
         const society =
-            await societyService.createSociety(req.body, req.user?.id);
+            await societyService.createSociety(req.body, req.user?.id, req.file);
 
         res.status(201).json({
             success: true,
@@ -55,7 +55,8 @@ const updateSociety = async (req, res, next) => {
         const society =
             await societyService.updateSociety(
                 req.params.id,
-                req.body
+                req.body,
+                req.file
             );
 
         res.status(200).json({

@@ -15,6 +15,12 @@ const Society = sequelize.define(
             allowNull: false
         },
 
+        logoUrl: {
+            type: DataTypes.STRING(500),
+            allowNull: true,
+            field: "logo_url"
+        },
+
         email: {
             type: DataTypes.STRING(255),
             allowNull: true,

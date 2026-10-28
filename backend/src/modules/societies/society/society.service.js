@@ -2,12 +2,18 @@ const societyRepository = require("./society.repository");
 const usersRepository = require("../../users/users.repository");
 const assertUniqueEmail = require("../../../common/assertUniqueEmail");
 const Society = require("./society.model");
+const { saveSocietyLogo, removeSocietyLogo } = require("./societyLogo.storage");
 
-const createSociety = async (data, createdBy) => {
+const createSociety = async (data, createdBy, logoFile) => {
     if (data.email) data.email = data.email.trim().toLowerCase();
     await assertUniqueEmail({ model: Society, email: data.email, message: "A society with this email already exists." });
-
-    return await societyRepository.createSociety(data, createdBy);
+    const logoUrl = logoFile ? saveSocietyLogo(logoFile) : null;
+    try {
+        return await societyRepository.createSociety({ ...data, logoUrl }, createdBy);
+    } catch (error) {
+        removeSocietyLogo(logoUrl);
+        throw error;
+    }
 };
 
 const getAllSocieties = async (user) => {
@@ -20,14 +26,33 @@ const getSocietyById = async (id) => {
     return await societyRepository.findSocietyById(id);
 };
 
-const updateSociety = async (id, data) => {
+const updateSociety = async (id, data, logoFile) => {
     if (data.email) data.email = data.email.trim().toLowerCase();
     if (data.email !== undefined) await assertUniqueEmail({ model: Society, email: data.email, excludeId: id, message: "A society with this email already exists." });
-    return await societyRepository.updateSociety(id, data);
+    const current = await societyRepository.findSocietyById(id);
+    if (!current) return null;
+    const logoUrl = logoFile ? saveSocietyLogo(logoFile) : undefined;
+    const shouldRemoveLogo = data.removeLogo === true;
+    const fields = { ...data };
+    delete fields.removeLogo;
+    try {
+        const updated = await societyRepository.updateSociety(id, {
+            ...fields,
+            ...(logoUrl ? { logoUrl } : shouldRemoveLogo ? { logoUrl: null } : {}),
+        });
+        if (logoUrl || shouldRemoveLogo) removeSocietyLogo(current.logoUrl);
+        return updated;
+    } catch (error) {
+        removeSocietyLogo(logoUrl);
+        throw error;
+    }
 };
 
 const deleteSociety = async (id) => {
-    return await societyRepository.deleteSociety(id);
+    const society = await societyRepository.findSocietyById(id);
+    const deleted = await societyRepository.deleteSociety(id);
+    if (deleted) removeSocietyLogo(society?.logoUrl);
+    return deleted;
 };
 
 module.exports = {

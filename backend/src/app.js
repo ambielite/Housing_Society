@@ -92,6 +92,15 @@ app.use(
 );
 
 app.use(
+    "/uploads/society-logos",
+    (req, res, next) => {
+        res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+        next();
+    },
+    express.static(path.join(process.cwd(), "uploads", "society-logos"))
+);
+
+app.use(
     "/uploads",
     express.static(
         path.join(

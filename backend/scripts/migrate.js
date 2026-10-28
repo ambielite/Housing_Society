@@ -39,7 +39,9 @@ function readMigrations() {
         // that relationship without rewriting applied migration history.
         const knownHistoricalChecksums = name === "sujal/039_link_asset_categories_and_finance.sql"
             ? ["ccc08cef51e92082b0cb17f67688079032fd30738a0ea63ddbf53ca7a541bd6b"]
-            : [];
+            : name === "0104_create_other_income_entries.sql"
+                ? ["913d165bc17d4c0b4f50f95f4f2c12a2ec0c7fad980db9b14641cd331c446109"]
+                : [];
         return {
             name,
             sql,

@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bell, Car, Layers3, Boxes, ChevronDown, ClipboardList, FileText, Home, Mail, MapPin, Menu, Moon, Phone, Plus, QrCode, Shield, Sun, Truck, Users, UserRoundPlus, X, KeyRound, LogOut, Building2, ArrowUpRight } from 'lucide-react';
+import { Bell, Car, Layers3, Boxes, ChevronDown, ClipboardList, FileText, Home, Mail, MapPin, Menu, Moon, Phone, Plus, QrCode, Shield, Sun, Truck, Users, UserRoundPlus, X, KeyRound, LogOut, Building2, ArrowUpRight, Headset, Check, RefreshCw } from 'lucide-react';
 import useAuth from '../../app/providers/useAuth';
 import useTheme from '../../app/providers/useTheme';
 import useSociety from '../../app/store/useSociety';
 import { useUi } from '../../app/store/ui.store';
 import api, { societyStorage } from '../../lib/axios';
 import societyApi from '../../features/societies/api/society.api';
+import notificationsApi from '../../features/notifications/api/notifications.api';
 
 const QUICK_CREATE_GROUPS = [
   {
@@ -53,7 +54,13 @@ export default function Topbar() {
   const [profileSociety, setProfileSociety] = useState(null);
   const [societyLoading, setSocietyLoading] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState([]);
+  const [notificationLoading, setNotificationLoading] = useState(false);
+  const [notificationError, setNotificationError] = useState(false);
+  const [markingNotificationId, setMarkingNotificationId] = useState(null);
   const quickAddRef = useRef(null);
+  const notificationsRef = useRef(null);
   const societyRequest = useRef(0);
   const userId = user?.id;
 
@@ -79,10 +86,12 @@ export default function Topbar() {
   useEffect(() => {
     const onClick = (event) => {
       if (quickAddRef.current && !quickAddRef.current.contains(event.target)) setQuickAddOpen(false);
+      if (notificationsRef.current && !notificationsRef.current.contains(event.target)) setNotificationsOpen(false);
     };
     const onKeyDown = (event) => {
       if (event.key === 'Escape') {
         setQuickAddOpen(false);
+        setNotificationsOpen(false);
         setProfileOpen(false);
       }
     };
@@ -97,6 +106,48 @@ export default function Topbar() {
   const availableQuickCreateGroups = QUICK_CREATE_GROUPS
     .map((group) => ({ ...group, actions: group.actions.filter((action) => hasPermission(action.permission)) }))
     .filter((group) => group.actions.length > 0);
+
+  const loadUnreadNotifications = useCallback(async () => {
+    if (!userId || !societyId) {
+      setUnreadNotifications([]);
+      return;
+    }
+    setNotificationLoading(true);
+    setNotificationError(false);
+    try {
+      const result = await notificationsApi.getUnreadNotifications(userId);
+      const rows = Array.isArray(result) ? result : result?.data || result?.notifications || [];
+      setUnreadNotifications(rows.filter((notification) => notification?.channel === 'IN_APP'));
+    } catch {
+      setUnreadNotifications([]);
+      setNotificationError(true);
+    } finally {
+      setNotificationLoading(false);
+    }
+  }, [userId, societyId]);
+
+  useEffect(() => {
+    void loadUnreadNotifications();
+    const interval = window.setInterval(loadUnreadNotifications, 60000);
+    const onFocus = () => void loadUnreadNotifications();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [loadUnreadNotifications]);
+
+  const markNotificationRead = async (notificationId) => {
+    setMarkingNotificationId(notificationId);
+    try {
+      await notificationsApi.markRead(notificationId);
+      setUnreadNotifications((current) => current.filter((notification) => notification.id !== notificationId));
+    } catch {
+      void loadUnreadNotifications();
+    } finally {
+      setMarkingNotificationId(null);
+    }
+  };
 
   useEffect(() => {
     void refreshSocieties();
@@ -156,6 +207,10 @@ export default function Topbar() {
       </div>
 
       <div className="topbar-right">
+        <Link to="/helpdesk/tickets" className="support-button" aria-label="Support" title="Support">
+          <Headset size={17} />
+          <span>Support</span>
+        </Link>
         {availableQuickCreateGroups.length > 0 && (
           <div className="quick-add-wrap" ref={quickAddRef}>
             <button
@@ -230,9 +285,38 @@ export default function Topbar() {
           {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
         </button>
 
-        <button type="button" className="notification-button" aria-label="Notifications" title="Notifications (coming soon)">
-          <Bell size={18} />
-        </button>
+        <div className="notification-wrap" ref={notificationsRef}>
+          <button
+            type="button"
+            className="notification-button"
+            aria-label={`Notifications${unreadNotifications.length ? `, ${unreadNotifications.length} unread` : ''}`}
+            title="Notifications"
+            aria-expanded={notificationsOpen}
+            aria-haspopup="dialog"
+            onClick={() => setNotificationsOpen((open) => !open)}
+          >
+            <Bell size={18} />
+            {unreadNotifications.length > 0 && <span className="notification-count">{unreadNotifications.length > 99 ? '99+' : unreadNotifications.length}</span>}
+          </button>
+          {notificationsOpen && (
+            <section className="notification-popover" role="dialog" aria-label="Notifications">
+              <header className="notification-popover-header">
+                <div><strong>Notifications</strong><span>{unreadNotifications.length ? `${unreadNotifications.length} unread` : 'You’re all caught up'}</span></div>
+                <button type="button" onClick={() => void loadUnreadNotifications()} aria-label="Refresh notifications" title="Refresh notifications"><RefreshCw size={15} /></button>
+              </header>
+              <div className="notification-popover-list">
+                {notificationLoading && unreadNotifications.length === 0 ? <p className="notification-popover-empty">Loading notifications…</p> : notificationError ? <p className="notification-popover-empty">Notifications are unavailable. Try refreshing.</p> : unreadNotifications.length === 0 ? <p className="notification-popover-empty">No unread notifications.</p> : unreadNotifications.slice(0, 8).map((notification) => (
+                  <article className="notification-popover-item" key={notification.id}>
+                    <span className="notification-popover-unread" aria-hidden="true" />
+                    <div><strong>{notification.title || notification.subject || 'Notification'}</strong><p>{notification.message}</p><small>{notification.created_at ? new Date(notification.created_at).toLocaleString() : ''}</small></div>
+                    <button type="button" onClick={() => void markNotificationRead(notification.id)} disabled={markingNotificationId === notification.id} aria-label="Mark as read" title="Mark as read"><Check size={15} /></button>
+                  </article>
+                ))}
+              </div>
+              {hasPermission('NOTIFICATION_READ') && <Link className="notification-popover-footer" to="/notifications/notifications" onClick={() => setNotificationsOpen(false)}>View all notifications</Link>}
+            </section>
+          )}
+        </div>
 
         <div className="user-menu-wrap">
           <button
