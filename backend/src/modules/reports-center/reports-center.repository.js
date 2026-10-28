@@ -79,8 +79,10 @@ const vehicleCredentialCounts = (societyId) =>
 
 const vehicleRows = (societyId, limit) =>
   many(
-    `SELECT registration_no, vehicle_type, make, model, color, status, unit_id, created_at
-     FROM vehicles WHERE society_id = $1 ORDER BY created_at DESC LIMIT $2::int`,
+    `SELECT v.registration_no, v.vehicle_type, v.make, v.model, v.color, v.status,
+            u.unit_number, v.created_at
+     FROM vehicles v LEFT JOIN units u ON u.id = v.unit_id
+     WHERE v.society_id = $1 ORDER BY v.created_at DESC LIMIT $2::int`,
     [societyId, limit]
   );
 
@@ -276,9 +278,14 @@ const parcelsUncollected = (societyId) =>
 
 const deliveryRows = (s, f, t, limit) =>
   many(
-    `SELECT d.delivery_type, d.courier_name, d.tracking_no, d.unit_id, d.status,
-            d.received_at, d.handed_over_at, d.created_at
-     FROM deliveries d WHERE d.society_id = $1 AND ${TS('d.created_at')}
+    `SELECT d.delivery_type, d.courier_name, d.tracking_no, u.unit_number,
+            d.status AS delivery_status, d.received_at AS arrival_received_at,
+            d.handed_over_at, d.created_at,
+            p.parcel_code, p.storage_location, p.status AS parcel_status, p.collected_at
+     FROM deliveries d
+     LEFT JOIN units u ON u.id = d.unit_id
+     LEFT JOIN parcels p ON p.delivery_id = d.id
+     WHERE d.society_id = $1 AND ${TS('d.created_at')}
      ORDER BY d.created_at DESC LIMIT $4::int`,
     [...rng(s, f, t), limit]
   );
@@ -507,7 +514,16 @@ const poRows = (s, f, t, limit) =>
   many(
     `SELECT po.po_no, v.legal_name AS vendor, to_char(po.po_date, 'YYYY-MM-DD') AS po_date,
             to_char(po.delivery_date, 'YYYY-MM-DD') AS delivery_date,
-            po.subtotal::float8 AS subtotal, po.tax::float8 AS tax, po.total::float8 AS total, po.status
+            po.subtotal::float8 AS subtotal, po.tax::float8 AS tax, po.total::float8 AS total, po.status,
+            COALESCE((SELECT json_agg(json_build_object(
+              'receipt_no', g.receipt_no, 'status', g.status, 'received_at', g.received_at,
+              'items', (SELECT json_agg(json_build_object(
+                'item_description', pol.item_description, 'received_qty', gl.received_qty,
+                'accepted_qty', gl.accepted_qty, 'rejected_qty', gl.rejected_qty
+              ) ORDER BY pol.item_description)
+                FROM goods_receipt_lines gl JOIN purchase_order_lines pol ON pol.id = gl.po_line_id
+                WHERE gl.goods_receipt_id = g.id)
+            ) ORDER BY g.received_at) FROM goods_receipts g WHERE g.purchase_order_id = po.id), '[]'::json) AS receipts
      FROM purchase_orders po JOIN vendors v ON v.id = po.vendor_id
      WHERE po.society_id = $1 AND ${D('po.po_date')} ORDER BY po.po_date DESC LIMIT $4::int`,
     [...rng(s, f, t), limit]
@@ -553,8 +569,9 @@ const rfqQuotations = (rfqId) =>
 
 const rfqScores = (rfqId) =>
   many(
-    `SELECT vendor_id, criterion, score::float8 AS score, remarks FROM quotation_comparisons
-     WHERE rfq_id = $1::uuid ORDER BY vendor_id, criterion`,
+    `SELECT qc.vendor_id, v.legal_name AS vendor, qc.criterion, qc.score::float8 AS score, qc.remarks
+     FROM quotation_comparisons qc JOIN vendors v ON v.id = qc.vendor_id
+     WHERE qc.rfq_id = $1::uuid ORDER BY v.legal_name, qc.criterion`,
     [rfqId]
   );
 
