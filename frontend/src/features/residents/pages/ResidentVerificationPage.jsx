@@ -203,13 +203,12 @@ const ResidentVerificationPage = () => {
                                 {filtered.map((item) => {
                                     const resident = residents.find((record) => String(record.id) === String(item.residentId));
                                     const residentName = resident?.displayName || item.residentDisplayName || item.residentId || "Resident";
-                                    const photo = profileImageUrl(resident?.profilePhoto || resident?.profilePictureUrl || resident?.profile_picture_url || item.avatarUrl);
+                                    const photo = profileImageUrl(resident?.profilePhoto);
                                     return <tr key={item.id}>
                                         <td>
                                             <div className="society-name-cell">
                                                 <span className="society-avatar">
-                                                    <UserRound size={19} />
-                                                    {photo && <img src={photo} alt={`${residentName} profile`} className="resident-table-photo" loading="lazy" onError={(event) => { event.currentTarget.hidden = true; }} />}
+                                                    {photo ? <img src={photo} alt={`${residentName} profile`} className="resident-table-photo" loading="lazy" onError={(event) => { event.currentTarget.hidden = true; }} /> : <UserRound size={19} />}
                                                 </span>
                                                 <span className="verification-resident-copy">
                                                     <strong title={residentName}>{residentName}</strong>

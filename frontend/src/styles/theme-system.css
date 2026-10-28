@@ -356,11 +356,9 @@ body .resident-module-page .society-list-panel .verification-table th:nth-child(
 body .resident-module-page .society-list-panel .verification-table td:nth-child(4) { width: 16%; }
 body .resident-module-page .society-list-panel .verification-table th:last-child,
 body .resident-module-page .society-list-panel .verification-table td:last-child { width: 18%; }
-body .resident-module-page .society-list-panel .verification-table .society-name-cell { grid-template-columns:40px minmax(0,1fr); gap:10px; }
-body .resident-module-page .society-list-panel .verification-table .society-avatar { width:40px; height:40px; flex-basis:40px; }
-body .resident-module-page .society-list-panel .verification-table .society-avatar { position:relative; overflow:hidden; }
-body .resident-module-page .society-list-panel .verification-table .society-avatar > svg { position:relative; z-index:0; }
-body .resident-module-page .society-list-panel .verification-table .society-avatar > .resident-table-photo { position:absolute; z-index:1; inset:0; width:100%; height:100%; border-radius:inherit; object-fit:cover; object-position:center; }
+body .resident-module-page .society-list-panel .verification-table .society-name-cell { grid-template-columns:48px minmax(0,1fr); gap:12px; }
+body .resident-module-page .society-list-panel .verification-table .society-avatar { box-sizing:border-box; width:48px; height:48px; flex-basis:48px; border-radius:12px; }
+body .resident-module-page .society-list-panel .verification-table .society-avatar .resident-table-photo { display:block; width:100%; height:100%; border-radius:inherit; object-fit:cover; object-position:center; }
 body .resident-module-page .society-list-panel .non-member-table { width:100%; min-width:760px; table-layout:fixed; }
 body .resident-module-page .society-list-panel .non-member-table th:first-child,
 body .resident-module-page .society-list-panel .non-member-table td:first-child { width:26%; }
