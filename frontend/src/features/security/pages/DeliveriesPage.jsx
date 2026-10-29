@@ -36,9 +36,11 @@ const list = (value) => {
 function DeliveryForm({ societyId, profiles, onSubmit, onCancel }) {
   const [form, setForm] = useState({ societyId, unitId: '', visitorProfileId: '', deliveryType: 'COURIER', courierName: '', trackingNo: '' });
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const selectedVisitor = profiles.find((profile) => String(profile.id) === String(form.visitorProfileId));
   return <form onSubmit={(e) => { e.preventDefault(); onSubmit({ ...form, visitorProfileId: form.visitorProfileId || null, courierName: form.courierName || null, trackingNo: form.trackingNo || null }); }}>
     <UnitSelect value={form.unitId} onChange={(v) => set('unitId', v)} />
     <VisitorPicker profiles={profiles} value={form.visitorProfileId} onChange={(v) => set('visitorProfileId', v)} />
+    {selectedVisitor?.visitor_type === 'DELIVERY_PERSON' && <TextField id="selectedDeliveryCompany" label="Delivery company" value={selectedVisitor.delivery_company || 'Not provided on visitor profile'} disabled hint="Company is taken from the selected visitor profile." />}
     <SelectField id="deliveryType" label="Delivery type" options={DELIVERY_TYPES.map((v) => ({ value: v, label: label(v) }))} value={form.deliveryType} onChange={(e) => set('deliveryType', e.target.value)} />
     <TextField id="courierName" label="Courier / source" value={form.courierName} onChange={(e) => set('courierName', e.target.value)} />
     <TextField id="trackingNo" label="Tracking number" value={form.trackingNo} onChange={(e) => set('trackingNo', e.target.value)} />

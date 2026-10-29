@@ -276,7 +276,7 @@ export default function HousingDashboardPage() {
       <header className="home-overview-header">
         <div>
           <span className="home-overview-eyebrow"><Building2 size={15} /> SOCIETY WORKSPACE</span>
-          <h1>{data?.societyName || 'Home'}</h1>
+          <h1>{data?.societyName || (societyId ? 'Loading society…' : 'Select a society')}</h1>
           <p>Your live overview for residents, daily operations, and finances.</p>
         </div>
         <button type="button" className="home-refresh" onClick={() => loadDashboard(true)} disabled={refreshing || loading}>

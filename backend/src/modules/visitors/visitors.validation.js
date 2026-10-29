@@ -8,6 +8,11 @@ const OVERSTAY_STATUSES = ['ACKNOWLEDGED', 'RESOLVED'];
 const createProfileSchema = Joi.object({
   societyId: Joi.string().uuid().required(),
   name: Joi.string().max(150).required(),
+  visitorType: Joi.string().valid('GUEST', 'DELIVERY_PERSON', 'SERVICE_PROVIDER', 'STAFF', 'OTHER').default('GUEST'),
+  deliveryCompany: Joi.string().trim().max(100).allow('', null).when('visitorType', {
+    is: 'DELIVERY_PERSON',
+    then: Joi.string().trim().min(1).max(100).required(),
+  }),
   phone: Joi.string().max(20).allow('', null),
   idType: Joi.string().valid(...ID_TYPES).allow(null),
   idNumberMasked: Joi.string().max(50).allow('', null),
@@ -23,6 +28,11 @@ const listProfilesQuerySchema = Joi.object({
 
 const updateProfileSchema = Joi.object({
   name: Joi.string().max(150),
+  visitorType: Joi.string().valid('GUEST', 'DELIVERY_PERSON', 'SERVICE_PROVIDER', 'STAFF', 'OTHER'),
+  deliveryCompany: Joi.string().trim().max(100).allow('', null).when('visitorType', {
+    is: 'DELIVERY_PERSON',
+    then: Joi.string().trim().min(1).max(100).required(),
+  }),
   phone: Joi.string().max(20).allow('', null),
   idType: Joi.string().valid(...ID_TYPES).allow(null),
   idNumberMasked: Joi.string().max(50).allow('', null),
