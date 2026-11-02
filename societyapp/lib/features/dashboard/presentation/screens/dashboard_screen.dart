@@ -14,7 +14,21 @@ class DashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (user.roles.contains('RESIDENT_APP')) {
+    const residentRoles = {
+      'RESIDENT_APP',
+      'RESIDENT',
+      'OWNER',
+      'PRIMARY_OWNER',
+      'CO_OWNER',
+      'TENANT',
+      'FAMILY_MEMBER',
+    };
+    final isResidentAccount = user.roles.isEmpty ||
+        user.roles.any(
+          (role) => residentRoles.contains(role.trim().toUpperCase()),
+        );
+
+    if (isResidentAccount) {
       return ResidentHomeScreen(user: user);
     }
 
