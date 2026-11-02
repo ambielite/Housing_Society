@@ -1,4 +1,12 @@
 const repository = require("./occupancy.repository");
+const Unit = require("../../societies/unit/unit.model");
+
+const markUnitOccupied = async (unitId) => {
+    const unit = await Unit.findByPk(unitId);
+    if (unit && unit.status !== "OCCUPIED") {
+        await unit.update({ status: "OCCUPIED" });
+    }
+};
 
 const createOccupancy = async (data) => {
     const existingOccupancy =
@@ -12,7 +20,7 @@ const createOccupancy = async (data) => {
         );
     }
 
-    return await repository.create({
+    const occupancy = await repository.create({
         societyId: data.societyId,
         unitId: data.unitId,
         residentId: data.residentId,
@@ -25,6 +33,9 @@ const createOccupancy = async (data) => {
         billingEndDate: null,
         isCurrent: true
     });
+
+    await markUnitOccupied(data.unitId);
+    return occupancy;
 };
 
 const getOccupancies = async () => {
@@ -112,7 +123,7 @@ const transferOccupancy = async (data) => {
         );
     }
 
-    return await repository.create({
+    const occupancy = await repository.create({
         societyId,
         unitId,
         residentId: newResidentId,
@@ -123,6 +134,9 @@ const transferOccupancy = async (data) => {
         billingEndDate: null,
         isCurrent: true
     });
+
+    await markUnitOccupied(unitId);
+    return occupancy;
 };
 
 module.exports = {

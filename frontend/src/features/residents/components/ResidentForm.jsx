@@ -37,6 +37,7 @@ const unitRowsFrom = (response) => {
 
 const initialValues = (resident) => ({
     societyId: resident?.societyId || "",
+    userId: resident?.userId || "",
     towerId: "",
     unitId: "",
     firstName: resident?.firstName || "",
@@ -61,6 +62,9 @@ const profileImageUrl = (url) => !url || /^https?:\/\//i.test(url) ? url : `${ne
 const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
     const [values, setValues] = useState(() => initialValues(resident));
     const [societies, setSocieties] = useState([]);
+    const [residentRoleUsers, setResidentRoleUsers] = useState([]);
+    const [accountMode, setAccountMode] = useState("existing");
+    const [accountPassword, setAccountPassword] = useState("");
     const [towers, setTowers] = useState([]);
     const [towerFloors, setTowerFloors] = useState([]);
     const [units, setUnits] = useState([]);
@@ -68,6 +72,7 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
     const [loadingUnits, setLoadingUnits] = useState(false);
     const [loadingTowers, setLoadingTowers] = useState(false);
     const [loadingTowerFloors, setLoadingTowerFloors] = useState(false);
+    const [loadingResidentRoleUsers, setLoadingResidentRoleUsers] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
     const [createdResidentId, setCreatedResidentId] = useState("");
@@ -175,10 +180,58 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
         setValues((current) => ({
             ...current,
             [name]: type === "checkbox" ? checked : value,
-            ...(name === "societyId" ? { towerId: "", unitId: "" } : {}),
+            ...(name === "societyId" ? { towerId: "", unitId: "", userId: "" } : {}),
             ...(name === "towerId" ? { unitId: "" } : {}),
             ...(name === "role" && !["PRIMARY_OWNER", "CO_OWNER", "TENANT"].includes(value) ? { unitId: "" } : {})
         }));
+    };
+
+    useEffect(() => {
+        let isMounted = true;
+        setResidentRoleUsers([]);
+        if (resident || !values.societyId) {
+            setLoadingResidentRoleUsers(false);
+            return () => { isMounted = false; };
+        }
+
+        setLoadingResidentRoleUsers(true);
+        residentApi.getResidentRoleUsers(values.societyId)
+            .then((response) => {
+                if (!isMounted) return;
+                const users = rowsFrom(response);
+                setResidentRoleUsers(users);
+                if (!users.length) setAccountMode("new");
+            })
+            .catch((err) => {
+                if (isMounted) setError(err.response?.data?.message || "Could not load users assigned only the Resident role.");
+            })
+            .finally(() => {
+                if (isMounted) setLoadingResidentRoleUsers(false);
+            });
+
+        return () => { isMounted = false; };
+    }, [resident, values.societyId]);
+
+    const selectResidentAccount = (event) => {
+        const userId = event.target.value;
+        const account = residentRoleUsers.find((user) => user.id === userId);
+        setValues((current) => ({
+            ...current,
+            userId,
+            ...(account ? {
+                firstName: account.first_name || "",
+                middleName: "",
+                lastName: account.last_name || "",
+                email: account.email || "",
+                mobile: account.phone || ""
+            } : {})
+        }));
+    };
+
+    const changeAccountMode = (event) => {
+        setAccountMode(event.target.value);
+        setAccountPassword("");
+        setValues((current) => ({ ...current, userId: "" }));
     };
 
     const submit = async (event) => {
@@ -218,6 +271,15 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
             emergencyContactRelation: values.emergencyContactRelation.trim() || null,
             remarks: values.remarks.trim() || null
         };
+        if (resident) {
+            delete payload.userId;
+            delete payload.accountPassword;
+        } else if (accountMode === "new") {
+            delete payload.userId;
+            payload.accountPassword = accountPassword;
+        } else {
+            delete payload.accountPassword;
+        }
         payload.dateOfBirth = values.dateOfBirth || null;
         if (profilePicture) payload.profilePicture = profilePicture;
 
@@ -300,6 +362,25 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
                                 )}
                             </div>
                             {!resident && <div className="form-group form-group-full">
+                                <label htmlFor="resident-account-mode">Login account setup<span className="required">*</span></label>
+                                <select id="resident-account-mode" value={accountMode} onChange={changeAccountMode} disabled={!values.societyId || loadingResidentRoleUsers}>
+                                    <option value="existing">Link an existing Resident account</option>
+                                    <option value="new">Create a new account for this resident</option>
+                                </select>
+                                {accountMode === "existing" ? <>
+                                    <label htmlFor="resident-user-account">Resident login account<span className="required">*</span></label>
+                                    <select id="resident-user-account" name="userId" value={values.userId} onChange={selectResidentAccount} required disabled={!values.societyId || loadingResidentRoleUsers || residentRoleUsers.length === 0}>
+                                        <option value="">{!values.societyId ? "Select a society first" : loadingResidentRoleUsers ? "Loading resident accounts…" : residentRoleUsers.length ? "Select a Resident role user" : "No eligible Resident users found"}</option>
+                                        {residentRoleUsers.map((user) => <option key={user.id} value={user.id}>{[user.first_name, user.last_name].filter(Boolean).join(" ") || user.email} — {user.email}</option>)}
+                                    </select>
+                                    <small className="field-hint">Only active accounts assigned the Resident role, and no other role in this society, are available.</small>
+                                </> : <>
+                                    <label htmlFor="resident-account-password">Initial login password<span className="required">*</span></label>
+                                    <input id="resident-account-password" type="password" value={accountPassword} onChange={(event) => setAccountPassword(event.target.value)} minLength={8} maxLength={128} autoComplete="new-password" required />
+                                    <small className="field-hint">A new active user account will be created using the resident’s name, email, and mobile. The Resident role will be assigned automatically. Share this password securely with the resident.</small>
+                                </>}
+                            </div>}
+                            {!resident && <div className="form-group form-group-full">
                                 <label htmlFor="resident-tower">Tower (optional)</label>
                                 <select id="resident-tower" name="towerId" value={values.towerId} onChange={update} disabled={!values.societyId || loadingTowers}>
                                     <option value="">{loadingTowers ? "Loading towers…" : "No tower selected"}</option>
@@ -321,7 +402,7 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
                                     {visibleUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.unitNumber || unit.name || unit.id}</option>)}
                                 </select>
                                 {values.unitId && <small className="field-hint">Selected unit: {visibleUnits.find((unit) => unit.id === values.unitId)?.unitNumber || "Unit"}{values.towerId ? ` · Tower: ${towers.find((tower) => tower.id === values.towerId)?.name || "Tower"}` : ""}</small>}
-                                <small className="field-hint">Optional. Choose a resident role to assign the selected unit; unit assignments are supported for owners and tenants.</small>
+                                <small className="field-hint">Optional. Choose a resident role to assign the selected unit; unit assignments are supported for owners and tenants. Saving an assignment marks the unit Occupied.</small>
                             </div>}
                             <div className="form-group"><label htmlFor="resident-first-name">First name<span className="required">*</span></label><input id="resident-first-name" name="firstName" value={values.firstName} onChange={update} maxLength={100} autoComplete="given-name" required /></div>
                             <div className="form-group"><label htmlFor="resident-middle-name">Middle name</label><input id="resident-middle-name" name="middleName" value={values.middleName} onChange={update} maxLength={100} /></div>
@@ -344,7 +425,7 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
                         <div className="form-grid">
                             <div className="form-group"><label htmlFor="resident-mobile">Mobile number<span className="required">*</span></label><input id="resident-mobile" name="mobile" type="tel" value={values.mobile} onChange={update} maxLength={20} autoComplete="tel" required /></div>
                             <div className="form-group"><label htmlFor="resident-alternate-mobile">Alternate mobile</label><input id="resident-alternate-mobile" name="alternateMobile" type="tel" value={values.alternateMobile} onChange={update} maxLength={20} /></div>
-                            <div className="form-group form-group-full"><label htmlFor="resident-email">Email</label><input id="resident-email" name="email" type="email" value={values.email} onChange={update} maxLength={255} autoComplete="email" /></div>
+                            <div className="form-group form-group-full"><label htmlFor="resident-email">Email{!resident && accountMode === "new" && <span className="required">*</span>}</label><input id="resident-email" name="email" type="email" value={values.email} onChange={update} maxLength={255} autoComplete="email" required={!resident && accountMode === "new"} /></div>
                         </div>
                     </section>
 
@@ -365,7 +446,7 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
 
                 <footer className="society-form-footer">
                     <button type="button" className="btn-secondary" onClick={onClose} disabled={saving}>Cancel</button>
-                    <button type="submit" className="btn-primary" disabled={saving || loadingSocieties || (!resident && societies.length === 0)}>{saving ? "Saving…" : resident ? "Save changes" : "Add resident"}</button>
+                    <button type="submit" className="btn-primary" disabled={saving || loadingSocieties || (!resident && (societies.length === 0 || (accountMode === "existing" && (loadingResidentRoleUsers || !values.userId)) || (accountMode === "new" && !accountPassword)))}>{saving ? "Saving…" : resident ? "Save changes" : "Add resident"}</button>
                 </footer>
             </form>
         </section>

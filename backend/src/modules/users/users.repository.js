@@ -170,12 +170,22 @@ const listUsers = async ({ societyId, status, search, limit, offset }) => {
 
   const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
+  const roleSocietyParam = idx + 2;
   const dataResult = await db.query(
-    `SELECT ${PUBLIC_COLUMNS} FROM users
+    `SELECT ${PUBLIC_COLUMNS},
+       ARRAY(
+         SELECT r.name
+         FROM user_roles ur
+         JOIN roles r ON r.id = ur.role_id
+         WHERE ur.user_id = users.id
+           AND (ur.society_id IS NULL OR ur.society_id = COALESCE($${roleSocietyParam}::uuid, users.society_id))
+         ORDER BY r.name
+       ) AS roles
+     FROM users
      ${whereClause}
      ORDER BY created_at DESC
      LIMIT $${idx} OFFSET $${idx + 1}`,
-    [...params, limit, offset]
+    [...params, limit, offset, societyId || null]
   );
 
   const countResult = await db.query(`SELECT COUNT(*)::int AS total FROM users ${whereClause}`, params);

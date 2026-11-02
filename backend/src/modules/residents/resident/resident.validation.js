@@ -28,6 +28,14 @@ const validateCreateResident = (data) => {
         errors.push("Invalid societyId");
     }
 
+    if (data.userId && !validateUUID(data.userId)) {
+        errors.push("Invalid userId");
+    }
+
+    if (!data.userId && (!data.accountPassword || String(data.accountPassword).length < 8 || String(data.accountPassword).length > 128)) {
+        errors.push("Set an initial login password between 8 and 128 characters, or select an existing Resident account");
+    }
+
     if (
         !data.firstName ||
         typeof data.firstName !== "string" ||
@@ -53,13 +61,14 @@ const validateCreateResident = (data) => {
     }
 
     if (
-        data.email &&
+        (!data.userId || data.email) &&
         (
             typeof data.email !== "string" ||
+            !data.email.trim() ||
             !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)
         )
     ) {
-        errors.push("Invalid email");
+        errors.push(data.userId ? "Invalid email" : "A valid email is required to create a resident login account");
     }
 
     if (

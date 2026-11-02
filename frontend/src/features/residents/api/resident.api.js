@@ -12,6 +12,15 @@ const toRequestBody = (data) => {
 
 const residentApi = {
 
+    getResidentRoleUsers: async (societyId) => {
+        const response = await axiosClient.get(
+            "/residents/eligible-users",
+            { params: { societyId }, headers: { "x-society-id": societyId } }
+        );
+
+        return response.data;
+    },
+
     getAll: async (params = {}) => {
         const response = await axiosClient.get(
             "/residents",
