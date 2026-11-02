@@ -32,3 +32,13 @@ WHERE r.society_id IS NULL
     'NOTIFICATION_READ'
   )
 ON CONFLICT DO NOTHING;
+
+-- Residents must not be able to create societies. Remove the grant as well
+-- when this seed is run against a database that already has the role.
+DELETE FROM role_permissions rp
+USING roles r, permissions p
+WHERE rp.role_id = r.id
+  AND rp.permission_id = p.id
+  AND r.society_id IS NULL
+  AND r.code = 'RESIDENT_APP'
+  AND p.code = 'SOCIETY_CREATE';

@@ -1822,6 +1822,18 @@ tbody tr:hover {
 .security-actions-table .society-row-actions { width: 100%; max-width: 100%; flex-wrap: wrap; align-items: center; gap: 6px; }
 .security-actions-table .row-actions button,
 .security-actions-table .society-row-actions button { white-space: normal; }
+.security-page .visitor-invites-table { width: 100%; min-width: 980px; table-layout: fixed; }
+.security-page .visitor-invites-table th:nth-child(1), .security-page .visitor-invites-table td:nth-child(1) { width: 17%; }
+.security-page .visitor-invites-table th:nth-child(2), .security-page .visitor-invites-table td:nth-child(2) { width: 13%; }
+.security-page .visitor-invites-table th:nth-child(3), .security-page .visitor-invites-table td:nth-child(3) { width: 27%; }
+.security-page .visitor-invites-table th:nth-child(4), .security-page .visitor-invites-table td:nth-child(4) { width: 18%; }
+.security-page .visitor-invites-table th:nth-child(5), .security-page .visitor-invites-table td:nth-child(5) { width: 13%; }
+.security-page .visitor-invites-table th:nth-child(6), .security-page .visitor-invites-table td:nth-child(6) { width: 12%; }
+.security-page .visitor-invites-table td { white-space: normal; overflow-wrap: anywhere; vertical-align: middle; }
+.visitor-invite-window { display: grid; gap: 3px; min-width: 0; line-height: 1.45; }
+.visitor-invite-window > span { min-width: 0; overflow-wrap: anywhere; }
+.visitor-invite-window .visitor-invite-window-separator { color: var(--muted); font-size: 10px; text-transform: uppercase; }
+.visitor-invite-purpose { display: block; min-width: 0; white-space: normal; overflow-wrap: anywhere; }
 .resident-ownership-table .ownership-unit-list,
 .resident-ownership-table .ownership-share,
 .resident-ownership-table .ownership-contact-email { display: block; margin-top: 4px; color: #667085; font-size: 11px; line-height: 1.4; }
