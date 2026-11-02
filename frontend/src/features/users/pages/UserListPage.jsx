@@ -50,6 +50,13 @@ export default function UserListPage() {
       ),
     },
     { key: 'phone', header: 'Phone', render: (user) => user.phone || '-' },
+    {
+      key: 'roles',
+      header: 'Roles',
+      render: (user) => user.roles?.length
+        ? <span className="chips">{user.roles.map((role) => <span className="chip" key={role}>{role}</span>)}</span>
+        : <span className="muted">No role</span>,
+    },
     { key: 'status', header: 'Status', render: (user) => <UserStatusBadge status={user.status} /> },
     { key: 'last_login_at', header: 'Last sign-in', render: (user) => formatDateTime(user.last_login_at, 'Never') },
     { key: 'created_at', header: 'Added', render: (user) => formatDate(user.created_at) },

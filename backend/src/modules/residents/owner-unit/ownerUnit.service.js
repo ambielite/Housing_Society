@@ -23,7 +23,7 @@ const Resident =
 const markUnitOccupiedForActiveOwnership = async (unitId, relationshipStatus) => {
     if (relationshipStatus !== "ACTIVE") return;
     const unit = await Unit.findByPk(unitId);
-    if (unit?.status === "VACANT") {
+    if (unit && unit.status !== "OCCUPIED") {
         await unit.update({ status: "OCCUPIED" });
     }
 };
@@ -174,7 +174,8 @@ const createOwnerUnit = async (data) => {
 
     const relationship = await ownerUnitRepository.create(data);
 
-    // Preserve workflow states such as move-in/out and inactive.
+    // An active ownership assignment means the unit is occupied, regardless
+    // of its previous status.
     await markUnitOccupiedForActiveOwnership(unit.id, relationship.status);
 
     return relationship;

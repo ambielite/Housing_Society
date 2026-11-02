@@ -32,6 +32,11 @@ router.post(
     residentController.createResident
 );
 
+router.get(
+    "/eligible-users",
+    residentController.listResidentRoleUsers
+);
+
 
 // GET ALL
 router.get(

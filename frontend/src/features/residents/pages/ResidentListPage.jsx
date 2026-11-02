@@ -782,12 +782,7 @@ const ResidentListPage = () => {
                                                 <td>
 
                                                     <span
-                                                        className={
-                                                            resident.status ===
-                                                            "ACTIVE"
-                                                                ? "society-registration"
-                                                                : "society-muted"
-                                                        }
+                                                        className={`badge badge-${String(resident.status || "PENDING").toLowerCase()}`}
                                                     >
 
                                                         {(resident.status ||

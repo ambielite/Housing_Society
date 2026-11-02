@@ -1307,3 +1307,30 @@ body .user-form-page .form-wide { border: 1px solid var(--card-border); border-r
   body .user-detail-profile-panel .user-detail-photo-row { margin: 14px 16px; }
   body .role-permissions-panel > :not(.role-detail-panel-heading) { margin-right: 16px; margin-left: 16px; }
 }
+/* Shared geometry for status pills across feature modules. State colors remain
+   defined by each module's status classes, while sizing and shape stay aligned. */
+body :is(
+  .badge,
+  .verification-status-badge,
+  .moveinout-status,
+  .security-status-pill,
+  .notification-status,
+  .multi-society-status,
+  .emergency-status,
+  .um-status,
+  .rc-status-badge,
+  .role-status-badge,
+  .document-detail-status,
+  .finance-primary-badge
+) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 23px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.2;
+  white-space: nowrap;
+}

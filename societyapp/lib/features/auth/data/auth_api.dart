@@ -12,11 +12,15 @@ class AuthenticatedUser {
     required this.name,
     required this.email,
     required this.accessToken,
+    required this.roles,
+    required this.permissions,
   });
 
   final String name;
   final String email;
   final String accessToken;
+  final List<String> roles;
+  final List<String> permissions;
 }
 
 class AuthApi {
@@ -67,6 +71,12 @@ class AuthApi {
         name: fullName.isEmpty ? email : fullName,
         email: (user['email'] ?? email).toString(),
         accessToken: token,
+        roles: (user['roles'] as List<dynamic>? ?? const [])
+            .map((role) => role.toString())
+            .toList(growable: false),
+        permissions: (user['permissions'] as List<dynamic>? ?? const [])
+            .map((permission) => permission.toString())
+            .toList(growable: false),
       );
     } on AuthException {
       rethrow;

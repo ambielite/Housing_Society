@@ -83,6 +83,18 @@ class DashboardScreen extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: const TextStyle(color: AppColors.muted),
                     ),
+                    if (user.roles.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        'Access role: ${user.roles.join(', ')}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: AppColors.muted,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 20),
                     const Text(
                       'This simple screen confirms that the app connected to the backend and signed you in.',

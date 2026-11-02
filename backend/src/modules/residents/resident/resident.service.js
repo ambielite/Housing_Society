@@ -5,6 +5,9 @@ const {
 } = require("./resident.validation");
 
 const Society = require("../../../modules/societies/society/society.model");
+const sequelize = require("../../../config/database");
+const bcrypt = require("bcryptjs");
+const { QueryTypes } = require("sequelize");
 const { saveProfilePicture, removeProfilePicture } = require("../../users/profilePicture.storage");
 
 
@@ -12,7 +15,7 @@ const { saveProfilePicture, removeProfilePicture } = require("../../users/profil
 // CREATE RESIDENT
 // ============================================================
 
-const createResident = async (data, profilePicture) => {
+const createResident = async (data, profilePicture, assignedBy) => {
 
     if (data.email) data.email = data.email.trim().toLowerCase();
 
@@ -29,6 +32,18 @@ const createResident = async (data, profilePicture) => {
 
     if (!society) {
         throw new Error("Society not found");
+    }
+
+    let residentAccount = null;
+    if (data.userId) {
+        const residentAccounts = await residentRepository.listResidentRoleUsers({
+            societyId: data.societyId,
+            userId: data.userId
+        });
+        residentAccount = residentAccounts[0];
+        if (!residentAccount) {
+            throw new Error("The selected user must have only the active Resident role in this society and must not already be linked to a resident record");
+        }
     }
 
     // Check duplicate mobile inside same society
@@ -75,13 +90,86 @@ const createResident = async (data, profilePicture) => {
     const profilePhoto = profilePicture ? saveProfilePicture(profilePicture) : null;
     let resident;
     try {
-        resident = await residentRepository.create({ ...data, ...(profilePhoto ? { profilePhoto } : {}) });
+        resident = await sequelize.transaction(async (transaction) => {
+            let userId = data.userId;
+            let residentRoleId = residentAccount?.resident_role_id;
+
+            if (!userId) {
+                const existingAccount = await sequelize.query(
+                    "SELECT id FROM users WHERE lower(email) = lower(:email) LIMIT 1",
+                    { replacements: { email: data.email }, type: QueryTypes.SELECT, transaction }
+                );
+                if (existingAccount.length) {
+                    throw new Error("An account already uses this email. Select it from the existing Resident account list or use another email.");
+                }
+
+                const residentRoles = await sequelize.query(
+                    "SELECT id FROM roles WHERE code = 'RESIDENT_APP' AND society_id IS NULL AND status = 'ACTIVE' LIMIT 1",
+                    { type: QueryTypes.SELECT, transaction }
+                );
+                residentRoleId = residentRoles[0]?.id;
+                if (!residentRoleId) {
+                    throw new Error("The Resident role is not configured. Run the backend migrations and try again.");
+                }
+
+                const passwordHash = await bcrypt.hash(data.accountPassword, 12);
+                const createdUsers = await sequelize.query(
+                    `INSERT INTO users (society_id, email, phone, password_hash, first_name, last_name, status)
+                     VALUES (:societyId, :email, :phone, :passwordHash, :firstName, :lastName, 'ACTIVE')
+                     RETURNING id`,
+                    {
+                        replacements: {
+                            societyId: data.societyId,
+                            email: data.email,
+                            phone: data.mobile || null,
+                            passwordHash,
+                            firstName: data.firstName,
+                            lastName: data.lastName
+                        },
+                        type: QueryTypes.SELECT,
+                        transaction
+                    }
+                );
+                userId = createdUsers[0].id;
+            }
+
+            const { accountPassword, ...residentData } = data;
+            const created = await residentRepository.create(
+                { ...residentData, userId, ...(profilePhoto ? { profilePhoto } : {}) },
+                { transaction }
+            );
+
+            // Ensure the Resident app role is attached to this account and
+            // scoped to the resident's society, in the same DB transaction.
+            await sequelize.query(
+                `INSERT INTO user_roles (user_id, role_id, society_id, assigned_by)
+                 VALUES (:userId, :roleId, :societyId, :assignedBy)
+                 ON CONFLICT (user_id, role_id)
+                 DO UPDATE SET society_id = EXCLUDED.society_id,
+                               assigned_at = now(),
+                               assigned_by = EXCLUDED.assigned_by`,
+                {
+                    replacements: {
+                        userId,
+                        roleId: residentRoleId,
+                        societyId: data.societyId,
+                        assignedBy: assignedBy || null
+                    },
+                    transaction
+                }
+            );
+            return created;
+        });
     } catch (error) {
         removeProfilePicture(profilePhoto);
         throw error;
     }
 
     return resident;
+};
+
+const listResidentRoleUsers = async (societyId) => {
+    return residentRepository.listResidentRoleUsers({ societyId });
 };
 
 
@@ -333,6 +421,7 @@ const deleteResident = async (
 
 module.exports = {
     createResident,
+    listResidentRoleUsers,
     getAllResidents,
     getResidentById,
     updateResident,

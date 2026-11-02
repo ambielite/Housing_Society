@@ -12,7 +12,8 @@ const createResident = async (req, res) => {
         const resident =
             await residentService.createResident(
                 req.body,
-                req.file
+                req.file,
+                req.user?.id
             );
 
         return res.status(201).json({
@@ -27,6 +28,15 @@ const createResident = async (req, res) => {
             success: false,
             message: error.message
         });
+    }
+};
+
+const listResidentRoleUsers = async (req, res) => {
+    try {
+        const users = await residentService.listResidentRoleUsers(req.query.societyId);
+        return res.status(200).json({ success: true, count: users.length, data: users });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
     }
 };
 
@@ -183,6 +193,7 @@ const deleteResident = async (req, res) => {
 
 module.exports = {
     createResident,
+    listResidentRoleUsers,
     getAllResidents,
     getResidentById,
     updateResident,
