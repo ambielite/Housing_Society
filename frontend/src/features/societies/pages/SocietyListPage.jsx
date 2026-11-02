@@ -7,8 +7,11 @@ import societyApi from "../api/society.api";
 import SocietyForm from "../components/SocietyForm";
 import { societyLogoUrl } from "../utils/societyLogo";
 import { RecordDetailsModal } from "../../../components/ui/Modal";
+import useAuth from "../../../app/providers/useAuth";
 
 const SocietyPage = () => {
+    const { hasPermission } = useAuth();
+    const canCreateSociety = hasPermission("SOCIETY_CREATE");
     const [societies, setSocieties] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -91,7 +94,7 @@ const SocietyPage = () => {
                     <h1>Societies</h1>
                     <p>Manage your communities, registrations, and location details.</p>
                 </div>
-                <button className="society-add-button" onClick={openCreate}><Plus size={18} strokeWidth={2.4} /> Add Society</button>
+                {canCreateSociety && <button className="society-add-button" onClick={openCreate}><Plus size={18} strokeWidth={2.4} /> Add Society</button>}
             </header>
 
             {error && <div className="society-error" role="alert">{error}<button onClick={loadSocieties}>Try again</button></div>}
@@ -125,7 +128,7 @@ const SocietyPage = () => {
                 </div>
 
                 {loading ? <div className="society-loading"><span className="society-loader" />Loading your societies...</div> : filteredSocieties.length === 0 ? (
-                    <div className="society-empty"><span className="society-empty-icon"><Building2 size={24} /></span><h3>{search ? "No matching societies" : "No societies yet"}</h3><p>{search ? "Try another name, registration number, or address." : "Add your first society to start managing your community."}</p>{!search && <button className="society-add-button" onClick={openCreate}><Plus size={17} /> Add your first society</button>}</div>
+                    <div className="society-empty"><span className="society-empty-icon"><Building2 size={24} /></span><h3>{search ? "No matching societies" : "No societies yet"}</h3><p>{search ? "Try another name, registration number, or address." : "Add your first society to start managing your community."}</p>{!search && canCreateSociety && <button className="society-add-button" onClick={openCreate}><Plus size={17} /> Add your first society</button>}</div>
                 ) : (
                     <div className="society-table-wrap"><table className="society-table"><thead><tr><th>Logo</th><th>Society</th><th>Registration</th><th>Tax details</th><th>Region</th><th className="society-actions-heading">Actions</th></tr></thead>
                         <tbody>{filteredSocieties.map((society) => <tr key={society.id}>
