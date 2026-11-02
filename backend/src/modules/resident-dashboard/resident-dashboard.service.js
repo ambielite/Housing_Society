@@ -13,7 +13,8 @@ const getDashboard = async (user) => {
             t.name AS tower_name, f.name AS floor_name, u.unit_number
        FROM societies s
        LEFT JOIN residents r
-         ON r.society_id = s.id AND lower(r.email) = lower($2)
+         ON r.society_id = s.id
+        AND (r.user_id = $2 OR (r.user_id IS NULL AND lower(r.email) = lower($3)))
         AND r.status = 'ACTIVE'
        LEFT JOIN owner_units ou
          ON ou.owner_id = r.id AND ou.society_id = s.id AND ou.status = 'ACTIVE'
@@ -24,7 +25,7 @@ const getDashboard = async (user) => {
       WHERE s.id = $1
       ORDER BY ou.effective_from DESC NULLS LAST
       LIMIT 1`,
-    [societyId, user.email],
+    [societyId, user.id, user.email],
   );
   const home = homeResult.rows[0];
 
