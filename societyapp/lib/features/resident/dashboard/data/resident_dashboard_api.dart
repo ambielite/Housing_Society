@@ -10,6 +10,8 @@ const _apiBaseUrl = String.fromEnvironment(
 class ResidentDashboardData {
   const ResidentDashboardData({
     this.societyName,
+    this.societyLogoUrl,
+    this.residentPhotoUrl,
     this.currency = 'INR',
     this.unitNumber,
     this.towerName,
@@ -18,6 +20,8 @@ class ResidentDashboardData {
   });
 
   final String? societyName;
+  final String? societyLogoUrl;
+  final String? residentPhotoUrl;
   final String currency;
   final String? unitNumber;
   final String? towerName;
@@ -26,11 +30,14 @@ class ResidentDashboardData {
 
   factory ResidentDashboardData.fromJson(Map<String, dynamic> json) {
     final society = _asMap(json['society']);
+    final resident = _asMap(json['resident']);
     final unit = _asMap(json['unit']);
     final maintenance = _asMap(json['maintenance']);
     final noticeRows = json['notices'] as List<dynamic>? ?? const [];
     return ResidentDashboardData(
       societyName: _string(society?['name']),
+      societyLogoUrl: _imageUrl(society?['logoUrl']),
+      residentPhotoUrl: _imageUrl(resident?['photoUrl']),
       currency: _string(society?['currency']) ?? 'INR',
       unitNumber: _string(unit?['number']),
       towerName: _string(unit?['tower']),
@@ -77,17 +84,22 @@ class ResidentNotice {
   const ResidentNotice({
     required this.title,
     required this.description,
+    required this.status,
     this.postedAt,
   });
 
   final String title;
   final String description;
+  final String status;
   final DateTime? postedAt;
 
   factory ResidentNotice.fromJson(Map<String, dynamic> json) => ResidentNotice(
         title: _string(json['title']) ?? '',
         description: _string(json['description']) ?? '',
-        postedAt: DateTime.tryParse('${json['posted_at'] ?? ''}'),
+        status: _string(json['status']) ?? 'PUBLISHED',
+        postedAt: DateTime.tryParse(
+          '${json['posted_at'] ?? json['scheduled_at'] ?? json['created_at'] ?? ''}',
+        ),
       );
 }
 
@@ -158,4 +170,13 @@ Map<String, dynamic>? _asMap(Object? value) =>
 String? _string(Object? value) {
   final result = value?.toString().trim();
   return result == null || result.isEmpty || result == 'null' ? null : result;
+}
+
+String? _imageUrl(Object? value) {
+  final path = _string(value);
+  if (path == null) return null;
+  final uri = Uri.tryParse(path);
+  if (uri == null) return null;
+  if (uri.hasScheme) return uri.toString();
+  return Uri.parse(_apiBaseUrl).resolve(path).toString();
 }

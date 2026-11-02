@@ -9,7 +9,8 @@ const getDashboard = async (user) => {
 
   const homeResult = await query(
     `SELECT s.id AS society_id, s.name AS society_name, s.currency,
-            r.id AS resident_id, r.display_name,
+            s.logo_url AS society_logo_url,
+            r.id AS resident_id, r.display_name, r.profile_photo AS resident_photo_url,
             t.name AS tower_name, f.name AS floor_name, u.unit_number
        FROM societies s
        LEFT JOIN residents r
@@ -47,21 +48,54 @@ const getDashboard = async (user) => {
     maintenance = invoiceResult.rows[0] || null;
   }
 
-  const noticesResult = await noticesService.list(societyId, {
-    tab: 'current',
-    page: 1,
-    limit: 3,
+  const getAllNotices = async (tab) => {
+    const firstPage = await noticesService.list(societyId, {
+      tab,
+      page: 1,
+      limit: 100,
+    });
+    const pageCount = Math.ceil(firstPage.total / firstPage.limit);
+    if (pageCount <= 1) return firstPage.rows;
+    const remainingPages = await Promise.all(
+      Array.from({ length: pageCount - 1 }, (_, index) =>
+        noticesService.list(societyId, {
+          tab,
+          page: index + 2,
+          limit: firstPage.limit,
+        }),
+      ),
+    );
+    return firstPage.rows.concat(...remainingPages.map((page) => page.rows));
+  };
+  const noticeGroups = await Promise.all(
+    ['current', 'upcoming'].map(getAllNotices),
+  );
+  const notices = noticeGroups.flat();
+  notices.sort((left, right) => {
+    const leftDate = new Date(
+      left.posted_at || left.scheduled_at || left.created_at || 0,
+    ).getTime();
+    const rightDate = new Date(
+      right.posted_at || right.scheduled_at || right.created_at || 0,
+    ).getTime();
+    return rightDate - leftDate;
   });
 
   return {
-    society: home ? { id: home.society_id, name: home.society_name, currency: home.currency } : null,
+    society: home ? {
+      id: home.society_id,
+      name: home.society_name,
+      currency: home.currency,
+      logoUrl: home.society_logo_url,
+    } : null,
+    resident: home?.resident_id ? { photoUrl: home.resident_photo_url } : null,
     unit: home?.unit_number ? {
       number: home.unit_number,
       tower: home.tower_name,
       floor: home.floor_name,
     } : null,
     maintenance,
-    notices: noticesResult.rows,
+    notices,
   };
 };
 
