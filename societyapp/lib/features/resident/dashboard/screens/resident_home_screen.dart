@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../auth/data/auth_api.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
+import '../../complaints/screens/resident_complaints_screen.dart';
 import '../data/resident_dashboard_api.dart';
 
 class ResidentHomeScreen extends StatefulWidget {
@@ -102,14 +103,14 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                             const SizedBox(height: 25),
                             _sectionTitle('Quick actions', trailing: 'See all'),
                             const SizedBox(height: 14),
-                            _quickActions(),
+                            _quickActions(context),
                             const SizedBox(height: 27),
                             _sectionTitle('Maintenance', trailing: 'View details'),
                             const SizedBox(height: 13),
                             _maintenanceCard(dashboard),
                             const SizedBox(height: 27),
                             _sectionTitle(
-                              'Notice board',
+                              'Announcements',
                               trailing: '${dashboard.notices.length} updates',
                             ),
                             const SizedBox(height: 13),
@@ -130,7 +131,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                 },
               ),
             ),
-            _bottomBar(),
+            _bottomBar(context),
           ],
         ),
       ),
@@ -238,10 +239,10 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
   Widget _greeting() {
     final now = DateTime.now();
     final greeting = now.hour < 12
-        ? 'Good morning'
+        ? 'Good Morning'
         : now.hour < 17
-            ? 'Good afternoon'
-            : 'Good evening';
+            ? 'Good Afternoon'
+            : 'Good Evening';
     const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
     final date = '${weekdays[now.weekday - 1]}, ${now.day} ${months[now.month - 1]}';
@@ -300,21 +301,34 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
         ],
       );
 
-  Widget _quickActions() => Row(children: [
+  Widget _quickActions(BuildContext context) => Row(children: [
         Expanded(child: _action(Icons.receipt_long_rounded, 'Pay dues', const Color(0xFFECE9FF), AppColors.indigo)),
         const SizedBox(width: 10),
         Expanded(child: _action(Icons.person_add_alt_1_rounded, 'Visitors', const Color(0xFFE4F7F1), const Color(0xFF229B78))),
         const SizedBox(width: 10),
-        Expanded(child: _action(Icons.build_outlined, 'Complaints', const Color(0xFFFFF1E5), const Color(0xFFE68A36))),
+        Expanded(child: _action(Icons.build_outlined, 'Complaints', const Color(0xFFFFF1E5), const Color(0xFFE68A36), onTap: () => _openHelp(context))),
         const SizedBox(width: 10),
         Expanded(child: _action(Icons.calendar_month_rounded, 'Amenities', const Color(0xFFE8F1FF), const Color(0xFF4784DB))),
       ]);
 
-  Widget _action(IconData icon, String label, Color background, Color foreground) => Column(children: [
+  Widget _action(IconData icon, String label, Color background, Color foreground, {VoidCallback? onTap}) => InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Column(children: [
         Container(width: 56, height: 56, decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(18)), child: Icon(icon, color: foreground, size: 23)),
         const SizedBox(height: 8),
         Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF59657A))),
-      ]);
+      ]));
+
+  Future<void> _openHelp(BuildContext context) async {
+    setState(() => _selectedTab = 3);
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => ResidentComplaintsScreen(user: widget.user),
+      ),
+    );
+    if (mounted) setState(() => _selectedTab = 0);
+  }
 
   Widget _maintenanceCard(ResidentDashboardData dashboard) {
     final maintenance = dashboard.maintenance;
@@ -355,7 +369,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
               Container(width: 40, height: 40, decoration: BoxDecoration(color: const Color(0xFFEAF1FF), borderRadius: BorderRadius.circular(13)), child: const Icon(Icons.campaign_outlined, color: Color(0xFF4D7FCE), size: 21)),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [Expanded(child: Text(notice.title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.ink))), _noticeStatus(notice.status)]),
+                Row(children: [Expanded(child: Text(notice.title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.ink))), Text(_relativeDate(notice.postedAt), style: const TextStyle(fontSize: 9, color: Color(0xFF9AA4B4)))]),
                 const SizedBox(height: 6),
                 Text(notice.description, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, height: 1.45, color: Color(0xFF7F8A9D))),
                 const SizedBox(height: 8),
@@ -449,30 +463,6 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
         ),
       );
 
-  Widget _noticeStatus(String status) {
-    final normalized = status.toUpperCase();
-    final (label, color, background) = switch (normalized) {
-      'SCHEDULED' => ('Scheduled', const Color(0xFF8263C9), const Color(0xFFF0EBFA)),
-      'EXPIRED' => ('Expired', const Color(0xFF8994A7), const Color(0xFFF0F2F6)),
-      _ => ('Published', const Color(0xFF229B78), const Color(0xFFE7F6F0)),
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 9,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-
   Widget _loadError(String error) => Center(
         child: Padding(
           padding: const EdgeInsets.all(28),
@@ -523,21 +513,22 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     return '${date.day} ${_monthName(date.month)}';
   }
 
-  Widget _bottomBar() => Container(
+  Widget _bottomBar(BuildContext context) => Container(
         decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: Color(0xFFEAEFF5)))),
         child: SafeArea(top: false, child: Padding(padding: const EdgeInsets.fromLTRB(8, 9, 8, 5), child: Row(children: [
           _tab(Icons.home_rounded, 'Home', 0),
           _tab(Icons.receipt_long_outlined, 'Payments', 1),
           _tab(Icons.people_alt_outlined, 'Community', 2),
-          _tab(Icons.person_outline_rounded, 'Profile', 3),
+          _tab(Icons.notifications_none, 'Help', 3, onTap: () => _openHelp(context)),
+          _tab(Icons.person_outline_rounded, 'Profile', 4),
         ]))),
       );
 
-  Widget _tab(IconData icon, String label, int index) {
+  Widget _tab(IconData icon, String label, int index, {VoidCallback? onTap}) {
     final selected = _selectedTab == index;
     return Expanded(child: InkWell(
       borderRadius: BorderRadius.circular(14),
-      onTap: () => setState(() => _selectedTab = index),
+      onTap: onTap ?? () => setState(() => _selectedTab = index),
       child: Padding(padding: const EdgeInsets.symmetric(vertical: 5), child: Column(mainAxisSize: MainAxisSize.min, children: [
         Icon(icon, size: 21, color: selected ? AppColors.indigo : const Color(0xFFA0AABD)),
         const SizedBox(height: 4),

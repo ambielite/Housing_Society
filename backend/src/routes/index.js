@@ -32,6 +32,7 @@ const meterReadingsRoutes = require('../modules/meter-readings/meter-readings.ro
 
 const reportsCenterRoutes = require('../modules/reports-center/reports-center.routes');
 const residentDashboardRoutes = require('../modules/resident-dashboard/resident-dashboard.routes');
+const residentComplaintsRoutes = require('../modules/resident-complaints/resident-complaints.routes');
 
 const router = express.Router();
 
@@ -69,6 +70,7 @@ router.use('/meter-readings', meterReadingsRoutes);
 
 router.use('/reports-center', reportsCenterRoutes);
 router.use('/resident-dashboard', residentDashboardRoutes);
+router.use('/resident-complaints', residentComplaintsRoutes);
 
 
 

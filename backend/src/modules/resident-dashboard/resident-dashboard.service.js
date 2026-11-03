@@ -67,10 +67,7 @@ const getDashboard = async (user) => {
     );
     return firstPage.rows.concat(...remainingPages.map((page) => page.rows));
   };
-  const noticeGroups = await Promise.all(
-    ['current', 'upcoming'].map(getAllNotices),
-  );
-  const notices = noticeGroups.flat();
+  const notices = await getAllNotices('current');
   notices.sort((left, right) => {
     const leftDate = new Date(
       left.posted_at || left.scheduled_at || left.created_at || 0,
