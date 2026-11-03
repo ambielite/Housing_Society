@@ -158,7 +158,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                       width: 44,
                       height: 44,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Icon(
+                      errorBuilder: (_, _, _) => const Icon(
                         Icons.apartment_rounded,
                         color: AppColors.indigo,
                         size: 24,
@@ -221,7 +221,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           width: 44,
           height: 44,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => Center(
+          errorBuilder: (_, _, _) => Center(
             child: Text(
               _initials(widget.user.name),
               style: const TextStyle(

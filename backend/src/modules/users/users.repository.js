@@ -1,7 +1,7 @@
 const db = require('../../config/db');
 
 const PUBLIC_COLUMNS = `
-  id, society_id, email, phone, first_name, last_name,
+  id, society_id, email, phone, first_name, last_name, profile_picture_url,
   status, last_login_at, created_at, updated_at
 `;
 

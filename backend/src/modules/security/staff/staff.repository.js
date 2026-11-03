@@ -1,7 +1,7 @@
 const Staff = require("./staff.model");
 
-const create = async (data) => {
-    return await Staff.create(data);
+const create = async (data, options = {}) => {
+    return await Staff.create(data, options);
 };
 
 const findById = async (id) => {
@@ -29,8 +29,8 @@ const findAll = async (where = {}) => {
     });
 };
 
-const update = async (staff, data) => {
-    return await staff.update(data);
+const update = async (staff, data, options = {}) => {
+    return await staff.update(data, options);
 };
 
 const remove = async (staff) => {

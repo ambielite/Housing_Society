@@ -1864,7 +1864,7 @@ tbody tr:hover {
 .security-quick-card > .security-quick-label { grid-column: 2; grid-row: 1; align-self: center; color: var(--text-primary, #344054); font-size: 13px; font-weight: 650; }
 .security-quick-card > strong { grid-column: 3; grid-row: 1; color: var(--text-primary, #101828); font-size: 25px; }
 .security-quick-card > small { grid-column: 2 / 4; grid-row: 2; color: var(--quick-accent); font-size: 11px; }
-.security-page .security-quick-card .security-summary-note { display: block; margin-top: 4px; color: var(--quick-accent); font-size: 11px; }
+.security-page .security-quick-card .security-summary-note { display: block; margin-top: 3px; color: var(--quick-accent); font-size: 11px; }
 :root[data-theme='dark'] .security-quick-card { border-top-color: var(--card-border); border-right-color: var(--card-border); border-bottom-color: var(--card-border); }
 :root[data-theme='dark'] .security-quick-card:hover { border-left-color: var(--quick-accent); border-top-color: var(--quick-accent); border-right-color: var(--quick-accent); border-bottom-color: var(--quick-accent); }
 
@@ -1887,6 +1887,7 @@ tbody tr:hover {
   box-sizing: border-box;
   min-height: 96px;
   height: 96px;
+  row-gap: 3px;
   padding: 14px 16px;
   border-radius: 10px;
   border-left-color: var(--quick-accent, #7158df);

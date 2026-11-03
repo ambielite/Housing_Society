@@ -16,8 +16,7 @@ export const updateGate = (id, payload) => api.put(`/gates/${id}`, payload).then
 export const deleteGate = (id) => api.delete(`/gates/${id}`).then(unwrap);
 export const listGateDevices = (gateId) => api.get(`/gates/${gateId}/devices`).then(unwrap);
 
-// Guards
-export const createGuard = (payload) => api.post('/gates/guards', payload).then(unwrap);
+// Guards are created from staff records with staffType SECURITY_GUARD.
 export const listGuards = (params) => api.get('/gates/guards', { params: clean(params) }).then(unwrap);
 export const getGuard = (id) => api.get(`/gates/guards/${id}`).then(unwrap);
 export const updateGuard = (id, payload) => api.patch(`/gates/guards/${id}`, payload).then(unwrap);

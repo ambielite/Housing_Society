@@ -37,8 +37,6 @@ const deleteGate = async (id) => {
 
 // --- security guards ----------------------------------------------------------
 
-const createGuard = (payload) => repository.createGuard(payload);
-
 const listGuards = (query) => repository.listGuards(query);
 
 const getGuard = async (id) => {
@@ -158,7 +156,6 @@ module.exports = {
   getGate,
   updateGate,
   deleteGate,
-  createGuard,
   listGuards,
   getGuard,
   updateGuard,

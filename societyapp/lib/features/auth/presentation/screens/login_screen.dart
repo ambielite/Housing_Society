@@ -16,6 +16,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _securityCodeController = TextEditingController();
+  bool _securityLogin = false;
   bool _obscurePassword = true;
   bool _submitting = false;
   String? _error;
@@ -24,6 +26,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _securityCodeController.dispose();
     super.dispose();
   }
 
@@ -40,6 +43,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final user = await AuthApi.login(
         email: _emailController.text.trim(),
         password: _passwordController.text,
+        securityCode: _securityLogin ? _securityCodeController.text.trim() : null,
       );
       if (!mounted) return;
       await Navigator.of(context).pushReplacement(
@@ -69,7 +73,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     const Center(child: SocietyBrandMark(size: 68)),
                     const SizedBox(height: 28),
                     Text(
-                      'Welcome back',
+                      _securityLogin ? 'Security guard login' : 'Welcome back',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.headlineMedium
                           ?.copyWith(
@@ -79,7 +83,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Sign in to your Housing Society account',
+                      _securityLogin
+                          ? 'Use the shared guard account and your employee code'
+                          : 'Sign in to your Housing Society account',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyMedium
                           ?.copyWith(color: AppColors.muted),
@@ -140,6 +146,25 @@ class _LoginScreenState extends State<LoginScreen> {
                           ? 'Enter your password'
                           : null,
                     ),
+                    if (_securityLogin) ...[
+                      const SizedBox(height: 20),
+                      const _FieldLabel('Security code (employee code)'),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _securityCodeController,
+                        textCapitalization: TextCapitalization.characters,
+                        textInputAction: TextInputAction.done,
+                        onFieldSubmitted: (_) => _signIn(),
+                        decoration: _inputDecoration(
+                          hint: 'Enter your employee code',
+                          icon: Icons.badge_outlined,
+                        ),
+                        validator: (value) => _securityLogin &&
+                                (value == null || value.trim().isEmpty)
+                            ? 'Enter your employee code'
+                            : null,
+                      ),
+                    ],
                     if (_error != null) ...[
                       const SizedBox(height: 18),
                       Container(
@@ -191,8 +216,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                   color: Colors.white,
                                 ),
                               )
-                            : const Text(
-                                'Sign in',
+                            : Text(
+                                _securityLogin ? 'Sign in as guard' : 'Sign in',
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w700,
@@ -200,9 +225,27 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                       ),
                     ),
+                    const SizedBox(height: 10),
+                    TextButton(
+                      onPressed: _submitting
+                          ? null
+                          : () => setState(() {
+                              _securityLogin = !_securityLogin;
+                              _error = null;
+                              _formKey.currentState?.reset();
+                            }),
+                      child: Text(
+                        _securityLogin
+                            ? '← Back to resident login'
+                            : 'Security guard? Sign in with employee code',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
                     const SizedBox(height: 20),
-                    const Text(
-                      'Use your existing society account to continue.',
+                    Text(
+                      _securityLogin
+                          ? 'Use the shared security account credentials.'
+                          : 'Use your existing society account to continue.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: AppColors.muted, fontSize: 12),
                     ),

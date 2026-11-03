@@ -5,6 +5,7 @@ const env = require('../../config/env');
 const parseDuration = require('../../common/parseDuration');
 const ApiError = require('../../common/ApiError');
 const authRepository = require('./auth.repository');
+const db = require('../../config/db');
 const usersRepository = require('../users/users.repository');
 const rbacRepository = require('../rbac/rbac.repository');
 
@@ -53,7 +54,7 @@ const issueTokens = async (user, meta = {}) => {
   return { accessToken, refreshToken };
 };
 
-const login = async ({ email, password }, meta = {}) => {
+const login = async ({ email, password, securityCode }, meta = {}) => {
   const user = await usersRepository.findByEmail(email.toLowerCase());
 
   if (!user) {
@@ -83,24 +84,73 @@ const login = async ({ email, password }, meta = {}) => {
     throw new ApiError(403, 'This account is not active');
   }
 
-  const tokens = await issueTokens(user, meta);
-  await usersRepository.updateLastLogin(user.id);
+  let authenticatedUser = user;
+  if (securityCode !== undefined) {
+    const isSecurityHead = await db.query(
+      `SELECT 1
+       FROM user_roles ur
+       JOIN roles r ON r.id = ur.role_id
+       WHERE ur.user_id = $1
+         AND r.code = 'SECURITY_HEAD'
+         AND (ur.society_id IS NULL OR ur.society_id = $2)
+       LIMIT 1`,
+      [user.id, user.society_id]
+    );
+    if (!isSecurityHead.rowCount) {
+      await authRepository.createLoginHistory({
+        userId: user.id,
+        ipAddress: meta.ipAddress,
+        userAgent: meta.deviceInfo,
+        success: false,
+        failureReason: 'NOT_SECURITY_ACCOUNT',
+      });
+      throw new ApiError(401, 'Invalid security login credentials or employee code');
+    }
+
+    const guardResult = await db.query(
+      `SELECT u.*, s.employee_code AS guard_employee_code
+       FROM security_guards sg
+       JOIN staff s ON s.id = sg.staff_id
+       JOIN users u ON u.id = sg.user_id
+       WHERE upper(s.employee_code) = upper($1)
+         AND s.staff_type = 'SECURITY_GUARD'
+         AND s.status = 'ACTIVE'
+         AND sg.status = 'ACTIVE'
+         AND u.status = 'ACTIVE'
+       LIMIT 1`,
+      [securityCode.trim()]
+    );
+    if (!guardResult.rowCount) {
+      await authRepository.createLoginHistory({
+        userId: user.id,
+        ipAddress: meta.ipAddress,
+        userAgent: meta.deviceInfo,
+        success: false,
+        failureReason: 'INVALID_SECURITY_CODE',
+      });
+      throw new ApiError(401, 'Invalid security login credentials or employee code');
+    }
+    authenticatedUser = guardResult.rows[0];
+  }
+
+  const tokens = await issueTokens(authenticatedUser, meta);
+  await usersRepository.updateLastLogin(authenticatedUser.id);
   await authRepository.createLoginHistory({
-    userId: user.id,
+    userId: authenticatedUser.id,
     ipAddress: meta.ipAddress,
     userAgent: meta.deviceInfo,
     success: true,
   });
 
   const [roles, permissions] = await Promise.all([
-    rbacRepository.getUserRoles(user.id, user.society_id),
-    rbacRepository.getUserPermissions(user.id, user.society_id),
+    rbacRepository.getUserRoles(authenticatedUser.id, authenticatedUser.society_id),
+    rbacRepository.getUserPermissions(authenticatedUser.id, authenticatedUser.society_id),
   ]);
 
   return {
     ...tokens,
     user: {
-      ...sanitizeUser(user),
+      ...sanitizeUser(authenticatedUser),
       roles: roles.map((r) => r.code),
       permissions: permissions.map((p) => p.code),
     },

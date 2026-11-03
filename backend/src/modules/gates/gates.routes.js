@@ -4,7 +4,6 @@ const validate = require('../../common/validate');
 const {
   createGateSchema,
   updateGateSchema,
-  createGuardSchema,
   listGuardsQuerySchema,
   updateGuardSchema,
   issueAccessCardSchema,
@@ -25,7 +24,6 @@ router.use(authenticate);
 // :gateId value (same bug class as Phase 4's /vehicles/visits issue).
 
 // Security guards
-router.post('/guards', authorize('SECURITY_GUARD_CREATE'), validate(createGuardSchema), controller.createGuard);
 router.get('/guards', authorize('SECURITY_GUARD_READ'), validate(listGuardsQuerySchema, 'query'), controller.listGuards);
 router.get('/guards/:guardId', authorize('SECURITY_GUARD_READ'), controller.getGuard);
 router.patch('/guards/:guardId', authorize('SECURITY_GUARD_UPDATE'), validate(updateGuardSchema), controller.updateGuard);

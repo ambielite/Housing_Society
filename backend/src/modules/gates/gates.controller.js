@@ -30,11 +30,6 @@ const deleteGate = asyncHandler(async (req, res) => {
 });
 
 // --- security guards ---
-const createGuard = asyncHandler(async (req, res) => {
-  const guard = await service.createGuard(req.body);
-  return ApiResponse.success(res, guard, 'Security guard registered successfully', 201);
-});
-
 const listGuards = asyncHandler(async (req, res) => {
   const guards = await service.listGuards(req.query);
   return ApiResponse.success(res, guards);
@@ -114,7 +109,6 @@ module.exports = {
   getGate,
   updateGate,
   deleteGate,
-  createGuard,
   listGuards,
   getGuard,
   updateGuard,

@@ -1,11 +1,16 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:http/http.dart' as http;
 
-const _apiBaseUrl = String.fromEnvironment(
-  'API_BASE_URL',
-  defaultValue: 'http://10.0.2.2:5000/api/v1',
-);
+const _configuredApiBaseUrl = String.fromEnvironment('API_BASE_URL');
+
+String get _apiBaseUrl {
+  if (_configuredApiBaseUrl.isNotEmpty) return _configuredApiBaseUrl;
+  return kIsWeb
+      ? 'http://localhost:5000/api/v1'
+      : 'http://10.0.2.2:5000/api/v1';
+}
 
 class AuthenticatedUser {
   const AuthenticatedUser({
@@ -14,6 +19,7 @@ class AuthenticatedUser {
     required this.accessToken,
     required this.roles,
     required this.permissions,
+    this.employeeCode,
   });
 
   final String name;
@@ -21,6 +27,7 @@ class AuthenticatedUser {
   final String accessToken;
   final List<String> roles;
   final List<String> permissions;
+  final String? employeeCode;
 }
 
 class AuthApi {
@@ -29,23 +36,23 @@ class AuthApi {
   static Future<AuthenticatedUser> login({
     required String email,
     required String password,
+    String? securityCode,
   }) async {
-    final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 12);
     try {
-      final request = await client
-          .postUrl(Uri.parse('$_apiBaseUrl/auth/login'))
-          .timeout(const Duration(seconds: 15));
-      request.headers.contentType = ContentType.json;
-      request.write(jsonEncode({'email': email, 'password': password}));
-
-      final response = await request.close().timeout(
-        const Duration(seconds: 20),
-      );
-      final responseText = await utf8.decoder.bind(response).join();
-      final body = responseText.isEmpty
+      final response = await http
+          .post(
+            Uri.parse('$_apiBaseUrl/auth/login'),
+            headers: const {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'email': email,
+              'password': password,
+              if (securityCode != null) 'securityCode': securityCode,
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
+      final body = response.body.isEmpty
           ? <String, dynamic>{}
-          : jsonDecode(responseText) as Map<String, dynamic>;
+          : jsonDecode(response.body) as Map<String, dynamic>;
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw AuthException(
@@ -77,10 +84,11 @@ class AuthApi {
         permissions: (user['permissions'] as List<dynamic>? ?? const [])
             .map((permission) => permission.toString())
             .toList(growable: false),
+        employeeCode: user['guard_employee_code']?.toString(),
       );
     } on AuthException {
       rethrow;
-    } on SocketException {
+    } on http.ClientException {
       throw const AuthException(
         'Cannot reach the server. Make sure the backend is running and the API address is correct.',
       );
@@ -90,8 +98,6 @@ class AuthApi {
       );
     } on FormatException {
       throw const AuthException('The server returned an invalid response.');
-    } finally {
-      client.close(force: true);
     }
   }
 }

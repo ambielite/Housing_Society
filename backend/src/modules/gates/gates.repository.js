@@ -47,16 +47,6 @@ const deleteGate = async (id) => {
 
 // --- security_guards --------------------------------------------------------
 
-const createGuard = async ({ userId, employeeCode, agencyVendorId }) => {
-  const result = await db.query(
-    `INSERT INTO security_guards (user_id, employee_code, agency_vendor_id)
-     VALUES ($1, $2, $3)
-     RETURNING *`,
-    [userId, employeeCode || null, agencyVendorId || null]
-  );
-  return result.rows[0];
-};
-
 // const findGuardById = async (id) => {  // old one
 //   const result = await db.query('SELECT * FROM security_guards WHERE id = $1', [id]);
 //   return result.rows[0] || null;
@@ -66,12 +56,15 @@ const findGuardById = async (id) => {
   const result = await db.query(
     `SELECT
        sg.*,
-       u.first_name AS user_first_name,
-       u.last_name AS user_last_name,
+       COALESCE(st.first_name, u.first_name) AS user_first_name,
+       COALESCE(st.last_name, u.last_name) AS user_last_name,
+       COALESCE(sg.employee_code, st.employee_code) AS employee_code,
+       st.staff_type,
        u.email AS user_email,
        v.legal_name AS agency_vendor_name
      FROM security_guards sg
      LEFT JOIN users u ON u.id = sg.user_id
+     LEFT JOIN staff st ON st.id = sg.staff_id
      LEFT JOIN vendors v ON v.id = sg.agency_vendor_id
      WHERE sg.id = $1`,
     [id]
@@ -79,39 +72,42 @@ const findGuardById = async (id) => {
   return result.rows[0] || null;
 };
 
-const listGuards = async ({ agencyVendorId, status }) => {
+const listGuards = async ({ societyId, agencyVendorId, status }) => {
   const conditions = [];
   const params = [];
   let idx = 1;
 
+  conditions.push("st.staff_type = 'SECURITY_GUARD'");
+  if (societyId) {
+    conditions.push(`st.society_id = $${idx}`);
+    params.push(societyId);
+    idx += 1;
+  }
   if (agencyVendorId) {
-    conditions.push(`agency_vendor_id = $${idx++}`);
+    conditions.push(`sg.agency_vendor_id = $${idx++}`);
     params.push(agencyVendorId);
   }
   if (status) {
-    conditions.push(`status = $${idx++}`);
+    conditions.push(`sg.status = $${idx++}`);
     params.push(status);
   }
 
   const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-  // const result = await db.query(  // old one 
-  //   `SELECT * FROM security_guards ${whereClause} ORDER BY created_at DESC`,
-  //   params
-  // );
 
   const result = await db.query(
   `SELECT
      sg.*,
-     u.first_name AS user_first_name,
-     u.last_name AS user_last_name,
+     COALESCE(st.first_name, u.first_name) AS user_first_name,
+     COALESCE(st.last_name, u.last_name) AS user_last_name,
+     COALESCE(sg.employee_code, st.employee_code) AS employee_code,
+     st.staff_type,
      u.email AS user_email,
      v.legal_name AS agency_vendor_name
    FROM security_guards sg
    LEFT JOIN users u ON u.id = sg.user_id
+   LEFT JOIN staff st ON st.id = sg.staff_id
    LEFT JOIN vendors v ON v.id = sg.agency_vendor_id
-   ${whereClause ? `WHERE ${whereClause
-     .replaceAll('agency_vendor_id', 'sg.agency_vendor_id')
-     .replaceAll('status', 'sg.status')}` : ''}
+   ${whereClause}
    ORDER BY sg.created_at DESC`,
   params
 );
@@ -280,7 +276,6 @@ module.exports = {
   listGates,
   updateGate,
   deleteGate,
-  createGuard,
   findGuardById,
   listGuards,
   updateGuard,

@@ -1200,6 +1200,14 @@ body .role-directory-table td { text-align: center; }
 body .user-directory-table td:first-child,
 body .role-directory-table td:first-child,
 body .role-directory-table td:last-child { text-align: left; }
+body .user-directory-name-cell { display: flex; align-items: center; gap: 11px; min-width: 0; text-align: left; }
+body .user-directory-avatar { display: grid; flex: 0 0 40px; width: 40px; height: 40px; overflow: hidden; place-items: center; border: 1px solid var(--card-border); border-radius: 50%; color: var(--action); background: color-mix(in srgb, var(--action) 10%, var(--surface)); font-size: 14px; font-weight: 750; }
+body .user-directory-avatar img { display: block; width: 100%; height: 100%; object-fit: cover; }
+body .user-directory-avatar img[hidden] { display: none; }
+body .user-directory-avatar > span[hidden] { display: none; }
+body .user-directory-name-copy { display: grid; min-width: 0; gap: 3px; }
+body .user-directory-name-copy .cell-title,
+body .user-directory-name-copy .cell-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Document and profile detail views */
 body .page.document-detail-page > .page-header { align-items: center; margin-bottom: 18px; }

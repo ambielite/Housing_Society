@@ -14,6 +14,36 @@ import UserStatusBadge, { STATUS_OPTIONS } from '../components/UserStatusBadge';
 
 const PAGE_SIZE = 10;
 
+function UserTableAvatar({ user }) {
+  const picture = user.profile_picture_url;
+  const pictureUrl = picture
+    ? (/^https?:\/\//i.test(picture)
+      ? picture
+      : new URL(
+        picture,
+        new URL(import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1', window.location.origin),
+      ).toString())
+    : '';
+  const initial = (user.first_name || user.email || '?').charAt(0).toUpperCase();
+
+  return (
+    <span className="user-directory-avatar">
+      {pictureUrl && (
+        <img
+          src={pictureUrl}
+          alt=""
+          loading="lazy"
+          onError={(event) => {
+            event.currentTarget.hidden = true;
+            event.currentTarget.nextElementSibling.hidden = false;
+          }}
+        />
+      )}
+      <span hidden={Boolean(pictureUrl)}>{initial}</span>
+    </span>
+  );
+}
+
 export default function UserListPage() {
   const { hasPermission } = useAuth();
   const { societyId } = useSociety();
@@ -41,12 +71,15 @@ export default function UserListPage() {
       key: 'name',
       header: 'Name',
       render: (user) => (
-        <>
-          <Link to={`/users/${user.id}`} className="cell-title">
-            {fullName(user)}
-          </Link>
-          <span className="cell-sub">{user.email}</span>
-        </>
+        <div className="user-directory-name-cell">
+          <UserTableAvatar user={user} />
+          <span className="user-directory-name-copy">
+            <Link to={`/users/${user.id}`} className="cell-title">
+              {fullName(user)}
+            </Link>
+            <span className="cell-sub">{user.email}</span>
+          </span>
+        </div>
       ),
     },
     { key: 'phone', header: 'Phone', render: (user) => user.phone || '-' },

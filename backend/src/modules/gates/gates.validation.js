@@ -22,13 +22,8 @@ const updateGateSchema = Joi.object({
   status: Joi.string().valid(...GATE_STATUSES),
 }).min(1);
 
-const createGuardSchema = Joi.object({
-  userId: Joi.string().uuid().required(),
-  employeeCode: Joi.string().max(50).allow('', null),
-  agencyVendorId: Joi.string().uuid().allow(null),
-});
-
 const listGuardsQuerySchema = Joi.object({
+  societyId: Joi.string().uuid(),
   agencyVendorId: Joi.string().uuid(),
   status: Joi.string().valid(...GUARD_STATUSES),
 });
@@ -75,7 +70,6 @@ const ingestDeviceEventSchema = Joi.object({
 module.exports = {
   createGateSchema,
   updateGateSchema,
-  createGuardSchema,
   listGuardsQuerySchema,
   updateGuardSchema,
   issueAccessCardSchema,

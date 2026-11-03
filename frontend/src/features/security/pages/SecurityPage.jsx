@@ -15,9 +15,9 @@ import SocietyIdPrompt from '../../../components/ui/SocietyIdPrompt';
 import TextField from '../../../components/ui/TextField';
 import SelectField from '../../../components/ui/SelectField';
 import * as api from '../api/security.api';
-import { GATE_TYPES, GATE_STATUSES, GUARD_STATUSES, CREDENTIAL_TYPES, CARD_STATUSES, DEVICE_TYPES, DEVICE_STATUSES, label } from '../components/securityOptions';
+import { GATE_TYPES, GATE_STATUSES, CREDENTIAL_TYPES, CARD_STATUSES, DEVICE_TYPES, DEVICE_STATUSES, label } from '../components/securityOptions';
 import SecurityBadge from '../components/SecurityBadge';
-import { FormActions, UserPicker, VendorPicker, GatePicker, ErrorBox } from '../components/SecurityFormHelpers';
+import { FormActions, UserPicker, GatePicker, ErrorBox } from '../components/SecurityFormHelpers';
 import VisitorsPage from './VisitorsPage';
 import DeliveriesPage from './DeliveriesPage';
 
@@ -75,52 +75,6 @@ function GateForm({ societyId, societyName, value, gates = [], onSubmit, onCance
     <SelectField id="gateType" label="Gate type" options={GATE_TYPES.map((v) => ({ value: v, label: label(v) }))} value={form.gateType} onChange={(e) => set('gateType', e.target.value)} />
     {edit && <SelectField id="gateStatus" label="Status" options={GATE_STATUSES.map((v) => ({ value: v, label: label(v) }))} value={form.status} onChange={(e) => set('status', e.target.value)} />}
     <FormActions saving={saving} onCancel={onCancel} submitLabel={edit ? 'Save changes' : 'Create gate'} />
-  </form>;
-}
-
-function GuardForm({ value, guards = [], onSubmit, onCancel, saving, error }) {
-  const [form, setForm] = useState({ userId: value?.user_id || '', employeeCode: value?.employee_code || '', agencyVendorId: value?.agency_vendor_id || null, status: value?.status || 'ACTIVE' });
-  const [validationError, setValidationError] = useState('');
-  const edit = Boolean(value);
-  const set = (k, v) => {
-    setValidationError('');
-    setForm((f) => ({ ...f, [k]: v }));
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const userId = String(form.userId || '').trim();
-    const employeeCode = String(form.employeeCode || '').trim();
-
-    if (!userId) return setValidationError('Guard user is required.');
-    if (!employeeCode) return setValidationError('Employee code is required.');
-    if (employeeCode.length < 2) return setValidationError('Employee code must be at least 2 characters.');
-    if (employeeCode.length > 50) return setValidationError('Employee code must not exceed 50 characters.');
-
-    const duplicateUser = guards.some((g) =>
-      g.id !== value?.id && g.user_id === userId
-    );
-    if (duplicateUser) return setValidationError('This user is already registered as a security guard.');
-
-    const duplicateEmployeeCode = guards.some((g) =>
-      g.id !== value?.id && String(g.employee_code || '').trim().toLowerCase() === employeeCode.toLowerCase()
-    );
-    if (duplicateEmployeeCode) return setValidationError('This employee code already exists.');
-
-    onSubmit(edit
-      ? { employeeCode, agencyVendorId: form.agencyVendorId, status: form.status }
-      : { ...form, userId, employeeCode }
-    );
-  };
-
-  return <form onSubmit={handleSubmit}>
-    <ErrorBox error={error} />
-    {validationError && <div className="form-error">{validationError}</div>}
-    {!edit && <UserPicker value={form.userId} onChange={(v) => set('userId', v)} label="Guard user" />}
-    <TextField id="employeeCode" label="Employee code" value={form.employeeCode} onChange={(e) => set('employeeCode', e.target.value)} required />
-    <VendorPicker value={form.agencyVendorId} onChange={(v) => set('agencyVendorId', v)} />
-    {edit && <SelectField id="guardStatus" label="Status" options={GUARD_STATUSES.map((v) => ({ value: v, label: label(v) }))} value={form.status} onChange={(e) => set('status', e.target.value)} />}
-    <FormActions saving={saving} onCancel={onCancel} submitLabel={edit ? 'Save changes' : 'Add guard'} />
   </form>;
 }
 
@@ -201,7 +155,7 @@ export default function SecurityPage({ embedded = false } = {}) {
   const [notice, setNotice] = useState('');
 
   const gates = useFetch(() => societyId ? api.listGates({ societyId }) : Promise.resolve([]), [societyId]);
-  const guards = useFetch(() => api.listGuards({}), []);
+  const guards = useFetch(() => societyId ? api.listGuards({ societyId }) : Promise.resolve([]), [societyId]);
   const cards = useFetch(() => societyId ? api.listAccessCards({ societyId }) : Promise.resolve([]), [societyId]);
   const devices = useFetch(() => Promise.resolve(null), []);
  const users = useFetch(
@@ -239,7 +193,6 @@ export default function SecurityPage({ embedded = false } = {}) {
   };
 
   const removeGate = (id) => run(() => api.deleteGate(id), 'Gate deleted.');
-  const removeGuard = (id) => run(() => api.deleteGuard(id), 'Security guard deleted.');
   const revokeCard = (id) => run(() => api.revokeAccessCard(id), 'Access card revoked.');
 
   const openDeviceEvents = async (device) => {
@@ -270,7 +223,7 @@ export default function SecurityPage({ embedded = false } = {}) {
     {notice && <Alert variant="success">{notice}</Alert>}
     {error && !dialog && <Alert>{error}</Alert>}
 
-    {tab === 'gates' && <GatesPanel societyId={societyId} societyName={societyName} gates={gateRows} guards={guardRows} cards={cardRows} userNames={userNames} vendorNames={vendorNames} onRefresh={refresh} onRun={run} onDeleteGate={removeGate} onDeleteGuard={removeGuard} onRevokeCard={revokeCard} dialog={dialog} setDialog={setDialog} selected={selected} setSelected={setSelected} deviceEvents={deviceEvents} openDeviceEvents={openDeviceEvents} />}
+    {tab === 'gates' && <GatesPanel societyId={societyId} societyName={societyName} gates={gateRows} guards={guardRows} cards={cardRows} userNames={userNames} vendorNames={vendorNames} onRefresh={refresh} onRun={run} onDeleteGate={removeGate} onRevokeCard={revokeCard} dialog={dialog} setDialog={setDialog} selected={selected} setSelected={setSelected} deviceEvents={deviceEvents} openDeviceEvents={openDeviceEvents} />}
     {tab === 'visitors' && <VisitorsPage societyId={societyId} societyName={societyName} currentUser={user} gates={gateRows} unitNames={unitNames} userNames={userNames} gateNames={Object.fromEntries(gateRows.map((g) => [g.id, g.name]))} />}
     {tab === 'deliveries' && <DeliveriesPage societyId={societyId} currentUser={user} profiles={list(visitorProfiles.data)} unitNames={unitNames} userNames={userNames} />}
     </div>
@@ -278,7 +231,7 @@ export default function SecurityPage({ embedded = false } = {}) {
   return embedded ? <div className="security-embedded-page">{content}</div> : <PageContainer title="Security, Gate & Visitor Operations" subtitle="Manage physical access, visitors, deliveries and gate activity.">{content}</PageContainer>;
 }
 
-function GatesPanel({ societyId, societyName, gates, guards, cards, userNames, vendorNames, onRefresh, onRun, onDeleteGate, onDeleteGuard, onRevokeCard, dialog, setDialog, selected, setSelected, deviceEvents, openDeviceEvents }) {
+function GatesPanel({ societyId, societyName, gates, guards, cards, userNames, vendorNames, onRefresh, onRun, onDeleteGate, onRevokeCard, dialog, setDialog, selected, setSelected, deviceEvents, openDeviceEvents }) {
   const { hasPermission } = useAuth();
   const [gateDevices, setGateDevices] = useState([]);
   const [gateForDevices, setGateForDevices] = useState(null);
@@ -321,9 +274,7 @@ function GatesPanel({ societyId, societyName, gates, guards, cards, userNames, v
     { key: 'agency', header: 'Agency', render: (g) => g.agency_vendor_id ? vendorNames[g.agency_vendor_id] || g.agency_vendor_id.slice(0, 8) : '-' },
     { key: 'status', header: 'Status', render: (g) => <SecurityBadge value={g.status} /> },
     { key: 'actions', header: 'Actions', render: (g) => <div className="row-actions">
-      {hasPermission('SECURITY_GUARD_UPDATE') && <button className="btn btn-secondary btn-sm" onClick={() => { setSelected(g); setDialog('edit-guard'); }}>Edit</button>}
       {hasPermission('SECURITY_GUARD_READ') && <button className="btn btn-secondary btn-sm" onClick={async () => { try { setGuardDetail(await api.getGuard(g.id)); setDialog('guard-detail'); } catch (e) { setFormError(getErrorMessage(e)); } }}>View</button>}
-      {hasPermission('SECURITY_GUARD_DELETE') && <button className="btn btn-danger btn-sm" onClick={() => onDeleteGuard(g.id)}>Delete</button>}
     </div> },
   ];
 
@@ -343,9 +294,8 @@ function GatesPanel({ societyId, societyName, gates, guards, cards, userNames, v
       {hasPermission('GATE_CREATE') && <button className="btn btn-primary" onClick={() => setDialog('new-gate')}><Plus size={16} /> New gate</button>}</div>
     <DataTable tableClassName="society-table security-actions-table" columns={gateColumns} rows={gates} emptyTitle="No gates" emptyMessage="Create a gate before registering devices." />
     <div className="section">
-      <div className="section-head"><div><h2 className="section-title">Security guards</h2><p className="muted section-hint">Guards are linked to existing user accounts.</p></div>
-        {hasPermission('SECURITY_GUARD_CREATE') && <button className="btn btn-primary" onClick={() => setDialog('new-guard')}><span className="button-plus" aria-hidden="true">+</span> Add guard</button>}</div>
-      <DataTable tableClassName="society-table security-actions-table" columns={guardColumns} rows={guards} emptyTitle="No guards" emptyMessage="Add a security guard linked to a user." />
+      <div className="section-head"><div><h2 className="section-title">Security guards</h2><p className="muted section-hint">Staff records appear here when their staff type is Security Guard.</p></div></div>
+      <DataTable tableClassName="society-table security-actions-table" columns={guardColumns} rows={guards} emptyTitle="No guards" emptyMessage="Add a staff member and select Security Guard as the staff type." />
     </div>
     <div className="section">
       <div className="section-head"><div><h2 className="section-title">Access cards</h2><p className="muted section-hint">Credentials are issued to existing users.</p></div>
@@ -355,8 +305,6 @@ function GatesPanel({ societyId, societyName, gates, guards, cards, userNames, v
 
     {dialog === 'new-gate' && <Modal title="Create gate" onClose={() => setDialog(null)}><GateForm societyId={societyId} societyName={societyName} gates={gates} onSubmit={(p) => onRun(() => api.createGate(p), 'Gate created.')} onCancel={() => setDialog(null)} /></Modal>}
     {dialog === 'edit-gate' && <Modal title="Edit gate" onClose={() => setDialog(null)}><GateForm societyId={societyId} societyName={societyName} value={selected} gates={gates} onSubmit={(p) => onRun(() => api.updateGate(selected.id, p), 'Gate updated.')} onCancel={() => setDialog(null)} /></Modal>}
-    {dialog === 'new-guard' && <Modal title="Add security guard" onClose={() => setDialog(null)}><GuardForm guards={guards} onSubmit={(p) => onRun(() => api.createGuard(p), 'Security guard added.')} onCancel={() => setDialog(null)} /></Modal>}
-    {dialog === 'edit-guard' && <Modal title="Edit security guard" onClose={() => setDialog(null)}><GuardForm value={selected} guards={guards} onSubmit={(p) => onRun(() => api.updateGuard(selected.id, p), 'Security guard updated.')} onCancel={() => setDialog(null)} /></Modal>}
     {dialog === 'guard-detail' && <Modal title="Security guard" onClose={() => setDialog(null)}><dl className="details"><dt>User</dt><dd>{[guardDetail?.user_first_name, guardDetail?.user_last_name].filter(Boolean).join(' ') || guardDetail?.user_email || userNames[guardDetail?.user_id] || guardDetail?.user_id}</dd><dt>Employee code</dt><dd>{guardDetail?.employee_code || '-'}</dd><dt>Agency</dt><dd>{guardDetail?.agency_vendor_name || (guardDetail?.agency_vendor_id ? (vendorNames[guardDetail.agency_vendor_id] || guardDetail.agency_vendor_id) : '-')}</dd><dt>Status</dt><dd><SecurityBadge value={guardDetail?.status} /></dd></dl></Modal>}
     {dialog === 'new-card' && <Modal title="Issue access card" onClose={() => setDialog(null)}><CardForm societyId={societyId} cards={cards} onSubmit={(p) => onRun(() => api.issueAccessCard(p), 'Access card issued.')} onCancel={() => setDialog(null)} /></Modal>}
     {dialog === 'card-detail' && <Modal title="Access card" onClose={() => setDialog(null)}><dl className="details"><dt>Credential</dt><dd>{cardDetail?.credential_no}</dd><dt>Type</dt><dd>{label(cardDetail?.credential_type)}</dd><dt>Holder</dt><dd>{[cardDetail?.holder_first_name, cardDetail?.holder_last_name].filter(Boolean).join(' ') || cardDetail?.holder_email || userNames[cardDetail?.holder_user_id] || cardDetail?.holder_user_id}</dd><dt>Status</dt><dd><SecurityBadge value={cardDetail?.status} /></dd><dt>Valid from</dt><dd>{formatDateTime(cardDetail?.valid_from)}</dd><dt>Valid until</dt><dd>{formatDateTime(cardDetail?.valid_until)}</dd></dl></Modal>}

@@ -561,7 +561,7 @@ export default function SecurityPage() {
     return null;
   };
   const headings = {
-    staff: ["Employee", "Type", "Contact", "Joined", "Status"],
+    staff: ["Employee", "Employee code", "Type", "Contact", "Joined", "Status"],
     attendance: ["Staff", "Date", "Check in", "Check out", "Status"],
     rosters: ["Staff", "Shift", "Date", "Type", "Status"],
     tasks: ["Title", "Staff", "Type", "Due", "Priority", "Status"],
@@ -574,6 +574,7 @@ export default function SecurityPage() {
     ({
       staff: [
         `${item.firstName || ""} ${item.lastName || ""}`.trim(),
+        item.employeeCode || "—",
         titleCase(item.staffType),
         item.mobileNumber,
         item.joiningDate?.slice(0, 10),
@@ -946,7 +947,7 @@ export default function SecurityPage() {
             <header className="security-modal-header">
               <div>
                 <h2>{configs[form]?.title}</h2>
-                <p>Enter the record details below.</p>
+                <p>{form === "staff" ? "Security Guard staff are added to User Management with an active Security Head account. You can suspend or reactivate this account from its user profile." : "Enter the record details below."}</p>
               </div>
               <button aria-label="Close" onClick={() => setForm("")}>
                 <X size={18} />
@@ -1007,7 +1008,7 @@ export default function SecurityPage() {
                       ) : (
                         <input
                           name={name}
-                          type={type}
+                          type={name === "email" && form === "staff" ? "email" : type}
                           required={
                             ![
                               "lastName",

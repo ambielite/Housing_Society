@@ -30,11 +30,21 @@ const allowedOrigins = new Set(
         .map((origin) => origin.trim())
         .filter(Boolean)
 );
+const isLocalFlutterWebOrigin = (origin) => {
+    if (process.env.NODE_ENV === "production") return false;
+    try {
+        const parsed = new URL(origin);
+        return parsed.protocol === "http:" &&
+            ["localhost", "127.0.0.1", "[::1]", "::1"].includes(parsed.hostname);
+    } catch {
+        return false;
+    }
+};
 
 app.use((req, res, next) => {
     const origin = req.headers.origin;
 
-    if (origin && !allowAnyOrigin && !allowedOrigins.has(origin)) {
+    if (origin && !allowAnyOrigin && !allowedOrigins.has(origin) && !isLocalFlutterWebOrigin(origin)) {
         return res.status(403).json({
             success: false,
             message: `Origin ${origin} is not allowed by CORS.`
