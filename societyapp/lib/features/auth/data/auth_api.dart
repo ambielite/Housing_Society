@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
@@ -20,6 +21,12 @@ class AuthenticatedUser {
     required this.roles,
     required this.permissions,
     this.employeeCode,
+    this.phone,
+    this.profilePictureUrl,
+    this.status,
+    this.societyId,
+    this.createdAt,
+    this.lastLoginAt,
   });
 
   final String name;
@@ -28,6 +35,12 @@ class AuthenticatedUser {
   final List<String> roles;
   final List<String> permissions;
   final String? employeeCode;
+  final String? phone;
+  final String? profilePictureUrl;
+  final String? status;
+  final String? societyId;
+  final DateTime? createdAt;
+  final DateTime? lastLoginAt;
 }
 
 class AuthApi {
@@ -46,7 +59,7 @@ class AuthApi {
             body: jsonEncode({
               'email': email,
               'password': password,
-              if (securityCode != null) 'securityCode': securityCode,
+              ...?securityCode == null ? null : {'securityCode': securityCode},
             }),
           )
           .timeout(const Duration(seconds: 20));
@@ -85,6 +98,12 @@ class AuthApi {
             .map((permission) => permission.toString())
             .toList(growable: false),
         employeeCode: user['guard_employee_code']?.toString(),
+        phone: user['phone']?.toString(),
+        profilePictureUrl: user['profile_picture_url']?.toString(),
+        status: user['status']?.toString(),
+        societyId: user['society_id']?.toString(),
+        createdAt: DateTime.tryParse('${user['created_at'] ?? ''}'),
+        lastLoginAt: DateTime.tryParse('${user['last_login_at'] ?? ''}'),
       );
     } on AuthException {
       rethrow;
@@ -92,6 +111,58 @@ class AuthApi {
       throw const AuthException(
         'Cannot reach the server. Make sure the backend is running and the API address is correct.',
       );
+    } on TimeoutException {
+      throw const AuthException(
+        'The server took too long to respond. Try again.',
+      );
+    } on FormatException {
+      throw const AuthException('The server returned an invalid response.');
+    }
+  }
+
+  static Future<void> changePassword({
+    required String accessToken,
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    await _authenticatedPost('/auth/change-password', accessToken, {
+      'currentPassword': currentPassword,
+      'newPassword': newPassword,
+    });
+  }
+
+  static Future<void> signOutAll(String accessToken) async {
+    await _authenticatedPost('/auth/logout-all', accessToken, const {});
+  }
+
+  static Future<void> _authenticatedPost(
+    String path,
+    String accessToken,
+    Map<String, dynamic> payload,
+  ) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$_apiBaseUrl$path'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $accessToken',
+            },
+            body: jsonEncode(payload),
+          )
+          .timeout(const Duration(seconds: 20));
+      final body = response.body.isEmpty
+          ? <String, dynamic>{}
+          : jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw AuthException(
+          body['message'] as String? ?? 'The request could not be completed.',
+        );
+      }
+    } on AuthException {
+      rethrow;
+    } on http.ClientException {
+      throw const AuthException('Cannot reach the server. Try again.');
     } on TimeoutException {
       throw const AuthException(
         'The server took too long to respond. Try again.',

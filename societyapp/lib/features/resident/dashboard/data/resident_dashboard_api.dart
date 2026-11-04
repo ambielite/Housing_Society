@@ -11,20 +11,28 @@ class ResidentDashboardData {
   const ResidentDashboardData({
     this.societyName,
     this.societyLogoUrl,
+    this.societyAddress,
+    this.societyEmail,
+    this.societyPhone,
     this.residentPhotoUrl,
     this.currency = 'INR',
     this.unitNumber,
     this.towerName,
+    this.floorName,
     this.maintenance,
     this.notices = const [],
   });
 
   final String? societyName;
   final String? societyLogoUrl;
+  final String? societyAddress;
+  final String? societyEmail;
+  final String? societyPhone;
   final String? residentPhotoUrl;
   final String currency;
   final String? unitNumber;
   final String? towerName;
+  final String? floorName;
   final ResidentMaintenance? maintenance;
   final List<ResidentNotice> notices;
 
@@ -37,10 +45,14 @@ class ResidentDashboardData {
     return ResidentDashboardData(
       societyName: _string(society?['name']),
       societyLogoUrl: _imageUrl(society?['logoUrl']),
+      societyAddress: _string(society?['address']),
+      societyEmail: _string(society?['email']),
+      societyPhone: _string(society?['phone']),
       residentPhotoUrl: _imageUrl(resident?['photoUrl']),
       currency: _string(society?['currency']) ?? 'INR',
       unitNumber: _string(unit?['number']),
       towerName: _string(unit?['tower']),
+      floorName: _string(unit?['floor']),
       maintenance: maintenance == null
           ? null
           : ResidentMaintenance.fromJson(maintenance),
@@ -94,13 +106,13 @@ class ResidentNotice {
   final DateTime? postedAt;
 
   factory ResidentNotice.fromJson(Map<String, dynamic> json) => ResidentNotice(
-        title: _string(json['title']) ?? '',
-        description: _string(json['description']) ?? '',
-        status: _string(json['status']) ?? 'PUBLISHED',
-        postedAt: DateTime.tryParse(
-          '${json['posted_at'] ?? json['scheduled_at'] ?? json['created_at'] ?? ''}',
-        ),
-      );
+    title: _string(json['title']) ?? '',
+    description: _string(json['description']) ?? '',
+    status: _string(json['status']) ?? 'PUBLISHED',
+    postedAt: DateTime.tryParse(
+      '${json['posted_at'] ?? json['scheduled_at'] ?? json['created_at'] ?? ''}',
+    ),
+  );
 }
 
 class ResidentDashboardApi {

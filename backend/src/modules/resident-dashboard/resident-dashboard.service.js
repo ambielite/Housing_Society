@@ -9,7 +9,8 @@ const getDashboard = async (user) => {
 
   const homeResult = await query(
     `SELECT s.id AS society_id, s.name AS society_name, s.currency,
-            s.logo_url AS society_logo_url,
+            s.logo_url AS society_logo_url, s.address AS society_address,
+            s.email AS society_email, s.phone AS society_phone,
             r.id AS resident_id, r.display_name, r.profile_photo AS resident_photo_url,
             t.name AS tower_name, f.name AS floor_name, u.unit_number
        FROM societies s
@@ -84,6 +85,9 @@ const getDashboard = async (user) => {
       name: home.society_name,
       currency: home.currency,
       logoUrl: home.society_logo_url,
+      address: home.society_address,
+      email: home.society_email,
+      phone: home.society_phone,
     } : null,
     resident: home?.resident_id ? { photoUrl: home.resident_photo_url } : null,
     unit: home?.unit_number ? {
