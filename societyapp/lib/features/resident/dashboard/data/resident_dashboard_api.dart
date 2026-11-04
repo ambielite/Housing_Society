@@ -1,11 +1,16 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
-const _apiBaseUrl = String.fromEnvironment(
-  'API_BASE_URL',
-  defaultValue: 'http://10.0.2.2:5000/api/v1',
-);
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:http/http.dart' as http;
+
+const _configuredApiBaseUrl = String.fromEnvironment('API_BASE_URL');
+
+String get _apiBaseUrl => _configuredApiBaseUrl.isNotEmpty
+    ? _configuredApiBaseUrl
+    : kIsWeb
+    ? 'http://localhost:5000/api/v1'
+    : 'http://10.0.2.2:5000/api/v1';
 
 class ResidentDashboardData {
   const ResidentDashboardData({
@@ -14,6 +19,7 @@ class ResidentDashboardData {
     this.societyAddress,
     this.societyEmail,
     this.societyPhone,
+    this.residentName,
     this.residentPhotoUrl,
     this.currency = 'INR',
     this.unitNumber,
@@ -28,6 +34,7 @@ class ResidentDashboardData {
   final String? societyAddress;
   final String? societyEmail;
   final String? societyPhone;
+  final String? residentName;
   final String? residentPhotoUrl;
   final String currency;
   final String? unitNumber;
@@ -48,6 +55,7 @@ class ResidentDashboardData {
       societyAddress: _string(society?['address']),
       societyEmail: _string(society?['email']),
       societyPhone: _string(society?['phone']),
+      residentName: _string(resident?['name']),
       residentPhotoUrl: _imageUrl(resident?['photoUrl']),
       currency: _string(society?['currency']) ?? 'INR',
       unitNumber: _string(unit?['number']),
@@ -119,23 +127,20 @@ class ResidentDashboardApi {
   ResidentDashboardApi._();
 
   static Future<ResidentDashboardData> load(String accessToken) async {
-    final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 12);
+    final client = http.Client();
     try {
-      final request = await client
-          .getUrl(Uri.parse('$_apiBaseUrl/resident-dashboard'))
-          .timeout(const Duration(seconds: 15));
-      request.headers
-        ..set(HttpHeaders.acceptHeader, ContentType.json.mimeType)
-        ..set(HttpHeaders.authorizationHeader, 'Bearer $accessToken');
-
-      final response = await request.close().timeout(
-        const Duration(seconds: 20),
-      );
-      final responseText = await utf8.decoder.bind(response).join();
-      final body = responseText.isEmpty
+      final response = await client
+          .get(
+            Uri.parse('$_apiBaseUrl/resident-dashboard'),
+            headers: {
+              'Accept': 'application/json',
+              'Authorization': 'Bearer $accessToken',
+            },
+          )
+          .timeout(const Duration(seconds: 20));
+      final body = response.body.isEmpty
           ? <String, dynamic>{}
-          : jsonDecode(responseText) as Map<String, dynamic>;
+          : jsonDecode(response.body) as Map<String, dynamic>;
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw ResidentDashboardException(
           _string(body['message']) ?? 'Could not load your resident dashboard.',
@@ -150,7 +155,7 @@ class ResidentDashboardApi {
       return ResidentDashboardData.fromJson(data);
     } on ResidentDashboardException {
       rethrow;
-    } on SocketException {
+    } on http.ClientException {
       throw const ResidentDashboardException(
         'Cannot reach the server. Check the connection and try again.',
       );
@@ -163,7 +168,7 @@ class ResidentDashboardApi {
         'The server returned invalid dashboard data.',
       );
     } finally {
-      client.close(force: true);
+      client.close();
     }
   }
 }

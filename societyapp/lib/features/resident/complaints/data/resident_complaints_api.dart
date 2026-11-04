@@ -1,11 +1,16 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
-const _apiBaseUrl = String.fromEnvironment(
-  'API_BASE_URL',
-  defaultValue: 'http://10.0.2.2:5000/api/v1',
-);
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:http/http.dart' as http;
+
+const _configuredApiBaseUrl = String.fromEnvironment('API_BASE_URL');
+
+String get _apiBaseUrl => _configuredApiBaseUrl.isNotEmpty
+    ? _configuredApiBaseUrl
+    : kIsWeb
+    ? 'http://localhost:5000/api/v1'
+    : 'http://10.0.2.2:5000/api/v1';
 
 class ComplaintCategory {
   const ComplaintCategory({required this.id, required this.name});
@@ -109,27 +114,25 @@ class ResidentComplaintsApi {
     required String method,
     Map<String, dynamic>? payload,
   }) async {
-    final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 12);
+    final client = http.Client();
     try {
-      final request = await (method == 'GET'
-              ? client.getUrl(Uri.parse('$_apiBaseUrl$path'))
-              : client.postUrl(Uri.parse('$_apiBaseUrl$path')))
-          .timeout(const Duration(seconds: 15));
-      request.headers
-        ..set(HttpHeaders.acceptHeader, ContentType.json.mimeType)
-        ..set(HttpHeaders.authorizationHeader, 'Bearer $token');
-      if (payload != null) {
-        request.headers.contentType = ContentType.json;
-        request.write(jsonEncode(payload));
-      }
-      final response = await request.close().timeout(
-        const Duration(seconds: 20),
-      );
-      final text = await utf8.decoder.bind(response).join();
-      final body = text.isEmpty
+      final headers = {
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $token',
+        if (payload != null) 'Content-Type': 'application/json',
+      };
+      final uri = Uri.parse('$_apiBaseUrl$path');
+      final response = await (method == 'GET'
+              ? client.get(uri, headers: headers)
+              : client.post(
+                  uri,
+                  headers: headers,
+                  body: payload == null ? null : jsonEncode(payload),
+                ))
+          .timeout(const Duration(seconds: 20));
+      final body = response.body.isEmpty
           ? <String, dynamic>{}
-          : jsonDecode(text) as Map<String, dynamic>;
+          : jsonDecode(response.body) as Map<String, dynamic>;
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw ResidentComplaintException(
           body['message']?.toString() ?? 'Could not load Helpdesk data.',
@@ -138,7 +141,7 @@ class ResidentComplaintsApi {
       return body['data'];
     } on ResidentComplaintException {
       rethrow;
-    } on SocketException {
+    } on http.ClientException {
       throw const ResidentComplaintException(
         'Cannot reach the server. Check your connection and try again.',
       );
@@ -151,7 +154,7 @@ class ResidentComplaintsApi {
         'The server returned an invalid response.',
       );
     } finally {
-      client.close(force: true);
+      client.close();
     }
   }
 }

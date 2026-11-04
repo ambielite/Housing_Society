@@ -5,6 +5,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../auth/data/auth_api.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../data/resident_dashboard_api.dart';
+import 'resident_change_password_screen.dart';
 
 class ResidentProfileScreen extends StatefulWidget {
   const ResidentProfileScreen({
@@ -20,8 +21,42 @@ class ResidentProfileScreen extends StatefulWidget {
   State<ResidentProfileScreen> createState() => _ResidentProfileScreenState();
 }
 
-class _ResidentProfileScreenState extends State<ResidentProfileScreen> {
-  bool _working = false;
+class _ResidentProfileScreenState extends State<ResidentProfileScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _entryController;
+
+  @override
+  void initState() {
+    super.initState();
+    _entryController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1050),
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _entryController.dispose();
+    super.dispose();
+  }
+
+  Widget _entry(Widget child, int index) {
+    final start = index * .13;
+    final end = (start + .58).clamp(0.0, 1.0).toDouble();
+    final animation = CurvedAnimation(
+      parent: _entryController,
+      curve: Interval(start, end, curve: Curves.easeOutCubic),
+    );
+    return FadeTransition(
+      opacity: animation,
+      child: SlideTransition(
+        position: animation.drive(
+          Tween<Offset>(begin: const Offset(0, .16), end: Offset.zero),
+        ),
+        child: child,
+      ),
+    );
+  }
 
   String? get _photoUrl {
     final path =
@@ -41,50 +76,13 @@ class _ResidentProfileScreenState extends State<ResidentProfileScreen> {
         .toString();
   }
 
-  Future<void> _changePassword() async {
-    final values = await showDialog<(String, String)>(
-      context: context,
-      builder: (_) => const _PasswordChangeDialog(),
+  void _changePassword() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            ResidentChangePasswordScreen(accessToken: widget.user.accessToken),
+      ),
     );
-    if (values == null || !mounted) return;
-
-    setState(() => _working = true);
-    try {
-      await AuthApi.changePassword(
-        accessToken: widget.user.accessToken,
-        currentPassword: values.$1,
-        newPassword: values.$2,
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Password changed. Please sign in again.'),
-        ),
-      );
-      _returnToLogin();
-    } on AuthException catch (error) {
-      if (mounted) _showMessage(error.message);
-    } finally {
-      if (mounted) setState(() => _working = false);
-    }
-  }
-
-  Future<void> _signOutAll() async {
-    setState(() => _working = true);
-    try {
-      await AuthApi.signOutAll(widget.user.accessToken);
-      if (!mounted) return;
-      _returnToLogin();
-    } on AuthException catch (error) {
-      if (mounted) _showMessage(error.message);
-    } finally {
-      if (mounted) setState(() => _working = false);
-    }
-  }
-
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _returnToLogin() {
@@ -98,15 +96,6 @@ class _ResidentProfileScreenState extends State<ResidentProfileScreen> {
   Widget build(BuildContext context) {
     final dashboard = widget.dashboard;
     final photoUrl = _photoUrl;
-    final roleLabels = widget.user.roles
-        .map(
-          (role) => role
-              .split('_')
-              .where((part) => part.isNotEmpty)
-              .map((part) => '${part[0]}${part.substring(1).toLowerCase()}')
-              .join(' '),
-        )
-        .join(', ');
     final unitLabel = [
       if (dashboard.towerName != null) dashboard.towerName,
       if (dashboard.unitNumber != null) 'Flat ${dashboard.unitNumber}',
@@ -122,123 +111,109 @@ class _ResidentProfileScreenState extends State<ResidentProfileScreen> {
       ),
       body: SafeArea(
         top: false,
-        child: Stack(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(18, 8, 18, 30),
           children: [
-            ListView(
-              padding: const EdgeInsets.fromLTRB(18, 8, 18, 30),
-              children: [
-                _profileHero(photoUrl),
-                const SizedBox(height: 16),
-                _section('Your contact', [
-                  _infoTile(
-                    Icons.mail_outline_rounded,
-                    'Email',
-                    widget.user.email,
-                  ),
-                  _infoTile(
-                    Icons.phone_outlined,
-                    'Phone',
-                    _value(widget.user.phone),
-                  ),
-                ]),
-                const SizedBox(height: 14),
-                _section('Society details', [
-                  _infoTile(
-                    Icons.apartment_rounded,
-                    'Your society',
-                    _value(dashboard.societyName),
-                  ),
-                  _infoTile(
-                    Icons.location_on_outlined,
-                    'Address',
-                    _value(dashboard.societyAddress),
-                  ),
-                  _infoTile(
-                    Icons.mail_outline_rounded,
-                    'Society email',
-                    _value(dashboard.societyEmail),
-                  ),
-                  _infoTile(
-                    Icons.phone_outlined,
-                    'Society phone',
-                    _value(dashboard.societyPhone),
-                  ),
-                ]),
-                const SizedBox(height: 14),
-                _section('Resident details', [
-                  _infoTile(
-                    Icons.home_outlined,
-                    'Home',
-                    unitLabel.isEmpty ? 'Not assigned' : unitLabel,
-                  ),
-                  _infoTile(
-                    Icons.layers_outlined,
-                    'Floor',
-                    _value(dashboard.floorName),
-                  ),
-                  _infoTile(
-                    Icons.verified_user_outlined,
-                    'Role',
-                    roleLabels.isEmpty ? 'Resident' : roleLabels,
-                  ),
-                  _infoTile(
-                    Icons.check_circle_outline_rounded,
-                    'Account status',
-                    _label(widget.user.status),
-                  ),
-                ]),
-                const SizedBox(height: 14),
-                _section('Account details', [
-                  _infoTile(
-                    Icons.event_outlined,
-                    'Account created',
-                    _date(widget.user.createdAt),
-                  ),
-                  _infoTile(
-                    Icons.login_rounded,
-                    'Last sign-in',
-                    _dateTime(widget.user.lastLoginAt),
-                  ),
-                  _infoTile(
-                    Icons.currency_rupee_rounded,
-                    'Society currency',
-                    dashboard.currency,
-                  ),
-                ]),
-                const SizedBox(height: 14),
-                _section('Quick actions', [
-                  _actionTile(
-                    Icons.key_outlined,
-                    'Change password',
-                    'Update your account password',
-                    onTap: _changePassword,
-                  ),
-                  _actionTile(
-                    Icons.logout_rounded,
-                    'Sign out',
-                    'Sign out of this device',
-                    onTap: _returnToLogin,
-                    isDestructive: true,
-                  ),
-                  _actionTile(
-                    Icons.devices_outlined,
-                    'Sign out on all devices',
-                    'End all active sessions for this account',
-                    onTap: _signOutAll,
-                    isDestructive: true,
-                  ),
-                ]),
-              ],
-            ),
-            if (_working)
-              Positioned.fill(
-                child: ColoredBox(
-                  color: Colors.black.withValues(alpha: .12),
-                  child: const Center(
-                    child: CircularProgressIndicator(color: AppColors.indigo),
-                  ),
+            _entry(_profileHero(photoUrl), 0),
+            const SizedBox(height: 16),
+            _entry(
+              _section('Your contact', Icons.contact_mail_outlined, [
+                _infoTile(
+                  Icons.mail_outline_rounded,
+                  'Email',
+                  widget.user.email,
                 ),
-              ),
+                _infoTile(
+                  Icons.phone_outlined,
+                  'Phone',
+                  _value(widget.user.phone),
+                ),
+              ]),
+              1,
+            ),
+            const SizedBox(height: 14),
+            _entry(
+              _section('Society details', Icons.apartment_rounded, [
+                _infoTile(
+                  Icons.apartment_rounded,
+                  'Your society',
+                  _value(dashboard.societyName),
+                ),
+                _infoTile(
+                  Icons.location_on_outlined,
+                  'Address',
+                  _value(dashboard.societyAddress),
+                ),
+                _infoTile(
+                  Icons.mail_outline_rounded,
+                  'Society email',
+                  _value(dashboard.societyEmail),
+                ),
+                _infoTile(
+                  Icons.phone_outlined,
+                  'Society phone',
+                  _value(dashboard.societyPhone),
+                ),
+              ]),
+              2,
+            ),
+            const SizedBox(height: 14),
+            _entry(
+              _section('Resident details', Icons.home_work_outlined, [
+                _infoTile(
+                  Icons.home_outlined,
+                  'Home',
+                  unitLabel.isEmpty ? 'Not assigned' : unitLabel,
+                ),
+                _infoTile(
+                  Icons.layers_outlined,
+                  'Floor',
+                  _value(dashboard.floorName),
+                ),
+                _infoTile(Icons.verified_user_outlined, 'Role', 'Resident'),
+                _infoTile(
+                  Icons.check_circle_outline_rounded,
+                  'Account status',
+                  _label(widget.user.status),
+                ),
+              ]),
+              3,
+            ),
+            const SizedBox(height: 14),
+            _entry(
+              _section('Account details', Icons.manage_accounts_outlined, [
+                _infoTile(
+                  Icons.event_outlined,
+                  'Account created',
+                  _date(widget.user.createdAt),
+                ),
+                _infoTile(
+                  Icons.login_rounded,
+                  'Last sign-in',
+                  _dateTime(widget.user.lastLoginAt),
+                ),
+              ]),
+              4,
+            ),
+            const SizedBox(height: 14),
+            _entry(
+              _section('Quick actions', Icons.bolt_rounded, [
+                _actionTile(
+                  Icons.key_outlined,
+                  'Change password',
+                  'Update your account password',
+                  onTap: _changePassword,
+                ),
+                _actionTile(
+                  Icons.logout_rounded,
+                  'Sign out',
+                  'Sign out of this device',
+                  onTap: _returnToLogin,
+                  isDestructive: true,
+                ),
+              ]),
+              5,
+            ),
           ],
         ),
       ),
@@ -247,6 +222,9 @@ class _ResidentProfileScreenState extends State<ResidentProfileScreen> {
 
   Widget _profileHero(String? photoUrl) {
     final status = _label(widget.user.status);
+    final fullName = widget.dashboard.residentName?.trim().isNotEmpty == true
+        ? widget.dashboard.residentName!.trim()
+        : widget.user.name;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -260,21 +238,43 @@ class _ResidentProfileScreenState extends State<ResidentProfileScreen> {
       ),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 34,
-            backgroundColor: const Color(0xFFE2DEFF),
-            backgroundImage: photoUrl == null ? null : NetworkImage(photoUrl),
-            onBackgroundImageError: photoUrl == null ? null : (_, _) {},
-            child: photoUrl == null
-                ? Text(
-                    _initials(widget.user.name),
-                    style: const TextStyle(
-                      color: AppColors.indigo,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 19,
-                    ),
-                  )
-                : null,
+          ScaleTransition(
+            scale: CurvedAnimation(
+              parent: _entryController,
+              curve: const Interval(0, .72, curve: Curves.elasticOut),
+            ).drive(Tween<double>(begin: .55, end: 1)),
+            child: Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x306255E8),
+                    blurRadius: 16,
+                    offset: Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: CircleAvatar(
+                radius: 34,
+                backgroundColor: const Color(0xFFE2DEFF),
+                backgroundImage: photoUrl == null
+                    ? null
+                    : NetworkImage(photoUrl),
+                onBackgroundImageError: photoUrl == null ? null : (_, _) {},
+                child: photoUrl == null
+                    ? Text(
+                        _initials(fullName),
+                        style: const TextStyle(
+                          color: AppColors.indigo,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 19,
+                        ),
+                      )
+                    : null,
+              ),
+            ),
           ),
           const SizedBox(width: 15),
           Expanded(
@@ -282,7 +282,7 @@ class _ResidentProfileScreenState extends State<ResidentProfileScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  widget.user.name,
+                  fullName,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -329,41 +329,60 @@ class _ResidentProfileScreenState extends State<ResidentProfileScreen> {
     );
   }
 
-  Widget _section(String title, List<Widget> children) => Container(
-    padding: const EdgeInsets.fromLTRB(15, 15, 15, 7),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(18),
-      border: Border.all(color: const Color(0xFFE8ECF3)),
-      boxShadow: const [
-        BoxShadow(
-          color: Color(0x060F1A35),
-          blurRadius: 12,
-          offset: Offset(0, 4),
-        ),
-      ],
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(2, 0, 2, 8),
-          child: Text(
-            title,
-            style: const TextStyle(
-              color: AppColors.ink,
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
+  Widget _section(String title, IconData icon, List<Widget> children) =>
+      Container(
+        padding: const EdgeInsets.fromLTRB(15, 15, 15, 7),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFE8ECF3)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x060F1A35),
+              blurRadius: 12,
+              offset: Offset(0, 4),
             ),
-          ),
+          ],
         ),
-        ...children,
-      ],
-    ),
-  );
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(2, 0, 2, 8),
+              child: Row(
+                children: [
+                  Container(
+                    width: 31,
+                    height: 31,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFEAF0FF), Color(0xFFF0EDFF)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(icon, color: AppColors.indigo, size: 17),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: AppColors.ink,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            ...children,
+          ],
+        ),
+      );
 
   Widget _infoTile(IconData icon, String label, String value) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 7),
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -412,59 +431,12 @@ class _ResidentProfileScreenState extends State<ResidentProfileScreen> {
     String subtitle, {
     required VoidCallback onTap,
     bool isDestructive = false,
-  }) => InkWell(
-    onTap: _working ? null : onTap,
-    borderRadius: BorderRadius.circular(14),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: isDestructive
-                  ? const Color(0xFFFFF0F1)
-                  : const Color(0xFFEAF8F3),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              icon,
-              color: isDestructive
-                  ? const Color(0xFFD84B58)
-                  : const Color(0xFF1C9B72),
-              size: 18,
-            ),
-          ),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: AppColors.inkSoft,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: const TextStyle(color: AppColors.muted, fontSize: 10),
-                ),
-              ],
-            ),
-          ),
-          const Icon(
-            Icons.arrow_forward_ios_rounded,
-            color: AppColors.muted,
-            size: 14,
-          ),
-        ],
-      ),
-    ),
+  }) => _ProfileActionTile(
+    icon: icon,
+    title: title,
+    subtitle: subtitle,
+    onTap: onTap,
+    isDestructive: isDestructive,
   );
 
   String _value(String? value) =>
@@ -504,79 +476,122 @@ class _ResidentProfileScreenState extends State<ResidentProfileScreen> {
   }
 }
 
-class _PasswordChangeDialog extends StatefulWidget {
-  const _PasswordChangeDialog();
+class _ProfileActionTile extends StatefulWidget {
+  const _ProfileActionTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    required this.isDestructive,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback? onTap;
+  final bool isDestructive;
 
   @override
-  State<_PasswordChangeDialog> createState() => _PasswordChangeDialogState();
+  State<_ProfileActionTile> createState() => _ProfileActionTileState();
 }
 
-class _PasswordChangeDialogState extends State<_PasswordChangeDialog> {
-  final _formKey = GlobalKey<FormState>();
-  final _currentController = TextEditingController();
-  final _newController = TextEditingController();
-  final _confirmController = TextEditingController();
+class _ProfileActionTileState extends State<_ProfileActionTile> {
+  bool _hovered = false;
 
   @override
-  void dispose() {
-    _currentController.dispose();
-    _newController.dispose();
-    _confirmController.dispose();
-    super.dispose();
-  }
+  Widget build(BuildContext context) {
+    final accent = widget.isDestructive
+        ? const Color(0xFFD84B58)
+        : const Color(0xFF1C9B72);
+    const hoverBackground = Color(0xFFEAF1FF);
 
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Change password'),
-    content: Form(
-      key: _formKey,
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextFormField(
-              controller: _currentController,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Current password'),
-              validator: (value) => value == null || value.isEmpty
-                  ? 'Enter your current password'
-                  : null,
-            ),
-            TextFormField(
-              controller: _newController,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'New password'),
-              validator: (value) => value == null || value.length < 8
-                  ? 'Use at least 8 characters'
-                  : null,
-            ),
-            TextFormField(
-              controller: _confirmController,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'Confirm new password',
+    return MouseRegion(
+      opaque: true,
+      cursor: widget.onTap == null
+          ? SystemMouseCursors.basic
+          : SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOut,
+        margin: const EdgeInsets.symmetric(vertical: 3),
+        transform: Matrix4.translationValues(0, _hovered ? -1 : 0, 0),
+        decoration: BoxDecoration(
+          color: _hovered ? hoverBackground : Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: _hovered ? const Color(0xFF8FB2FF) : Colors.transparent,
+          ),
+          boxShadow: _hovered
+              ? const [
+                  BoxShadow(
+                    color: Color(0x182C5FD5),
+                    blurRadius: 12,
+                    offset: Offset(0, 4),
+                  ),
+                ]
+              : null,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
+          child: InkWell(
+            onTap: widget.onTap,
+            borderRadius: BorderRadius.circular(14),
+            hoverColor: hoverBackground,
+            splashColor: accent.withValues(alpha: .10),
+            highlightColor: accent.withValues(alpha: .06),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: widget.isDestructive
+                          ? const Color(0xFFFFF0F1)
+                          : const Color(0xFFEAF8F3),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(widget.icon, color: accent, size: 18),
+                  ),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.title,
+                          style: const TextStyle(
+                            color: AppColors.inkSoft,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          widget.subtitle,
+                          style: const TextStyle(
+                            color: AppColors.muted,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    color: _hovered ? accent : AppColors.muted,
+                    size: 14,
+                  ),
+                ],
               ),
-              validator: (value) => value != _newController.text
-                  ? 'Passwords do not match'
-                  : null,
             ),
-          ],
+          ),
         ),
       ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.of(context).pop(),
-        child: const Text('Cancel'),
-      ),
-      FilledButton(
-        onPressed: () {
-          if (!_formKey.currentState!.validate()) return;
-          Navigator.of(context)
-              .pop((_currentController.text, _newController.text));
-        },
-        child: const Text('Update password'),
-      ),
-    ],
-  );
+    );
+  }
 }

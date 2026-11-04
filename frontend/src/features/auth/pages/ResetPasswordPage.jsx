@@ -44,7 +44,15 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <AuthCard title="Choose a new password" subtitle="The reset token works once and expires after 30 minutes.">
+    <AuthCard className="auth-card--recovery" title="Choose a new password" subtitle="The reset token works once and expires after 30 minutes." leading={(
+      <div className="recovery-mark recovery-mark--lock" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none">
+          <rect x="5" y="10" width="14" height="11" rx="2.5" />
+          <path d="M8 10V7a4 4 0 1 1 8 0v3m-4 4v3" />
+          <path d="M18 4.5h3m-1.5-1.5v3" />
+        </svg>
+      </div>
+    )}>
       <form onSubmit={onSubmit} noValidate>
         {submitError && <Alert>{submitError}</Alert>}
         {!tokenFromLink && (

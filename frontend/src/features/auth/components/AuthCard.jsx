@@ -1,4 +1,4 @@
-export default function AuthCard({ title, subtitle, children }) {
+export default function AuthCard({ title, subtitle, children, className = '', leading }) {
   return (
     <main className="auth-page">
       <aside className="auth-aside" aria-hidden="true">
@@ -6,7 +6,8 @@ export default function AuthCard({ title, subtitle, children }) {
         <p className="auth-aside-text">Billing, security, helpdesk and records for your society, in one place.</p>
       </aside>
       <section className="auth-panel">
-        <div className="auth-card">
+        <div className={`auth-card ${className}`.trim()}>
+          {leading}
           <h1>{title}</h1>
           {subtitle && <p className="auth-subtitle">{subtitle}</p>}
           {children}

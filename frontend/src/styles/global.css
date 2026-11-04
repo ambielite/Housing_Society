@@ -404,6 +404,26 @@ a.cell-title:hover { color: var(--action); }
 .auth-links a { color: var(--action); }
 .dev-box { margin-top: 8px; padding: 14px; border-radius: 8px; background: var(--warning-bg); color: var(--warning-text); }
 .dev-box p { margin-bottom: 10px; font-size: 13px; }
+.auth-card--recovery { position: relative; isolation: isolate; animation: recovery-rise 520ms cubic-bezier(.2,.75,.25,1) both; }
+.auth-card--recovery::before { content: ""; position: absolute; z-index: -1; width: 230px; height: 230px; top: -112px; right: -80px; border-radius: 50%; background: radial-gradient(circle, rgba(98,85,232,.14), rgba(98,85,232,0) 70%); pointer-events: none; animation: recovery-glow 5s ease-in-out infinite alternate; }
+.auth-card--recovery h1 { letter-spacing: -.035em; }
+.auth-card--recovery h1, .auth-card--recovery .auth-subtitle { text-align: center; }
+.recovery-mark { width: 58px; height: 58px; display: grid; place-items: center; margin: 0 auto 20px; color: #fff; border-radius: 19px; background: linear-gradient(145deg, #8174ff, #5948dc); box-shadow: 0 12px 26px rgba(98,85,232,.24), inset 0 1px 0 rgba(255,255,255,.42); animation: recovery-mark-in 680ms cubic-bezier(.18,.85,.25,1.15) both; }
+.recovery-mark svg { width: 27px; height: 27px; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.recovery-mark--lock { background: linear-gradient(145deg, #22bda2, #168b82); box-shadow: 0 12px 26px rgba(22,139,130,.2), inset 0 1px 0 rgba(255,255,255,.42); }
+.auth-card--recovery .field { animation: recovery-field-in 450ms ease-out both; }
+.auth-card--recovery .field:nth-of-type(2) { animation-delay: 70ms; }
+.auth-card--recovery .field:nth-of-type(3) { animation-delay: 130ms; }
+.auth-card--recovery .btn { transition: transform 180ms ease, box-shadow 180ms ease, filter 180ms ease; }
+.auth-card--recovery .btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(76,64,207,.22); filter: saturate(1.08); }
+.auth-card--recovery .auth-links a { display: inline-flex; transition: transform 160ms ease, color 160ms ease; }
+.auth-card--recovery .auth-links a:hover { transform: translateX(-3px); }
+.recovery-result { animation: recovery-rise 420ms ease-out both; }
+@keyframes recovery-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes recovery-field-in { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes recovery-mark-in { 0% { opacity: 0; transform: translateY(8px) scale(.86) rotate(-8deg); } 70% { transform: translateY(-2px) scale(1.04) rotate(2deg); } 100% { opacity: 1; transform: translateY(0) scale(1) rotate(0); } }
+@keyframes recovery-glow { from { transform: translate(-6px, 0) scale(.92); opacity: .7; } to { transform: translate(8px, 10px) scale(1.08); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .auth-card--recovery, .auth-card--recovery::before, .recovery-mark, .auth-card--recovery .field, .recovery-result { animation: none !important; } .auth-card--recovery .btn, .auth-card--recovery .auth-links a { transition: none; } }
 
 /* =========================
    RESPONSIVE

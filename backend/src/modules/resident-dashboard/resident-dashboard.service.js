@@ -89,7 +89,10 @@ const getDashboard = async (user) => {
       email: home.society_email,
       phone: home.society_phone,
     } : null,
-    resident: home?.resident_id ? { photoUrl: home.resident_photo_url } : null,
+    resident: home?.resident_id ? {
+      name: home.display_name,
+      photoUrl: home.resident_photo_url,
+    } : null,
     unit: home?.unit_number ? {
       number: home.unit_number,
       tower: home.tower_name,

@@ -15,6 +15,7 @@ String get _apiBaseUrl {
 
 class AuthenticatedUser {
   const AuthenticatedUser({
+    required this.userId,
     required this.name,
     required this.email,
     required this.accessToken,
@@ -29,6 +30,7 @@ class AuthenticatedUser {
     this.lastLoginAt,
   });
 
+  final String userId;
   final String name;
   final String email;
   final String accessToken;
@@ -88,6 +90,7 @@ class AuthApi {
       final fullName = '$firstName $lastName'.trim();
 
       return AuthenticatedUser(
+        userId: (user['id'] ?? '').toString(),
         name: fullName.isEmpty ? email : fullName,
         email: (user['email'] ?? email).toString(),
         accessToken: token,
@@ -131,8 +134,18 @@ class AuthApi {
     });
   }
 
-  static Future<void> signOutAll(String accessToken) async {
-    await _authenticatedPost('/auth/logout-all', accessToken, const {});
+  static Future<void> forgotPassword({required String email}) async {
+    await _post('/auth/forgot-password', {'email': email});
+  }
+
+  static Future<void> resetPassword({
+    required String token,
+    required String newPassword,
+  }) async {
+    await _post('/auth/reset-password', {
+      'token': token,
+      'newPassword': newPassword,
+    });
   }
 
   static Future<void> _authenticatedPost(
@@ -140,14 +153,21 @@ class AuthApi {
     String accessToken,
     Map<String, dynamic> payload,
   ) async {
+    await _post(path, payload, accessToken: accessToken);
+  }
+
+  static Future<Map<String, dynamic>> _post(
+    String path,
+    Map<String, dynamic> payload, {
+    String? accessToken,
+  }) async {
     try {
+      final headers = <String, String>{'Content-Type': 'application/json'};
+      if (accessToken != null) headers['Authorization'] = 'Bearer $accessToken';
       final response = await http
           .post(
             Uri.parse('$_apiBaseUrl$path'),
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $accessToken',
-            },
+            headers: headers,
             body: jsonEncode(payload),
           )
           .timeout(const Duration(seconds: 20));
@@ -159,6 +179,7 @@ class AuthApi {
           body['message'] as String? ?? 'The request could not be completed.',
         );
       }
+      return body['data'] as Map<String, dynamic>? ?? const {};
     } on AuthException {
       rethrow;
     } on http.ClientException {

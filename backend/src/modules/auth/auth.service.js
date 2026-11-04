@@ -8,6 +8,7 @@ const authRepository = require('./auth.repository');
 const db = require('../../config/db');
 const usersRepository = require('../users/users.repository');
 const rbacRepository = require('../rbac/rbac.repository');
+const emailProvider = require('../notifications/providers/email.provider');
 
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
 const generateAccessToken = (user) =>
@@ -85,18 +86,19 @@ const login = async ({ email, password, securityCode }, meta = {}) => {
   }
 
   let authenticatedUser = user;
+  const securityHeadRole = await db.query(
+    `SELECT 1
+     FROM user_roles ur
+     JOIN roles r ON r.id = ur.role_id
+     WHERE ur.user_id = $1
+       AND r.code = 'SECURITY_HEAD'
+       AND (ur.society_id IS NULL OR ur.society_id = $2)
+     LIMIT 1`,
+    [user.id, user.society_id]
+  );
+
   if (securityCode !== undefined) {
-    const isSecurityHead = await db.query(
-      `SELECT 1
-       FROM user_roles ur
-       JOIN roles r ON r.id = ur.role_id
-       WHERE ur.user_id = $1
-         AND r.code = 'SECURITY_HEAD'
-         AND (ur.society_id IS NULL OR ur.society_id = $2)
-       LIMIT 1`,
-      [user.id, user.society_id]
-    );
-    if (!isSecurityHead.rowCount) {
+    if (!securityHeadRole.rowCount) {
       await authRepository.createLoginHistory({
         userId: user.id,
         ipAddress: meta.ipAddress,
@@ -131,6 +133,18 @@ const login = async ({ email, password, securityCode }, meta = {}) => {
       throw new ApiError(401, 'Invalid security login credentials or employee code');
     }
     authenticatedUser = guardResult.rows[0];
+  } else if (securityHeadRole.rowCount) {
+    await authRepository.createLoginHistory({
+      userId: user.id,
+      ipAddress: meta.ipAddress,
+      userAgent: meta.deviceInfo,
+      success: false,
+      failureReason: 'SECURITY_EMPLOYEE_CODE_REQUIRED',
+    });
+    throw new ApiError(
+      403,
+      'Use Security guard login and enter your employee code to sign in.',
+    );
   }
 
   const tokens = await issueTokens(authenticatedUser, meta);
@@ -222,8 +236,10 @@ const changePassword = async (userId, { currentPassword, newPassword }) => {
 const forgotPassword = async (email) => {
   const user = await usersRepository.findByEmail(email.toLowerCase());
   if (!user) {
-    // Never reveal whether an email is registered.
-    return { message: 'If this email is registered, a reset link has been generated.' };
+    throw new ApiError(
+      404,
+      'No account was found with this email address. Check the email and try again.',
+    );
   }
 
   const rawToken = generateRandomToken();
@@ -231,12 +247,21 @@ const forgotPassword = async (email) => {
   const expiresAt = new Date(Date.now() + parseDuration('30m'));
   await authRepository.createPasswordResetToken({ userId: user.id, tokenHash, expiresAt });
 
-  // No email/WhatsApp provider is wired up yet (that's Phase 14 -
-  // Notifications). The raw token is returned here in non-production
-  // environments only, purely so you can test the full flow in Postman.
+  try {
+    await emailProvider.sendEmail({
+      email: user.email,
+      userId: user.id,
+      subject: 'Your Housing Society password reset token',
+      title: 'Password reset token',
+      message: `Use this reset token in the app: ${rawToken}\n\nIt expires in 30 minutes and can only be used once. If you did not request a password reset, ignore this email.`,
+    });
+  } catch (error) {
+    // Keep the response generic so this endpoint does not reveal whether an
+    // address is registered. The server log gives operators the delivery error.
+    console.error('Password reset email delivery failed:', error.message);
+  }
   return {
-    message: 'If this email is registered, a reset link has been generated.',
-    devResetToken: env.nodeEnv === 'production' ? undefined : rawToken,
+    message: 'Reset instructions are ready. Enter the token sent to your email.',
   };
 };
 

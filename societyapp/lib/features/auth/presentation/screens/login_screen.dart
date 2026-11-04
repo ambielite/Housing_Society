@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../data/auth_api.dart';
+import 'forgot_password_screen.dart';
 import '../widgets/society_brand_mark.dart';
-import '../../../dashboard/presentation/screens/dashboard_screen.dart';
+import '../../../dashboard/presentation/screens/security_dashboard_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -43,11 +44,15 @@ class _LoginScreenState extends State<LoginScreen> {
       final user = await AuthApi.login(
         email: _emailController.text.trim(),
         password: _passwordController.text,
-        securityCode: _securityLogin ? _securityCodeController.text.trim() : null,
+        securityCode: _securityLogin
+            ? _securityCodeController.text.trim()
+            : null,
       );
       if (!mounted) return;
       await Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(builder: (_) => DashboardScreen(user: user)),
+        MaterialPageRoute<void>(
+          builder: (_) => SecurityDashboardScreen(user: user),
+        ),
       );
     } on AuthException catch (error) {
       if (mounted) setState(() => _error = error.message);
@@ -146,6 +151,21 @@ class _LoginScreenState extends State<LoginScreen> {
                           ? 'Enter your password'
                           : null,
                     ),
+                    if (!_securityLogin)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: _submitting
+                              ? null
+                              : () => Navigator.of(context).push<void>(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) =>
+                                        const ForgotPasswordScreen(),
+                                  ),
+                                ),
+                          child: const Text('Forgot password?'),
+                        ),
+                      ),
                     if (_securityLogin) ...[
                       const SizedBox(height: 20),
                       const _FieldLabel('Security code (employee code)'),
@@ -159,7 +179,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           hint: 'Enter your employee code',
                           icon: Icons.badge_outlined,
                         ),
-                        validator: (value) => _securityLogin &&
+                        validator: (value) =>
+                            _securityLogin &&
                                 (value == null || value.trim().isEmpty)
                             ? 'Enter your employee code'
                             : null,
