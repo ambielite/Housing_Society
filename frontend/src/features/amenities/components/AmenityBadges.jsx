@@ -2,6 +2,7 @@ const statusMap = {
   ACTIVE: ['Active', 'badge-active'],
   INACTIVE: ['Inactive', 'badge-inactive'],
   AVAILABLE: ['Available', 'badge-active'],
+  BOOKED: ['Booked', 'badge-pending'],
   FULL: ['Full', 'badge-pending'],
   BLOCKED: ['Blocked', 'badge-suspended'],
   CANCELLED: ['Cancelled', 'badge-inactive'],

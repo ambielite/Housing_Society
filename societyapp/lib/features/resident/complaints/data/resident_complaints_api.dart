@@ -56,6 +56,17 @@ class ResidentComplaint {
         categoryName: json['category_name']?.toString(),
         openedAt: DateTime.tryParse('${json['opened_at'] ?? ''}'),
       );
+
+  ResidentComplaint withCategoryName(String? value) => ResidentComplaint(
+        id: id,
+        ticketNumber: ticketNumber,
+        subject: subject,
+        description: description,
+        status: status,
+        priority: priority,
+        categoryName: categoryName ?? value,
+        openedAt: openedAt,
+      );
 }
 
 class ResidentComplaintsApi {
@@ -77,13 +88,14 @@ class ResidentComplaintsApi {
         .toList();
   }
 
-  static Future<void> create({
+  static Future<ResidentComplaint> create({
     required String token,
     required String categoryId,
+    required String categoryName,
     required String subject,
     required String description,
   }) async {
-    await _send(
+    final result = await _send(
       token,
       '/resident-complaints',
       method: 'POST',
@@ -93,20 +105,24 @@ class ResidentComplaintsApi {
         'description': description,
       },
     );
+    if (result is Map<String, dynamic>) {
+      return ResidentComplaint.fromJson(result).withCategoryName(categoryName);
+    }
+    throw const ResidentComplaintException(
+      'The server did not return the submitted complaint.',
+    );
   }
 
   static Future<dynamic> _get(String token, String path) async {
     return _request(token, path, method: 'GET');
   }
 
-  static Future<void> _send(
+  static Future<dynamic> _send(
     String token,
     String path, {
     required String method,
     required Map<String, dynamic> payload,
-  }) async {
-    await _request(token, path, method: method, payload: payload);
-  }
+  }) => _request(token, path, method: method, payload: payload);
 
   static Future<dynamic> _request(
     String token,

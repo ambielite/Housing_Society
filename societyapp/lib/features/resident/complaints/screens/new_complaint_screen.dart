@@ -19,6 +19,7 @@ class _NewComplaintScreenState extends State<NewComplaintScreen> {
   final _descriptionController = TextEditingController();
   late Future<List<ComplaintCategory>> _categoriesFuture;
   String? _categoryId;
+  String? _categoryName;
   bool _saving = false;
   String? _error;
 
@@ -49,13 +50,14 @@ class _NewComplaintScreenState extends State<NewComplaintScreen> {
       _error = null;
     });
     try {
-      await ResidentComplaintsApi.create(
+      final complaint = await ResidentComplaintsApi.create(
         token: widget.user.accessToken,
         categoryId: categoryId,
+        categoryName: _categoryName ?? 'Other',
         subject: _subjectController.text.trim(),
         description: _descriptionController.text.trim(),
       );
-      if (mounted) Navigator.of(context).pop(true);
+      if (mounted) Navigator.of(context).pop(complaint);
     } on ResidentComplaintException catch (error) {
       if (mounted) setState(() => _error = error.message);
     } finally {
@@ -98,7 +100,11 @@ class _NewComplaintScreenState extends State<NewComplaintScreen> {
               final selectedId = categories.any((item) => item.id == _categoryId)
                   ? _categoryId
                   : categories.first.id;
-              if (_categoryId == null) _categoryId = selectedId;
+              final selectedCategory = categories.firstWhere(
+                (item) => item.id == selectedId,
+              );
+              _categoryId = selectedId;
+              _categoryName = selectedCategory.name;
               return SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
                 child: Center(
@@ -127,7 +133,12 @@ class _NewComplaintScreenState extends State<NewComplaintScreen> {
                                 .toList(),
                             onChanged: _saving
                                 ? null
-                                : (value) => setState(() => _categoryId = value),
+                                : (value) => setState(() {
+                                    _categoryId = value;
+                                    _categoryName = categories
+                                        .firstWhere((item) => item.id == value)
+                                        .name;
+                                  }),
                           ),
                           const SizedBox(height: 18),
                           _fieldLabel('Subject'),

@@ -125,7 +125,19 @@ const listSlots = async ({ amenityId, slotDate, status }) => {
 
   const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const result = await db.query(
-    `SELECT * FROM amenity_slots ${whereClause} ORDER BY slot_date ASC, start_time ASC`,
+    `SELECT amenity_slots.*,
+            COALESCE(slot_occupancy.current_occupancy, 0)::int AS current_occupancy
+       FROM amenity_slots
+       LEFT JOIN LATERAL (
+         SELECT SUM(b.guests_count + 1)::int AS current_occupancy
+           FROM amenity_bookings b
+          WHERE b.amenity_slot_id = amenity_slots.id
+            AND (b.status = 'CONFIRMED'
+              OR (b.status = 'PENDING_PAYMENT'
+                  AND b.created_at >= now() - interval '5 minutes'))
+       ) slot_occupancy ON TRUE
+       ${whereClause}
+      ORDER BY slot_date ASC, start_time ASC`,
     params
   );
   return result.rows;

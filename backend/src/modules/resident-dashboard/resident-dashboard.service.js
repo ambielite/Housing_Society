@@ -12,7 +12,7 @@ const getDashboard = async (user) => {
             s.logo_url AS society_logo_url, s.address AS society_address,
             s.email AS society_email, s.phone AS society_phone,
             r.id AS resident_id, r.display_name, r.profile_photo AS resident_photo_url,
-            t.name AS tower_name, f.name AS floor_name, u.unit_number
+            t.name AS tower_name, f.name AS floor_name, u.id AS unit_id, u.unit_number
        FROM societies s
        LEFT JOIN residents r
          ON r.society_id = s.id
@@ -32,9 +32,11 @@ const getDashboard = async (user) => {
   const home = homeResult.rows[0];
 
   let maintenance = null;
+  let upcomingBookings = [];
   if (home?.resident_id) {
     const invoiceResult = await query(
-      `SELECT i.invoice_number, i.billing_period, i.due_date,
+      `SELECT i.invoice_number, i.billing_period,
+              to_char(i.due_date, 'YYYY-MM-DD') AS due_date,
               i.outstanding_amount, i.status, i.description
          FROM invoices i
          JOIN owner_units ou ON ou.unit_id = i.unit_id
@@ -47,6 +49,24 @@ const getDashboard = async (user) => {
       [home.resident_id, societyId],
     );
     maintenance = invoiceResult.rows[0] || null;
+
+    const bookingResult = await query(
+      `SELECT a.name AS amenity_name, b.status,
+                to_char(sl.slot_date, 'YYYY-MM-DD') AS slot_date,
+                sl.start_time, sl.end_time
+           FROM amenity_bookings b
+           JOIN amenity_slots sl ON sl.id = b.amenity_slot_id
+           JOIN amenities a ON a.id = sl.amenity_id
+          WHERE a.society_id = $1 AND b.booked_by = $2
+            AND (b.status = 'CONFIRMED'
+              OR (b.status = 'PENDING_PAYMENT'
+                  AND b.created_at >= now() - interval '5 minutes'))
+            AND (sl.slot_date > CURRENT_DATE
+              OR (sl.slot_date = CURRENT_DATE AND sl.start_time > LOCALTIME))
+          ORDER BY sl.slot_date ASC, sl.start_time ASC`,
+      [societyId, user.id],
+    );
+    upcomingBookings = bookingResult.rows;
   }
 
   const getAllNotices = async (tab) => {
@@ -99,6 +119,7 @@ const getDashboard = async (user) => {
       floor: home.floor_name,
     } : null,
     maintenance,
+    upcomingBookings,
     notices,
   };
 };

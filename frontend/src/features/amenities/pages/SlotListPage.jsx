@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, RefreshCw, SquarePen, Trash2 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
@@ -35,6 +35,12 @@ export default function SlotListPage() {
     () => (societyId ? api.listSlots({ amenityId: amenityFilter, slotDate: dateFilter, status }) : Promise.resolve(null)),
     [societyId, amenityFilter, dateFilter, status]
   );
+
+  useEffect(() => {
+    if (!societyId) return undefined;
+    const refreshTimer = window.setInterval(() => slots.reload(), 5000);
+    return () => window.clearInterval(refreshTimer);
+  }, [slots.reload, societyId]);
 
   if (!societyId) return <section className="society-dashboard security-page amenities-page"><header className="society-heading"><div><div className="society-eyebrow"><span className="society-eyebrow-dot" /> COMMUNITY FACILITIES</div><h1>Availability slots</h1><p>Create and maintain bookable time windows.</p></div></header><AmenityTabs /><SocietyIdPrompt /></section>;
 
@@ -99,7 +105,11 @@ export default function SlotListPage() {
           { key: 'time', header: 'Time', render: (s) => `${String(s.start_time).slice(0, 5)} - ${String(s.end_time).slice(0, 5)}` },
           { key: 'capacity', header: 'Capacity', render: (s) => s.capacity },
           { key: 'price', header: 'Price', render: (s) => formatMoney(s.price) },
-          { key: 'status', header: 'Status', render: (s) => <SlotStatusBadge status={s.status} /> },
+          { key: 'status', header: 'Status', render: (s) => {
+            const occupancy = Number(s.current_occupancy || 0);
+            const displayStatus = s.status === 'AVAILABLE' && occupancy > 0 ? 'BOOKED' : s.status;
+            return <div><SlotStatusBadge status={displayStatus} />{occupancy > 0 && <span className="cell-sub">{occupancy}/{s.capacity} reserved</span>}</div>;
+          } },
           { key: 'actions', header: 'Actions', render: (s) => <div className="row-actions">
             {hasPermission('AMENITY_SLOT_UPDATE') && <button type="button" className="society-icon-action" title="Edit slot" aria-label={`Edit slot ${s.slot_date}`} onClick={() => { setError(''); setDialog({ type: 'edit', slot: s }); }}><SquarePen size={16} /></button>}
             {hasPermission('AMENITY_SLOT_DELETE') && <button type="button" className="society-icon-action society-delete-action" title="Delete slot" aria-label={`Delete slot ${s.slot_date}`} onClick={() => setDeleting(s)}><Trash2 size={16} /></button>}

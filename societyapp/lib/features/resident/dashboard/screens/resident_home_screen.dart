@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../auth/data/auth_api.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
+import '../../amenities/screens/resident_amenities_screen.dart';
 import '../../complaints/screens/resident_complaints_screen.dart';
 import '../data/resident_dashboard_api.dart';
 import 'resident_profile_screen.dart';
@@ -131,6 +132,25 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                               ),
                               const SizedBox(height: 13),
                               _maintenanceCard(dashboard),
+                              if (dashboard.upcomingBookings.isNotEmpty) ...[
+                                const SizedBox(height: 27),
+                                const Text(
+                                  'Upcoming booking',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: -.25,
+                                    color: AppColors.ink,
+                                  ),
+                                ),
+                                const SizedBox(height: 13),
+                                ...dashboard.upcomingBookings.expand(
+                                  (booking) => [
+                                    _upcomingBookingCard(booking),
+                                    const SizedBox(height: 10),
+                                  ],
+                                ),
+                              ],
                               const SizedBox(height: 27),
                               _sectionTitle(
                                 'Announcements',
@@ -542,6 +562,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           'Amenities',
           const Color(0xFFE8F1FF),
           const Color(0xFF4784DB),
+          onTap: () => _openAmenities(context),
         ),
       ),
     ],
@@ -590,6 +611,15 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
       ),
     );
     if (mounted) setState(() => _selectedTab = 0);
+  }
+
+  Future<void> _openAmenities(BuildContext context) async {
+    await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => ResidentAmenitiesScreen(user: widget.user),
+        ),
+      );
+    if (mounted) _reloadDashboard();
   }
 
   Widget _maintenanceCard(ResidentDashboardData dashboard) {
@@ -684,6 +714,218 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
       ),
     );
   }
+
+  Widget _upcomingBookingCard(ResidentUpcomingBooking booking) {
+    final date = booking.slotDate;
+    final weekday = date == null ? '' : _weekdayShort(date.weekday);
+    final month = date == null ? '' : _monthShort(date.month);
+    final dateLabel = date == null ? 'Date unavailable' : '$weekday ${date.day} $month';
+    final timeRange = _bookingTimeRange(booking.startTime, booking.endTime);
+    final duration = _bookingDuration(booking.startTime, booking.endTime);
+    final confirmed = booking.status.toUpperCase() == 'CONFIRMED';
+    final statusLabel = confirmed ? 'Confirmed' : 'Pending';
+    const green = Color(0xFF25C69A);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1F1B46),
+        borderRadius: BorderRadius.circular(20),
+        border: const Border(left: BorderSide(color: green, width: 5)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x141F1B46),
+            blurRadius: 14,
+            offset: Offset(0, 5),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.fromLTRB(19, 17, 17, 17),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  booking.amenityName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF123D38),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      confirmed ? Icons.check_rounded : Icons.schedule_rounded,
+                      color: green,
+                      size: 14,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      statusLabel,
+                      style: const TextStyle(
+                        color: green,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 15),
+          Row(
+            children: [
+              if (date != null) ...[
+                Container(
+                  width: 54,
+                  height: 58,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF302B64),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        month.toUpperCase(),
+                        style: const TextStyle(
+                          color: Color(0xFF9B91FF),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: .5,
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        '${date.day}',
+                        style: const TextStyle(
+                          color: Color(0xFF826FFF),
+                          fontSize: 23,
+                          height: 1,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+              ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      dateLabel,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      [timeRange, if (duration.isNotEmpty) duration].join(' · '),
+                      style: const TextStyle(
+                        color: Color(0xFFB5B1D1),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _weekdayShort(int weekday) => const [
+    'Mon',
+    'Tue',
+    'Wed',
+    'Thu',
+    'Fri',
+    'Sat',
+    'Sun',
+  ][weekday - 1];
+
+  String _monthShort(int month) => const [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ][month - 1];
+
+  String _bookingTimeRange(String start, String end) {
+    final startParts = _clockParts(start);
+    final endParts = _clockParts(end);
+    if (startParts == null || endParts == null) return 'Time unavailable';
+    final startLabel = _clockLabel(startParts.$1, startParts.$2);
+    final endLabel = _clockLabel(endParts.$1, endParts.$2);
+    if (startParts.$2 == endParts.$2) {
+      return '$startLabel–${_clockHour12(endParts.$1)} ${endParts.$2}';
+    }
+    return '$startLabel–$endLabel';
+  }
+
+  String _bookingDuration(String start, String end) {
+    final startParts = _clockParts(start);
+    final endParts = _clockParts(end);
+    if (startParts == null || endParts == null) return '';
+    final startMinutes = startParts.$1 * 60 + startParts.$3;
+    var endMinutes = endParts.$1 * 60 + endParts.$3;
+    if (endMinutes < startMinutes) endMinutes += 24 * 60;
+    final minutes = endMinutes - startMinutes;
+    if (minutes <= 0) return '';
+    if (minutes % 60 == 0) {
+      final hours = minutes ~/ 60;
+      return '$hours ${hours == 1 ? 'hour' : 'hours'}';
+    }
+    final hours = minutes ~/ 60;
+    final remainder = minutes % 60;
+    return hours == 0 ? '$remainder min' : '${hours}h ${remainder}m';
+  }
+
+  (int, String, int)? _clockParts(String value) {
+    final parts = value.split(':');
+    if (parts.length < 2) return null;
+    final hour = int.tryParse(parts[0]);
+    final minute = int.tryParse(parts[1]);
+    if (hour == null || minute == null || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+      return null;
+    }
+    return (hour, hour < 12 ? 'AM' : 'PM', minute);
+  }
+
+  String _clockLabel(int hour, String period) {
+    return '${_clockHour12(hour)} $period';
+  }
+
+  int _clockHour12(int hour) => hour % 12 == 0 ? 12 : hour % 12;
 
   Widget _noticeCard(ResidentNotice notice) => Material(
     color: Colors.transparent,
@@ -935,7 +1177,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
             _tab(Icons.receipt_long_outlined, 'Payments', 1),
             _tab(Icons.people_alt_outlined, 'Community', 2),
             _tab(
-              Icons.notifications_none,
+              Icons.help_outline_rounded,
               'Help',
               3,
               onTap: () => _openHelp(context),

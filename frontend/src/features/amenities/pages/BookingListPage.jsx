@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, RefreshCw } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
 import useFetch from '../../../utils/useFetch';
-import { formatDateTime, formatMoney } from '../../../utils/format';
+import { formatDate, formatDateTime, formatMoney } from '../../../utils/format';
 import { getErrorMessage } from '../../../lib/axios';
 import DataTable from '../../../components/tables/DataTable';
 import Alert from '../../../components/ui/Alert';
@@ -31,6 +31,15 @@ export default function BookingListPage() {
   const canReadSlots = hasPermission('AMENITY_SLOT_READ');
   const amenities = useFetch(() => (societyId && canReadAmenities ? api.listAmenities({ societyId }) : Promise.resolve(null)), [societyId, canReadAmenities]);
   const slots = useFetch(() => (canReadSlots ? api.listSlots() : Promise.resolve(null)), [canReadSlots]);
+
+  useEffect(() => {
+    if (!societyId) return undefined;
+    const refreshTimer = window.setInterval(() => {
+      bookings.reload();
+      slots.reload();
+    }, 5000);
+    return () => window.clearInterval(refreshTimer);
+  }, [bookings.reload, slots.reload, societyId]);
 
   if (!societyId && canReadAmenities) return <section className="society-dashboard security-page amenities-page"><header className="society-heading"><div><div className="society-eyebrow"><span className="society-eyebrow-dot" /> COMMUNITY FACILITIES</div><h1>Bookings</h1><p>Reservations, payment status, and booking lifecycle.</p></div></header><AmenityTabs /><SocietyIdPrompt /></section>;
 
@@ -77,7 +86,13 @@ export default function BookingListPage() {
           { key: 'booking', header: 'Booking', render: (b) => <Link to={`/amenities/bookings/${b.id}`} className="cell-title">{b.booking_no}</Link> },
           { key: 'slot', header: 'Slot', render: (b) => {
             const slot = slotById.get(b.amenity_slot_id);
-            return slot ? <><span className="cell-title">{amenityById.get(slot.amenity_id)?.name || 'Amenity'}</span><span className="cell-sub">{formatDateTime(`${String(slot.slot_date).slice(0,10)}T${String(slot.start_time).slice(0,5)}`)}</span></> : <span className="mono">{b.amenity_slot_id}</span>;
+            if (!slot) return <span className="mono">{b.amenity_slot_id}</span>;
+            const [hourText, minuteText] = String(slot.start_time || '').slice(0, 5).split(':');
+            const hour = Number(hourText);
+            const time = Number.isFinite(hour)
+              ? `${hour % 12 || 12}:${minuteText || '00'} ${hour < 12 ? 'AM' : 'PM'}`
+              : '';
+            return <><span className="cell-title">{amenityById.get(slot.amenity_id)?.name || 'Amenity'}</span><span className="cell-sub">{formatDate(slot.slot_date)}{time ? ` · ${time}` : ''}</span></>;
           }},
           { key: 'guests', header: 'Guests', render: (b) => b.guests_count },
           { key: 'amount', header: 'Amount', render: (b) => formatMoney(b.amount) },
