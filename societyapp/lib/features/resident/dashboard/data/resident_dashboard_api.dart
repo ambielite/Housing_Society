@@ -20,6 +20,7 @@ class ResidentDashboardData {
     this.towerName,
     this.floorName,
     this.maintenance,
+    this.upcomingBookings = const [],
     this.notices = const [],
   });
 
@@ -34,6 +35,7 @@ class ResidentDashboardData {
   final String? towerName;
   final String? floorName;
   final ResidentMaintenance? maintenance;
+  final List<ResidentUpcomingBooking> upcomingBookings;
   final List<ResidentNotice> notices;
 
   factory ResidentDashboardData.fromJson(Map<String, dynamic> json) {
@@ -41,6 +43,8 @@ class ResidentDashboardData {
     final resident = _asMap(json['resident']);
     final unit = _asMap(json['unit']);
     final maintenance = _asMap(json['maintenance']);
+    final bookingRows = json['upcomingBookings'] as List<dynamic>?;
+    final legacyBooking = _asMap(json['upcomingBooking']);
     final noticeRows = json['notices'] as List<dynamic>? ?? const [];
     return ResidentDashboardData(
       societyName: _string(society?['name']),
@@ -56,12 +60,41 @@ class ResidentDashboardData {
       maintenance: maintenance == null
           ? null
           : ResidentMaintenance.fromJson(maintenance),
+      upcomingBookings: (bookingRows ?? (legacyBooking == null ? [] : [legacyBooking]))
+          .whereType<Map<String, dynamic>>()
+          .map(ResidentUpcomingBooking.fromJson)
+          .toList(),
       notices: noticeRows
           .whereType<Map<String, dynamic>>()
           .map(ResidentNotice.fromJson)
           .toList(),
     );
   }
+}
+
+class ResidentUpcomingBooking {
+  const ResidentUpcomingBooking({
+    required this.amenityName,
+    required this.status,
+    required this.slotDate,
+    required this.startTime,
+    required this.endTime,
+  });
+
+  final String amenityName;
+  final String status;
+  final DateTime? slotDate;
+  final String startTime;
+  final String endTime;
+
+  factory ResidentUpcomingBooking.fromJson(Map<String, dynamic> json) =>
+      ResidentUpcomingBooking(
+        amenityName: _string(json['amenity_name']) ?? 'Amenity',
+        status: _string(json['status']) ?? 'PENDING_PAYMENT',
+        slotDate: _parseCalendarDate(json['slot_date']),
+        startTime: _timeLabel(json['start_time']),
+        endTime: _timeLabel(json['end_time']),
+      );
 }
 
 class ResidentMaintenance {
@@ -84,7 +117,7 @@ class ResidentMaintenance {
   factory ResidentMaintenance.fromJson(Map<String, dynamic> json) =>
       ResidentMaintenance(
         amount: num.tryParse('${json['outstanding_amount'] ?? 0}') ?? 0,
-        dueDate: DateTime.tryParse('${json['due_date'] ?? ''}'),
+        dueDate: _parseCalendarDate(json['due_date']),
         status: _string(json['status']) ?? 'ISSUED',
         billingPeriod: _string(json['billing_period']),
         invoiceNumber: _string(json['invoice_number']),
@@ -191,4 +224,21 @@ String? _imageUrl(Object? value) {
   if (uri == null) return null;
   if (uri.hasScheme) return uri.toString();
   return Uri.parse(_apiBaseUrl).resolve(path).toString();
+}
+
+DateTime? _parseCalendarDate(Object? value) {
+  final raw = value?.toString();
+  if (raw == null || raw.length < 10) return null;
+  final pieces = raw.substring(0, 10).split('-');
+  if (pieces.length != 3) return null;
+  final year = int.tryParse(pieces[0]);
+  final month = int.tryParse(pieces[1]);
+  final day = int.tryParse(pieces[2]);
+  if (year == null || month == null || day == null) return null;
+  return DateTime(year, month, day);
+}
+
+String _timeLabel(Object? value) {
+  final raw = value?.toString() ?? '';
+  return raw.length >= 5 ? raw.substring(0, 5) : raw;
 }

@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
 import useFetch from '../../../utils/useFetch';
-import { formatDateTime, formatMoney } from '../../../utils/format';
+import { formatDate, formatDateTime, formatMoney } from '../../../utils/format';
 import apiClient, { getErrorMessage } from '../../../lib/axios';
 import PageContainer from '../../../components/layout/PageContainer';
 import Alert from '../../../components/ui/Alert';
@@ -199,7 +199,7 @@ export default function BookingDetailPage() {
         if (selectedSlot) {
           const amenities = amenityResult.status === 'fulfilled' ? rowsFrom(amenityResult.value, 'amenities') : [];
           const amenityName = amenities.find((item) => String(item.id) === String(selectedSlot.amenity_id || selectedSlot.amenityId))?.name;
-          const date = String(selectedSlot.slot_date || selectedSlot.slotDate || '').slice(0, 10);
+          const date = formatDate(selectedSlot.slot_date || selectedSlot.slotDate);
           const start = String(selectedSlot.start_time || selectedSlot.startTime || '').slice(0, 5);
           const end = String(selectedSlot.end_time || selectedSlot.endTime || '').slice(0, 5);
           slot = [amenityName, date, start && end ? `${start} - ${end}` : ''].filter(Boolean).join(' · ');

@@ -16,7 +16,11 @@ class ResidentComplaintsScreen extends StatefulWidget {
 }
 
 class _ResidentComplaintsScreenState extends State<ResidentComplaintsScreen> {
+  static const _pageBackground = Color(0xFFF5F7FB);
+  static const _requestCardBackground = Color(0xFF6557E9);
+
   late Future<List<ResidentComplaint>> _complaintsFuture;
+  final List<ResidentComplaint> _knownComplaints = [];
 
   @override
   void initState() {
@@ -24,8 +28,30 @@ class _ResidentComplaintsScreenState extends State<ResidentComplaintsScreen> {
     _complaintsFuture = _loadComplaints();
   }
 
-  Future<List<ResidentComplaint>> _loadComplaints() =>
-      ResidentComplaintsApi.listComplaints(widget.user.accessToken);
+  Future<List<ResidentComplaint>> _loadComplaints() async {
+    final complaints = await ResidentComplaintsApi.listComplaints(
+      widget.user.accessToken,
+    );
+    return _mergeComplaints(complaints);
+  }
+
+  List<ResidentComplaint> _mergeComplaints(
+    Iterable<ResidentComplaint> incoming,
+  ) {
+    final byId = <String, ResidentComplaint>{
+      for (final complaint in _knownComplaints) complaint.id: complaint,
+    };
+    for (final complaint in incoming) {
+      byId[complaint.id] = complaint;
+    }
+    _knownComplaints
+      ..clear()
+      ..addAll(byId.values)
+      ..sort((a, b) =>
+          (b.openedAt ?? DateTime.fromMillisecondsSinceEpoch(0))
+              .compareTo(a.openedAt ?? DateTime.fromMillisecondsSinceEpoch(0)));
+    return List.unmodifiable(_knownComplaints);
+  }
 
   Future<void> _refresh() async {
     final next = _loadComplaints();
@@ -34,19 +60,35 @@ class _ResidentComplaintsScreenState extends State<ResidentComplaintsScreen> {
   }
 
   Future<void> _newComplaint() async {
-    final created = await Navigator.of(context).push<bool>(
-      MaterialPageRoute<bool>(
+    final created = await Navigator.of(context).push<ResidentComplaint>(
+      MaterialPageRoute<ResidentComplaint>(
         builder: (_) => NewComplaintScreen(user: widget.user),
       ),
     );
-    if (created == true && mounted) await _refresh();
+    if (created != null && mounted) {
+      setState(() {
+        final complaints = _mergeComplaints([created]);
+        _complaintsFuture = Future.value(complaints);
+      });
+      _reloadAfterCreate();
+    }
+  }
+
+  Future<void> _reloadAfterCreate() async {
+    try {
+      final complaints = await _loadComplaints();
+      if (mounted) setState(() => _complaintsFuture = Future.value(complaints));
+    } catch (_) {
+      // Keep the successful create response visible if the follow-up list
+      // request is briefly delayed or unavailable.
+    }
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        backgroundColor: const Color(0xFFF5F7FB),
+        backgroundColor: _pageBackground,
         appBar: AppBar(
-          backgroundColor: const Color(0xFFF5F7FB),
+          backgroundColor: _pageBackground,
           title: const Text('Help & Complaints'),
         ),
         floatingActionButton: FloatingActionButton.extended(
@@ -79,8 +121,8 @@ class _ResidentComplaintsScreenState extends State<ResidentComplaintsScreen> {
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
                   children: [
-                    _header(complaints.length),
-                    const SizedBox(height: 20),
+                    _header(complaints),
+                    const SizedBox(height: 22),
                     if (complaints.isEmpty)
                       _emptyState()
                     else
@@ -96,61 +138,68 @@ class _ResidentComplaintsScreenState extends State<ResidentComplaintsScreen> {
         ),
       );
 
-  Widget _header(int count) => Container(
-        padding: const EdgeInsets.all(19),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(22),
-          gradient: const LinearGradient(
-            colors: [Color(0xFF6557E9), Color(0xFF8878F6)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+  Widget _header(List<ResidentComplaint> complaints) {
+    final open = complaints
+        .where((item) => item.status.toUpperCase() == 'OPEN')
+        .length;
+    final inProgress = complaints
+        .where((item) => const {'ASSIGNED', 'IN_PROGRESS', 'ON_HOLD'}
+            .contains(item.status.toUpperCase()))
+        .length;
+    final resolved = complaints
+        .where((item) => const {'RESOLVED', 'CLOSED'}
+            .contains(item.status.toUpperCase()))
+        .length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Your requests',
+          style: TextStyle(
+            color: AppColors.ink,
+            fontSize: 30,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -.5,
           ),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x286455E9),
-              blurRadius: 18,
-              offset: Offset(0, 8),
-            ),
+        ),
+        const SizedBox(height: 17),
+        Row(
+          children: [
+            Expanded(child: _requestCount(open, 'Open')),
+            const SizedBox(width: 10),
+            Expanded(child: _requestCount(inProgress, 'In progress')),
+            const SizedBox(width: 10),
+            Expanded(child: _requestCount(resolved, 'Resolved')),
           ],
         ),
-        child: Row(
+      ],
+    );
+  }
+
+  Widget _requestCount(int count, String label) => Container(
+        height: 84,
+        decoration: BoxDecoration(
+          color: _requestCardBackground,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: .16),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Icon(
-                Icons.support_agent_rounded,
+            Text(
+              '$count',
+              style: const TextStyle(
                 color: Colors.white,
-                size: 27,
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
               ),
             ),
-            const SizedBox(width: 13),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Helpdesk',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 19,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '$count ${count == 1 ? 'complaint' : 'complaints'} submitted',
-                    style: const TextStyle(
-                      color: Color(0xFFE7E4FF),
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
+            const SizedBox(height: 5),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Color(0xFFE1DFF1), fontSize: 12),
             ),
           ],
         ),

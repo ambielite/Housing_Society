@@ -4,6 +4,8 @@ import { Building2, CheckCircle2,  Home, KeyRound, Plus, Search, SquarePen, Tras
 import residentApi from "../api/resident.api";
 import ownerUnitApi from "../api/ownerUnit.api";
 import unitApi from "../../units/api/unit.api";
+import floorApi from "../../floors/api/floor.api";
+import towerApi from "../../towers/api/tower.api";
 import societyApi from "../../societies/api/society.api";
 import { RecordDetailsModal } from "../../../components/ui/Modal";
 
@@ -34,6 +36,8 @@ const emptyForm = () => ({
 const ResidentHierarchyPage = () => {
     const [residents, setResidents] = useState([]);
     const [units, setUnits] = useState([]);
+    const [floors, setFloors] = useState([]);
+    const [towers, setTowers] = useState([]);
     const [societies, setSocieties] = useState([]);
     const [ownerUnits, setOwnerUnits] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -49,17 +53,21 @@ const ResidentHierarchyPage = () => {
         try {
             setLoading(true);
             setError("");
-            const [residentResponse, unitResponse, societyResponse, ownerUnitResponse] = await Promise.all([
+            const [residentResponse, unitResponse, societyResponse, ownerUnitResponse, floorResponse, towerResponse] = await Promise.all([
                 residentApi.getAll(),
                 unitApi.getAll(),
                 societyApi.getAll(),
-                ownerUnitApi.getAll()
+                ownerUnitApi.getAll(),
+                floorApi.getAll(),
+                towerApi.getAll()
             ]);
 
             setResidents(rowsFrom(residentResponse));
             setUnits(rowsFrom(unitResponse));
             setSocieties(rowsFrom(societyResponse));
             setOwnerUnits(rowsFrom(ownerUnitResponse));
+            setFloors(rowsFrom(floorResponse));
+            setTowers(rowsFrom(towerResponse));
         } catch (err) {
             setError(err.response?.data?.message || "Could not load resident ownership data.");
         } finally {
@@ -87,6 +95,20 @@ const ResidentHierarchyPage = () => {
         });
     }, [filtered, ownerUnits]);
     const unitById = useMemo(() => new Map(units.map((unit) => [String(unit.id), unit])), [units]);
+    const floorById = useMemo(() => new Map(floors.map((floor) => [String(floor.id), floor])), [floors]);
+    const towerById = useMemo(() => new Map(towers.map((tower) => [String(tower.id), tower])), [towers]);
+    const unitsForSelectedSociety = useMemo(() => units.filter((unit) => {
+        const floor = floorById.get(String(unit.floorId || unit.floor_id));
+        const tower = floor && towerById.get(String(floor.towerId || floor.tower_id));
+        return !form.societyId || !tower?.societyId || String(tower.societyId) === String(form.societyId);
+    }), [units, floorById, towerById, form.societyId]);
+    const unitOptionLabel = (unit) => {
+        const floor = floorById.get(String(unit.floorId || unit.floor_id));
+        const tower = floor && towerById.get(String(floor.towerId || floor.tower_id));
+        const unitName = unit.unitNumber || unit.name || unit.id;
+        const floorName = floor?.name || (floor?.floorNumber != null ? `Floor ${floor.floorNumber}` : null);
+        return [unitName, tower?.name, floorName].filter(Boolean).join(" · ");
+    };
 
     const openCreate = () => {
         setEditingId(null);
@@ -299,7 +321,7 @@ const ResidentHierarchyPage = () => {
                                         <label>Unit</label>
                                         <select value={form.unitId} onChange={(e) => setForm((current) => ({ ...current, unitId: e.target.value }))} required>
                                             <option value="">Select unit</option>
-                                            {units.map((unit) => <option key={unit.id} value={unit.id}>{unit.unitNumber || unit.name || unit.id}</option>)}
+                                            {unitsForSelectedSociety.map((unit) => <option key={unit.id} value={unit.id}>{unitOptionLabel(unit)}</option>)}
                                         </select>
                                     </div>
                                     <div className="form-group">

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { SquarePen, Trash2 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
@@ -32,6 +32,12 @@ export default function AmenityDetailPage() {
   const rules = useFetch(() => (hasPermission('AMENITY_PRICING_RULE_READ') ? api.listPricingRules(amenityId) : Promise.resolve(null)), [amenityId, hasPermission('AMENITY_PRICING_RULE_READ')]);
   const blockouts = useFetch(() => (hasPermission('AMENITY_BLOCKOUT_READ') ? api.listBlockouts(amenityId) : Promise.resolve(null)), [amenityId, hasPermission('AMENITY_BLOCKOUT_READ')]);
   const slots = useFetch(() => (hasPermission('AMENITY_SLOT_READ') ? api.listSlots({ amenityId }) : Promise.resolve(null)), [amenityId, hasPermission('AMENITY_SLOT_READ')]);
+
+  useEffect(() => {
+    if (!hasPermission('AMENITY_SLOT_READ')) return undefined;
+    const refreshTimer = window.setInterval(() => slots.reload(), 5000);
+    return () => window.clearInterval(refreshTimer);
+  }, [slots.reload, hasPermission]);
 
   const open = (next) => { setError(''); setNotice(''); setDialog(next); };
 
@@ -130,7 +136,11 @@ export default function AmenityDetailPage() {
                 { key: 'time', header: 'Time', render: (s) => `${String(s.start_time).slice(0, 5)} - ${String(s.end_time).slice(0, 5)}` },
                 { key: 'capacity', header: 'Capacity', render: (s) => s.capacity },
                 { key: 'price', header: 'Price', render: (s) => formatMoney(s.price) },
-                { key: 'status', header: 'Status', render: (s) => <SlotStatusBadge status={s.status} /> },
+                { key: 'status', header: 'Status', render: (s) => {
+                  const occupancy = Number(s.current_occupancy || 0);
+                  const displayStatus = s.status === 'AVAILABLE' && occupancy > 0 ? 'BOOKED' : s.status;
+                  return <div><SlotStatusBadge status={displayStatus} />{occupancy > 0 && <span className="cell-sub">{occupancy}/{s.capacity} reserved</span>}</div>;
+                } },
               ]}
               rows={slots.data}
               loading={slots.loading}
