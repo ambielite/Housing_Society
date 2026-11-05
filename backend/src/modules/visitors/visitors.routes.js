@@ -1,4 +1,5 @@
 const express = require('express');
+const Joi = require('joi');
 const controller = require('./visitors.controller');
 const validate = require('../../common/validate');
 const {
@@ -22,6 +23,22 @@ const { authenticate, authorize } = require('../../common/authMiddleware');
 const router = express.Router();
 
 router.use(authenticate);
+
+const residentDecisionSchema = Joi.object({
+  decision: Joi.string().valid('APPROVED', 'REJECTED').required(),
+});
+const residentRequestParamsSchema = Joi.object({
+  passId: Joi.string().uuid().required(),
+});
+
+router.get('/resident-requests', controller.listResidentVisitorRequests);
+router.get('/resident-history', controller.listResidentVisitorHistory);
+router.patch(
+  '/resident-requests/:passId/decision',
+  validate(residentRequestParamsSchema, 'params'),
+  validate(residentDecisionSchema),
+  controller.decideResidentVisitorRequest,
+);
 
 // Visitor profiles
 router.post('/profiles', authorize('VISITOR_PROFILE_CREATE'), validate(createProfileSchema), controller.createProfile);

@@ -8,6 +8,8 @@ import '../../../auth/presentation/screens/login_screen.dart';
 import '../../amenities/screens/resident_amenities_screen.dart';
 import '../../complaints/data/resident_complaints_api.dart';
 import '../../complaints/screens/resident_complaints_screen.dart';
+import '../../visitors/data/resident_visitors_api.dart';
+import '../../visitors/screens/resident_visitors_screen.dart';
 import '../data/resident_dashboard_api.dart';
 import 'resident_profile_screen.dart';
 
@@ -28,8 +30,12 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
   ResidentDashboardData? _dashboardData;
   Timer? _dashboardRefreshTimer;
   Timer? _complaintsRefreshTimer;
+  Timer? _visitorRequestsRefreshTimer;
   bool _refreshingDashboard = false;
   bool _refreshingComplaints = false;
+  bool _refreshingVisitorRequests = false;
+  final Set<String> _decidingVisitorRequestIds = {};
+  List<ResidentVisitorRequest> _visitorRequests = const [];
 
   String get _firstName => widget.user.name.trim().split(' ').first;
 
@@ -54,6 +60,11 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
       const Duration(seconds: 2),
       (_) => _refreshComplaintsInBackground(),
     );
+    unawaited(_refreshVisitorRequests());
+    _visitorRequestsRefreshTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => _refreshVisitorRequests(),
+    );
   }
 
   @override
@@ -61,6 +72,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     if (state == AppLifecycleState.resumed) {
       _refreshDashboardInBackground();
       _refreshComplaintsInBackground();
+      _refreshVisitorRequests();
     }
   }
 
@@ -68,6 +80,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
   void dispose() {
     _dashboardRefreshTimer?.cancel();
     _complaintsRefreshTimer?.cancel();
+    _visitorRequestsRefreshTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -126,6 +139,54 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
       // Keep the last successful complaint statuses visible during network errors.
     } finally {
       _refreshingComplaints = false;
+    }
+  }
+
+  Future<void> _refreshVisitorRequests() async {
+    if (!mounted ||
+        _refreshingVisitorRequests ||
+        WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed ||
+        ModalRoute.of(context)?.isCurrent == false) {
+      return;
+    }
+    _refreshingVisitorRequests = true;
+    try {
+      final requests = await ResidentVisitorsApi.listPending(
+        widget.user.accessToken,
+      );
+      if (!mounted) return;
+      setState(() => _visitorRequests = requests);
+    } catch (_) {
+      // Leave any already visible gate requests on screen during network errors.
+    } finally {
+      _refreshingVisitorRequests = false;
+    }
+  }
+
+  Future<void> _decideVisitorRequest(
+    ResidentVisitorRequest request,
+    String decision,
+  ) async {
+    if (_decidingVisitorRequestIds.contains(request.id)) return;
+    setState(() => _decidingVisitorRequestIds.add(request.id));
+    try {
+      await ResidentVisitorsApi.decide(
+        token: widget.user.accessToken,
+        passId: request.id,
+        decision: decision,
+      );
+      if (!mounted) return;
+      setState(() => _visitorRequests.removeWhere((item) => item.id == request.id));
+    } on ResidentVisitorException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.message)),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _decidingVisitorRequestIds.remove(request.id));
+      }
     }
   }
 
@@ -243,6 +304,10 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                               _topBar(context, dashboard),
                               const SizedBox(height: 26),
                               _greeting(),
+                              if (_visitorRequests.isNotEmpty) ...[
+                                const SizedBox(height: 16),
+                                _visitorAttentionSection(),
+                              ],
                               const SizedBox(height: 22),
                               _societyCard(dashboard),
                               const SizedBox(height: 25),
@@ -677,6 +742,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           'Visitors',
           const Color(0xFFE4F7F1),
           const Color(0xFF229B78),
+          onTap: () => _openVisitors(context),
         ),
       ),
       const SizedBox(width: 10),
@@ -742,6 +808,16 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) => ResidentComplaintsScreen(user: widget.user),
+      ),
+    );
+    if (mounted) setState(() => _selectedTab = 0);
+  }
+
+  Future<void> _openVisitors(BuildContext context) async {
+    setState(() => _selectedTab = 2);
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => ResidentVisitorsScreen(user: widget.user),
       ),
     );
     if (mounted) setState(() => _selectedTab = 0);
@@ -868,6 +944,200 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           return _latestComplaintCard(complaints.first);
         },
       );
+
+  Widget _visitorAttentionSection() => Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: const Color(0xFFECE9FF),
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: const Color(0xFFDCD7FF)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Needs your attention',
+                style: TextStyle(
+                  color: AppColors.ink,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            Text(
+              'Today',
+              style: TextStyle(
+                color: const Color(0xFF7B72C9),
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ..._visitorRequests.map((request) => Padding(
+          padding: const EdgeInsets.only(bottom: 9),
+          child: _visitorRequestCard(request),
+        )),
+      ],
+    ),
+  );
+
+  Widget _visitorRequestCard(ResidentVisitorRequest request) {
+    final busy = _decidingVisitorRequestIds.contains(request.id);
+    final visitorType = request.visitorType
+        .replaceAll('_', ' ')
+        .toLowerCase();
+    final waitingLabel = request.status == 'ARRIVED'
+        ? 'Arrived ${_visitorElapsed(request.createdAt)}'
+        : 'Registered ${_visitorElapsed(request.createdAt)}';
+    final initials = request.visitorName
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .take(2)
+        .map((part) => part[0].toUpperCase())
+        .join();
+
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: const Color(0xFFE8ECF3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.access_time_rounded,
+                  size: 17, color: AppColors.indigo),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '${_visitorRequests.length} ${_visitorRequests.length == 1 ? 'visitor' : 'visitors'} waiting at the gate',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.ink,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 27,
+                backgroundColor: const Color(0xFFECE9FF),
+                child: Text(
+                  initials.isEmpty ? 'V' : initials,
+                  style: const TextStyle(
+                    color: AppColors.indigo,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      request.visitorName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.ink,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${_capitalize(visitorType)}  ·  ${request.gateName}  ·  $waitingLabel',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF8792A7),
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 46,
+                  child: FilledButton.icon(
+                    onPressed: busy
+                        ? null
+                        : () => _decideVisitorRequest(request, 'APPROVED'),
+                    icon: const Icon(Icons.check_rounded, size: 18),
+                    label: const Text('Approve'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.indigo,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: SizedBox(
+                  height: 46,
+                  child: OutlinedButton.icon(
+                    onPressed: busy
+                        ? null
+                        : () => _decideVisitorRequest(request, 'REJECTED'),
+                    icon: const Icon(Icons.close_rounded, size: 18),
+                    label: const Text('Reject'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFD65A54),
+                      side: const BorderSide(color: Color(0xFFD65A54)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _visitorElapsed(DateTime? createdAt) {
+    if (createdAt == null) return 'just now';
+    final minutes = DateTime.now().difference(createdAt).inMinutes;
+    if (minutes < 1) return 'just now';
+    if (minutes == 1) return '1 min ago';
+    if (minutes < 60) return '$minutes min ago';
+    final hours = minutes ~/ 60;
+    if (hours == 1) return '1 hr ago';
+    return '$hours hrs ago';
+  }
+
+  String _capitalize(String value) => value.isEmpty
+      ? 'Guest'
+      : '${value[0].toUpperCase()}${value.substring(1)}';
 
   Widget _latestComplaintCard(ResidentComplaint complaint) {
     final status = complaint.status.replaceAll('_', ' ');
@@ -1406,7 +1676,12 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           children: [
             _tab(Icons.home_rounded, 'Home', 0),
             _tab(Icons.receipt_long_outlined, 'Payments', 1),
-            _tab(Icons.people_alt_outlined, 'Community', 2),
+            _tab(
+              Icons.people_alt_outlined,
+              'Visitors',
+              2,
+              onTap: () => _openVisitors(context),
+            ),
             _tab(
               Icons.help_outline_rounded,
               'Help',

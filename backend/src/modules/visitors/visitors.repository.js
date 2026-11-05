@@ -188,12 +188,71 @@ const updateInviteStatus = async (id, status) => {
 
 const createPass = async ({ inviteId, visitorProfileId, gateId, passNo, unitId, residentId }) => {
   const result = await db.query(
-    `INSERT INTO visitor_passes (invite_id, visitor_profile_id, gate_id, pass_no, unit_id, resident_id)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO visitor_passes
+       (invite_id, visitor_profile_id, gate_id, pass_no, unit_id, resident_id, resident_decision)
+     VALUES ($1, $2, $3, $4, $5, $6,
+             CASE WHEN $6::uuid IS NOT NULL AND $1::uuid IS NULL THEN 'PENDING' ELSE 'NOT_REQUIRED' END)
      RETURNING *`,
     [inviteId || null, visitorProfileId, gateId, passNo, unitId || null, residentId || null]
   );
   return result.rows[0];
+};
+
+const listResidentVisitorRequests = async ({ residentId, societyId }) => {
+  const result = await db.query(
+    `SELECT vp.id, vp.pass_no, vp.status, vp.created_at,
+            COALESCE(vp.updated_at, vp.created_at) AS requested_at,
+            vp.resident_decision, pf.name AS visitor_name,
+            pf.visitor_type, pf.vehicle_no, g.name AS gate_name,
+            u.unit_number
+       FROM visitor_passes vp
+       JOIN visitor_profiles pf ON pf.id = vp.visitor_profile_id
+       JOIN gates g ON g.id = vp.gate_id
+       LEFT JOIN units u ON u.id = vp.unit_id
+      WHERE vp.resident_id = $1
+        AND g.society_id = $2
+        AND vp.resident_decision = 'PENDING'
+        AND vp.status IN ('EXPECTED', 'ARRIVED')
+      ORDER BY vp.created_at DESC`,
+    [residentId, societyId],
+  );
+  return result.rows;
+};
+
+const listResidentVisitorHistory = async ({ residentId, societyId }) => {
+  const result = await db.query(
+    `SELECT vp.id, vp.pass_no, vp.status, vp.created_at,
+            vp.resident_decision, pf.name AS visitor_name,
+            pf.visitor_type, pf.vehicle_no, g.name AS gate_name,
+            u.unit_number
+       FROM visitor_passes vp
+       JOIN visitor_profiles pf ON pf.id = vp.visitor_profile_id
+       JOIN gates g ON g.id = vp.gate_id
+       LEFT JOIN units u ON u.id = vp.unit_id
+      WHERE vp.resident_id = $1
+        AND g.society_id = $2
+      ORDER BY vp.created_at DESC
+      LIMIT 100`,
+    [residentId, societyId],
+  );
+  return result.rows;
+};
+
+const decideResidentVisitorRequest = async ({ passId, residentId, decision }) => {
+  const result = await db.query(
+    `UPDATE visitor_passes
+        SET resident_decision = $3,
+            resident_decided_at = now(),
+            resident_decided_by = $2,
+            updated_at = now()
+      WHERE id = $1
+        AND resident_id = $2
+        AND resident_decision = 'PENDING'
+        AND status IN ('EXPECTED', 'ARRIVED')
+      RETURNING id, resident_decision, status`,
+    [passId, residentId, decision],
+  );
+  return result.rows[0] || null;
 };
 
 const findPassById = async (id) => {
@@ -326,6 +385,9 @@ module.exports = {
   listInvites,
   updateInviteStatus,
   createPass,
+  listResidentVisitorRequests,
+  listResidentVisitorHistory,
+  decideResidentVisitorRequest,
   findPassById,
   listPasses,
   updatePassStatus,

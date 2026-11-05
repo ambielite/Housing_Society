@@ -121,7 +121,9 @@ class _SecurityHomeState extends State<_SecurityHome> {
   late Future<_GuardSnapshot> _snapshot;
   _GuardSnapshot? _loadedSnapshot;
   Timer? _deliverySyncTimer;
+  Timer? _visitorPassSyncTimer;
   bool _deliverySyncRunning = false;
+  bool _visitorPassSyncRunning = false;
   final ValueNotifier<int> _deliveryRevision = ValueNotifier(0);
 
   @override
@@ -165,6 +167,15 @@ class _SecurityHomeState extends State<_SecurityHome> {
     setState(() => _tab = index);
     _deliverySyncTimer?.cancel();
     _deliverySyncTimer = null;
+    _visitorPassSyncTimer?.cancel();
+    _visitorPassSyncTimer = null;
+    if (index == 1) {
+      unawaited(_refreshVisitorPasses());
+      _visitorPassSyncTimer = Timer.periodic(
+        const Duration(seconds: 5),
+        (_) => _refreshVisitorPasses(),
+      );
+    }
     if (index == 3) {
       unawaited(_refreshDeliveries(showErrors: false));
       _deliverySyncTimer = Timer.periodic(
@@ -174,9 +185,35 @@ class _SecurityHomeState extends State<_SecurityHome> {
     }
   }
 
+  Future<void> _refreshVisitorPasses() async {
+    final snapshot = _loadedSnapshot;
+    if (!mounted || snapshot == null || _visitorPassSyncRunning || _tab != 1) {
+      return;
+    }
+    _visitorPassSyncRunning = true;
+    try {
+      final passes = await _GuardApi.loadPasses(widget.user, snapshot.gates);
+      if (!mounted) return;
+      snapshot.passes
+        ..clear()
+        ..addAll(passes);
+      snapshot.passes.sort(
+        (a, b) => (b.createdAt ?? DateTime(1970)).compareTo(
+          a.createdAt ?? DateTime(1970),
+        ),
+      );
+      setState(() {});
+    } catch (_) {
+      // Keep the last visitor pass states visible on transient errors.
+    } finally {
+      _visitorPassSyncRunning = false;
+    }
+  }
+
   @override
   void dispose() {
     _deliverySyncTimer?.cancel();
+    _visitorPassSyncTimer?.cancel();
     _deliveryRevision.dispose();
     super.dispose();
   }
@@ -198,6 +235,12 @@ class _SecurityHomeState extends State<_SecurityHome> {
         response = await _GuardApi.patch('/visitors/passes/${pass.id}/entry', {
           'capturedBy': widget.user.userId,
         }, widget.user.accessToken);
+      } else if (action == 'CANCEL') {
+        response = await _GuardApi.patch(
+          '/visitors/passes/${pass.id}/cancel',
+          const {},
+          widget.user.accessToken,
+        );
       } else {
         response = await _GuardApi.patch('/visitors/passes/${pass.id}/exit', {
           'capturedBy': widget.user.userId,
@@ -1532,7 +1575,13 @@ class _SecurityHomeState extends State<_SecurityHome> {
 
   Widget _passCard(_GuardPass pass, _GuardSnapshot data) {
     final statusColor = _statusColor(pass.status);
-    final action = switch (pass.status) {
+    final residentWaiting = pass.residentDecision == 'PENDING';
+    final residentRejected = pass.residentDecision == 'REJECTED';
+    final action = residentRejected
+        ? ('Cancel pass', 'CANCEL')
+        : pass.status == 'ARRIVED' && residentWaiting
+        ? (null, null)
+        : switch (pass.status) {
       'EXPECTED' => ('Record arrival', 'ARRIVAL'),
       'ARRIVED' => ('Allow entry', 'ENTRY'),
       'INSIDE' || 'OVERSTAY' => ('Record exit', 'EXIT'),
@@ -1626,6 +1675,21 @@ class _SecurityHomeState extends State<_SecurityHome> {
               ),
             ],
           ),
+          if (residentWaiting || residentRejected) ...[
+            const SizedBox(height: 9),
+            Text(
+              residentRejected
+                  ? 'Resident rejected this visitor'
+                  : 'Waiting for resident approval',
+              style: TextStyle(
+                color: residentRejected
+                    ? const Color(0xFFB42318)
+                    : const Color(0xFF9A5B13),
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
           if (action.$1 != null) ...[
             const SizedBox(height: 12),
             SizedBox(
@@ -2179,6 +2243,7 @@ class _GuardPass {
     required this.createdAt,
     this.unitId,
     this.residentId,
+    this.residentDecision = 'NOT_REQUIRED',
   });
   final String id;
   final String gateId;
@@ -2188,6 +2253,7 @@ class _GuardPass {
   final DateTime? createdAt;
   final String? unitId;
   final String? residentId;
+  final String residentDecision;
   factory _GuardPass.fromJson(Map<String, dynamic> json) => _GuardPass(
     id: '${json['id'] ?? ''}',
     gateId: '${json['gate_id'] ?? ''}',
@@ -2197,6 +2263,8 @@ class _GuardPass {
     createdAt: DateTime.tryParse('${json['created_at'] ?? ''}'),
     unitId: json['unit_id']?.toString(),
     residentId: json['resident_id']?.toString(),
+    residentDecision:
+        '${json['resident_decision'] ?? 'NOT_REQUIRED'}'.toUpperCase(),
   );
 }
 
@@ -2309,6 +2377,23 @@ class _GuardApi {
       deliveries: deliveries,
       parcels: parcels,
     );
+  }
+
+  static Future<List<_GuardPass>> loadPasses(
+    AuthenticatedUser user,
+    List<_Gate> gates,
+  ) async {
+    final responses = await Future.wait(
+      gates.map(
+        (gate) => _get('/visitors/passes', user.accessToken, {
+          'gateId': gate.id,
+        }),
+      ),
+    );
+    return responses
+        .expand((rows) => rows)
+        .map(_GuardPass.fromJson)
+        .toList();
   }
 
   static Future<List<Map<String, dynamic>>> _get(

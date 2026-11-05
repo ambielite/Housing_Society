@@ -119,68 +119,44 @@ class _NewComplaintScreenState extends State<NewComplaintScreen> {
                           const SizedBox(height: 18),
                           _fieldLabel('Category'),
                           const SizedBox(height: 8),
-                          LayoutBuilder(
-                            builder: (context, constraints) => PopupMenuButton<String>(
-                              tooltip: '',
-                              enabled: !_saving,
-                              constraints: BoxConstraints.tightFor(
-                                width: constraints.maxWidth,
-                              ),
-                              position: PopupMenuPosition.over,
-                              offset: const Offset(0, 54),
-                              color: Colors.white,
-                              elevation: 8,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              onSelected: (value) => setState(() {
-                                _categoryId = value;
-                                _categoryName = categories
-                                    .firstWhere((item) => item.id == value)
-                                    .name;
-                              }),
-                              itemBuilder: (_) => categories
-                                  .map((category) => PopupMenuItem<String>(
-                                        value: category.id,
-                                        height: 48,
-                                        child: Text(
-                                          category.name,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            color: category.id == selectedId
-                                                ? const Color(0xFF76519A)
-                                                : AppColors.ink,
-                                            fontSize: 14,
-                                            fontWeight: category.id == selectedId
-                                                ? FontWeight.w700
-                                                : FontWeight.w500,
-                                          ),
-                                        ),
-                                      ))
-                                  .toList(),
-                              child: InputDecorator(
-                                decoration: _decoration(
-                                  hint: 'Choose a category',
-                                  icon: Icons.category_outlined,
-                                ).copyWith(
-                                  suffixIcon: const Icon(
-                                    Icons.keyboard_arrow_down_rounded,
-                                    color: Color(0xFF76519A),
-                                  ),
-                                ),
-                                child: Text(
-                                  selectedCategory.name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: AppColors.ink,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
+                          DropdownButtonFormField<String>(
+                            value: selectedId,
+                            isExpanded: true,
+                            menuMaxHeight: 320,
+                            elevation: 4,
+                            dropdownColor: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                            icon: const Icon(
+                              Icons.keyboard_arrow_down_rounded,
+                              color: Color(0xFF76519A),
                             ),
+                            style: const TextStyle(
+                              color: AppColors.ink,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            decoration: _decoration(
+                              hint: 'Choose a category',
+                              icon: Icons.category_outlined,
+                            ),
+                            items: categories
+                                .map((category) => DropdownMenuItem<String>(
+                                      value: category.id,
+                                      child: Text(
+                                        category.name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ))
+                                .toList(),
+                            onChanged: _saving
+                                ? null
+                                : (value) => setState(() {
+                                    _categoryId = value;
+                                    _categoryName = categories
+                                        .firstWhere((item) => item.id == value)
+                                        .name;
+                                  }),
                           ),
                           const SizedBox(height: 18),
                           _fieldLabel('Subject'),

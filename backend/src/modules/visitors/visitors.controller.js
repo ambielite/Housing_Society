@@ -90,6 +90,27 @@ const cancelPass = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, pass, 'Visitor pass cancelled successfully');
 });
 
+const listResidentVisitorRequests = asyncHandler(async (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  const requests = await service.listResidentVisitorRequests(req.user);
+  return ApiResponse.success(res, requests, 'Pending visitor requests loaded');
+});
+
+const listResidentVisitorHistory = asyncHandler(async (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  const visitors = await service.listResidentVisitorHistory(req.user);
+  return ApiResponse.success(res, visitors, 'Visitor history loaded');
+});
+
+const decideResidentVisitorRequest = asyncHandler(async (req, res) => {
+  const request = await service.decideResidentVisitorRequest(
+    req.user,
+    req.params.passId,
+    req.body.decision,
+  );
+  return ApiResponse.success(res, request, 'Visitor request decision saved');
+});
+
 // --- gate events ---
 const listGateEvents = asyncHandler(async (req, res) => {
   const events = await service.listGateEvents(req.query);
@@ -130,6 +151,9 @@ module.exports = {
   recordEntry,
   recordExit,
   cancelPass,
+  listResidentVisitorRequests,
+  listResidentVisitorHistory,
+  decideResidentVisitorRequest,
   listGateEvents,
   triggerOverstay,
   listOverstayAlerts,

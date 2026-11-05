@@ -1,6 +1,25 @@
 const ApiError = require('../../common/ApiError');
+const { query } = require('../../config/db');
 const repository = require('./visitors.repository');
 const gatesRepository = require('../gates/gates.repository');
+
+const requireResidentId = async (user) => {
+  if (!user.societyId) {
+    throw new ApiError(403, 'Your account is not linked to a society');
+  }
+  const result = await query(
+    `SELECT id
+       FROM residents
+      WHERE user_id = $1 AND society_id = $2 AND status = 'ACTIVE'
+      LIMIT 1`,
+    [user.id, user.societyId],
+  );
+  const resident = result.rows[0];
+  if (!resident) {
+    throw new ApiError(403, 'Your resident profile is not linked to this account');
+  }
+  return resident.id;
+};
 
 /**
  * Implements the Visitor Lifecycle exactly as documented:
@@ -152,6 +171,9 @@ const recordArrival = async (id) => {
   if (pass.status !== 'EXPECTED') {
     throw new ApiError(400, `Cannot register arrival - pass is currently ${pass.status}`);
   }
+  if (pass.resident_decision === 'REJECTED') {
+    throw new ApiError(400, 'The resident rejected this visitor request');
+  }
   return repository.updatePassStatus(id, 'ARRIVED');
 };
 
@@ -164,6 +186,14 @@ const recordEntry = async (id, { capturedBy }) => {
   if (pass.status !== 'ARRIVED' && pass.status !== 'EXPECTED') {
     throw new ApiError(400, `Cannot record entry - pass is currently ${pass.status}`);
   }
+  if (pass.resident_decision === 'PENDING' || pass.resident_decision === 'REJECTED') {
+    throw new ApiError(
+      400,
+      pass.resident_decision === 'REJECTED'
+        ? 'The resident rejected this visitor request'
+        : 'Wait for the resident to approve this visitor before entry',
+    );
+  }
 
   await repository.createGateEvent({
     societyId: (await gatesRepository.findGateById(pass.gate_id)).society_id,
@@ -174,6 +204,33 @@ const recordEntry = async (id, { capturedBy }) => {
   });
 
   return repository.updatePassStatus(id, 'INSIDE');
+};
+
+const listResidentVisitorRequests = async (user) => {
+  const residentId = await requireResidentId(user);
+  return repository.listResidentVisitorRequests({
+    residentId,
+    societyId: user.societyId,
+  });
+};
+
+const listResidentVisitorHistory = async (user) => {
+  const residentId = await requireResidentId(user);
+  return repository.listResidentVisitorHistory({
+    residentId,
+    societyId: user.societyId,
+  });
+};
+
+const decideResidentVisitorRequest = async (user, passId, decision) => {
+  const residentId = await requireResidentId(user);
+  const updated = await repository.decideResidentVisitorRequest({
+    passId,
+    residentId,
+    decision,
+  });
+  if (!updated) throw new ApiError(404, 'Pending visitor request not found');
+  return updated;
 };
 
 /** "Exit recorded" branch of the lifecycle's final step. */
@@ -258,6 +315,9 @@ module.exports = {
   getInvite,
   decideInvite,
   createPass,
+  listResidentVisitorRequests,
+  listResidentVisitorHistory,
+  decideResidentVisitorRequest,
   listPasses,
   getPass,
   recordArrival,
