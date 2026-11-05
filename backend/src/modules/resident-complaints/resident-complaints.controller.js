@@ -18,6 +18,10 @@ const listComplaints = asyncHandler(async (req, res) => {
   );
 });
 
+const streamStatusUpdates = asyncHandler(async (req, res) => {
+  await service.streamStatusUpdates(req.user, res);
+});
+
 const createComplaint = asyncHandler(async (req, res) => {
   return ApiResponse.success(
     res,
@@ -35,4 +39,10 @@ const getComplaint = asyncHandler(async (req, res) => {
   );
 });
 
-module.exports = { listCategories, listComplaints, createComplaint, getComplaint };
+module.exports = {
+  listCategories,
+  listComplaints,
+  streamStatusUpdates,
+  createComplaint,
+  getComplaint,
+};

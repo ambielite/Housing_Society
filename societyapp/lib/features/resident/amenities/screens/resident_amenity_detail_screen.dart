@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../../../app/theme/app_colors.dart';
 import '../../../auth/data/auth_api.dart';
 import '../../dashboard/data/resident_dashboard_api.dart';
 import '../data/resident_amenities_api.dart';
@@ -26,6 +25,11 @@ class ResidentAmenityDetailScreen extends StatefulWidget {
 
 class _ResidentAmenityDetailScreenState
     extends State<ResidentAmenityDetailScreen> with WidgetsBindingObserver {
+  static const _amenityAccent = Color(0xFF76519A);
+  static const _amenityAccentBackground = Color(0xFFF1EAF7);
+  static const _amenityText = Color(0xFF28242B);
+  static const _amenityMuted = Color(0xFF89837E);
+
   late Future<List<ResidentAmenitySlot>> _slotsFuture;
   Timer? _bookingStatusTimer;
   bool _refreshingSlots = false;
@@ -177,9 +181,9 @@ class _ResidentAmenityDetailScreenState
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        backgroundColor: const Color(0xFFF5F7FB),
+        backgroundColor: const Color(0xFFFAF8F6),
         appBar: AppBar(
-          backgroundColor: const Color(0xFFF5F7FB),
+          backgroundColor: const Color(0xFFFAF8F6),
           title: Text(widget.amenity.name),
           actions: [
             IconButton(
@@ -205,7 +209,7 @@ class _ResidentAmenityDetailScreenState
                 });
               }
               if (!snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator(color: AppColors.indigo));
+                return const Center(child: CircularProgressIndicator(color: _amenityAccent));
               }
               final slots = snapshot.data!;
               return ListView(
@@ -217,7 +221,7 @@ class _ResidentAmenityDetailScreenState
                     children: [
                       const Expanded(
                         child: Text('Time slots', style: TextStyle(
-                          color: AppColors.ink,
+                          color: _amenityText,
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
                         )),
@@ -225,7 +229,7 @@ class _ResidentAmenityDetailScreenState
                       Text(
                         '${slots.length} ${slots.length == 1 ? 'slot' : 'slots'}',
                         style: const TextStyle(
-                          color: Color(0xFF7F8A9D),
+                          color: Color(0xFF827D79),
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
                         ),
@@ -260,7 +264,7 @@ class _ResidentAmenityDetailScreenState
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           gradient: const LinearGradient(
-            colors: [Color(0xFF6557E9), Color(0xFF8878F6)],
+            colors: [Color(0xFF76519A), Color(0xFFA47BB5)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -279,12 +283,12 @@ class _ResidentAmenityDetailScreenState
             Text(
               [widget.amenity.type.replaceAll('_', ' '), if (widget.amenity.location != null) widget.amenity.location!]
                   .where((value) => value.isNotEmpty).join(' · '),
-              style: const TextStyle(color: Color(0xFFE7E4FF), fontSize: 12),
+              style: const TextStyle(color: Color(0xFFF3EAF6), fontSize: 12),
             ),
             if (widget.amenity.capacity != null) ...[
               const SizedBox(height: 6),
               Text('Capacity ${widget.amenity.capacity}', style: const TextStyle(
-                color: Color(0xFFE7E4FF), fontSize: 12,
+                color: Color(0xFFF3EAF6), fontSize: 12,
               )),
             ],
           ],
@@ -296,7 +300,7 @@ class _ResidentAmenityDetailScreenState
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(17),
-          border: Border.all(color: const Color(0xFFEBEFF5)),
+          border: Border.all(color: const Color(0xFFEEEAE6)),
         ),
         child: Row(
           children: [
@@ -304,10 +308,10 @@ class _ResidentAmenityDetailScreenState
               width: 43,
               height: 43,
               decoration: BoxDecoration(
-                color: const Color(0xFFECE9FF),
+                color: _amenityAccentBackground,
                 borderRadius: BorderRadius.circular(13),
               ),
-              child: const Icon(Icons.schedule_rounded, color: AppColors.indigo, size: 21),
+              child: const Icon(Icons.schedule_rounded, color: _amenityAccent, size: 21),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -315,15 +319,15 @@ class _ResidentAmenityDetailScreenState
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(_dateLabel(slot.date), style: const TextStyle(
-                    color: AppColors.ink, fontSize: 13, fontWeight: FontWeight.w800,
+                    color: _amenityText, fontSize: 13, fontWeight: FontWeight.w800,
                   )),
                   const SizedBox(height: 4),
                   Text('${slot.startTime} – ${slot.endTime}', style: const TextStyle(
-                    color: Color(0xFF7F8A9D), fontSize: 11,
+                    color: Color(0xFF827D79), fontSize: 11,
                   )),
                   const SizedBox(height: 4),
                   Text('${_money(slot.price)} · Capacity ${slot.capacity}', style: const TextStyle(
-                    color: AppColors.indigo, fontSize: 10, fontWeight: FontWeight.w700,
+                    color: _amenityAccent, fontSize: 10, fontWeight: FontWeight.w700,
                   )),
                 ],
               ),
@@ -338,7 +342,7 @@ class _ResidentAmenityDetailScreenState
             else if (_bookingsError != null)
               _slotStateLabel('Unavailable', const Color(0xFFFFECEE), const Color(0xFF9D2635))
             else if (!_bookingsLoaded)
-              _slotStateLabel('Checking', const Color(0xFFECE9FF), AppColors.indigo)
+              _slotStateLabel('Checking', _amenityAccentBackground, _amenityAccent)
             else if (slot.status.toUpperCase() != 'AVAILABLE')
               _slotStateLabel(
                 slot.status.replaceAll('_', ' '),
@@ -391,17 +395,17 @@ class _ResidentAmenityDetailScreenState
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0xFFEBEFF5)),
+          border: Border.all(color: const Color(0xFFEEEAE6)),
         ),
         child: const Column(children: [
-          Icon(Icons.event_busy_rounded, color: AppColors.muted, size: 38),
+          Icon(Icons.event_busy_rounded, color: _amenityMuted, size: 38),
           SizedBox(height: 10),
           Text('No time slots have been added yet', style: TextStyle(
-            color: AppColors.ink, fontWeight: FontWeight.w800,
+            color: _amenityText, fontWeight: FontWeight.w800,
           )),
           SizedBox(height: 5),
           Text('Please check again later.', style: TextStyle(
-            color: Color(0xFF8994A7), fontSize: 12,
+            color: _amenityMuted, fontSize: 12,
           )),
         ]),
       );
@@ -475,7 +479,7 @@ class _BookSlotButtonState extends State<_BookSlotButton> {
         child: FilledButton(
           onPressed: _submitting ? null : _submit,
           style: FilledButton.styleFrom(
-            backgroundColor: AppColors.indigo,
+            backgroundColor: const Color(0xFF76519A),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),

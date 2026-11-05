@@ -6,6 +6,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../auth/data/auth_api.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../amenities/screens/resident_amenities_screen.dart';
+import '../../complaints/data/resident_complaints_api.dart';
 import '../../complaints/screens/resident_complaints_screen.dart';
 import '../data/resident_dashboard_api.dart';
 import 'resident_profile_screen.dart';
@@ -23,9 +24,12 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     with WidgetsBindingObserver {
   int _selectedTab = 0;
   late Future<ResidentDashboardData> _dashboardFuture;
+  late Future<List<ResidentComplaint>> _complaintsFuture;
   ResidentDashboardData? _dashboardData;
   Timer? _dashboardRefreshTimer;
+  Timer? _complaintsRefreshTimer;
   bool _refreshingDashboard = false;
+  bool _refreshingComplaints = false;
 
   String get _firstName => widget.user.name.trim().split(' ').first;
 
@@ -39,9 +43,16 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
         return data;
       },
     );
+    _complaintsFuture = ResidentComplaintsApi.listComplaints(
+      widget.user.accessToken,
+    );
     _dashboardRefreshTimer = Timer.periodic(
       const Duration(seconds: 30),
       (_) => _refreshDashboardInBackground(),
+    );
+    _complaintsRefreshTimer = Timer.periodic(
+      const Duration(seconds: 2),
+      (_) => _refreshComplaintsInBackground(),
     );
   }
 
@@ -49,12 +60,14 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _refreshDashboardInBackground();
+      _refreshComplaintsInBackground();
     }
   }
 
   @override
   void dispose() {
     _dashboardRefreshTimer?.cancel();
+    _complaintsRefreshTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -88,6 +101,31 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
       await _refreshDashboard();
     } catch (_) {
       // Keep showing the last successfully loaded dashboard on network errors.
+    }
+  }
+
+  Future<void> _refreshComplaintsInBackground() async {
+    if (!mounted ||
+        _refreshingComplaints ||
+        _selectedTab != 0 ||
+        WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed ||
+        ModalRoute.of(context)?.isCurrent == false) {
+      return;
+    }
+    _refreshingComplaints = true;
+    try {
+      final complaints = await ResidentComplaintsApi.listComplaints(
+        widget.user.accessToken,
+      );
+      if (mounted) {
+        setState(() {
+          _complaintsFuture = Future.value(complaints);
+        });
+      }
+    } catch (_) {
+      // Keep the last successful complaint statuses visible during network errors.
+    } finally {
+      _refreshingComplaints = false;
     }
   }
 
@@ -214,6 +252,13 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                               ),
                               const SizedBox(height: 14),
                               _quickActions(context),
+                              const SizedBox(height: 27),
+                              _sectionTitle(
+                                'Complaint status',
+                                trailing: 'View all',
+                              ),
+                              const SizedBox(height: 13),
+                              _complaintStatusSection(context),
                               const SizedBox(height: 27),
                               _sectionTitle(
                                 'Maintenance',
@@ -802,6 +847,91 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _complaintStatusSection(BuildContext context) =>
+      FutureBuilder<List<ResidentComplaint>>(
+        future: _complaintsFuture,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return _emptyCard('Complaint status is temporarily unavailable.');
+          }
+          if (!snapshot.hasData) {
+            return _emptyCard('Checking your latest complaint status…');
+          }
+          final complaints = snapshot.data!;
+          if (complaints.isEmpty) {
+            return _emptyCard('You have no complaints yet.');
+          }
+          return _latestComplaintCard(complaints.first);
+        },
+      );
+
+  Widget _latestComplaintCard(ResidentComplaint complaint) {
+    final status = complaint.status.replaceAll('_', ' ');
+    final statusColor = switch (complaint.status.toUpperCase()) {
+      'RESOLVED' || 'CLOSED' => const Color(0xFF229B78),
+      'IN_PROGRESS' || 'ASSIGNED' => const Color(0xFF4784DB),
+      'ON_HOLD' => const Color(0xFFE28A38),
+      _ => AppColors.indigo,
+    };
+
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: () => _openHelp(context),
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFE8ECF3)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: .1),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(Icons.support_agent_rounded, color: statusColor),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      complaint.subject,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.ink,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      '${complaint.ticketNumber}  ·  $status',
+                      style: TextStyle(
+                        color: statusColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: AppColors.muted),
+            ],
+          ),
+        ),
       ),
     );
   }

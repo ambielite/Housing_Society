@@ -119,26 +119,68 @@ class _NewComplaintScreenState extends State<NewComplaintScreen> {
                           const SizedBox(height: 18),
                           _fieldLabel('Category'),
                           const SizedBox(height: 8),
-                          DropdownButtonFormField<String>(
-                            value: selectedId,
-                            decoration: _decoration(
-                              hint: 'Choose a category',
-                              icon: Icons.category_outlined,
+                          LayoutBuilder(
+                            builder: (context, constraints) => PopupMenuButton<String>(
+                              tooltip: '',
+                              enabled: !_saving,
+                              constraints: BoxConstraints.tightFor(
+                                width: constraints.maxWidth,
+                              ),
+                              position: PopupMenuPosition.over,
+                              offset: const Offset(0, 54),
+                              color: Colors.white,
+                              elevation: 8,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              onSelected: (value) => setState(() {
+                                _categoryId = value;
+                                _categoryName = categories
+                                    .firstWhere((item) => item.id == value)
+                                    .name;
+                              }),
+                              itemBuilder: (_) => categories
+                                  .map((category) => PopupMenuItem<String>(
+                                        value: category.id,
+                                        height: 48,
+                                        child: Text(
+                                          category.name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: category.id == selectedId
+                                                ? const Color(0xFF76519A)
+                                                : AppColors.ink,
+                                            fontSize: 14,
+                                            fontWeight: category.id == selectedId
+                                                ? FontWeight.w700
+                                                : FontWeight.w500,
+                                          ),
+                                        ),
+                                      ))
+                                  .toList(),
+                              child: InputDecorator(
+                                decoration: _decoration(
+                                  hint: 'Choose a category',
+                                  icon: Icons.category_outlined,
+                                ).copyWith(
+                                  suffixIcon: const Icon(
+                                    Icons.keyboard_arrow_down_rounded,
+                                    color: Color(0xFF76519A),
+                                  ),
+                                ),
+                                child: Text(
+                                  selectedCategory.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: AppColors.ink,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
                             ),
-                            items: categories
-                                .map((category) => DropdownMenuItem(
-                                      value: category.id,
-                                      child: Text(category.name),
-                                    ))
-                                .toList(),
-                            onChanged: _saving
-                                ? null
-                                : (value) => setState(() {
-                                    _categoryId = value;
-                                    _categoryName = categories
-                                        .firstWhere((item) => item.id == value)
-                                        .name;
-                                  }),
                           ),
                           const SizedBox(height: 18),
                           _fieldLabel('Subject'),
@@ -218,7 +260,7 @@ class _NewComplaintScreenState extends State<NewComplaintScreen> {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           gradient: const LinearGradient(
-            colors: [Color(0xFF6557E9), Color(0xFF8878F6)],
+            colors: [Color(0xFF76519A), Color(0xFFA47BB5)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -242,7 +284,7 @@ class _NewComplaintScreenState extends State<NewComplaintScreen> {
                   SizedBox(height: 4),
                   Text(
                     'Send your concern to the society team.',
-                    style: TextStyle(color: Color(0xFFE7E4FF), fontSize: 12),
+                    style: TextStyle(color: Color(0xFFF3EAF6), fontSize: 12),
                   ),
                 ],
               ),

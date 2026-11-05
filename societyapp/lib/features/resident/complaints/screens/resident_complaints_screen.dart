@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_colors.dart';
@@ -15,17 +17,130 @@ class ResidentComplaintsScreen extends StatefulWidget {
       _ResidentComplaintsScreenState();
 }
 
-class _ResidentComplaintsScreenState extends State<ResidentComplaintsScreen> {
+class _ResidentComplaintsScreenState extends State<ResidentComplaintsScreen>
+    with WidgetsBindingObserver {
   static const _pageBackground = Color(0xFFF5F7FB);
-  static const _requestCardBackground = Color(0xFF6557E9);
+  static const _statusRefreshInterval = Duration(seconds: 2);
 
   late Future<List<ResidentComplaint>> _complaintsFuture;
   final List<ResidentComplaint> _knownComplaints = [];
+  final ValueNotifier<List<ResidentComplaint>> _complaintsNotifier =
+      ValueNotifier(const []);
+  Timer? _statusRefreshTimer;
+  Timer? _statusReconnectTimer;
+  StreamSubscription<ComplaintStatusUpdate>? _statusSubscription;
+  bool _statusRefreshInProgress = false;
+  bool _manualRefreshInProgress = false;
+  int _refreshRequestVersion = 0;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _complaintsFuture = _loadComplaints();
+    _startStatusRefresh();
+    _connectStatusStream();
+  }
+
+  @override
+  void dispose() {
+    _statusRefreshTimer?.cancel();
+    _statusReconnectTimer?.cancel();
+    _statusSubscription?.cancel();
+    _complaintsNotifier.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _startStatusRefresh();
+      _refreshStatuses();
+      _connectStatusStream();
+    } else {
+      _statusRefreshTimer?.cancel();
+      _statusRefreshTimer = null;
+      _statusReconnectTimer?.cancel();
+      _statusReconnectTimer = null;
+      final subscription = _statusSubscription;
+      _statusSubscription = null;
+      subscription?.cancel();
+    }
+  }
+
+  void _startStatusRefresh() {
+    _statusRefreshTimer?.cancel();
+    _statusRefreshTimer = Timer.periodic(
+      _statusRefreshInterval,
+      (_) => _refreshStatuses(),
+    );
+  }
+
+  void _connectStatusStream() {
+    if (!mounted || _statusSubscription != null) return;
+    _statusSubscription = ResidentComplaintsApi.watchStatus(
+      widget.user.accessToken,
+    ).listen(
+      _applyStatusUpdate,
+      onError: (_) {
+        _statusSubscription = null;
+        _scheduleStatusReconnect();
+      },
+      onDone: () {
+        _statusSubscription = null;
+        _scheduleStatusReconnect();
+      },
+      cancelOnError: true,
+    );
+  }
+
+  void _scheduleStatusReconnect() {
+    if (!mounted ||
+        WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+      return;
+    }
+    _statusReconnectTimer?.cancel();
+    _statusReconnectTimer = Timer(
+      const Duration(seconds: 1),
+      _connectStatusStream,
+    );
+  }
+
+  void _applyStatusUpdate(ComplaintStatusUpdate update) {
+    if (update.ticketId.isEmpty || update.status.isEmpty) return;
+    _refreshRequestVersion++;
+    final index = _knownComplaints.indexWhere(
+      (complaint) => complaint.id == update.ticketId,
+    );
+    if (index < 0) return;
+
+    _knownComplaints[index] = _knownComplaints[index].withStatus(update.status);
+    final complaints = List<ResidentComplaint>.unmodifiable(_knownComplaints);
+    _complaintsNotifier.value = complaints;
+    if (mounted) {
+      setState(() => _complaintsFuture = Future.value(complaints));
+    }
+  }
+
+  Future<void> _refreshStatuses() async {
+    if (!mounted || _statusRefreshInProgress || _manualRefreshInProgress) return;
+    _statusRefreshInProgress = true;
+    final requestVersion = ++_refreshRequestVersion;
+    try {
+      final incoming = await ResidentComplaintsApi.listComplaints(
+        widget.user.accessToken,
+      );
+      if (!mounted || requestVersion != _refreshRequestVersion) return;
+      final complaints = _mergeComplaints(incoming);
+      if (mounted) {
+        setState(() => _complaintsFuture = Future.value(complaints));
+      }
+    } catch (_) {
+      // Keep showing the last loaded statuses if the network is unavailable.
+    } finally {
+      _statusRefreshInProgress = false;
+    }
   }
 
   Future<List<ResidentComplaint>> _loadComplaints() async {
@@ -50,13 +165,27 @@ class _ResidentComplaintsScreenState extends State<ResidentComplaintsScreen> {
       ..sort((a, b) =>
           (b.openedAt ?? DateTime.fromMillisecondsSinceEpoch(0))
               .compareTo(a.openedAt ?? DateTime.fromMillisecondsSinceEpoch(0)));
+    if (mounted) _complaintsNotifier.value = List.unmodifiable(_knownComplaints);
     return List.unmodifiable(_knownComplaints);
   }
 
   Future<void> _refresh() async {
-    final next = _loadComplaints();
-    setState(() => _complaintsFuture = next);
-    await next;
+    if (_manualRefreshInProgress) return;
+    setState(() => _manualRefreshInProgress = true);
+    final requestVersion = ++_refreshRequestVersion;
+    try {
+      final incoming = await ResidentComplaintsApi.listComplaints(
+        widget.user.accessToken,
+      );
+      if (!mounted || requestVersion != _refreshRequestVersion) return;
+      final complaints = _mergeComplaints(incoming);
+      setState(() => _complaintsFuture = Future.value(complaints));
+    } catch (_) {
+      // Keep the current list visible when refresh fails; don't interrupt the
+      // resident with a popup.
+    } finally {
+      if (mounted) setState(() => _manualRefreshInProgress = false);
+    }
   }
 
   Future<void> _newComplaint() async {
@@ -90,6 +219,18 @@ class _ResidentComplaintsScreenState extends State<ResidentComplaintsScreen> {
         appBar: AppBar(
           backgroundColor: _pageBackground,
           title: const Text('Help & Complaints'),
+          actions: [
+            IconButton(
+              tooltip: 'Refresh complaint statuses',
+              onPressed: _manualRefreshInProgress ? null : _refresh,
+              icon: _manualRefreshInProgress
+                  ? const SizedBox.square(
+                      dimension: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.refresh_rounded),
+            ),
+          ],
         ),
         floatingActionButton: FloatingActionButton.extended(
           onPressed: _newComplaint,
@@ -166,21 +307,31 @@ class _ResidentComplaintsScreenState extends State<ResidentComplaintsScreen> {
         const SizedBox(height: 17),
         Row(
           children: [
-            Expanded(child: _requestCount(open, 'Open')),
+            Expanded(
+              child: _requestCount(open, 'Open', const Color(0xFFD98236)),
+            ),
             const SizedBox(width: 10),
-            Expanded(child: _requestCount(inProgress, 'In progress')),
+            Expanded(
+              child: _requestCount(
+                inProgress,
+                'In progress',
+                const Color(0xFF4A74CB),
+              ),
+            ),
             const SizedBox(width: 10),
-            Expanded(child: _requestCount(resolved, 'Resolved')),
+            Expanded(
+              child: _requestCount(resolved, 'Resolved', const Color(0xFF27866F)),
+            ),
           ],
         ),
       ],
     );
   }
 
-  Widget _requestCount(int count, String label) => Container(
+  Widget _requestCount(int count, String label, Color backgroundColor) => Container(
         height: 84,
         decoration: BoxDecoration(
-          color: _requestCardBackground,
+          color: backgroundColor,
           borderRadius: BorderRadius.circular(18),
         ),
         child: Column(
@@ -199,7 +350,10 @@ class _ResidentComplaintsScreenState extends State<ResidentComplaintsScreen> {
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Color(0xFFE1DFF1), fontSize: 12),
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: .85),
+                fontSize: 12,
+              ),
             ),
           ],
         ),
@@ -323,7 +477,13 @@ class _ResidentComplaintsScreenState extends State<ResidentComplaintsScreen> {
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        builder: (context) => SafeArea(
+        builder: (context) => ValueListenableBuilder<List<ResidentComplaint>>(
+          valueListenable: _complaintsNotifier,
+          builder: (context, complaints, _) {
+            final currentComplaint = complaints
+                .firstWhere((item) => item.id == complaint.id,
+                    orElse: () => complaint);
+            return SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(22, 18, 22, 24),
             child: SingleChildScrollView(
@@ -332,7 +492,7 @@ class _ResidentComplaintsScreenState extends State<ResidentComplaintsScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    complaint.ticketNumber,
+                    currentComplaint.ticketNumber,
                     style: const TextStyle(
                       color: AppColors.indigo,
                       fontSize: 11,
@@ -341,7 +501,7 @@ class _ResidentComplaintsScreenState extends State<ResidentComplaintsScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    complaint.subject,
+                    currentComplaint.subject,
                     style: const TextStyle(
                       color: AppColors.ink,
                       fontSize: 20,
@@ -349,11 +509,11 @@ class _ResidentComplaintsScreenState extends State<ResidentComplaintsScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  _statusBadge(complaint.status),
-                  if (complaint.categoryName != null) ...[
+                  _statusBadge(currentComplaint.status),
+                  if (currentComplaint.categoryName != null) ...[
                     const SizedBox(height: 16),
                     Text(
-                      'Category  ·  ${complaint.categoryName}',
+                      'Category  ·  ${currentComplaint.categoryName}',
                       style: const TextStyle(
                         color: Color(0xFF7F8A9D),
                         fontSize: 12,
@@ -362,7 +522,7 @@ class _ResidentComplaintsScreenState extends State<ResidentComplaintsScreen> {
                   ],
                   const SizedBox(height: 18),
                   Text(
-                    complaint.description,
+                    currentComplaint.description,
                     style: const TextStyle(
                       color: Color(0xFF59657A),
                       fontSize: 14,
@@ -381,6 +541,8 @@ class _ResidentComplaintsScreenState extends State<ResidentComplaintsScreen> {
               ),
             ),
           ),
+            );
+          },
         ),
       );
 

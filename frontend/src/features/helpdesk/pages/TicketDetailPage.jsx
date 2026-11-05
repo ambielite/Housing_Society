@@ -12,11 +12,20 @@ import towerApi from '../../towers/api/tower.api';
 import PageContainer from '../../../components/layout/PageContainer';
 import Alert from '../../../components/ui/Alert';
 import Modal from '../../../components/ui/Modal';
-import { TICKET_STATUSES, label } from '../components/helpdeskOptions';
+import { label } from '../components/helpdeskOptions';
 
 const rowsFrom = (response, key) => {
   const rows = Array.isArray(response) ? response : response?.data || response?.[key] || [];
   return Array.isArray(rows) ? rows : [];
+};
+
+const NEXT_TICKET_STATUSES = {
+  OPEN: ['ASSIGNED'],
+  ASSIGNED: ['IN_PROGRESS', 'ON_HOLD'],
+  IN_PROGRESS: ['ON_HOLD', 'RESOLVED'],
+  ON_HOLD: ['IN_PROGRESS'],
+  RESOLVED: ['CLOSED'],
+  CLOSED: [],
 };
 
 export default function TicketDetailPage() {
@@ -146,6 +155,7 @@ export default function TicketDetailPage() {
   const categoryName = t?.category_name || t?.categoryName || t?.category?.name || categoryNames.get(categoryId) || (categoryId ? 'Category details unavailable' : '-');
   const raisedByName = t?.raised_by_name || t?.raisedByName || t?.raised_by_user?.full_name || t?.raised_by_user?.fullName || t?.raised_by_user?.name || t?.reporter_name || userNames.get(raisedById) || (raisedById ? 'Resident details unavailable' : '-');
   const requiresAssignment = ['ASSIGNED', 'IN_PROGRESS'].includes(String(status).toUpperCase());
+  const nextStatuses = NEXT_TICKET_STATUSES[String(t?.status || '').toUpperCase()] || [];
 
   return <PageContainer className="helpdesk-page" title={t?.ticket_no || 'Ticket details'} subtitle={t?.subject || ''}>
     <div className="back-link"><Link to="/helpdesk/tickets">← All tickets</Link></div>
@@ -161,8 +171,9 @@ export default function TicketDetailPage() {
         {can('TICKET_UPDATE') && <form className="stack-form section" onSubmit={e => {
           e.preventDefault();
           if (requiresAssignment && !assignee && !vendor) { setError('Assign this ticket to a staff member or vendor before changing its status to Assigned or In Progress.'); return; }
-          run(() => api.updateStatus(ticketId, { status, remarks }), `Ticket status updated to ${label(status)}.`);
-        }}><h3>Update status</h3><select required className="input" value={status} onChange={e => { setStatus(e.target.value); setError(''); }}><option value="">Select next status</option>{TICKET_STATUSES.map(s => <option key={s} value={s}>{label(s)}</option>)}</select><input className="input" maxLength={500} placeholder="Remarks (optional)" value={remarks} onChange={e => setRemarks(e.target.value)} /><button className="btn btn-primary" disabled={busy || !status}>Update status</button></form>}
+          run(() => api.updateStatus(ticketId, { status, remarks }), `Ticket status updated to ${label(status)}.`)
+            .then(ok => { if (ok) setStatus(''); });
+        }}><h3>Update status</h3><select required className="input" value={status} onChange={e => { setStatus(e.target.value); setError(''); }}><option value="">Select next status</option>{nextStatuses.map(s => <option key={s} value={s}>{label(s)}</option>)}</select><input className="input" maxLength={500} placeholder="Remarks (optional)" value={remarks} onChange={e => setRemarks(e.target.value)} /><button className="btn btn-primary" disabled={busy || !status}>Update status</button></form>}
       </section>
       <section className="dashboard-panel"><h3>SLA timer</h3>{timer.error ? <p className="muted">{getErrorMessage(timer.error)}</p> : timer.loading ? <p>Loading…</p> : timer.data ? <dl className="details">{[['Status', timer.data.status], ['Response due', timer.data.response_due_at], ['Resolution due', timer.data.resolution_due_at], ['Breached at', timer.data.breached_at]].map(([k, v]) => <Fragment key={k}><dt>{k}</dt><dd>{k === 'Status' ? (v || '-') : formatDate(v)}</dd></Fragment>)}</dl> : <p className="muted">No SLA timer is attached to this ticket.</p>}
         {can('TICKET_ASSIGN') && <form className="stack-form section" onSubmit={e => { e.preventDefault(); if (!assignee && !vendor) { setError('Select a staff member or vendor before assigning the ticket.'); return; } run(() => api.assignTicket(ticketId, { ...(assignee ? { assignedToUserId: assignee } : {}), ...(vendor ? { assignedVendorId: vendor } : {}) }), 'Ticket assigned.'); }}><h3>Assign ticket</h3>{directoryError && <p className="field-hint">{directoryError}</p>}<label className="field">Staff member<select className="input" value={assignee} onChange={e => setAssignee(e.target.value)}><option value="">Select staff member</option>{users.map(u => <option key={u.id} value={u.id}>{userNames.get(u.id)}{u.email ? ` · ${u.email}` : ''}</option>)}</select></label><label className="field">Vendor (optional)<select className="input" value={vendor} onChange={e => setVendor(e.target.value)}><option value="">No vendor selected</option>{vendors.map(v => <option key={v.id} value={v.id}>{vendorNames.get(v.id)}</option>)}</select></label><div className="form-actions"><button className="btn btn-primary" disabled={busy || (!assignee && !vendor)}>Assign</button><button type="button" className="btn btn-secondary" disabled={busy} onClick={() => run(() => api.unassignTicket(ticketId), 'Ticket unassigned.')}>Unassign</button></div></form>}

@@ -68,6 +68,24 @@ class ResidentComplaint {
         categoryName: categoryName ?? value,
         openedAt: openedAt,
       );
+
+  ResidentComplaint withStatus(String value) => ResidentComplaint(
+        id: id,
+        ticketNumber: ticketNumber,
+        subject: subject,
+        description: description,
+        status: value,
+        priority: priority,
+        categoryName: categoryName,
+        openedAt: openedAt,
+      );
+}
+
+class ComplaintStatusUpdate {
+  const ComplaintStatusUpdate({required this.ticketId, required this.status});
+
+  final String ticketId;
+  final String status;
 }
 
 class ResidentComplaintsApi {
@@ -87,6 +105,54 @@ class ResidentComplaintsApi {
         .whereType<Map<String, dynamic>>()
         .map(ResidentComplaint.fromJson)
         .toList();
+  }
+
+  static Stream<ComplaintStatusUpdate> watchStatus(String token) async* {
+    final client = http.Client();
+    try {
+      final request = http.Request(
+        'GET',
+        Uri.parse('$_apiBaseUrl/resident-complaints/events'),
+      )
+        ..headers['Accept'] = 'text/event-stream'
+        ..headers['Authorization'] = 'Bearer $token';
+      final response = await client
+          .send(request)
+          .timeout(const Duration(seconds: 20));
+      if (response.statusCode != 200) {
+        if (response.statusCode == 401) SessionManager.expire();
+        throw ResidentComplaintException(
+          'Could not connect to live complaint updates (${response.statusCode}).',
+        );
+      }
+
+      String? eventName;
+      final data = StringBuffer();
+      await for (final line in response.stream
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())) {
+        if (line.isEmpty) {
+          if (eventName == 'complaint_status' && data.isNotEmpty) {
+            final payload = jsonDecode(data.toString());
+            if (payload is Map<String, dynamic>) {
+              yield ComplaintStatusUpdate(
+                ticketId: '${payload['ticketId'] ?? ''}',
+                status: '${payload['status'] ?? ''}',
+              );
+            }
+          }
+          eventName = null;
+          data.clear();
+        } else if (line.startsWith('event:')) {
+          eventName = line.substring(6).trim();
+        } else if (line.startsWith('data:')) {
+          if (data.isNotEmpty) data.write('\n');
+          data.write(line.substring(5).trimLeft());
+        }
+      }
+    } finally {
+      client.close();
+    }
   }
 
   static Future<ResidentComplaint> create({
@@ -138,7 +204,13 @@ class ResidentComplaintsApi {
         'Authorization': 'Bearer $token',
         if (payload != null) 'Content-Type': 'application/json',
       };
-      final uri = Uri.parse('$_apiBaseUrl$path');
+      final baseUri = Uri.parse('$_apiBaseUrl$path');
+      final uri = method == 'GET'
+          ? baseUri.replace(queryParameters: {
+              ...baseUri.queryParameters,
+              '_refresh': DateTime.now().microsecondsSinceEpoch.toString(),
+            })
+          : baseUri;
       final response = await (method == 'GET'
               ? client.get(uri, headers: headers)
               : client.post(

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../app/theme/app_colors.dart';
 import '../../../auth/data/auth_api.dart';
 import '../../dashboard/data/resident_dashboard_api.dart';
 import '../data/resident_amenities_api.dart';
@@ -21,68 +20,112 @@ class ResidentAmenitiesScreen extends StatefulWidget {
 }
 
 class _ResidentAmenitiesScreenState extends State<ResidentAmenitiesScreen> {
-  late Future<List<ResidentAmenity>> _amenitiesFuture;
+  static const _amenityAccent = Color(0xFF76519A);
+  static const _amenityIconBackground = Color(0xFFF1EAF7);
+  static const _amenityText = Color(0xFF28242B);
+  static const _amenityMuted = Color(0xFF89837E);
+
+  List<ResidentAmenity> _amenities = const [];
+  String? _loadError;
+  bool _initialLoading = true;
+  bool _refreshing = false;
 
   @override
   void initState() {
     super.initState();
-    _amenitiesFuture = _load();
+    _loadAmenities();
   }
 
   Future<List<ResidentAmenity>> _load() =>
       ResidentAmenitiesApi.listAmenities(widget.user.accessToken);
 
   Future<void> _refresh() async {
-    final future = _load();
-    setState(() => _amenitiesFuture = future);
-    await future;
+    await _loadAmenities(refresh: true);
+  }
+
+  Future<void> _loadAmenities({bool refresh = false}) async {
+    if (_refreshing) return;
+    if (mounted) {
+      setState(() {
+        _refreshing = true;
+        if (!refresh) _initialLoading = true;
+        _loadError = null;
+      });
+    }
+    try {
+      final amenities = await _load();
+      if (!mounted) return;
+      setState(() {
+        _amenities = amenities;
+        _loadError = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loadError = error.toString());
+    } finally {
+      if (mounted) {
+        setState(() {
+          _refreshing = false;
+          _initialLoading = false;
+        });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        backgroundColor: const Color(0xFFF5F7FB),
+        backgroundColor: const Color(0xFFFAF8F6),
         appBar: AppBar(
-          backgroundColor: const Color(0xFFF5F7FB),
+          backgroundColor: const Color(0xFFFAF8F6),
           title: const Text('Amenities'),
+          actions: [
+            IconButton(
+              tooltip: 'Refresh amenities',
+              onPressed: _refreshing ? null : _refresh,
+              icon: _refreshing
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.refresh_rounded),
+            ),
+          ],
         ),
         body: SafeArea(
           child: RefreshIndicator(
-            color: AppColors.indigo,
+            color: _amenityAccent,
             onRefresh: _refresh,
-            child: FutureBuilder<List<ResidentAmenity>>(
-              future: _amenitiesFuture,
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return _state(
-                    snapshot.error.toString(),
-                    icon: Icons.wifi_off_rounded,
-                    retry: () => setState(() => _amenitiesFuture = _load()),
-                  );
-                }
-                if (!snapshot.hasData) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: AppColors.indigo),
-                  );
-                }
-                final amenities = snapshot.data!;
-                if (amenities.isEmpty) {
-                  return _state('Your society has not added any amenities yet.',
-                      icon: Icons.pool_outlined);
-                }
-                return ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
-                  children: [
-                    _intro(amenities.length),
-                    const SizedBox(height: 18),
-                    ...amenities.map((amenity) => Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: _amenityCard(amenity),
-                        )),
-                  ],
-                );
-              },
-            ),
+            child: _initialLoading
+                ? const Center(
+                    child: CircularProgressIndicator(color: _amenityAccent),
+                  )
+                : _loadError != null && _amenities.isEmpty
+                    ? _state(_loadError!,
+                        icon: Icons.wifi_off_rounded,
+                        retry: () => _loadAmenities())
+                    : _amenities.isEmpty
+                        ? _state(
+                            'Your society has not added any amenities yet.',
+                            icon: Icons.pool_outlined,
+                          )
+                        : ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
+                            children: [
+                              _intro(_amenities.length),
+                              if (_loadError != null) ...[
+                                const SizedBox(height: 10),
+                                Text('Could not refresh amenities. Pull down to retry.',
+                                    style: TextStyle(color: _amenityMuted)),
+                              ],
+                              const SizedBox(height: 18),
+                              ..._amenities.map((amenity) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: _amenityCard(amenity),
+                                  )),
+                            ],
+                          ),
           ),
         ),
       );
@@ -92,7 +135,7 @@ class _ResidentAmenitiesScreenState extends State<ResidentAmenitiesScreen> {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           gradient: const LinearGradient(
-            colors: [Color(0xFF6557E9), Color(0xFF8878F6)],
+            colors: [Color(0xFF76519A), Color(0xFFA47BB5)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -110,7 +153,7 @@ class _ResidentAmenitiesScreenState extends State<ResidentAmenitiesScreen> {
                   )),
                   const SizedBox(height: 4),
                   Text('$count amenities available to residents', style: const TextStyle(
-                    color: Color(0xFFE7E4FF), fontSize: 12,
+                    color: Color(0xFFF3EAF6), fontSize: 12,
                   )),
                 ],
               ),
@@ -135,7 +178,7 @@ class _ResidentAmenitiesScreenState extends State<ResidentAmenitiesScreen> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: const Color(0xFFEBEFF5)),
+              border: Border.all(color: const Color(0xFFEEEAE6)),
             ),
             child: Row(
               children: [
@@ -143,10 +186,10 @@ class _ResidentAmenitiesScreenState extends State<ResidentAmenitiesScreen> {
                   width: 52,
                   height: 52,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFECE9FF),
+                    color: _amenityIconBackground,
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Icon(_iconFor(amenity.type), color: AppColors.indigo),
+                  child: Icon(_iconFor(amenity.type), color: _amenityAccent),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -154,7 +197,7 @@ class _ResidentAmenitiesScreenState extends State<ResidentAmenitiesScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(amenity.name, style: const TextStyle(
-                        color: AppColors.ink, fontSize: 15, fontWeight: FontWeight.w800,
+                color: _amenityText, fontSize: 15, fontWeight: FontWeight.w800,
                       )),
                       const SizedBox(height: 5),
                       Text(
@@ -162,18 +205,18 @@ class _ResidentAmenitiesScreenState extends State<ResidentAmenitiesScreen> {
                             .where((text) => text.isNotEmpty).join(' · '),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Color(0xFF7F8A9D), fontSize: 11),
+                        style: const TextStyle(color: Color(0xFF827D79), fontSize: 11),
                       ),
                       if (amenity.capacity != null) ...[
                         const SizedBox(height: 4),
                         Text('Capacity ${amenity.capacity}', style: const TextStyle(
-                          color: Color(0xFF8994A7), fontSize: 10,
+                          color: Color(0xFF89837E), fontSize: 10,
                         )),
                       ],
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right_rounded, color: AppColors.indigo),
+                const Icon(Icons.chevron_right_rounded, color: _amenityAccent),
               ],
             ),
           ),
@@ -186,10 +229,10 @@ class _ResidentAmenitiesScreenState extends State<ResidentAmenitiesScreen> {
         padding: const EdgeInsets.all(30),
         children: [
           const SizedBox(height: 100),
-          Icon(icon, color: AppColors.muted, size: 44),
+          Icon(icon, color: _amenityMuted, size: 44),
           const SizedBox(height: 14),
           Text(message, textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.ink)),
+              style: const TextStyle(color: _amenityText)),
           if (retry != null) ...[
             const SizedBox(height: 16),
             Center(child: FilledButton(onPressed: retry, child: const Text('Try again'))),

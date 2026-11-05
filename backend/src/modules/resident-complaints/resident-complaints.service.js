@@ -3,6 +3,7 @@ const { query } = require('../../config/db');
 const helpdeskRepository = require('../helpdesk-setup/helpdesk-setup.repository');
 const ticketsRepository = require('../tickets/tickets.repository');
 const ticketsService = require('../tickets/tickets.service');
+const { subscribeToTicketStatusChanges } = require('../tickets/tickets.events');
 
 const requireResidentContext = async (user) => {
   if (!user.societyId) throw new ApiError(403, 'Your account is not linked to a society');
@@ -47,6 +48,40 @@ const listComplaints = async (user) => {
   return result.rows;
 };
 
+const streamStatusUpdates = async (user, res) => {
+  await requireResidentContext(user);
+
+  res.status(200);
+  res.set({
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache, no-store, must-revalidate, private',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.flushHeaders();
+  res.write(': complaint status stream connected\n\n');
+
+  const unsubscribe = subscribeToTicketStatusChanges((event) => {
+    if (event.residentUserId !== user.id || event.societyId !== user.societyId) {
+      return;
+    }
+
+    res.write(`event: complaint_status\ndata: ${JSON.stringify({
+      ticketId: event.ticketId,
+      status: event.status,
+    })}\n\n`);
+  });
+
+  const heartbeat = setInterval(() => {
+    if (!res.destroyed) res.write(': keepalive\n\n');
+  }, 25000);
+
+  res.on('close', () => {
+    clearInterval(heartbeat);
+    unsubscribe();
+  });
+};
+
 const createComplaint = async (user, payload) => {
   const resident = await requireResidentContext(user);
   const category = await helpdeskRepository.findCategoryById(payload.categoryId);
@@ -81,4 +116,10 @@ const getComplaint = async (user, ticketId) => {
   return ticket;
 };
 
-module.exports = { listCategories, listComplaints, createComplaint, getComplaint };
+module.exports = {
+  listCategories,
+  listComplaints,
+  streamStatusUpdates,
+  createComplaint,
+  getComplaint,
+};

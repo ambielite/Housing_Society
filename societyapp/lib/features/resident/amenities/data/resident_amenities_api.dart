@@ -151,10 +151,20 @@ class ResidentAmenitiesApi {
     Map<String, dynamic>? payload,
   }) async {
     try {
-      final uri = Uri.parse('$_apiBaseUrl$path');
+      var uri = Uri.parse('$_apiBaseUrl$path');
+      if (method == 'GET') {
+        uri = uri.replace(queryParameters: {
+          ...uri.queryParameters,
+          '_refresh': DateTime.now().microsecondsSinceEpoch.toString(),
+        });
+      }
       final headers = <String, String>{
         'Accept': 'application/json',
         'Authorization': 'Bearer $token',
+        if (method == 'GET') ...{
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+        },
         if (payload != null) 'Content-Type': 'application/json',
       };
       final response = await (method == 'GET'
