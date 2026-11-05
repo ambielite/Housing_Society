@@ -13,6 +13,17 @@ import '../../../resident/dashboard/screens/resident_home_screen.dart';
 
 const _configuredApiBaseUrl = String.fromEnvironment('API_BASE_URL');
 
+const _deliveryTransitions = <String, List<String>>{
+  'EXPECTED': ['ARRIVED', 'CANCELLED'],
+  'ARRIVED': ['INSIDE', 'LEFT_AT_GATE', 'CANCELLED'],
+  'INSIDE': ['PICKED_UP', 'EXITED', 'OVERSTAY', 'CANCELLED'],
+  'LEFT_AT_GATE': ['PICKED_UP', 'OVERSTAY'],
+  'OVERSTAY': ['PICKED_UP', 'EXITED'],
+  'PICKED_UP': ['EXITED'],
+  'EXITED': [],
+  'CANCELLED': [],
+};
+
 String get _apiBaseUrl => _configuredApiBaseUrl.isNotEmpty
     ? _configuredApiBaseUrl
     : kIsWeb
@@ -105,8 +116,13 @@ class _SecurityHome extends StatefulWidget {
 
 class _SecurityHomeState extends State<_SecurityHome> {
   int _tab = 0;
+  int _deliveryTab = 0;
   String _visitorFilter = 'ALL';
   late Future<_GuardSnapshot> _snapshot;
+  _GuardSnapshot? _loadedSnapshot;
+  Timer? _deliverySyncTimer;
+  bool _deliverySyncRunning = false;
+  final ValueNotifier<int> _deliveryRevision = ValueNotifier(0);
 
   @override
   void initState() {
@@ -120,24 +136,95 @@ class _SecurityHomeState extends State<_SecurityHome> {
     await request;
   }
 
-  Future<void> _changePass(_GuardPass pass, String action) async {
+  Future<void> _refreshDeliveries({bool showErrors = true}) async {
+    final snapshot = _loadedSnapshot;
+    if (snapshot == null || _deliverySyncRunning) return;
+    _deliverySyncRunning = true;
     try {
+      final updated = await _GuardApi.loadDeliveries(widget.user);
+      if (!mounted) return;
+      snapshot.deliveries
+        ..clear()
+        ..addAll(updated.deliveries);
+      snapshot.parcels
+        ..clear()
+        ..addAll(updated.parcels);
+      _deliveryRevision.value++;
+    } on _GuardApiException catch (error) {
+      if (showErrors && mounted) _showError(error.message);
+    } catch (_) {
+      if (showErrors && mounted) {
+        _showError('Could not refresh deliveries. Please try again.');
+      }
+    } finally {
+      _deliverySyncRunning = false;
+    }
+  }
+
+  void _selectTab(int index) {
+    setState(() => _tab = index);
+    _deliverySyncTimer?.cancel();
+    _deliverySyncTimer = null;
+    if (index == 3) {
+      unawaited(_refreshDeliveries(showErrors: false));
+      _deliverySyncTimer = Timer.periodic(
+        const Duration(seconds: 3),
+        (_) => unawaited(_refreshDeliveries(showErrors: false)),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _deliverySyncTimer?.cancel();
+    _deliveryRevision.dispose();
+    super.dispose();
+  }
+
+  Future<void> _changePass(
+    _GuardPass pass,
+    String action,
+    _GuardSnapshot data,
+  ) async {
+    try {
+      Map<String, dynamic> response;
       if (action == 'ARRIVAL') {
-        await _GuardApi.patch(
+        response = await _GuardApi.patch(
           '/visitors/passes/${pass.id}/arrival',
           const {},
           widget.user.accessToken,
         );
       } else if (action == 'ENTRY') {
-        await _GuardApi.patch('/visitors/passes/${pass.id}/entry', {
+        response = await _GuardApi.patch('/visitors/passes/${pass.id}/entry', {
           'capturedBy': widget.user.userId,
         }, widget.user.accessToken);
       } else {
-        await _GuardApi.patch('/visitors/passes/${pass.id}/exit', {
+        response = await _GuardApi.patch('/visitors/passes/${pass.id}/exit', {
           'capturedBy': widget.user.userId,
         }, widget.user.accessToken);
       }
       if (!mounted) return;
+      final updatedPass = _GuardPass.fromJson(response);
+      final eventType = action == 'ENTRY'
+          ? 'ENTRY'
+          : action == 'EXIT'
+          ? 'EXIT'
+          : null;
+      setState(() {
+        final index = data.passes.indexWhere((item) => item.id == pass.id);
+        if (index >= 0) data.passes[index] = updatedPass;
+        if (eventType != null) {
+          data.events.insert(
+            0,
+            _GateEvent(
+              type: eventType,
+              passId: pass.id,
+              gateId: pass.gateId,
+              at: DateTime.now(),
+            ),
+          );
+        }
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -149,7 +236,6 @@ class _SecurityHomeState extends State<_SecurityHome> {
           ),
         ),
       );
-      await _refresh();
     } on _GuardApiException catch (error) {
       if (mounted) _showError(error.message);
     }
@@ -163,11 +249,14 @@ class _SecurityHomeState extends State<_SecurityHome> {
     final name = TextEditingController();
     final phone = TextEditingController();
     final deliveryCompany = TextEditingController();
+    final vehicleNo = TextEditingController();
     final formKey = GlobalKey<FormState>();
     String? visitorType;
     String? gateId;
+    String? idType;
+    _GuardDestination? destination;
     bool saving = false;
-    final created = await showModalBottomSheet<bool>(
+    final created = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -197,7 +286,21 @@ class _SecurityHomeState extends State<_SecurityHome> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  Text('Register a visitor', style: _titleStyle(20)),
+                  Row(
+                    children: [
+                      IconButton(
+                        tooltip: 'Close visitor form',
+                        onPressed: () => Navigator.of(sheetContext).pop(),
+                        icon: const Icon(Icons.arrow_back_rounded),
+                      ),
+                      Expanded(
+                        child: Text(
+                          'Register a visitor',
+                          style: _titleStyle(20),
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 6),
                   const Text(
                     'Create a walk-in record for the selected gate.',
@@ -267,6 +370,69 @@ class _SecurityHomeState extends State<_SecurityHome> {
                   ],
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
+                    initialValue: idType,
+                    decoration: _fieldDecoration(
+                      'ID proof type (optional)',
+                      Icons.badge_outlined,
+                    ),
+                    hint: const Text('Select ID proof type'),
+                    items: const [
+                      DropdownMenuItem(value: 'AADHAAR', child: Text('Aadhaar')),
+                      DropdownMenuItem(value: 'DRIVING_LICENSE', child: Text('Driving license')),
+                      DropdownMenuItem(value: 'PASSPORT', child: Text('Passport')),
+                      DropdownMenuItem(value: 'OTHER', child: Text('Other')),
+                    ],
+                    onChanged: (value) => setSheetState(() => idType = value),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: vehicleNo,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: _fieldDecoration(
+                      'Vehicle number (optional)',
+                      Icons.directions_car_outlined,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (data.destinations.isEmpty)
+                    InputDecorator(
+                      decoration: _fieldDecoration(
+                        'Visiting flat / resident',
+                        Icons.apartment_rounded,
+                      ),
+                      child: const Text(
+                        'No active resident and flat assignments available',
+                        style: TextStyle(color: AppColors.muted),
+                      ),
+                    )
+                  else
+                    DropdownButtonFormField<_GuardDestination>(
+                      initialValue: destination,
+                      isExpanded: true,
+                      decoration: _fieldDecoration(
+                        'Visiting flat / resident',
+                        Icons.apartment_rounded,
+                      ),
+                      hint: const Text('Select the resident being visited'),
+                      validator: (value) => value == null
+                          ? 'Select the flat and resident being visited.'
+                          : null,
+                      items: data.destinations
+                          .map(
+                            (item) => DropdownMenuItem(
+                              value: item,
+                              child: Text(
+                                item.label,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) =>
+                          setSheetState(() => destination = value),
+                    ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
                     initialValue: gateId,
                     decoration: _fieldDecoration(
                       'Entry gate',
@@ -293,6 +459,12 @@ class _SecurityHomeState extends State<_SecurityHome> {
                       onPressed: saving
                           ? null
                           : () async {
+                              if (data.destinations.isEmpty) {
+                                _showError(
+                                  'Add an active resident and assign a flat before registering visitors.',
+                                );
+                                return;
+                              }
                               if (!formKey.currentState!.validate()) {
                                 return;
                               }
@@ -305,6 +477,8 @@ class _SecurityHomeState extends State<_SecurityHome> {
                                     'name': name.text.trim(),
                                     'visitorType': visitorType!,
                                     'phone': phone.text.trim(),
+                                    'idType': idType,
+                                    'vehicleNo': vehicleNo.text.trim().toUpperCase(),
                                     'deliveryCompany':
                                         visitorType == 'DELIVERY_PERSON'
                                         ? deliveryCompany.text.trim()
@@ -318,17 +492,29 @@ class _SecurityHomeState extends State<_SecurityHome> {
                                     'The server did not return a visitor record.',
                                   );
                                 }
-                                await _GuardApi.post('/visitors/passes', {
+                                final pass = await _GuardApi.post('/visitors/passes', {
                                   'visitorProfileId': profileId,
                                   'gateId': gateId!,
+                                  'unitId': destination!.unitId,
+                                  'residentId': destination!.residentId,
                                   'passNo':
                                       'WALKIN-${DateTime.now().millisecondsSinceEpoch}',
                                 }, widget.user.accessToken);
+                                if ('${pass['id'] ?? ''}'.isEmpty) {
+                                  throw const _GuardApiException(
+                                    'The server did not return the visitor pass.',
+                                  );
+                                }
                                 if (sheetContext.mounted) {
-                                  Navigator.pop(sheetContext, true);
+                                  Navigator.pop(sheetContext, {
+                                    'profile': profile,
+                                    'pass': pass,
+                                  });
                                 }
                               } on _GuardApiException catch (error) {
-                                setSheetState(() => saving = false);
+                                if (sheetContext.mounted) {
+                                  setSheetState(() => saving = false);
+                                }
                                 if (mounted) {
                                   _showError(error.message);
                                 }
@@ -359,7 +545,19 @@ class _SecurityHomeState extends State<_SecurityHome> {
     name.dispose();
     phone.dispose();
     deliveryCompany.dispose();
-    if (created == true && mounted) {
+    vehicleNo.dispose();
+    if (created != null && mounted) {
+      final visitorJson = Map<String, dynamic>.from(
+        created['profile'] as Map,
+      );
+      final passJson = Map<String, dynamic>.from(created['pass'] as Map);
+      final visitor = _Visitor.fromJson(visitorJson);
+      final pass = _GuardPass.fromJson(passJson);
+      setState(() {
+        data.profiles[visitor.id] = visitor;
+        data.passes.removeWhere((item) => item.id == pass.id);
+        data.passes.insert(0, pass);
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -367,7 +565,6 @@ class _SecurityHomeState extends State<_SecurityHome> {
           ),
         ),
       );
-      await _refresh();
     }
   }
 
@@ -404,6 +601,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
             );
           }
           final data = state.data!;
+          _loadedSnapshot = data;
           return Column(
             children: [
               Expanded(
@@ -425,6 +623,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
                                 0 => _overview(data),
                                 1 => _visitors(data),
                                 2 => _gateLog(data),
+                                3 => _deliveries(data),
                                 _ => _profile(),
                               },
                             ],
@@ -723,6 +922,497 @@ class _SecurityHomeState extends State<_SecurityHome> {
     );
   }
 
+  Widget _deliveries(_GuardSnapshot data) {
+    final showingDeliveries = _deliveryTab == 0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            _deliverySwitch('Deliveries', 0),
+            const SizedBox(width: 8),
+            _deliverySwitch('Parcels', 1),
+            const Spacer(),
+            IconButton(
+              tooltip: 'Refresh deliveries and parcels',
+              onPressed: _refreshDeliveries,
+              icon: const Icon(Icons.refresh_rounded),
+              color: AppColors.indigo,
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _sectionHeading(
+                showingDeliveries ? 'Incoming deliveries' : 'Parcel storage',
+                showingDeliveries
+                    ? '${data.deliveries.length} records'
+                    : '${data.parcels.length} records',
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 46,
+          child: FilledButton.icon(
+            onPressed: showingDeliveries
+                ? () => _registerDelivery(data)
+                : () => _registerParcel(data),
+            icon: Icon(
+              showingDeliveries
+                  ? Icons.local_shipping_outlined
+                  : Icons.inventory_2_outlined,
+            ),
+            label: Text(showingDeliveries ? 'Register delivery' : 'Log parcel'),
+          ),
+        ),
+        const SizedBox(height: 12),
+        ValueListenableBuilder<int>(
+          valueListenable: _deliveryRevision,
+          builder: (context, _, _) => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: showingDeliveries
+                ? data.deliveries.isEmpty
+                    ? [_emptyCard('Incoming deliveries will appear here.')]
+                    : data.deliveries
+                          .map((delivery) => _deliveryCard(delivery, data))
+                          .toList()
+                : data.parcels.isEmpty
+                    ? [_emptyCard('Parcels logged at the gate will appear here.')]
+                    : data.parcels
+                          .map((parcel) => _parcelCard(parcel, data))
+                          .toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _deliverySwitch(String label, int index) => ChoiceChip(
+    label: Text(label),
+    selected: _deliveryTab == index,
+    onSelected: (_) => setState(() => _deliveryTab = index),
+    selectedColor: const Color(0xFFEAE8FF),
+    labelStyle: TextStyle(
+      color: _deliveryTab == index ? AppColors.indigo : AppColors.inkSoft,
+      fontWeight: FontWeight.w700,
+      fontSize: 12,
+    ),
+    side: BorderSide(
+      color: _deliveryTab == index
+          ? AppColors.indigo.withValues(alpha: .25)
+          : const Color(0xFFE1E6EF),
+    ),
+  );
+
+  Widget _deliveryCard(_Delivery delivery, _GuardSnapshot data) {
+    final unit = data.units.where((item) => item.id == delivery.unitId);
+    final unitLabel = unit.isEmpty ? 'Flat' : unit.first.label;
+    final visitor = delivery.visitorProfileId == null
+        ? null
+        : data.profiles[delivery.visitorProfileId];
+    final allowed = _deliveryTransitions[delivery.status] ?? const <String>[];
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(15),
+      decoration: _cardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF3E5),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: const Icon(
+                  Icons.local_shipping_outlined,
+                  color: Color(0xFFE27A12),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _humanize(delivery.type),
+                      style: const TextStyle(
+                        color: AppColors.ink,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '$unitLabel${visitor == null ? '' : ' · ${visitor.name}'}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.muted,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _statusBadge(delivery.status, _deliveryStatusColor(delivery.status)),
+            ],
+          ),
+          if (delivery.courierName?.isNotEmpty == true) ...[
+            const SizedBox(height: 10),
+            Text(
+              delivery.courierName!,
+              style: const TextStyle(color: AppColors.muted, fontSize: 11),
+            ),
+          ],
+          if (allowed.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => _changeDeliveryStatus(delivery, data),
+              icon: const Icon(Icons.sync_alt_rounded, size: 17),
+              label: const Text('Change status'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _parcelCard(_Parcel parcel, _GuardSnapshot data) {
+    final delivery = data.deliveries.where((item) => item.id == parcel.deliveryId);
+    final parent = delivery.isEmpty ? null : delivery.first;
+    final matchingUnits = parent == null
+        ? const <_GuardUnit>[]
+        : data.units.where((item) => item.id == parent.unitId).toList();
+    final unit = matchingUnits.isEmpty ? null : matchingUnits.first;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(15),
+      decoration: _cardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEAF1FF),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: const Icon(
+                  Icons.inventory_2_outlined,
+                  color: Color(0xFF3977D5),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      parcel.parcelCode?.isNotEmpty == true
+                          ? parcel.parcelCode!
+                          : 'Parcel ${parcel.id.substring(0, 8)}',
+                      style: const TextStyle(
+                        color: AppColors.ink,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${unit?.label ?? 'Delivery'} · ${parcel.storageLocation?.isNotEmpty == true ? parcel.storageLocation : 'No storage location'}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.muted,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _statusBadge(parcel.status, _parcelStatusColor(parcel.status)),
+            ],
+          ),
+          if (parcel.status == 'STORED') ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => _changeParcelStatus(parcel, data),
+              icon: const Icon(Icons.task_alt_rounded, size: 17),
+              label: const Text('Update parcel status'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _registerDelivery(_GuardSnapshot data) async {
+    if (data.units.isEmpty) {
+      _showError('No resident flats are available for delivery registration.');
+      return;
+    }
+    final formKey = GlobalKey<FormState>();
+    final courier = TextEditingController();
+    String? unitId;
+    String visitorId = '';
+    String deliveryType = 'COURIER';
+    bool saving = false;
+    final created = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+          child: _surface(
+            context,
+            padding: const EdgeInsets.fromLTRB(22, 12, 22, 24),
+            child: SingleChildScrollView(
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(child: Container(width: 42, height: 4, decoration: BoxDecoration(color: const Color(0xFFDCE2EE), borderRadius: BorderRadius.circular(5)))),
+                    const SizedBox(height: 20),
+                    Text('Register delivery', style: _titleStyle(20)),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      initialValue: unitId,
+                      isExpanded: true,
+                      decoration: _fieldDecoration('Unit', Icons.apartment_rounded),
+                      hint: const Text('Select destination flat'),
+                      validator: (value) => value == null ? 'Select a flat.' : null,
+                      items: data.units.map((unit) => DropdownMenuItem(value: unit.id, child: Text(unit.label, overflow: TextOverflow.ellipsis))).toList(),
+                      onChanged: (value) => setSheetState(() => unitId = value),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: visitorId,
+                      isExpanded: true,
+                      decoration: _fieldDecoration('Visitor profile (optional)', Icons.person_outline_rounded),
+                      items: [
+                        const DropdownMenuItem(value: '', child: Text('No linked visitor')),
+                        ...data.profiles.values.map((visitor) => DropdownMenuItem(value: visitor.id, child: Text(visitor.name, overflow: TextOverflow.ellipsis))),
+                      ],
+                      onChanged: (value) => setSheetState(() => visitorId = value ?? ''),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: deliveryType,
+                      decoration: _fieldDecoration('Delivery type', Icons.category_outlined),
+                      items: const [
+                        DropdownMenuItem(value: 'COURIER', child: Text('Courier')),
+                        DropdownMenuItem(value: 'FOOD', child: Text('Food')),
+                        DropdownMenuItem(value: 'E_COMMERCE', child: Text('E-commerce')),
+                        DropdownMenuItem(value: 'GROCERY', child: Text('Grocery')),
+                        DropdownMenuItem(value: 'OTHER', child: Text('Other')),
+                      ],
+                      onChanged: (value) => setSheetState(() => deliveryType = value ?? 'COURIER'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(controller: courier, decoration: _fieldDecoration('Courier / source (optional)', Icons.local_shipping_outlined)),
+                    const SizedBox(height: 18),
+                    SizedBox(height: 50, child: FilledButton.icon(
+                      onPressed: saving ? null : () async {
+                        if (!formKey.currentState!.validate()) return;
+                        setSheetState(() => saving = true);
+                        try {
+                          final result = await _GuardApi.post('/deliveries', {
+                            'societyId': widget.user.societyId,
+                            'unitId': unitId,
+                            'visitorProfileId': visitorId.isEmpty ? null : visitorId,
+                            'deliveryType': deliveryType,
+                            'courierName': courier.text.trim(),
+                          }, widget.user.accessToken);
+                          if (sheetContext.mounted) Navigator.pop(sheetContext, result);
+                        } on _GuardApiException catch (error) {
+                          if (sheetContext.mounted) setSheetState(() => saving = false);
+                          if (mounted) _showError(error.message);
+                        }
+                      },
+                      icon: saving ? const SizedBox.square(dimension: 17, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.add_rounded),
+                      label: Text(saving ? 'Registering...' : 'Register delivery'),
+                    )),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    courier.dispose();
+    if (created != null && mounted) {
+      final delivery = _Delivery.fromJson(created);
+      setState(() => data.deliveries.insert(0, delivery));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Delivery registered.')));
+    }
+  }
+
+  Future<void> _registerParcel(_GuardSnapshot data) async {
+    if (data.deliveries.isEmpty) {
+      _showError('Register a delivery before logging its parcel.');
+      return;
+    }
+    final location = TextEditingController();
+    String? deliveryId;
+    bool saving = false;
+    final created = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+          child: _surface(
+            context,
+            padding: const EdgeInsets.fromLTRB(22, 12, 22, 24),
+            child: SingleChildScrollView(child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(child: Container(width: 42, height: 4, decoration: BoxDecoration(color: const Color(0xFFDCE2EE), borderRadius: BorderRadius.circular(5)))),
+                const SizedBox(height: 20),
+                Text('Log parcel', style: _titleStyle(20)),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: deliveryId,
+                  isExpanded: true,
+                  decoration: _fieldDecoration('Related delivery', Icons.local_shipping_outlined),
+                  hint: const Text('Select delivery'),
+                  items: data.deliveries.map((item) => DropdownMenuItem(value: item.id, child: Text('${_humanize(item.type)} · ${item.courierName ?? 'Delivery'}', overflow: TextOverflow.ellipsis))).toList(),
+                  onChanged: (value) => setSheetState(() => deliveryId = value),
+                ),
+                const SizedBox(height: 12),
+                TextField(controller: location, decoration: _fieldDecoration('Storage location (optional)', Icons.inventory_2_outlined)),
+                const SizedBox(height: 18),
+                SizedBox(height: 50, child: FilledButton.icon(
+                  onPressed: saving ? null : () async {
+                    if (deliveryId == null) {
+                      _showError('Select the delivery for this parcel.');
+                      return;
+                    }
+                    setSheetState(() => saving = true);
+                    try {
+                      final result = await _GuardApi.post('/deliveries/parcels', {
+                        'deliveryId': deliveryId,
+                        'storageLocation': location.text.trim(),
+                        'receivedBy': widget.user.userId,
+                      }, widget.user.accessToken);
+                      if (sheetContext.mounted) Navigator.pop(sheetContext, result);
+                    } on _GuardApiException catch (error) {
+                      if (sheetContext.mounted) setSheetState(() => saving = false);
+                      if (mounted) _showError(error.message);
+                    }
+                  },
+                  icon: saving ? const SizedBox.square(dimension: 17, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.add_rounded),
+                  label: Text(saving ? 'Saving parcel...' : 'Log parcel'),
+                )),
+              ],
+            )),
+          ),
+        ),
+      ),
+    );
+    location.dispose();
+    if (created != null && mounted) {
+      final parcel = _Parcel.fromJson(created);
+      setState(() => data.parcels.insert(0, parcel));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Parcel logged.')));
+    }
+  }
+
+  Future<void> _changeDeliveryStatus(_Delivery delivery, _GuardSnapshot data) async {
+    final choices = _deliveryTransitions[delivery.status] ?? const <String>[];
+    final status = await _chooseStatus('Change delivery status', choices);
+    if (status == null) return;
+    final now = DateTime.now().toIso8601String();
+    try {
+      final updatedJson = await _GuardApi.patch('/deliveries/${delivery.id}/status', {
+        'status': status,
+        'receivedAt': status == 'ARRIVED' ? now : null,
+        'handedOverAt': status == 'PICKED_UP' || status == 'EXITED' ? now : null,
+      }, widget.user.accessToken);
+      if (!mounted) return;
+      final updated = _Delivery.fromJson(updatedJson);
+      setState(() {
+        final index = data.deliveries.indexWhere((item) => item.id == delivery.id);
+        if (index >= 0) data.deliveries[index] = updated;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delivery marked ${_humanize(status).toLowerCase()}.')));
+    } on _GuardApiException catch (error) {
+      if (mounted) _showError(error.message);
+    }
+  }
+
+  Future<void> _changeParcelStatus(_Parcel parcel, _GuardSnapshot data) async {
+    final status = await _chooseStatus('Update parcel status', const ['COLLECTED', 'DAMAGED', 'LOST']);
+    if (status == null) return;
+    try {
+      final updatedJson = await _GuardApi.patch('/deliveries/parcels/${parcel.id}/status', {
+        'status': status,
+        'collectedBy': status == 'COLLECTED' ? widget.user.userId : null,
+      }, widget.user.accessToken);
+      if (!mounted) return;
+      final updated = _Parcel.fromJson(updatedJson);
+      setState(() {
+        final index = data.parcels.indexWhere((item) => item.id == parcel.id);
+        if (index >= 0) data.parcels[index] = updated;
+        if (status == 'COLLECTED') {
+          final deliveryIndex = data.deliveries.indexWhere((item) => item.id == parcel.deliveryId && (item.status == 'LEFT_AT_GATE' || item.status == 'OVERSTAY'));
+          if (deliveryIndex >= 0) {
+            final old = data.deliveries[deliveryIndex];
+            data.deliveries[deliveryIndex] = _Delivery(
+              id: old.id, unitId: old.unitId, type: old.type, status: 'PICKED_UP',
+              visitorProfileId: old.visitorProfileId, courierName: old.courierName,
+              createdAt: old.createdAt,
+            );
+          }
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Parcel marked ${_humanize(status).toLowerCase()}.')));
+    } on _GuardApiException catch (error) {
+      if (mounted) _showError(error.message);
+    }
+  }
+
+  Future<String?> _chooseStatus(String title, List<String> choices) =>
+      showModalBottomSheet<String>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        builder: (sheetContext) => _surface(
+          sheetContext,
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 26),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(title, style: _titleStyle(18)),
+              const SizedBox(height: 10),
+              ...choices.map((choice) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(_humanize(choice)),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => Navigator.pop(sheetContext, choice),
+              )),
+            ],
+          ),
+        ),
+      );
+
   Widget _gateLog(_GuardSnapshot data) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
@@ -893,6 +1583,19 @@ class _SecurityHomeState extends State<_SecurityHome> {
                         fontSize: 11,
                       ),
                     ),
+                    if (data.destinationLabel(pass) case final destination?) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        'Visiting $destination',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.indigo,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -928,7 +1631,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
             SizedBox(
               height: 43,
               child: FilledButton.icon(
-                onPressed: () => _changePass(pass, action.$2!),
+                      onPressed: () => _changePass(pass, action.$2!, data),
                 icon: Icon(
                   action.$2 == 'EXIT'
                       ? Icons.logout_rounded
@@ -1192,7 +1895,8 @@ class _SecurityHomeState extends State<_SecurityHome> {
                 _navItem(Icons.shield_outlined, 'Overview', 0),
                 _navItem(Icons.groups_2_outlined, 'Visitors', 1),
                 _navItem(Icons.receipt_long_outlined, 'Gate log', 2),
-                _navItem(Icons.person_outline_rounded, 'Profile', 3),
+                _navItem(Icons.local_shipping_outlined, 'Deliveries', 3),
+                _navItem(Icons.person_outline_rounded, 'Profile', 4),
               ],
             ),
           ),
@@ -1204,7 +1908,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
   Widget _navItem(IconData icon, String label, int index) => Expanded(
     child: InkWell(
       borderRadius: BorderRadius.circular(14),
-      onTap: () => setState(() => _tab = index),
+      onTap: () => _selectTab(index),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 5),
         child: Column(
@@ -1278,14 +1982,31 @@ class _GuardSnapshot {
   const _GuardSnapshot({
     required this.gates,
     required this.profiles,
+    required this.destinations,
     required this.passes,
     required this.events,
+    required this.deliveries,
+    required this.parcels,
   });
 
   final List<_Gate> gates;
   final Map<String, _Visitor> profiles;
+  final List<_GuardDestination> destinations;
   final List<_GuardPass> passes;
   final List<_GateEvent> events;
+  final List<_Delivery> deliveries;
+  final List<_Parcel> parcels;
+
+  List<_GuardUnit> get units {
+    final byId = <String, _GuardUnit>{};
+    for (final destination in destinations) {
+      byId.putIfAbsent(
+        destination.unitId,
+        () => _GuardUnit(destination.unitId, destination.homeLabel),
+      );
+    }
+    return byId.values.toList();
+  }
 
   int get activeCount => passes
       .where((pass) => pass.status == 'INSIDE' || pass.status == 'OVERSTAY')
@@ -1311,6 +2032,17 @@ class _GuardSnapshot {
       if (gate.id == id) return gate.name;
     }
     return 'Society gate';
+  }
+
+  String? destinationLabel(_GuardPass pass) {
+    if (pass.unitId == null || pass.residentId == null) return null;
+    for (final destination in destinations) {
+      if (destination.unitId == pass.unitId &&
+          destination.residentId == pass.residentId) {
+        return destination.label;
+      }
+    }
+    return null;
   }
 }
 
@@ -1341,6 +2073,102 @@ class _Visitor {
   );
 }
 
+class _GuardDestination {
+  const _GuardDestination({
+    required this.unitId,
+    required this.residentId,
+    required this.label,
+    required this.homeLabel,
+  });
+
+  final String unitId;
+  final String residentId;
+  final String label;
+  final String homeLabel;
+
+  factory _GuardDestination.fromJson(Map<String, dynamic> json) {
+    final tower = '${json['tower_name'] ?? ''}'.trim();
+    final flat = '${json['unit_number'] ?? ''}'.trim();
+    final floor = '${json['floor_name'] ?? ''}'.trim();
+    final home = [if (tower.isNotEmpty) tower, if (flat.isNotEmpty) flat]
+        .join(' · ');
+    final details = [if (floor.isNotEmpty) floor, if (home.isNotEmpty) home]
+        .join(' · ');
+    return _GuardDestination(
+      unitId: '${json['unit_id'] ?? ''}',
+      residentId: '${json['resident_id'] ?? ''}',
+      label: '${details.isEmpty ? 'Flat' : details} — ${json['resident_name'] ?? 'Resident'}',
+      homeLabel: details.isEmpty ? 'Flat' : details,
+    );
+  }
+}
+
+class _GuardUnit {
+  const _GuardUnit(this.id, this.label);
+  final String id;
+  final String label;
+}
+
+class _Delivery {
+  const _Delivery({
+    required this.id,
+    required this.unitId,
+    required this.type,
+    required this.status,
+    this.visitorProfileId,
+    this.courierName,
+    this.createdAt,
+  });
+  final String id;
+  final String unitId;
+  final String type;
+  final String status;
+  final String? visitorProfileId;
+  final String? courierName;
+  final DateTime? createdAt;
+  factory _Delivery.fromJson(Map<String, dynamic> json) => _Delivery(
+    id: '${json['id'] ?? ''}',
+    unitId: '${json['unit_id'] ?? ''}',
+    type: '${json['delivery_type'] ?? 'OTHER'}'.toUpperCase(),
+    status: '${json['status'] ?? 'EXPECTED'}'.toUpperCase(),
+    visitorProfileId: json['visitor_profile_id']?.toString(),
+    courierName: json['courier_name']?.toString(),
+    createdAt: DateTime.tryParse('${json['created_at'] ?? ''}'),
+  );
+}
+
+class _Parcel {
+  const _Parcel({
+    required this.id,
+    required this.deliveryId,
+    required this.status,
+    this.parcelCode,
+    this.storageLocation,
+    this.createdAt,
+  });
+  final String id;
+  final String deliveryId;
+  final String status;
+  final String? parcelCode;
+  final String? storageLocation;
+  final DateTime? createdAt;
+  factory _Parcel.fromJson(Map<String, dynamic> json) => _Parcel(
+    id: '${json['id'] ?? ''}',
+    deliveryId: '${json['delivery_id'] ?? ''}',
+    status: '${json['status'] ?? 'STORED'}'.toUpperCase(),
+    parcelCode: json['parcel_code']?.toString(),
+    storageLocation: json['storage_location']?.toString(),
+    createdAt: DateTime.tryParse('${json['created_at'] ?? ''}'),
+  );
+}
+
+class _GuardDeliverySnapshot {
+  const _GuardDeliverySnapshot({required this.deliveries, required this.parcels});
+
+  final List<_Delivery> deliveries;
+  final List<_Parcel> parcels;
+}
+
 class _GuardPass {
   const _GuardPass({
     required this.id,
@@ -1349,6 +2177,8 @@ class _GuardPass {
     required this.passNo,
     required this.status,
     required this.createdAt,
+    this.unitId,
+    this.residentId,
   });
   final String id;
   final String gateId;
@@ -1356,6 +2186,8 @@ class _GuardPass {
   final String passNo;
   final String status;
   final DateTime? createdAt;
+  final String? unitId;
+  final String? residentId;
   factory _GuardPass.fromJson(Map<String, dynamic> json) => _GuardPass(
     id: '${json['id'] ?? ''}',
     gateId: '${json['gate_id'] ?? ''}',
@@ -1363,6 +2195,8 @@ class _GuardPass {
     passNo: '${json['pass_no'] ?? '—'}',
     status: '${json['status'] ?? 'EXPECTED'}'.toUpperCase(),
     createdAt: DateTime.tryParse('${json['created_at'] ?? ''}'),
+    unitId: json['unit_id']?.toString(),
+    residentId: json['resident_id']?.toString(),
   );
 }
 
@@ -1386,6 +2220,25 @@ class _GateEvent {
 }
 
 class _GuardApi {
+  static Future<_GuardDeliverySnapshot> loadDeliveries(
+    AuthenticatedUser user,
+  ) async {
+    final societyId = user.societyId;
+    if (societyId == null || societyId.isEmpty) {
+      throw const _GuardApiException(
+        'This guard account is not linked to a society. Ask an administrator to check the staff assignment.',
+      );
+    }
+    final results = await Future.wait([
+      _get('/deliveries', user.accessToken, {'societyId': societyId}),
+      _get('/deliveries/parcels', user.accessToken, {'societyId': societyId}),
+    ]);
+    return _GuardDeliverySnapshot(
+      deliveries: results[0].map(_Delivery.fromJson).toList(),
+      parcels: results[1].map(_Parcel.fromJson).toList(),
+    );
+  }
+
   static Future<_GuardSnapshot> load(AuthenticatedUser user) async {
     final societyId = user.societyId;
     if (societyId == null || societyId.isEmpty) {
@@ -1401,7 +2254,14 @@ class _GuardApi {
     final profilesFuture = _get('/visitors/profiles', user.accessToken, {
       'societyId': societyId,
     });
+    final destinationsFuture = _get('/visitors/destinations', user.accessToken);
     final eventsFuture = _get('/visitors/gate-events', user.accessToken, {
+      'societyId': societyId,
+    });
+    final deliveriesFuture = _get('/deliveries', user.accessToken, {
+      'societyId': societyId,
+    });
+    final parcelsFuture = _get('/deliveries/parcels', user.accessToken, {
       'societyId': societyId,
     });
     final passFutures = gates.map(
@@ -1409,7 +2269,10 @@ class _GuardApi {
     );
     final results = await Future.wait([
       profilesFuture,
+      destinationsFuture,
       eventsFuture,
+      deliveriesFuture,
+      parcelsFuture,
       ...passFutures,
     ]);
     final profiles = <String, _Visitor>{
@@ -1417,9 +2280,15 @@ class _GuardApi {
         if ('${row['id'] ?? ''}'.isNotEmpty)
           '${row['id']}': _Visitor.fromJson(row),
     };
-    final events = results[1].map(_GateEvent.fromJson).toList();
+    final destinations = results[1]
+        .map(_GuardDestination.fromJson)
+        .where((item) => item.unitId.isNotEmpty && item.residentId.isNotEmpty)
+        .toList();
+    final events = results[2].map(_GateEvent.fromJson).toList();
+    final deliveries = results[3].map(_Delivery.fromJson).toList();
+    final parcels = results[4].map(_Parcel.fromJson).toList();
     final passes = results
-        .skip(2)
+        .skip(5)
         .expand((rows) => rows)
         .map(_GuardPass.fromJson)
         .toList();
@@ -1434,8 +2303,11 @@ class _GuardApi {
     return _GuardSnapshot(
       gates: gates,
       profiles: profiles,
+      destinations: destinations,
       passes: passes,
       events: events,
+      deliveries: deliveries,
+      parcels: parcels,
     );
   }
 
@@ -1639,7 +2511,7 @@ String _statusLabel(String status) => switch (status) {
   'OVERSTAY' => 'Overstay',
   'EXITED' => 'Exited',
   'CANCELLED' => 'Cancelled',
-  _ => status,
+  _ => _humanize(status),
 };
 Color _statusColor(String status) => switch (status) {
   'ARRIVED' => const Color(0xFFB16A00),
@@ -1649,6 +2521,33 @@ Color _statusColor(String status) => switch (status) {
   'EXITED' => const Color(0xFF67758E),
   _ => AppColors.muted,
 };
+
+String _humanize(String value) => value
+    .toLowerCase()
+    .split('_')
+    .map((word) => word.isEmpty ? word : '${word[0].toUpperCase()}${word.substring(1)}')
+    .join(' ');
+
+Color _deliveryStatusColor(String status) => switch (status) {
+  'EXPECTED' => const Color(0xFF3977D5),
+  'ARRIVED' => const Color(0xFFB16A00),
+  'INSIDE' => const Color(0xFF199866),
+  'LEFT_AT_GATE' => const Color(0xFF3977D5),
+  'PICKED_UP' => const Color(0xFF199866),
+  'EXITED' => const Color(0xFF67758E),
+  'OVERSTAY' => const Color(0xFFC53D4B),
+  'CANCELLED' => const Color(0xFFC53D4B),
+  _ => AppColors.muted,
+};
+
+Color _parcelStatusColor(String status) => switch (status) {
+  'STORED' => const Color(0xFF3977D5),
+  'COLLECTED' => const Color(0xFF199866),
+  'DAMAGED' => const Color(0xFFB16A00),
+  'LOST' => const Color(0xFFC53D4B),
+  _ => AppColors.muted,
+};
+
 String _formatDate(DateTime? date) {
   if (date == null) return 'Time unavailable';
   final local = date.toLocal();

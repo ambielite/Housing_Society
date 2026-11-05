@@ -74,22 +74,33 @@ const findParcelById = async (id) => {
   return result.rows[0] || null;
 };
 
-const listParcels = async ({ deliveryId, status }) => {
+const listParcels = async ({ societyId, deliveryId, status }) => {
   const conditions = [];
   const params = [];
   let idx = 1;
 
+  if (societyId) {
+    conditions.push(`d.society_id = $${idx++}`);
+    params.push(societyId);
+  }
   if (deliveryId) {
-    conditions.push(`delivery_id = $${idx++}`);
+    conditions.push(`p.delivery_id = $${idx++}`);
     params.push(deliveryId);
   }
   if (status) {
-    conditions.push(`status = $${idx++}`);
+    conditions.push(`p.status = $${idx++}`);
     params.push(status);
   }
 
   const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-  const result = await db.query(`SELECT * FROM parcels ${whereClause} ORDER BY id DESC`, params);
+  const result = await db.query(
+    `SELECT p.*
+     FROM parcels p
+     JOIN deliveries d ON d.id = p.delivery_id
+     ${whereClause}
+     ORDER BY p.id DESC`,
+    params
+  );
   return result.rows;
 };
 

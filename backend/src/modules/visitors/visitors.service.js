@@ -26,6 +26,7 @@ const gatesRepository = require('../gates/gates.repository');
 const createProfile = (payload) => repository.createProfile(payload);
 
 const listProfiles = (query) => repository.listProfiles(query);
+const listDestinations = (societyId) => repository.listDestinations(societyId);
 
 const getProfile = async (id) => {
   const profile = await repository.findProfileById(id);
@@ -93,7 +94,7 @@ const decideInvite = async (id, status) => {
  * be APPROVED). inviteId absent = walk-in, created directly by a guard.
  * This single function covers "Pre-approved/Walk-in created".
  */
-const createPass = async ({ inviteId, visitorProfileId, gateId, passNo }) => {
+const createPass = async ({ inviteId, visitorProfileId, gateId, passNo, unitId, residentId }) => {
   const profile = await repository.findProfileById(visitorProfileId);
   if (!profile) {
     throw new ApiError(404, 'Visitor profile not found');
@@ -106,6 +107,18 @@ const createPass = async ({ inviteId, visitorProfileId, gateId, passNo }) => {
   if (!gate) {
     throw new ApiError(404, 'Gate not found');
   }
+  if (profile.society_id !== gate.society_id) {
+    throw new ApiError(400, 'The visitor profile and gate must belong to the same society');
+  }
+  if (unitId || residentId) {
+    if (!unitId || !residentId || !await repository.destinationBelongsToSociety({
+      societyId: gate.society_id,
+      unitId,
+      residentId,
+    })) {
+      throw new ApiError(400, 'Select an active resident and flat in this society');
+    }
+  }
 
   if (inviteId) {
     const invite = await repository.findInviteById(inviteId);
@@ -117,7 +130,7 @@ const createPass = async ({ inviteId, visitorProfileId, gateId, passNo }) => {
     }
   }
 
-  return repository.createPass({ inviteId, visitorProfileId, gateId, passNo });
+  return repository.createPass({ inviteId, visitorProfileId, gateId, passNo, unitId, residentId });
 };
 
 const listPasses = (query) => repository.listPasses(query);
@@ -236,6 +249,7 @@ const acknowledgeOverstayAlert = async (id, acknowledgedBy, status) => {
 module.exports = {
   createProfile,
   listProfiles,
+  listDestinations,
   getProfile,
   updateProfile,
   setBlacklistStatus,

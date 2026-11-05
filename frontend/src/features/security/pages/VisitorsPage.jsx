@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { LogIn, LogOut, Plus } from 'lucide-react';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
 import useFetch from '../../../utils/useFetch';
@@ -134,6 +134,17 @@ export default function VisitorsPage({ societyId, societyName, currentUser, gate
   const eventRows = list(events.data);
   const alertRows = list(alerts.data);
   const userRows = list(users.data);
+
+  // Guard actions are written immediately through the shared visitor API.
+  // Keep the admin pass/event tables in sync while either live view is open.
+  useEffect(() => {
+    if (tab !== 'passes' && tab !== 'events') return undefined;
+    const timer = window.setInterval(() => {
+      passes.reload();
+      if (tab === 'events') events.reload();
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [tab, passes.reload, events.reload]);
 
   const run = async (action, success) => {
     setError(''); setNotice('');
@@ -286,7 +297,16 @@ const passColumns = [
   {
     key: 'type',
     header: 'Event',
-    render: (e) => <SecurityBadge value={e.event_type} />
+    render: (e) => {
+      const eventType = String(e.event_type || '').toUpperCase();
+      const EventIcon = eventType === 'ENTRY' ? LogIn : LogOut;
+      return (
+        <span className={`gate-event-badge gate-event-badge--${eventType.toLowerCase()}`}>
+          <EventIcon size={13} strokeWidth={2.5} aria-hidden="true" />
+          {label(eventType)}
+        </span>
+      );
+    }
   },
   {
     key: 'gate',

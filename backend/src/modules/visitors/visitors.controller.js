@@ -13,6 +13,11 @@ const listProfiles = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, profiles);
 });
 
+const listDestinations = asyncHandler(async (req, res) => {
+  const destinations = await service.listDestinations(req.user.societyId);
+  return ApiResponse.success(res, destinations);
+});
+
 const getProfile = asyncHandler(async (req, res) => {
   const profile = await service.getProfile(req.params.profileId);
   return ApiResponse.success(res, profile);
@@ -110,6 +115,7 @@ const acknowledgeOverstayAlert = asyncHandler(async (req, res) => {
 module.exports = {
   createProfile,
   listProfiles,
+  listDestinations,
   getProfile,
   updateProfile,
   setBlacklistStatus,

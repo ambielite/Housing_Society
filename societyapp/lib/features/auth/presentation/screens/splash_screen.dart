@@ -150,22 +150,6 @@ class _SplashScreenState extends State<SplashScreen>
                             colors: [_sunYellow, _hotPink, Color(0x00FF4FA3)],
                             stops: [0, 0.55, 0.72],
                           ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: _hotPink.withValues(
-                                alpha: 0.12 + pulse * 0.14,
-                              ),
-                              blurRadius: 48 + pulse * 32,
-                              spreadRadius: 2 + pulse * 7,
-                            ),
-                            BoxShadow(
-                              color: _neonCyan.withValues(
-                                alpha: 0.08 + pulse * 0.08,
-                              ),
-                              blurRadius: 80,
-                              spreadRadius: 4,
-                            ),
-                          ],
                         ),
                       ),
                     ),
@@ -185,30 +169,14 @@ class _SplashScreenState extends State<SplashScreen>
                               angle: math.sin(energy * math.pi * 2) * 0.018,
                               child: Transform.scale(
                                 scale: 1 + pulse * 0.025,
-                                child: ShaderMask(
-                                  shaderCallback: (bounds) =>
-                                      const LinearGradient(
-                                        colors: [
-                                          Colors.white,
-                                          _neonCyan,
-                                          Color(0xFFFFB8DE),
-                                        ],
-                                      ).createShader(bounds),
-                                  child: const Text(
-                                    kAppName,
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 28,
-                                      fontWeight: FontWeight.w900,
-                                      letterSpacing: 8,
-                                      shadows: [
-                                        Shadow(
-                                          color: _neonCyan,
-                                          blurRadius: 22,
-                                        ),
-                                      ],
-                                    ),
+                                child: const Text(
+                                  kAppName,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 8,
                                   ),
                                 ),
                               ),
@@ -410,10 +378,8 @@ class _OrbitPainter extends CustomPainter {
     );
     canvas.drawCircle(
       satellite,
-      4 + pulse * 1.5,
-      Paint()
-        ..color = _neonCyan
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+      5 + pulse * 1.5,
+      Paint()..color = _neonCyan.withValues(alpha: 0.32),
     );
     canvas.drawCircle(satellite, 2.4, Paint()..color = Colors.white);
   }
@@ -428,7 +394,7 @@ class _SparkFieldPainter extends CustomPainter {
 
   final double progress;
 
-  static final List<_Spark> _sparks = List.generate(38, (index) {
+  static final List<_Spark> _sparks = List.generate(18, (index) {
     final random = math.Random(index * 31 + 7);
     return _Spark(
       random.nextDouble(),
@@ -453,9 +419,7 @@ class _SparkFieldPainter extends CustomPainter {
       canvas.drawCircle(
         Offset(x, y),
         spark.radius * (0.7 + glow * 0.55),
-        Paint()
-          ..color = color.withValues(alpha: 0.16 + glow * 0.48)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 2 + glow * 4),
+        Paint()..color = color.withValues(alpha: 0.22 + glow * 0.42),
       );
 
       if (spark.radius > 1.8 && glow > 0.82) {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
 import useFetch from '../../../utils/useFetch';
@@ -93,9 +93,19 @@ export default function DeliveriesPage({ societyId, currentUser, profiles, unitN
   const [notice, setNotice] = useState('');
 
   const deliveries = useFetch(() => api.listDeliveries({ societyId }), [societyId]);
-  const parcels = useFetch(() => api.listParcels({}), []);
+  const parcels = useFetch(() => api.listParcels({ societyId }), [societyId]);
   const deliveryRows = list(deliveries.data);
   const parcelRows = list(parcels.data);
+
+  useEffect(() => {
+    const refreshActiveList = () => {
+      if (tab === 'deliveries') deliveries.reload();
+      else parcels.reload();
+    };
+    refreshActiveList();
+    const interval = setInterval(refreshActiveList, 3000);
+    return () => clearInterval(interval);
+  }, [tab, deliveries.reload, parcels.reload]);
 
   const run = async (action, success) => {
     setError(''); setNotice('');

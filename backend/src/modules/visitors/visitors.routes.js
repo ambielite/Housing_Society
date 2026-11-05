@@ -31,6 +31,7 @@ router.get(
   validate(listProfilesQuerySchema, 'query'),
   controller.listProfiles
 );
+router.get('/destinations', authorize('VISITOR_PASS_CREATE'), controller.listDestinations);
 router.get('/profiles/:profileId', authorize('VISITOR_PROFILE_READ'), controller.getProfile);
 router.patch(
   '/profiles/:profileId',

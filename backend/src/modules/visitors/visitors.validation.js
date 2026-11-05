@@ -68,7 +68,9 @@ const createPassSchema = Joi.object({
   visitorProfileId: Joi.string().uuid().required(),
   gateId: Joi.string().uuid().required(),
   passNo: Joi.string().max(50).required(),
-});
+  unitId: Joi.string().uuid().allow(null),
+  residentId: Joi.string().uuid().allow(null),
+}).with('unitId', 'residentId').with('residentId', 'unitId');
 
 const listPassesQuerySchema = Joi.object({
   gateId: Joi.string().uuid(),
