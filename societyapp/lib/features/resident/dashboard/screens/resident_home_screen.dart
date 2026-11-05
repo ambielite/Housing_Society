@@ -23,7 +23,9 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     with WidgetsBindingObserver {
   int _selectedTab = 0;
   late Future<ResidentDashboardData> _dashboardFuture;
-  Timer? _noticeRefreshTimer;
+  ResidentDashboardData? _dashboardData;
+  Timer? _dashboardRefreshTimer;
+  bool _refreshingDashboard = false;
 
   String get _firstName => widget.user.name.trim().split(' ').first;
 
@@ -31,37 +33,124 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _dashboardFuture = ResidentDashboardApi.load(widget.user.accessToken);
-    _noticeRefreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted &&
-          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
-        _reloadDashboard();
-      }
-    });
+    _dashboardFuture = ResidentDashboardApi.load(widget.user.accessToken).then(
+      (data) {
+        _dashboardData = data;
+        return data;
+      },
+    );
+    _dashboardRefreshTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _refreshDashboardInBackground(),
+    );
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _reloadDashboard();
+    if (state == AppLifecycleState.resumed) {
+      _refreshDashboardInBackground();
+    }
   }
 
   @override
   void dispose() {
-    _noticeRefreshTimer?.cancel();
+    _dashboardRefreshTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
-  void _reloadDashboard() {
+  Future<void> _refreshDashboard() async {
+    if (_refreshingDashboard) return;
+    _refreshingDashboard = true;
+    try {
+      final data = await ResidentDashboardApi.load(widget.user.accessToken);
+      if (mounted) {
+        final refreshedData = _mergeLocalBookings(data);
+        setState(() {
+          _dashboardData = refreshedData;
+          _dashboardFuture = Future.value(refreshedData);
+        });
+      }
+    } finally {
+      _refreshingDashboard = false;
+    }
+  }
+
+  Future<void> _refreshDashboardInBackground() async {
+    if (!mounted ||
+        _refreshingDashboard ||
+        _selectedTab != 0 ||
+        WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed ||
+        ModalRoute.of(context)?.isCurrent == false) {
+      return;
+    }
+    try {
+      await _refreshDashboard();
+    } catch (_) {
+      // Keep showing the last successfully loaded dashboard on network errors.
+    }
+  }
+
+  void _addUpcomingBooking(ResidentUpcomingBooking booking) {
+    if (!mounted) return;
+    final current = _dashboardData;
+    if (current == null) {
+      final updatedFuture = _dashboardFuture.then((dashboard) {
+        final updated = _mergeBooking(dashboard, booking);
+        _dashboardData = updated;
+        return updated;
+      });
+      setState(() => _dashboardFuture = updatedFuture);
+      return;
+    }
+    final updated = _mergeBooking(current, booking);
     setState(() {
-      _dashboardFuture = ResidentDashboardApi.load(widget.user.accessToken);
+      _dashboardData = updated;
+      _dashboardFuture = Future.value(updated);
     });
   }
 
-  Future<void> _refreshDashboard() async {
-    final next = ResidentDashboardApi.load(widget.user.accessToken);
-    setState(() => _dashboardFuture = next);
-    await next;
+  ResidentDashboardData _mergeLocalBookings(ResidentDashboardData data) {
+    var merged = data;
+    for (final booking in _dashboardData?.upcomingBookings ?? const []) {
+      final exists = merged.upcomingBookings.any(
+        (existing) => _sameUpcomingBooking(existing, booking),
+      );
+      if (!exists) {
+        merged = merged.copyWith(
+          upcomingBookings: [...merged.upcomingBookings, booking],
+        );
+      }
+    }
+    return merged;
+  }
+
+  ResidentDashboardData _mergeBooking(
+    ResidentDashboardData dashboard,
+    ResidentUpcomingBooking booking,
+  ) {
+    final remaining = dashboard.upcomingBookings.where(
+      (existing) => !_sameUpcomingBooking(existing, booking),
+    );
+    return dashboard.copyWith(upcomingBookings: [booking, ...remaining]);
+  }
+
+  bool _sameUpcomingBooking(
+    ResidentUpcomingBooking first,
+    ResidentUpcomingBooking second,
+  ) {
+    bool sameTime(String firstTime, String secondTime) {
+      final firstParts = _clockParts(firstTime);
+      final secondParts = _clockParts(secondTime);
+      return firstParts != null && secondParts != null
+          ? firstParts == secondParts
+          : firstTime == secondTime;
+    }
+
+    return first.amenityName == second.amenityName &&
+        first.slotDate == second.slotDate &&
+        sameTime(first.startTime, second.startTime) &&
+        sameTime(first.endTime, second.endTime);
   }
 
   Future<void> _openProfile(BuildContext context) async {
@@ -615,11 +704,13 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
 
   Future<void> _openAmenities(BuildContext context) async {
     await Navigator.of(context).push<void>(
-        MaterialPageRoute<void>(
-          builder: (_) => ResidentAmenitiesScreen(user: widget.user),
+      MaterialPageRoute<void>(
+        builder: (_) => ResidentAmenitiesScreen(
+          user: widget.user,
+          onBookingCreated: _addUpcomingBooking,
         ),
-      );
-    if (mounted) _reloadDashboard();
+      ),
+    );
   }
 
   Widget _maintenanceCard(ResidentDashboardData dashboard) {
@@ -911,11 +1002,21 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
   }
 
   (int, String, int)? _clockParts(String value) {
-    final parts = value.split(':');
-    if (parts.length < 2) return null;
-    final hour = int.tryParse(parts[0]);
-    final minute = int.tryParse(parts[1]);
-    if (hour == null || minute == null || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+    final match = RegExp(
+      r'^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$',
+      caseSensitive: false,
+    ).firstMatch(value.trim());
+    if (match == null) return null;
+    var hour = int.tryParse(match.group(1)!);
+    final minute = int.tryParse(match.group(2)!);
+    final period = match.group(3)?.toUpperCase();
+    if (hour == null || minute == null || minute < 0 || minute > 59) {
+      return null;
+    }
+    if (period != null) {
+      if (hour < 1 || hour > 12) return null;
+      hour = (hour % 12) + (period == 'PM' ? 12 : 0);
+    } else if (hour < 0 || hour > 23) {
       return null;
     }
     return (hour, hour < 12 ? 'AM' : 'PM', minute);
@@ -1104,7 +1205,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           ),
           const SizedBox(height: 14),
           FilledButton(
-            onPressed: _reloadDashboard,
+            onPressed: _refreshDashboard,
             child: const Text('Try again'),
           ),
         ],

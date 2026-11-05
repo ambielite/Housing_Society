@@ -94,6 +94,22 @@ const createSlot = async ({ amenityId, slotDate, startTime, endTime, capacity, p
   return result.rows[0];
 };
 
+const createSlotSeries = async ({ amenityId, dates, startTime, endTime, capacity, price }) => {
+  const values = [];
+  const rows = dates.map((date, index) => {
+    const offset = index * 6;
+    values.push(amenityId, date, startTime, endTime, capacity, price);
+    return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, COALESCE($${offset + 6}, 0))`;
+  });
+  const result = await db.query(
+    `INSERT INTO amenity_slots (amenity_id, slot_date, start_time, end_time, capacity, price)
+     VALUES ${rows.join(', ')}
+     RETURNING *`,
+    values
+  );
+  return result.rows;
+};
+
 const findSlotById = async (id) => {
   const result = await db.query('SELECT * FROM amenity_slots WHERE id = $1', [id]);
   return result.rows[0] || null;
@@ -279,6 +295,7 @@ module.exports = {
   updateAmenity,
   deleteAmenity,
   createSlot,
+  createSlotSeries,
   findSlotById,
   findSlotByIdForUpdate,
   listSlots,

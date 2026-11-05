@@ -43,19 +43,34 @@ const createSlot = async (payload) => {
     throw new ApiError(404, 'Amenity not found');
   }
 
-  // Reject a slot that falls inside an active blockout window.
-  // payload.slotDate is a JS Date object (Joi converts it during
-  // validation), so it must go through toISOString() to get a plain
-  // "YYYY-MM-DD" string before building the start/end timestamps.
-  const dateStr = payload.slotDate.toISOString().slice(0, 10);
-  const slotStart = new Date(`${dateStr}T${payload.startTime}`);
-  const slotEnd = new Date(`${dateStr}T${payload.endTime}`);
-  const overlap = await repository.findOverlappingBlockout(payload.amenityId, slotStart, slotEnd);
-  if (overlap) {
-    throw new ApiError(400, 'This slot overlaps an active blockout window for this amenity');
+  const from = new Date(payload.dateFrom);
+  const till = new Date(payload.dateTill);
+  const dayCount = Math.floor((till - from) / 86400000) + 1;
+  if (dayCount < 1 || dayCount > 366) {
+    throw new ApiError(400, 'Choose a date range of no more than 366 days.');
   }
 
-  return repository.createSlot(payload);
+  const dates = Array.from({ length: dayCount }, (_, index) => {
+    const date = new Date(from);
+    date.setUTCDate(date.getUTCDate() + index);
+    return date.toISOString().slice(0, 10);
+  });
+
+  // Check every generated slot before inserting the series as one statement.
+  for (const dateStr of dates) {
+    const slotStart = new Date(`${dateStr}T${payload.startTime}`);
+    const slotEnd = new Date(`${dateStr}T${payload.endTime}`);
+    const overlap = await repository.findOverlappingBlockout(
+      payload.amenityId,
+      slotStart,
+      slotEnd
+    );
+    if (overlap) {
+      throw new ApiError(400, `The slot on ${dateStr} overlaps an active blockout window.`);
+    }
+  }
+
+  return repository.createSlotSeries({ ...payload, dates });
 };
 
 const listSlots = (query) => repository.listSlots(query);

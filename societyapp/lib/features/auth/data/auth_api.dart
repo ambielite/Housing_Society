@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
+import 'package:housing_society_app/app/session_manager.dart';
 
 const _configuredApiBaseUrl = String.fromEnvironment('API_BASE_URL');
 
@@ -174,6 +175,9 @@ class AuthApi {
       final body = response.body.isEmpty
           ? <String, dynamic>{}
           : jsonDecode(response.body) as Map<String, dynamic>;
+      if (accessToken != null && response.statusCode == 401) {
+        SessionManager.expire();
+      }
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw AuthException(
           body['message'] as String? ?? 'The request could not be completed.',

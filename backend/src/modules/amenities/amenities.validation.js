@@ -31,7 +31,8 @@ const updateAmenitySchema = Joi.object({
 
 const createSlotSchema = Joi.object({
   amenityId: Joi.string().uuid().required(),
-  slotDate: Joi.date().iso().required(),
+  dateFrom: Joi.date().iso().required(),
+  dateTill: Joi.date().iso().min(Joi.ref('dateFrom')).required(),
   startTime: Joi.string().pattern(/^\d{2}:\d{2}(:\d{2})?$/).required(),
   endTime: Joi.string().pattern(/^\d{2}:\d{2}(:\d{2})?$/).required(),
   capacity: Joi.number().integer().positive().required(),

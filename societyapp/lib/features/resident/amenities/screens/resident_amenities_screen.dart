@@ -2,13 +2,19 @@ import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../auth/data/auth_api.dart';
+import '../../dashboard/data/resident_dashboard_api.dart';
 import '../data/resident_amenities_api.dart';
 import 'resident_amenity_detail_screen.dart';
 
 class ResidentAmenitiesScreen extends StatefulWidget {
-  const ResidentAmenitiesScreen({super.key, required this.user});
+  const ResidentAmenitiesScreen({
+    super.key,
+    required this.user,
+    this.onBookingCreated,
+  });
 
   final AuthenticatedUser user;
+  final ValueChanged<ResidentUpcomingBooking>? onBookingCreated;
 
   @override
   State<ResidentAmenitiesScreen> createState() => _ResidentAmenitiesScreenState();
@@ -122,6 +128,7 @@ class _ResidentAmenitiesScreenState extends State<ResidentAmenitiesScreen> {
             builder: (_) => ResidentAmenityDetailScreen(
               user: widget.user,
               amenity: amenity,
+              onBookingCreated: widget.onBookingCreated,
             ),
           )),
           child: Container(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../app/session_manager.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../data/auth_api.dart';
 import 'forgot_password_screen.dart';
@@ -7,7 +8,9 @@ import '../widgets/society_brand_mark.dart';
 import '../../../dashboard/presentation/screens/security_dashboard_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({super.key, this.sessionExpired = false});
+
+  final bool sessionExpired;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -22,6 +25,22 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   bool _submitting = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.sessionExpired) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Your session has expired. Please sign in again.'),
+            backgroundColor: Color(0xFF9D2635),
+          ),
+        );
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -49,6 +68,7 @@ class _LoginScreenState extends State<LoginScreen> {
             : null,
       );
       if (!mounted) return;
+      SessionManager.sessionStarted();
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
           builder: (_) => SecurityDashboardScreen(user: user),

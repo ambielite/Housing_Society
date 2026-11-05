@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:housing_society_app/app/session_manager.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../auth/data/auth_api.dart';
@@ -162,8 +163,9 @@ class _SecurityHomeState extends State<_SecurityHome> {
     final name = TextEditingController();
     final phone = TextEditingController();
     final deliveryCompany = TextEditingController();
-    String visitorType = 'GUEST';
-    String gateId = data.gates.first.id;
+    final formKey = GlobalKey<FormState>();
+    String? visitorType;
+    String? gateId;
     bool saving = false;
     final created = await showModalBottomSheet<bool>(
       context: context,
@@ -178,7 +180,9 @@ class _SecurityHomeState extends State<_SecurityHome> {
             context,
             padding: const EdgeInsets.fromLTRB(22, 12, 22, 24),
             child: SingleChildScrollView(
-              child: Column(
+              child: Form(
+                key: formKey,
+                child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -200,9 +204,12 @@ class _SecurityHomeState extends State<_SecurityHome> {
                     style: TextStyle(color: AppColors.muted),
                   ),
                   const SizedBox(height: 20),
-                  TextField(
+                  TextFormField(
                     controller: name,
                     textCapitalization: TextCapitalization.words,
+                    validator: (value) => value == null || value.trim().isEmpty
+                        ? 'Enter the visitor name.'
+                        : null,
                     decoration: _fieldDecoration(
                       'Visitor name',
                       Icons.person_outline_rounded,
@@ -224,6 +231,10 @@ class _SecurityHomeState extends State<_SecurityHome> {
                       'Visitor type',
                       Icons.category_outlined,
                     ),
+                    hint: const Text('Select visitor type'),
+                    validator: (value) => value == null
+                        ? 'Select a visitor type.'
+                        : null,
                     items: const [
                       DropdownMenuItem(value: 'GUEST', child: Text('Guest')),
                       DropdownMenuItem(
@@ -237,12 +248,17 @@ class _SecurityHomeState extends State<_SecurityHome> {
                       DropdownMenuItem(value: 'OTHER', child: Text('Other')),
                     ],
                     onChanged: (value) =>
-                        setSheetState(() => visitorType = value ?? 'GUEST'),
+                        setSheetState(() => visitorType = value),
                   ),
                   if (visitorType == 'DELIVERY_PERSON') ...[
                     const SizedBox(height: 12),
-                    TextField(
+                    TextFormField(
                       controller: deliveryCompany,
+                      validator: (value) =>
+                          visitorType == 'DELIVERY_PERSON' &&
+                              (value == null || value.trim().isEmpty)
+                          ? 'Enter the delivery company.'
+                          : null,
                       decoration: _fieldDecoration(
                         'Delivery company',
                         Icons.local_shipping_outlined,
@@ -256,6 +272,10 @@ class _SecurityHomeState extends State<_SecurityHome> {
                       'Entry gate',
                       Icons.door_front_door_outlined,
                     ),
+                    hint: const Text('Select entry gate'),
+                    validator: (value) => value == null
+                        ? 'Select an entry gate.'
+                        : null,
                     items: data.gates
                         .map(
                           (gate) => DropdownMenuItem(
@@ -264,8 +284,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
                           ),
                         )
                         .toList(),
-                    onChanged: (value) =>
-                        setSheetState(() => gateId = value ?? gateId),
+                    onChanged: (value) => setSheetState(() => gateId = value),
                   ),
                   const SizedBox(height: 18),
                   SizedBox(
@@ -274,13 +293,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
                       onPressed: saving
                           ? null
                           : () async {
-                              if (name.text.trim().isEmpty) {
-                                _showError('Enter the visitor name.');
-                                return;
-                              }
-                              if (visitorType == 'DELIVERY_PERSON' &&
-                                  deliveryCompany.text.trim().isEmpty) {
-                                _showError('Enter the delivery company.');
+                              if (!formKey.currentState!.validate()) {
                                 return;
                               }
                               setSheetState(() => saving = true);
@@ -290,7 +303,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
                                   {
                                     'societyId': widget.user.societyId,
                                     'name': name.text.trim(),
-                                    'visitorType': visitorType,
+                                    'visitorType': visitorType!,
                                     'phone': phone.text.trim(),
                                     'deliveryCompany':
                                         visitorType == 'DELIVERY_PERSON'
@@ -307,7 +320,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
                                 }
                                 await _GuardApi.post('/visitors/passes', {
                                   'visitorProfileId': profileId,
-                                  'gateId': gateId,
+                                  'gateId': gateId!,
                                   'passNo':
                                       'WALKIN-${DateTime.now().millisecondsSinceEpoch}',
                                 }, widget.user.accessToken);
@@ -336,6 +349,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
                     ),
                   ),
                 ],
+              ),
               ),
             ),
           ),
@@ -1445,6 +1459,7 @@ class _GuardApi {
       final body = response.body.isEmpty
           ? <String, dynamic>{}
           : jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.statusCode == 401) SessionManager.expire();
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw _GuardApiException(
           body['message']?.toString() ?? 'Could not load security data.',
@@ -1511,6 +1526,7 @@ class _GuardApi {
       final body = response.body.isEmpty
           ? <String, dynamic>{}
           : jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.statusCode == 401) SessionManager.expire();
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw _GuardApiException(
           body['message']?.toString() ?? 'The request could not be completed.',

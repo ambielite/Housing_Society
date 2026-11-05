@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
+import 'package:housing_society_app/app/session_manager.dart';
 
 const _configuredApiBaseUrl = String.fromEnvironment('API_BASE_URL');
 
@@ -44,6 +45,25 @@ class ResidentDashboardData {
   final ResidentMaintenance? maintenance;
   final List<ResidentUpcomingBooking> upcomingBookings;
   final List<ResidentNotice> notices;
+
+  ResidentDashboardData copyWith({
+    List<ResidentUpcomingBooking>? upcomingBookings,
+  }) => ResidentDashboardData(
+    societyName: societyName,
+    societyLogoUrl: societyLogoUrl,
+    societyAddress: societyAddress,
+    societyEmail: societyEmail,
+    societyPhone: societyPhone,
+    residentName: residentName,
+    residentPhotoUrl: residentPhotoUrl,
+    currency: currency,
+    unitNumber: unitNumber,
+    towerName: towerName,
+    floorName: floorName,
+    maintenance: maintenance,
+    upcomingBookings: upcomingBookings ?? this.upcomingBookings,
+    notices: notices,
+  );
 
   factory ResidentDashboardData.fromJson(Map<String, dynamic> json) {
     final society = _asMap(json['society']);
@@ -174,6 +194,7 @@ class ResidentDashboardApi {
       final body = response.body.isEmpty
           ? <String, dynamic>{}
           : jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.statusCode == 401) SessionManager.expire();
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw ResidentDashboardException(
           _string(body['message']) ?? 'Could not load your resident dashboard.',

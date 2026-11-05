@@ -1,7 +1,6 @@
 const ApiError = require('../../common/ApiError');
 const { query } = require('../../config/db');
 const amenitiesRepository = require('../amenities/amenities.repository');
-const bookingsRepository = require('../amenity-bookings/amenity-bookings.repository');
 const bookingsService = require('../amenity-bookings/amenity-bookings.service');
 
 const residentContext = async (user) => {
@@ -51,7 +50,7 @@ const listSlots = async (user, amenityId) => {
 
 const listBookings = async (user) => {
   const resident = await residentContext(user);
-  return bookingsRepository.listBookings({ unitId: resident.unit_id });
+  return bookingsService.listBookings({ unitId: resident.unit_id });
 };
 
 const createBooking = async (user, { amenitySlotId, guestsCount, guests }) => {

@@ -17,6 +17,13 @@ import { SlotStatusBadge } from '../components/AmenityBadges';
 import { SLOT_STATUSES } from '../components/amenityOptions';
 import * as api from '../api/amenities.api';
 
+const formatTime = (value) => {
+  const [hourText, minute] = String(value || '').slice(0, 5).split(':');
+  const hour = Number(hourText);
+  if (!Number.isInteger(hour) || !minute) return String(value || '');
+  return `${hour % 12 || 12}:${minute} ${hour >= 12 ? 'PM' : 'AM'}`;
+};
+
 export default function SlotListPage() {
   const { hasPermission } = useAuth();
   const { societyId } = useSociety();
@@ -55,8 +62,8 @@ export default function SlotListPage() {
         await api.updateSlot(dialog.slot.id, payload);
         setNotice('Slot updated.');
       } else {
-        await api.createSlot(payload);
-        setNotice('Slot created.');
+        const created = await api.createSlot(payload);
+        setNotice(`${created.length} daily slot${created.length === 1 ? '' : 's'} created through ${formatDate(payload.dateTill)}.`);
       }
       setDialog(null);
       slots.reload();
@@ -102,7 +109,7 @@ export default function SlotListPage() {
         columns={[
           { key: 'amenity', header: 'Amenity', render: (s) => <span className="cell-title">{amenityById.get(s.amenity_id)?.name || 'Unknown'}</span> },
           { key: 'date', header: 'Date', render: (s) => formatDate(s.slot_date) },
-          { key: 'time', header: 'Time', render: (s) => `${String(s.start_time).slice(0, 5)} - ${String(s.end_time).slice(0, 5)}` },
+          { key: 'time', header: 'Time', render: (s) => `${formatTime(s.start_time)} - ${formatTime(s.end_time)}` },
           { key: 'capacity', header: 'Capacity', render: (s) => s.capacity },
           { key: 'price', header: 'Price', render: (s) => formatMoney(s.price) },
           { key: 'status', header: 'Status', render: (s) => {

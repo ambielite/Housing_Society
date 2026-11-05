@@ -1,11 +1,17 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
-const _apiBaseUrl = String.fromEnvironment(
-  'API_BASE_URL',
-  defaultValue: 'http://10.0.2.2:5000/api/v1',
-);
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:http/http.dart' as http;
+import 'package:housing_society_app/app/session_manager.dart';
+
+const _configuredApiBaseUrl = String.fromEnvironment('API_BASE_URL');
+
+String get _apiBaseUrl => _configuredApiBaseUrl.isNotEmpty
+    ? _configuredApiBaseUrl
+    : kIsWeb
+    ? 'http://localhost:5000/api/v1'
+    : 'http://10.0.2.2:5000/api/v1';
 
 class ResidentAmenity {
   const ResidentAmenity({
@@ -74,17 +80,20 @@ class ResidentAmenityBooking {
     required this.bookingNumber,
     required this.status,
     required this.amount,
+    required this.amenitySlotId,
   });
 
   final String bookingNumber;
   final String status;
   final num amount;
+  final String amenitySlotId;
 
   factory ResidentAmenityBooking.fromJson(Map<String, dynamic> json) =>
       ResidentAmenityBooking(
         bookingNumber: '${json['booking_no'] ?? ''}',
         status: '${json['status'] ?? 'PENDING_PAYMENT'}',
         amount: num.tryParse('${json['amount'] ?? 0}') ?? 0,
+        amenitySlotId: '${json['amenity_slot_id'] ?? ''}',
       );
 }
 
@@ -93,6 +102,9 @@ class ResidentAmenitiesApi {
 
   static Future<List<ResidentAmenity>> listAmenities(String token) async =>
       _list(token, '/resident-amenities', ResidentAmenity.fromJson);
+
+  static Future<List<ResidentAmenityBooking>> listMyBookings(String token) async =>
+      _list(token, '/resident-amenities/bookings', ResidentAmenityBooking.fromJson);
 
   static Future<List<ResidentAmenitySlot>> listSlots(
     String token,
@@ -138,25 +150,21 @@ class ResidentAmenitiesApi {
     String method = 'GET',
     Map<String, dynamic>? payload,
   }) async {
-    final client = HttpClient()..connectionTimeout = const Duration(seconds: 12);
     try {
       final uri = Uri.parse('$_apiBaseUrl$path');
-      final request = await (method == 'GET'
-              ? client.getUrl(uri)
-              : client.postUrl(uri))
-          .timeout(const Duration(seconds: 15));
-      request.headers
-        ..set(HttpHeaders.acceptHeader, ContentType.json.mimeType)
-        ..set(HttpHeaders.authorizationHeader, 'Bearer $token');
-      if (payload != null) {
-        request.headers.contentType = ContentType.json;
-        request.write(jsonEncode(payload));
-      }
-      final response = await request.close().timeout(const Duration(seconds: 20));
-      final text = await utf8.decoder.bind(response).join();
-      final body = text.isEmpty
+      final headers = <String, String>{
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $token',
+        if (payload != null) 'Content-Type': 'application/json',
+      };
+      final response = await (method == 'GET'
+              ? http.get(uri, headers: headers)
+              : http.post(uri, headers: headers, body: jsonEncode(payload)))
+          .timeout(const Duration(seconds: 20));
+      final body = response.body.isEmpty
           ? <String, dynamic>{}
-          : jsonDecode(text) as Map<String, dynamic>;
+          : jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.statusCode == 401) SessionManager.expire();
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw ResidentAmenitiesException(
           body['message']?.toString() ?? 'Could not load amenities.',
@@ -165,7 +173,7 @@ class ResidentAmenitiesApi {
       return body['data'];
     } on ResidentAmenitiesException {
       rethrow;
-    } on SocketException {
+    } on http.ClientException {
       throw const ResidentAmenitiesException(
         'Cannot reach the server. Check your connection and try again.',
       );
@@ -173,8 +181,6 @@ class ResidentAmenitiesApi {
       throw const ResidentAmenitiesException('The server took too long to respond.');
     } on FormatException {
       throw const ResidentAmenitiesException('The server returned invalid data.');
-    } finally {
-      client.close(force: true);
     }
   }
 }
@@ -194,7 +200,12 @@ String? _optionalString(Object? value) {
 
 String _timeString(Object? value) {
   final time = value?.toString() ?? '';
-  return time.length >= 5 ? time.substring(0, 5) : time;
+  if (time.length < 5) return time;
+  final parts = time.substring(0, 5).split(':');
+  if (parts.length != 2) return time.substring(0, 5);
+  final hour = int.tryParse(parts[0]);
+  if (hour == null || hour < 0 || hour > 23) return time.substring(0, 5);
+  return '${hour % 12 == 0 ? 12 : hour % 12}:${parts[1]} ${hour >= 12 ? 'PM' : 'AM'}';
 }
 
 DateTime? _dateOnly(Object? value) {
