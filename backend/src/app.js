@@ -62,7 +62,7 @@ app.use((req, res, next) => {
     );
     res.setHeader(
         "Access-Control-Allow-Headers",
-        "Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Society-Id"
+        "Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Society-Id, Cache-Control, Pragma"
     );
     res.setHeader("Access-Control-Max-Age", "86400");
     res.setHeader("Access-Control-Allow-Credentials", "true");

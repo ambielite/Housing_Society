@@ -371,13 +371,10 @@ class _SecurityHomeState extends State<_SecurityHome> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: visitorType,
-                    decoration: _fieldDecoration(
-                      'Visitor type',
-                      Icons.category_outlined,
-                    ),
-                    hint: const Text('Select visitor type'),
+                  _styledDropdownField<String>(
+                    value: visitorType,
+                    decoration: _fieldDecoration('Visitor type', Icons.category_outlined),
+                    hint: 'Select visitor type',
                     validator: (value) => value == null
                         ? 'Select a visitor type.'
                         : null,
@@ -393,8 +390,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
                       ),
                       DropdownMenuItem(value: 'OTHER', child: Text('Other')),
                     ],
-                    onChanged: (value) =>
-                        setSheetState(() => visitorType = value),
+                    onChanged: (value) => setSheetState(() => visitorType = value),
                   ),
                   if (visitorType == 'DELIVERY_PERSON') ...[
                     const SizedBox(height: 12),
@@ -412,13 +408,10 @@ class _SecurityHomeState extends State<_SecurityHome> {
                     ),
                   ],
                   const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: idType,
-                    decoration: _fieldDecoration(
-                      'ID proof type (optional)',
-                      Icons.badge_outlined,
-                    ),
-                    hint: const Text('Select ID proof type'),
+                  _styledDropdownField<String>(
+                    value: idType,
+                    decoration: _fieldDecoration('ID proof type (optional)', Icons.badge_outlined),
+                    hint: 'Select ID proof type',
                     items: const [
                       DropdownMenuItem(value: 'AADHAAR', child: Text('Aadhaar')),
                       DropdownMenuItem(value: 'DRIVING_LICENSE', child: Text('Driving license')),
@@ -449,14 +442,13 @@ class _SecurityHomeState extends State<_SecurityHome> {
                       ),
                     )
                   else
-                    DropdownButtonFormField<_GuardDestination>(
-                      initialValue: destination,
-                      isExpanded: true,
+                    _styledDropdownField<_GuardDestination>(
+                      value: destination,
                       decoration: _fieldDecoration(
                         'Visiting flat / resident',
                         Icons.apartment_rounded,
                       ),
-                      hint: const Text('Select the resident being visited'),
+                      hint: 'Select the resident being visited',
                       validator: (value) => value == null
                           ? 'Select the flat and resident being visited.'
                           : null,
@@ -475,13 +467,13 @@ class _SecurityHomeState extends State<_SecurityHome> {
                           setSheetState(() => destination = value),
                     ),
                   const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: gateId,
+                  _styledDropdownField<String>(
+                    value: gateId,
                     decoration: _fieldDecoration(
                       'Entry gate',
                       Icons.door_front_door_outlined,
                     ),
-                    hint: const Text('Select entry gate'),
+                    hint: 'Select entry gate',
                     validator: (value) => value == null
                         ? 'Select an entry gate.'
                         : null,
@@ -1232,19 +1224,17 @@ class _SecurityHomeState extends State<_SecurityHome> {
                     const SizedBox(height: 20),
                     Text('Register delivery', style: _titleStyle(20)),
                     const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      initialValue: unitId,
-                      isExpanded: true,
+                    _styledDropdownField<String>(
+                      value: unitId,
                       decoration: _fieldDecoration('Unit', Icons.apartment_rounded),
-                      hint: const Text('Select destination flat'),
+                      hint: 'Select destination flat',
                       validator: (value) => value == null ? 'Select a flat.' : null,
                       items: data.units.map((unit) => DropdownMenuItem(value: unit.id, child: Text(unit.label, overflow: TextOverflow.ellipsis))).toList(),
                       onChanged: (value) => setSheetState(() => unitId = value),
                     ),
                     const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      initialValue: visitorId,
-                      isExpanded: true,
+                    _styledDropdownField<String>(
+                      value: visitorId,
                       decoration: _fieldDecoration('Visitor profile (optional)', Icons.person_outline_rounded),
                       items: [
                         const DropdownMenuItem(value: '', child: Text('No linked visitor')),
@@ -1253,8 +1243,8 @@ class _SecurityHomeState extends State<_SecurityHome> {
                       onChanged: (value) => setSheetState(() => visitorId = value ?? ''),
                     ),
                     const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      initialValue: deliveryType,
+                    _styledDropdownField<String>(
+                      value: deliveryType,
                       decoration: _fieldDecoration('Delivery type', Icons.category_outlined),
                       items: const [
                         DropdownMenuItem(value: 'COURIER', child: Text('Courier')),
@@ -1331,11 +1321,10 @@ class _SecurityHomeState extends State<_SecurityHome> {
                 const SizedBox(height: 20),
                 Text('Log parcel', style: _titleStyle(20)),
                 const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  initialValue: deliveryId,
-                  isExpanded: true,
+                _styledDropdownField<String>(
+                  value: deliveryId,
                   decoration: _fieldDecoration('Related delivery', Icons.local_shipping_outlined),
-                  hint: const Text('Select delivery'),
+                  hint: 'Select delivery',
                   items: data.deliveries.map((item) => DropdownMenuItem(value: item.id, child: Text('${_humanize(item.type)} · ${item.courierName ?? 'Delivery'}', overflow: TextOverflow.ellipsis))).toList(),
                   onChanged: (value) => setSheetState(() => deliveryId = value),
                 ),
@@ -2530,6 +2519,166 @@ Widget _surface(
   ),
   child: child,
 );
+
+Widget _styledDropdownField<T>({
+  required T? value,
+  required InputDecoration decoration,
+  required List<DropdownMenuItem<T>> items,
+  required ValueChanged<T?> onChanged,
+  String? hint,
+  String? Function(T?)? validator,
+}) => _StyledDropdownField<T>(
+  value: value,
+  decoration: decoration,
+  items: items,
+  onChanged: onChanged,
+  hint: hint,
+  validator: validator,
+);
+
+class _StyledDropdownField<T> extends StatefulWidget {
+  const _StyledDropdownField({
+    required this.value,
+    required this.decoration,
+    required this.items,
+    required this.onChanged,
+    this.hint,
+    this.validator,
+  });
+
+  final T? value;
+  final InputDecoration decoration;
+  final List<DropdownMenuItem<T>> items;
+  final ValueChanged<T?> onChanged;
+  final String? hint;
+  final String? Function(T?)? validator;
+
+  @override
+  State<_StyledDropdownField<T>> createState() =>
+      _StyledDropdownFieldState<T>();
+}
+
+class _StyledDropdownFieldState<T> extends State<_StyledDropdownField<T>> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) => FormField<T>(
+    initialValue: widget.value,
+    validator: widget.validator,
+    builder: (field) {
+      DropdownMenuItem<T>? selectedItem;
+      for (final item in widget.items) {
+        if (item.value == field.value) {
+          selectedItem = item;
+          break;
+        }
+      }
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: widget.items.isEmpty
+                  ? null
+                  : () => setState(() => _expanded = !_expanded),
+              child: InputDecorator(
+                decoration: widget.decoration.copyWith(
+                  errorText: field.errorText,
+                  suffixIcon: Icon(
+                    _expanded
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    color: const Color(0xFF76519A),
+                  ),
+                ),
+                child: DefaultTextStyle.merge(
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: selectedItem == null
+                        ? AppColors.muted
+                        : AppColors.ink,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  child: selectedItem?.child ?? Text(widget.hint ?? ''),
+                ),
+              ),
+            ),
+          ),
+          if (_expanded) ...[
+            const SizedBox(height: 6),
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 6),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFE8E8EE)),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x1A000000),
+                    blurRadius: 12,
+                    offset: Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (var index = 0; index < widget.items.length; index++) ...[
+                    if (index > 0)
+                      const Divider(height: 1, indent: 12, endIndent: 12),
+                    SizedBox(
+                      height: 48,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () {
+                            final selected = widget.items[index].value;
+                            field.didChange(selected);
+                            setState(() => _expanded = false);
+                            widget.onChanged(selected);
+                          },
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                              ),
+                              child: DefaultTextStyle.merge(
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: widget.items[index].value == field.value
+                                      ? const Color(0xFF76519A)
+                                      : AppColors.ink,
+                                  fontSize: 14,
+                                  fontWeight:
+                                      widget.items[index].value == field.value
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                ),
+                                child: widget.items[index].child,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ],
+      );
+    },
+  );
+}
 
 InputDecoration _fieldDecoration(String label, IconData icon) =>
     InputDecoration(
