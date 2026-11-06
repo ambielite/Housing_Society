@@ -10,8 +10,20 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../auth/data/auth_api.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../resident/dashboard/screens/resident_home_screen.dart';
+import 'security_profile_screen.dart';
+
+part '../../visitor_check_in/security_visitors_screen.dart';
+part '../../gate_log/security_gate_log_screen.dart';
+part '../../deliveries/security_deliveries_screen.dart';
 
 const _configuredApiBaseUrl = String.fromEnvironment('API_BASE_URL');
+
+const _residentActionGreenBg = Color(0xFFE4F7F1);
+const _residentActionGreen = Color(0xFF229B78);
+const _residentActionOrangeBg = Color(0xFFFFF1E5);
+const _residentActionOrange = Color(0xFFE68A36);
+const _residentActionBlueBg = Color(0xFFE8F1FF);
+const _residentActionBlue = Color(0xFF4784DB);
 
 const _deliveryTransitions = <String, List<String>>{
   'EXPECTED': ['ARRIVED', 'CANCELLED'],
@@ -29,6 +41,21 @@ String get _apiBaseUrl => _configuredApiBaseUrl.isNotEmpty
     : kIsWeb
     ? 'http://localhost:5000/api/v1'
     : 'http://10.0.2.2:5000/api/v1';
+
+String? _optionalString(Object? value) {
+  final text = value?.toString().trim();
+  return text == null || text.isEmpty || text == 'null' ? null : text;
+}
+
+String? _imageUrl(Object? value) {
+  final path = _optionalString(value);
+  if (path == null) return null;
+  final uri = Uri.tryParse(path);
+  if (uri == null) return null;
+  return uri.hasScheme
+      ? uri.toString()
+      : Uri.parse(_apiBaseUrl).resolve(path).toString();
+}
 
 /// Routes residents to their existing home and opens the security dashboard
 /// for the security login flow.
@@ -164,11 +191,15 @@ class _SecurityHomeState extends State<_SecurityHome> {
   }
 
   void _selectTab(int index) {
-    setState(() => _tab = index);
     _deliverySyncTimer?.cancel();
     _deliverySyncTimer = null;
     _visitorPassSyncTimer?.cancel();
     _visitorPassSyncTimer = null;
+    if (index == 4) {
+      unawaited(_openProfile());
+      return;
+    }
+    setState(() => _tab = index);
     if (index == 1) {
       unawaited(_refreshVisitorPasses());
       _visitorPassSyncTimer = Timer.periodic(
@@ -183,6 +214,26 @@ class _SecurityHomeState extends State<_SecurityHome> {
         (_) => unawaited(_refreshDeliveries(showErrors: false)),
       );
     }
+  }
+
+  Future<void> _openProfile() async {
+    _deliverySyncTimer?.cancel();
+    _deliverySyncTimer = null;
+    _visitorPassSyncTimer?.cancel();
+    _visitorPassSyncTimer = null;
+    final gateNames = _loadedSnapshot?.gates.map((gate) => gate.name).toList() ??
+        const <String>[];
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => SecurityProfileScreen(
+          user: widget.user,
+          gateNames: gateNames,
+          profilePhotoUrl: _loadedSnapshot?.accountPhotoUrl,
+          onSignOut: _signOut,
+        ),
+      ),
+    );
+    if (mounted) setState(() => _tab = 0);
   }
 
   Future<void> _refreshVisitorPasses() async {
@@ -649,17 +700,23 @@ class _SecurityHomeState extends State<_SecurityHome> {
                     children: [
                       Center(
                         child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 720),
+                          constraints: const BoxConstraints(maxWidth: 900),
                           child: Column(
                             children: [
                               _header(data),
-                              const SizedBox(height: 18),
+                              if (_tab == 0) ...[
+                                const SizedBox(height: 24),
+                                _greeting(),
+                                const SizedBox(height: 20),
+                                _securitySummaryCard(data),
+                              ],
+                              SizedBox(height: _tab == 0 ? 24 : 18),
                               switch (_tab) {
                                 0 => _overview(data),
-                                1 => _visitors(data),
-                                2 => _gateLog(data),
-                                3 => _deliveries(data),
-                                _ => _profile(),
+                                1 => _SecurityVisitorsScreen(owner: this, data: data),
+                                2 => _SecurityGateLogScreen(owner: this, data: data),
+                                3 => _SecurityDeliveriesScreen(owner: this, data: data),
+                                _ => const SizedBox.shrink(),
                               },
                             ],
                           ),
@@ -677,12 +734,230 @@ class _SecurityHomeState extends State<_SecurityHome> {
     ),
   );
 
-  Widget _header(_GuardSnapshot data) => Container(
-    padding: const EdgeInsets.all(20),
+  Widget _header(_GuardSnapshot data) => Row(
+    children: [
+      Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: const Color(0xFFE8ECF3)),
+        ),
+        child: data.societyLogoUrl == null
+            ? const Icon(
+                Icons.apartment_rounded,
+                color: AppColors.indigo,
+                size: 24,
+              )
+            : ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: Image.network(
+                  data.societyLogoUrl!,
+                  width: 44,
+                  height: 44,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => const Icon(
+                    Icons.apartment_rounded,
+                    color: AppColors.indigo,
+                    size: 24,
+                  ),
+                ),
+              ),
+      ),
+      const SizedBox(width: 11),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              data.societyName ?? 'Housing Society',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.1,
+                color: AppColors.ink,
+              ),
+            ),
+            SizedBox(height: 2),
+            Text(
+              'SECURITY PORTAL',
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.3,
+                color: AppColors.muted,
+              ),
+            ),
+          ],
+        ),
+      ),
+      _headerIcon(
+        Icons.notifications_none_rounded,
+        badge: data.expectedCount > 0,
+        onTap: () => _selectTab(1),
+      ),
+      const SizedBox(width: 9),
+      PopupMenuButton<String>(
+        tooltip: 'Account',
+        onSelected: (value) {
+          if (value == 'profile') {
+            unawaited(_openProfile());
+          } else if (value == 'logout') {
+            _signOut();
+          }
+        },
+        itemBuilder: (_) => const [
+          PopupMenuItem(value: 'profile', child: Text('Profile')),
+          PopupMenuItem(value: 'logout', child: Text('Sign out')),
+        ],
+        child: _securityAvatar(data),
+      ),
+    ],
+  );
+
+  Widget _headerIcon(
+    IconData icon, {
+    required bool badge,
+    required VoidCallback onTap,
+  }) => InkWell(
+    onTap: onTap,
+    customBorder: const CircleBorder(),
+    child: Container(
+      width: 42,
+      height: 42,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
+        border: Border.all(color: const Color(0xFFE8ECF3)),
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Icon(icon, color: const Color(0xFF68748A), size: 21),
+          if (badge)
+            const Positioned(
+              right: 10,
+              top: 9,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Color(0xFFFF6F72),
+                  shape: BoxShape.circle,
+                ),
+                child: SizedBox(width: 7, height: 7),
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _securityAvatar(_GuardSnapshot data) {
+    final photoUrl = _imageUrl(
+      data.accountPhotoUrl ?? widget.user.profilePictureUrl,
+    );
+    return CircleAvatar(
+      radius: 22,
+      backgroundColor: const Color(0xFFEAE8FF),
+      child: photoUrl == null || photoUrl.trim().isEmpty
+          ? Text(
+              _initials(widget.user.name),
+              style: const TextStyle(
+                color: AppColors.indigo,
+                fontWeight: FontWeight.w800,
+                fontSize: 13,
+              ),
+            )
+          : ClipOval(
+              child: Image.network(
+                photoUrl,
+                width: 44,
+                height: 44,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => Center(
+                  child: Text(
+                    _initials(widget.user.name),
+                    style: const TextStyle(
+                      color: AppColors.indigo,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+    );
+  }
+
+  Widget _greeting() {
+    final now = DateTime.now();
+    final greeting = now.hour < 12
+        ? 'Morning'
+        : now.hour < 17
+        ? 'Afternoon'
+        : 'Evening';
+    const weekdays = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ];
+    const months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '${weekdays[now.weekday - 1].toUpperCase()}, ${now.day} ${months[now.month - 1].toUpperCase()}',
+          style: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.15,
+            color: AppColors.muted,
+          ),
+        ),
+        const SizedBox(height: 7),
+        Text(
+          'Good $greeting, ${_firstName(widget.user.name)}',
+          style: const TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -.65,
+            color: AppColors.ink,
+          ),
+        ),
+        const SizedBox(height: 5),
+        const Text(
+          'Here is what is happening at your gate today.',
+          style: TextStyle(fontSize: 13, color: Color(0xFF7C879B)),
+        ),
+      ],
+    );
+  }
+
+  Widget _securitySummaryCard(_GuardSnapshot data) => Container(
+    padding: const EdgeInsets.all(18),
     decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: BorderRadius.circular(22),
       gradient: const LinearGradient(
-        colors: [AppColors.indigo, AppColors.violet],
+        colors: [Color(0xFF6557E9), Color(0xFF8878F6)],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ),
@@ -690,151 +965,96 @@ class _SecurityHomeState extends State<_SecurityHome> {
         BoxShadow(
           color: Color(0x286455E9),
           blurRadius: 20,
-          offset: Offset(0, 9),
+          offset: Offset(0, 10),
         ),
       ],
     ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    child: Stack(
       children: [
-        Row(
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: .16),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: const Icon(Icons.apartment_rounded, color: Colors.white),
+        Positioned(
+          right: -22,
+          top: -30,
+          child: Container(
+            width: 120,
+            height: 120,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withValues(alpha: .08),
             ),
-            const SizedBox(width: 11),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'HOUSING SOCIETY',
+          ),
+        ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.shield_outlined,
+                  color: Color(0xFFE2DFFF),
+                  size: 17,
+                ),
+                const SizedBox(width: 7),
+                const Expanded(
+                  child: Text(
+                    'SECURITY DESK',
+                    style: TextStyle(
+                      color: Color(0xFFE2DFFF),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.25,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: .17),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    'ON DUTY',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                  SizedBox(height: 3),
-                  Text(
-                    'SECURITY OPERATIONS',
-                    style: TextStyle(
-                      color: Color(0xFFE5E3FF),
                       fontSize: 9,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.15,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: .7,
                     ),
                   ),
-                ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 15),
+            const Text(
+              'Security operations',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 21,
+                fontWeight: FontWeight.w800,
               ),
             ),
-            IconButton(
-              onPressed: _signOut,
-              tooltip: 'Sign out',
-              icon: const Icon(Icons.logout_rounded, color: Colors.white),
+            const SizedBox(height: 5),
+            Text(
+              'Employee ${widget.user.employeeCode ?? 'Not assigned'}  ·  ${data.gates.length} ${data.gates.length == 1 ? 'gate' : 'gates'} assigned',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Color(0xFFE7E4FF),
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
             ),
-          ],
-        ),
-        const SizedBox(height: 19),
-        Text(
-          'Hello, ${_firstName(widget.user.name)}',
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 23,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -.4,
-          ),
-        ),
-        const SizedBox(height: 5),
-        Text(
-          '${data.gates.length} ${data.gates.length == 1 ? 'gate' : 'gates'} assigned  ·  Employee ${widget.user.employeeCode ?? '—'}',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: Color(0xFFE7E5FF),
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 17),
-        Row(
-          children: [
-            _headerMetric(data.activeCount.toString(), 'Inside'),
-            const SizedBox(width: 9),
-            _headerMetric(data.expectedCount.toString(), 'Expected'),
-            const SizedBox(width: 9),
-            _headerMetric(data.arrivedCount.toString(), 'At gate'),
           ],
         ),
       ],
-    ),
-  );
-
-  Widget _headerMetric(String value, String label) => Expanded(
-    child: Container(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: .14),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Color(0xFFE7E5FF),
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
     ),
   );
 
   Widget _overview(_GuardSnapshot data) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      Row(
-        children: [
-          Expanded(
-            child: _statCard(
-              'Expected visitors',
-              data.expectedCount.toString(),
-              Icons.event_available_rounded,
-              const Color(0xFFEDEBFF),
-              AppColors.indigo,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: _statCard(
-              'Visitors inside',
-              data.activeCount.toString(),
-              Icons.groups_rounded,
-              const Color(0xFFE8F7F1),
-              const Color(0xFF199866),
-            ),
-          ),
-        ],
-      ),
-      const SizedBox(height: 20),
       _sectionHeading('Gate activity', '${data.passes.length} passes'),
       const SizedBox(height: 10),
       if (data.actionablePasses.isEmpty)
@@ -845,7 +1065,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
             .map(
               (pass) => Padding(
                 padding: const EdgeInsets.only(bottom: 10),
-                child: _passCard(pass, data),
+                child: this._passCard(pass, data),
               ),
             ),
       const SizedBox(height: 10),
@@ -856,6 +1076,8 @@ class _SecurityHomeState extends State<_SecurityHome> {
           Expanded(
             child: _quickAction(
               icon: Icons.person_add_alt_1_rounded,
+              iconBackground: _residentActionGreenBg,
+              iconColor: _residentActionGreen,
               title: 'Register visitor',
               subtitle: 'Create a walk-in pass',
               onTap: () => _registerWalkIn(data),
@@ -865,6 +1087,8 @@ class _SecurityHomeState extends State<_SecurityHome> {
           Expanded(
             child: _quickAction(
               icon: Icons.receipt_long_rounded,
+              iconBackground: _residentActionOrangeBg,
+              iconColor: _residentActionOrange,
               title: 'Gate log',
               subtitle: 'Review recent entries',
               onTap: () => setState(() => _tab = 2),
@@ -899,298 +1123,6 @@ class _SecurityHomeState extends State<_SecurityHome> {
       ),
     ],
   );
-
-  Widget _visitors(_GuardSnapshot data) {
-    const filters = ['ALL', 'EXPECTED', 'ARRIVED', 'INSIDE', 'EXITED'];
-    final visible = _visitorFilter == 'ALL'
-        ? data.passes
-        : data.passes.where((pass) => pass.status == _visitorFilter).toList();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _sectionHeading('Visitor passes', '${visible.length} records'),
-        const SizedBox(height: 12),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: filters
-                .map(
-                  (filter) => Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
-                      label: Text(
-                        filter == 'ALL' ? 'All' : _statusLabel(filter),
-                      ),
-                      selected: _visitorFilter == filter,
-                      onSelected: (_) =>
-                          setState(() => _visitorFilter = filter),
-                      selectedColor: const Color(0xFFEAE8FF),
-                      labelStyle: TextStyle(
-                        color: _visitorFilter == filter
-                            ? AppColors.indigo
-                            : AppColors.inkSoft,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12,
-                      ),
-                      side: BorderSide(
-                        color: _visitorFilter == filter
-                            ? AppColors.indigo.withValues(alpha: .25)
-                            : const Color(0xFFE4E9F1),
-                      ),
-                    ),
-                  ),
-                )
-                .toList(),
-          ),
-        ),
-        const SizedBox(height: 8),
-        if (visible.isEmpty)
-          _emptyCard('No visitor passes match this filter.')
-        else
-          ...visible.map(
-            (pass) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _passCard(pass, data),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _deliveries(_GuardSnapshot data) {
-    final showingDeliveries = _deliveryTab == 0;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            _deliverySwitch('Deliveries', 0),
-            const SizedBox(width: 8),
-            _deliverySwitch('Parcels', 1),
-            const Spacer(),
-            IconButton(
-              tooltip: 'Refresh deliveries and parcels',
-              onPressed: _refreshDeliveries,
-              icon: const Icon(Icons.refresh_rounded),
-              color: AppColors.indigo,
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _sectionHeading(
-                showingDeliveries ? 'Incoming deliveries' : 'Parcel storage',
-                showingDeliveries
-                    ? '${data.deliveries.length} records'
-                    : '${data.parcels.length} records',
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        SizedBox(
-          height: 46,
-          child: FilledButton.icon(
-            onPressed: showingDeliveries
-                ? () => _registerDelivery(data)
-                : () => _registerParcel(data),
-            icon: Icon(
-              showingDeliveries
-                  ? Icons.local_shipping_outlined
-                  : Icons.inventory_2_outlined,
-            ),
-            label: Text(showingDeliveries ? 'Register delivery' : 'Log parcel'),
-          ),
-        ),
-        const SizedBox(height: 12),
-        ValueListenableBuilder<int>(
-          valueListenable: _deliveryRevision,
-          builder: (context, _, _) => Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: showingDeliveries
-                ? data.deliveries.isEmpty
-                    ? [_emptyCard('Incoming deliveries will appear here.')]
-                    : data.deliveries
-                          .map((delivery) => _deliveryCard(delivery, data))
-                          .toList()
-                : data.parcels.isEmpty
-                    ? [_emptyCard('Parcels logged at the gate will appear here.')]
-                    : data.parcels
-                          .map((parcel) => _parcelCard(parcel, data))
-                          .toList(),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _deliverySwitch(String label, int index) => ChoiceChip(
-    label: Text(label),
-    selected: _deliveryTab == index,
-    onSelected: (_) => setState(() => _deliveryTab = index),
-    selectedColor: const Color(0xFFEAE8FF),
-    labelStyle: TextStyle(
-      color: _deliveryTab == index ? AppColors.indigo : AppColors.inkSoft,
-      fontWeight: FontWeight.w700,
-      fontSize: 12,
-    ),
-    side: BorderSide(
-      color: _deliveryTab == index
-          ? AppColors.indigo.withValues(alpha: .25)
-          : const Color(0xFFE1E6EF),
-    ),
-  );
-
-  Widget _deliveryCard(_Delivery delivery, _GuardSnapshot data) {
-    final unit = data.units.where((item) => item.id == delivery.unitId);
-    final unitLabel = unit.isEmpty ? 'Flat' : unit.first.label;
-    final visitor = delivery.visitorProfileId == null
-        ? null
-        : data.profiles[delivery.visitorProfileId];
-    final allowed = _deliveryTransitions[delivery.status] ?? const <String>[];
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(15),
-      decoration: _cardDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF3E5),
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                child: const Icon(
-                  Icons.local_shipping_outlined,
-                  color: Color(0xFFE27A12),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _humanize(delivery.type),
-                      style: const TextStyle(
-                        color: AppColors.ink,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      '$unitLabel${visitor == null ? '' : ' · ${visitor.name}'}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.muted,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              _statusBadge(delivery.status, _deliveryStatusColor(delivery.status)),
-            ],
-          ),
-          if (delivery.courierName?.isNotEmpty == true) ...[
-            const SizedBox(height: 10),
-            Text(
-              delivery.courierName!,
-              style: const TextStyle(color: AppColors.muted, fontSize: 11),
-            ),
-          ],
-          if (allowed.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () => _changeDeliveryStatus(delivery, data),
-              icon: const Icon(Icons.sync_alt_rounded, size: 17),
-              label: const Text('Change status'),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _parcelCard(_Parcel parcel, _GuardSnapshot data) {
-    final delivery = data.deliveries.where((item) => item.id == parcel.deliveryId);
-    final parent = delivery.isEmpty ? null : delivery.first;
-    final matchingUnits = parent == null
-        ? const <_GuardUnit>[]
-        : data.units.where((item) => item.id == parent.unitId).toList();
-    final unit = matchingUnits.isEmpty ? null : matchingUnits.first;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(15),
-      decoration: _cardDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEAF1FF),
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                child: const Icon(
-                  Icons.inventory_2_outlined,
-                  color: Color(0xFF3977D5),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      parcel.parcelCode?.isNotEmpty == true
-                          ? parcel.parcelCode!
-                          : 'Parcel ${parcel.id.substring(0, 8)}',
-                      style: const TextStyle(
-                        color: AppColors.ink,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      '${unit?.label ?? 'Delivery'} · ${parcel.storageLocation?.isNotEmpty == true ? parcel.storageLocation : 'No storage location'}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.muted,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              _statusBadge(parcel.status, _parcelStatusColor(parcel.status)),
-            ],
-          ),
-          if (parcel.status == 'STORED') ...[
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () => _changeParcelStatus(parcel, data),
-              icon: const Icon(Icons.task_alt_rounded, size: 17),
-              label: const Text('Update parcel status'),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
 
   Future<void> _registerDelivery(_GuardSnapshot data) async {
     if (data.units.isEmpty) {
@@ -1445,319 +1377,10 @@ class _SecurityHomeState extends State<_SecurityHome> {
         ),
       );
 
-  Widget _gateLog(_GuardSnapshot data) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      _sectionHeading('Recent gate log', '${data.events.length} events'),
-      const SizedBox(height: 12),
-      if (data.events.isEmpty)
-        _emptyCard('Gate entries and exits will appear here.')
-      else
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 15),
-          decoration: _cardDecoration(),
-          child: Column(
-            children: data.events.take(60).map((event) {
-              final pass = data.passById[event.passId];
-              final isEntry = event.type == 'ENTRY';
-              return _logRow(
-                isEntry ? Icons.login_rounded : Icons.logout_rounded,
-                isEntry ? 'Visitor entry' : 'Visitor exit',
-                '${pass == null ? 'Pass' : _visitorName(pass, data)}  ·  ${data.gateName(event.gateId)}',
-                _formatDate(event.at),
-                isEntry ? const Color(0xFF199866) : const Color(0xFF67758E),
-              );
-            }).toList(),
-          ),
-        ),
-    ],
-  );
-
-  Widget _profile() => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      _sectionHeading('Guard profile', 'Signed in'),
-      const SizedBox(height: 12),
-      Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFFECEBFF), Color(0xFFF6F5FF)],
-          ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFE3E4FA)),
-        ),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 29,
-              backgroundColor: AppColors.indigo,
-              foregroundImage: widget.user.profilePictureUrl == null
-                  ? null
-                  : NetworkImage(widget.user.profilePictureUrl!),
-              child: widget.user.profilePictureUrl == null
-                  ? Text(
-                      _initials(widget.user.name),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    )
-                  : null,
-            ),
-            const SizedBox(width: 13),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(widget.user.name, style: _titleStyle(17)),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Security guard  ·  ${widget.user.employeeCode ?? 'Code unavailable'}',
-                    style: const TextStyle(
-                      color: AppColors.muted,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-      const SizedBox(height: 14),
-      Container(
-        decoration: _cardDecoration(),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Column(
-          children: [
-            _profileRow(Icons.mail_outline_rounded, 'Email', widget.user.email),
-            _profileRow(
-              Icons.phone_outlined,
-              'Phone',
-              widget.user.phone ?? 'Not provided',
-            ),
-            _profileRow(
-              Icons.badge_outlined,
-              'Employee code',
-              widget.user.employeeCode ?? 'Not provided',
-            ),
-          ],
-        ),
-      ),
-      const SizedBox(height: 18),
-      OutlinedButton.icon(
-        onPressed: _signOut,
-        icon: const Icon(Icons.logout_rounded),
-        label: const Text('Sign out'),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: const Color(0xFFB43D4B),
-          minimumSize: const Size.fromHeight(50),
-          side: const BorderSide(color: Color(0xFFFFD5D8)),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-        ),
-      ),
-    ],
-  );
-
-  Widget _passCard(_GuardPass pass, _GuardSnapshot data) {
-    final statusColor = _statusColor(pass.status);
-    final residentWaiting = pass.residentDecision == 'PENDING';
-    final residentRejected = pass.residentDecision == 'REJECTED';
-    final action = residentRejected
-        ? ('Cancel pass', 'CANCEL')
-        : pass.status == 'ARRIVED' && residentWaiting
-        ? (null, null)
-        : switch (pass.status) {
-      'EXPECTED' => ('Record arrival', 'ARRIVAL'),
-      'ARRIVED' => ('Allow entry', 'ENTRY'),
-      'INSIDE' || 'OVERSTAY' => ('Record exit', 'EXIT'),
-      _ => (null, null),
-    };
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: _cardDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEDEBFF),
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                child: const Icon(
-                  Icons.person_pin_circle_outlined,
-                  color: AppColors.indigo,
-                ),
-              ),
-              const SizedBox(width: 11),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _visitorName(pass, data),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.ink,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      '${_visitorTypeLabel(pass, data)}  ·  ${data.gateName(pass.gateId)}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.muted,
-                        fontSize: 11,
-                      ),
-                    ),
-                    if (data.destinationLabel(pass) case final destination?) ...[
-                      const SizedBox(height: 3),
-                      Text(
-                        'Visiting $destination',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.indigo,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              _statusBadge(pass.status, statusColor),
-            ],
-          ),
-          const SizedBox(height: 11),
-          Row(
-            children: [
-              const Icon(
-                Icons.confirmation_number_outlined,
-                size: 15,
-                color: AppColors.muted,
-              ),
-              const SizedBox(width: 5),
-              Text(
-                'Pass ${pass.passNo}',
-                style: const TextStyle(
-                  color: AppColors.inkSoft,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                _formatDate(pass.createdAt),
-                style: const TextStyle(color: AppColors.muted, fontSize: 10),
-              ),
-            ],
-          ),
-          if (residentWaiting || residentRejected) ...[
-            const SizedBox(height: 9),
-            Text(
-              residentRejected
-                  ? 'Resident rejected this visitor'
-                  : 'Waiting for resident approval',
-              style: TextStyle(
-                color: residentRejected
-                    ? const Color(0xFFB42318)
-                    : const Color(0xFF9A5B13),
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-          if (action.$1 != null) ...[
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 43,
-              child: FilledButton.icon(
-                      onPressed: () => _changePass(pass, action.$2!, data),
-                icon: Icon(
-                  action.$2 == 'EXIT'
-                      ? Icons.logout_rounded
-                      : Icons.arrow_forward_rounded,
-                  size: 17,
-                ),
-                label: Text(action.$1!),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.indigo,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _statCard(
-    String title,
-    String value,
-    IconData icon,
-    Color tint,
-    Color accent,
-  ) => Container(
-    padding: const EdgeInsets.all(14),
-    decoration: _cardDecoration(),
-    child: Row(
-      children: [
-        Container(
-          width: 39,
-          height: 39,
-          decoration: BoxDecoration(
-            color: tint,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(icon, size: 20, color: accent),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style: const TextStyle(
-                  color: AppColors.ink,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              Text(
-                title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.muted,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    ),
-  );
-
   Widget _quickAction({
     required IconData icon,
+    required Color iconBackground,
+    required Color iconColor,
     required String title,
     required String subtitle,
     required VoidCallback onTap,
@@ -1780,10 +1403,10 @@ class _SecurityHomeState extends State<_SecurityHome> {
               width: 38,
               height: 38,
               decoration: BoxDecoration(
-                color: const Color(0xFFEDEBFF),
+                color: iconBackground,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: AppColors.indigo, size: 20),
+              child: Icon(icon, color: iconColor, size: 20),
             ),
             const SizedBox(height: 12),
             Text(
@@ -1890,35 +1513,6 @@ class _SecurityHomeState extends State<_SecurityHome> {
     ),
   );
 
-  Widget _profileRow(IconData icon, String label, String value) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 14),
-    child: Row(
-      children: [
-        Icon(icon, color: AppColors.indigo, size: 19),
-        const SizedBox(width: 11),
-        SizedBox(
-          width: 102,
-          child: Text(
-            label,
-            style: const TextStyle(color: AppColors.muted, fontSize: 12),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            textAlign: TextAlign.end,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppColors.inkSoft,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-      ],
-    ),
-  );
-
   Widget _statusBadge(String status, Color color) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
     decoration: BoxDecoration(
@@ -1938,21 +1532,16 @@ class _SecurityHomeState extends State<_SecurityHome> {
     ),
     child: SafeArea(
       top: false,
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 720),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(8, 7, 8, 5),
-            child: Row(
-              children: [
-                _navItem(Icons.shield_outlined, 'Overview', 0),
-                _navItem(Icons.groups_2_outlined, 'Visitors', 1),
-                _navItem(Icons.receipt_long_outlined, 'Gate log', 2),
-                _navItem(Icons.local_shipping_outlined, 'Deliveries', 3),
-                _navItem(Icons.person_outline_rounded, 'Profile', 4),
-              ],
-            ),
-          ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 7, 8, 5),
+        child: Row(
+          children: [
+            _navItem(Icons.shield_outlined, 'Overview', 0),
+            _navItem(Icons.groups_2_outlined, 'Visitors', 1),
+            _navItem(Icons.receipt_long_outlined, 'Gate log', 2),
+            _navItem(Icons.local_shipping_outlined, 'Deliveries', 3),
+            _navItem(Icons.person_outline_rounded, 'Profile', 4),
+          ],
         ),
       ),
     ),
@@ -2033,6 +1622,9 @@ class _SecurityHomeState extends State<_SecurityHome> {
 
 class _GuardSnapshot {
   const _GuardSnapshot({
+    this.societyName,
+    this.societyLogoUrl,
+    this.accountPhotoUrl,
     required this.gates,
     required this.profiles,
     required this.destinations,
@@ -2042,6 +1634,9 @@ class _GuardSnapshot {
     required this.parcels,
   });
 
+  final String? societyName;
+  final String? societyLogoUrl;
+  final String? accountPhotoUrl;
   final List<_Gate> gates;
   final Map<String, _Visitor> profiles;
   final List<_GuardDestination> destinations;
@@ -2357,7 +1952,30 @@ class _GuardApi {
     events.sort(
       (a, b) => (b.at ?? DateTime(1970)).compareTo(a.at ?? DateTime(1970)),
     );
+    String? societyName;
+    String? societyLogoUrl;
+    String? accountPhotoUrl;
+    try {
+      final dashboard = await _getObject(
+        '/resident-dashboard',
+        user.accessToken,
+      );
+      final society = dashboard['society'];
+      final account = dashboard['account'];
+      if (account is Map<String, dynamic>) {
+        accountPhotoUrl = _imageUrl(account['photoUrl']);
+      }
+      if (society is Map<String, dynamic>) {
+        societyName = _optionalString(society['name']);
+        societyLogoUrl = _imageUrl(society['logoUrl']);
+      }
+    } catch (_) {
+      // Society branding is optional; keep the dashboard usable if it is unavailable.
+    }
     return _GuardSnapshot(
+      societyName: societyName,
+      societyLogoUrl: societyLogoUrl,
+      accountPhotoUrl: accountPhotoUrl,
       gates: gates,
       profiles: profiles,
       destinations: destinations,
@@ -2428,6 +2046,42 @@ class _GuardApi {
       throw const _GuardApiException(
         'The server returned invalid security dashboard data.',
       );
+    }
+  }
+
+  static Future<Map<String, dynamic>> _getObject(
+    String path,
+    String token,
+  ) async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$_apiBaseUrl$path'),
+            headers: {
+              'Accept': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(const Duration(seconds: 20));
+      final body = response.body.isEmpty
+          ? <String, dynamic>{}
+          : jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.statusCode == 401) SessionManager.expire();
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw _GuardApiException(
+          body['message']?.toString() ?? 'Could not load society details.',
+        );
+      }
+      final data = body['data'];
+      return data is Map<String, dynamic> ? data : const {};
+    } on _GuardApiException {
+      rethrow;
+    } on http.ClientException {
+      throw const _GuardApiException('Cannot reach the society details service.');
+    } on TimeoutException {
+      throw const _GuardApiException('Society details request timed out.');
+    } on FormatException {
+      throw const _GuardApiException('Society details response was invalid.');
     }
   }
 
@@ -2748,10 +2402,10 @@ String _statusLabel(String status) => switch (status) {
   _ => _humanize(status),
 };
 Color _statusColor(String status) => switch (status) {
-  'ARRIVED' => const Color(0xFFB16A00),
-  'EXPECTED' => const Color(0xFF3977D5),
-  'INSIDE' => const Color(0xFF199866),
-  'OVERSTAY' => const Color(0xFFC53D4B),
+  'ARRIVED' => _residentActionOrange,
+  'EXPECTED' => _residentActionBlue,
+  'INSIDE' => _residentActionGreen,
+  'OVERSTAY' => const Color(0xFFD65A54),
   'EXITED' => const Color(0xFF67758E),
   _ => AppColors.muted,
 };
@@ -2763,22 +2417,22 @@ String _humanize(String value) => value
     .join(' ');
 
 Color _deliveryStatusColor(String status) => switch (status) {
-  'EXPECTED' => const Color(0xFF3977D5),
-  'ARRIVED' => const Color(0xFFB16A00),
-  'INSIDE' => const Color(0xFF199866),
-  'LEFT_AT_GATE' => const Color(0xFF3977D5),
-  'PICKED_UP' => const Color(0xFF199866),
+  'EXPECTED' => _residentActionBlue,
+  'ARRIVED' => _residentActionOrange,
+  'INSIDE' => _residentActionGreen,
+  'LEFT_AT_GATE' => _residentActionBlue,
+  'PICKED_UP' => _residentActionGreen,
   'EXITED' => const Color(0xFF67758E),
-  'OVERSTAY' => const Color(0xFFC53D4B),
-  'CANCELLED' => const Color(0xFFC53D4B),
+  'OVERSTAY' => const Color(0xFFD65A54),
+  'CANCELLED' => const Color(0xFFD65A54),
   _ => AppColors.muted,
 };
 
 Color _parcelStatusColor(String status) => switch (status) {
-  'STORED' => const Color(0xFF3977D5),
-  'COLLECTED' => const Color(0xFF199866),
-  'DAMAGED' => const Color(0xFFB16A00),
-  'LOST' => const Color(0xFFC53D4B),
+  'STORED' => _residentActionBlue,
+  'COLLECTED' => _residentActionGreen,
+  'DAMAGED' => _residentActionOrange,
+  'LOST' => const Color(0xFFD65A54),
   _ => AppColors.muted,
 };
 

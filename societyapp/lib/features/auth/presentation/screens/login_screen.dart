@@ -5,7 +5,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../data/auth_api.dart';
 import 'forgot_password_screen.dart';
 import '../widgets/society_brand_mark.dart';
-import '../../../dashboard/presentation/screens/security_dashboard_screen.dart';
+import '../../../security_guard/dashboard/screens/security_dashboard_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, this.sessionExpired = false});

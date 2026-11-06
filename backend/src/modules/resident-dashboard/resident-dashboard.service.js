@@ -31,6 +31,18 @@ const getDashboard = async (user) => {
   );
   const home = homeResult.rows[0];
 
+  const accountResult = await query(
+    `SELECT COALESCE(NULLIF(s.photo_path, ''), NULLIF(u.profile_picture_url, '')) AS photo_url
+       FROM users u
+       LEFT JOIN security_guards sg ON sg.user_id = u.id
+       LEFT JOIN staff s
+         ON s.id = sg.staff_id
+        AND s.staff_type = 'SECURITY_GUARD'
+      WHERE u.id = $1
+      LIMIT 1`,
+    [user.id],
+  );
+
   let maintenance = null;
   let upcomingBookings = [];
   if (home?.resident_id) {
@@ -100,6 +112,9 @@ const getDashboard = async (user) => {
   });
 
   return {
+    account: {
+      photoUrl: accountResult.rows[0]?.photo_url || null,
+    },
     society: home ? {
       id: home.society_id,
       name: home.society_name,

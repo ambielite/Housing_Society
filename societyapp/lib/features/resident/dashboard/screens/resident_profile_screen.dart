@@ -171,17 +171,17 @@ class _ResidentProfileScreenState extends State<ResidentProfileScreen>
                   _value(dashboard.floorName),
                 ),
                 _infoTile(Icons.verified_user_outlined, 'Role', 'Resident'),
-                _infoTile(
-                  Icons.check_circle_outline_rounded,
-                  'Account status',
-                  _label(widget.user.status),
-                ),
               ]),
               3,
             ),
             const SizedBox(height: 14),
             _entry(
               _section('Account details', Icons.manage_accounts_outlined, [
+                _infoTile(
+                  Icons.check_circle_outline_rounded,
+                  'Account status',
+                  _label(widget.user.status),
+                ),
                 _infoTile(
                   Icons.event_outlined,
                   'Account created',
