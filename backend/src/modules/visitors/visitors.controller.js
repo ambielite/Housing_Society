@@ -39,6 +39,11 @@ const createInvite = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, invite, 'Visitor invite created successfully', 201);
 });
 
+const createResidentInvite = asyncHandler(async (req, res) => {
+  const invite = await service.createResidentInvite(req.user, req.body);
+  return ApiResponse.success(res, invite, 'Visitor pre-approved successfully', 201);
+});
+
 const listInvites = asyncHandler(async (req, res) => {
   const invites = await service.listInvites(req.query);
   return ApiResponse.success(res, invites);
@@ -141,6 +146,7 @@ module.exports = {
   updateProfile,
   setBlacklistStatus,
   createInvite,
+  createResidentInvite,
   listInvites,
   getInvite,
   decideInvite,

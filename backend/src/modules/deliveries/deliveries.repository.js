@@ -12,8 +12,81 @@ const createDelivery = async ({ societyId, unitId, visitorProfileId, deliveryTyp
   return result.rows[0];
 };
 
+const notifyUnitResidents = async ({ societyId, unitId, title, message, referenceType, referenceId }) => {
+  await db.query(
+    `WITH target_residents AS (
+       SELECT ou.owner_id AS resident_id
+         FROM owner_units ou
+        WHERE ou.society_id = $1 AND ou.unit_id = $2 AND ou.status = 'ACTIVE'
+          AND ou.effective_from <= CURRENT_DATE
+          AND (ou.effective_to IS NULL OR ou.effective_to >= CURRENT_DATE)
+       UNION
+       SELECT o.resident_id
+         FROM occupancies o
+        WHERE o.society_id = $1 AND o.unit_id = $2 AND COALESCE(o.is_current, true) = true
+          AND (o.end_date IS NULL OR o.end_date >= CURRENT_DATE)
+     )
+     INSERT INTO notifications
+       (society_id, user_id, channel, notification_type, title, subject, message,
+        data, reference_type, reference_id, priority, status, delivered_at, created_at, updated_at)
+     SELECT $1, r.user_id, 'IN_APP', 'OPERATIONAL', $3, $3, $4,
+            jsonb_build_object('unitId', $2), $5, $6, 'MEDIUM', 'DELIVERED', now(), now(), now()
+       FROM target_residents tr
+       JOIN residents r ON r.id = tr.resident_id
+      WHERE r.status = 'ACTIVE' AND r.user_id IS NOT NULL
+     ON CONFLICT DO NOTHING`,
+    [societyId, unitId, title, message, referenceType, referenceId],
+  );
+};
+
+const listResidentNotifications = async (userId, societyId) => {
+  const result = await db.query(
+    `SELECT id, title, message, reference_type, reference_id, data, created_at
+       FROM notifications
+      WHERE user_id = $1 AND society_id = $2 AND channel = 'IN_APP'
+        AND reference_type IN ('DELIVERY', 'PARCEL') AND is_read = false
+      ORDER BY created_at DESC LIMIT 25`,
+    [userId, societyId],
+  );
+  return result.rows;
+};
+
+const markResidentNotificationRead = async (id, userId, societyId) => {
+  const result = await db.query(
+    `UPDATE notifications SET is_read = true, read_at = now(), updated_at = now()
+      WHERE id = $1 AND user_id = $2 AND society_id = $3
+        AND reference_type IN ('DELIVERY', 'PARCEL') RETURNING id`,
+    [id, userId, societyId],
+  );
+  return result.rows[0] || null;
+};
+
 const findDeliveryById = async (id) => {
-  const result = await db.query('SELECT * FROM deliveries WHERE id = $1', [id]);
+  const result = await db.query(
+    `SELECT d.*, vp.resident_decision
+       FROM deliveries d
+       LEFT JOIN visitor_passes vp ON vp.id = d.visitor_pass_id
+      WHERE d.id = $1`,
+    [id],
+  );
+  return result.rows[0] || null;
+};
+
+const linkVisitorPass = async (deliveryId, visitorPassId) => {
+  const result = await db.query(
+    'UPDATE deliveries SET visitor_pass_id = $2, updated_at = now() WHERE id = $1 RETURNING *',
+    [deliveryId, visitorPassId],
+  );
+  return result.rows[0] || null;
+};
+
+const syncStatusFromVisitorPass = async (visitorPassId, status) => {
+  const result = await db.query(
+    `UPDATE deliveries SET status = $2, updated_at = now()
+      WHERE visitor_pass_id = $1 AND status IN ('EXPECTED', 'ARRIVED')
+      RETURNING *`,
+    [visitorPassId, status],
+  );
   return result.rows[0] || null;
 };
 
@@ -141,7 +214,12 @@ const updateParcelStatus = async (id, status, collectedBy) => {
 
 module.exports = {
   createDelivery,
+  notifyUnitResidents,
+  listResidentNotifications,
+  markResidentNotificationRead,
   findDeliveryById,
+  linkVisitorPass,
+  syncStatusFromVisitorPass,
   listDeliveries,
   updateDeliveryStatus,
   createParcel,

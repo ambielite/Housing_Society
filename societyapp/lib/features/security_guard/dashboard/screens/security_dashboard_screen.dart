@@ -341,322 +341,35 @@ class _SecurityHomeState extends State<_SecurityHome> {
       _showError('There is no active gate configured for this society.');
       return;
     }
-    final name = TextEditingController();
-    final phone = TextEditingController();
-    final deliveryCompany = TextEditingController();
-    final vehicleNo = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-    String? visitorType;
-    String? gateId;
-    String? idType;
-    _GuardDestination? destination;
-    bool saving = false;
     final created = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (context, setSheetState) => Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.viewInsetsOf(context).bottom,
-          ),
-          child: _surface(
-            context,
-            padding: const EdgeInsets.fromLTRB(22, 12, 22, 24),
-            child: SingleChildScrollView(
-              child: Form(
-                key: formKey,
-                child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 42,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFDCE2EE),
-                        borderRadius: BorderRadius.circular(5),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      IconButton(
-                        tooltip: 'Close visitor form',
-                        onPressed: () => Navigator.of(sheetContext).pop(),
-                        icon: const Icon(Icons.arrow_back_rounded),
-                      ),
-                      Expanded(
-                        child: Text(
-                          'Register a visitor',
-                          style: _titleStyle(20),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Create a walk-in record for the selected gate.',
-                    style: TextStyle(color: AppColors.muted),
-                  ),
-                  const SizedBox(height: 20),
-                  TextFormField(
-                    key: const ValueKey('visitor-name-field'),
-                    controller: name,
-                    textCapitalization: TextCapitalization.words,
-                    validator: (value) => value == null || value.trim().isEmpty
-                        ? 'Enter the visitor name.'
-                        : null,
-                    decoration: _fieldDecoration(
-                      'Visitor name',
-                      Icons.person_outline_rounded,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    key: const ValueKey('visitor-phone-field'),
-                    controller: phone,
-                    keyboardType: TextInputType.phone,
-                    decoration: _fieldDecoration(
-                      'Phone (optional)',
-                      Icons.phone_outlined,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _styledDropdownField<String>(
-                    value: visitorType,
-                    decoration: _fieldDecoration('Visitor type', Icons.category_outlined),
-                    hint: 'Select visitor type',
-                    validator: (value) => value == null
-                        ? 'Select a visitor type.'
-                        : null,
-                    items: const [
-                      DropdownMenuItem(value: 'GUEST', child: Text('Guest')),
-                      DropdownMenuItem(
-                        value: 'DELIVERY_PERSON',
-                        child: Text('Delivery person'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'SERVICE_PROVIDER',
-                        child: Text('Service provider'),
-                      ),
-                      DropdownMenuItem(value: 'OTHER', child: Text('Other')),
-                    ],
-                    onChanged: (value) => setSheetState(() => visitorType = value),
-                  ),
-                  if (visitorType == 'DELIVERY_PERSON') ...[
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      key: const ValueKey('delivery-company-field'),
-                      controller: deliveryCompany,
-                      validator: (value) =>
-                          visitorType == 'DELIVERY_PERSON' &&
-                              (value == null || value.trim().isEmpty)
-                          ? 'Enter the delivery company.'
-                          : null,
-                      decoration: _fieldDecoration(
-                        'Delivery company',
-                        Icons.local_shipping_outlined,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                  _styledDropdownField<String>(
-                    value: idType,
-                    decoration: _fieldDecoration('ID proof type (optional)', Icons.badge_outlined),
-                    hint: 'Select ID proof type',
-                    items: const [
-                      DropdownMenuItem(value: 'AADHAAR', child: Text('Aadhaar')),
-                      DropdownMenuItem(value: 'DRIVING_LICENSE', child: Text('Driving license')),
-                      DropdownMenuItem(value: 'PASSPORT', child: Text('Passport')),
-                      DropdownMenuItem(value: 'OTHER', child: Text('Other')),
-                    ],
-                    onChanged: (value) => setSheetState(() => idType = value),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    key: const ValueKey('visitor-vehicle-field'),
-                    controller: vehicleNo,
-                    textCapitalization: TextCapitalization.characters,
-                    decoration: _fieldDecoration(
-                      'Vehicle number (optional)',
-                      Icons.directions_car_outlined,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  if (data.destinations.isEmpty)
-                    InputDecorator(
-                      decoration: _fieldDecoration(
-                        'Visiting flat / resident',
-                        Icons.apartment_rounded,
-                      ),
-                      child: const Text(
-                        'No active resident and flat assignments available',
-                        style: TextStyle(color: AppColors.muted),
-                      ),
-                    )
-                  else
-                    _styledDropdownField<_GuardDestination>(
-                      value: destination,
-                      decoration: _fieldDecoration(
-                        'Visiting flat / resident',
-                        Icons.apartment_rounded,
-                      ),
-                      hint: 'Select the resident being visited',
-                      validator: (value) => value == null
-                          ? 'Select the flat and resident being visited.'
-                          : null,
-                      items: data.destinations
-                          .map(
-                            (item) => DropdownMenuItem(
-                              value: item,
-                              child: Text(
-                                item.label,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) =>
-                          setSheetState(() => destination = value),
-                    ),
-                  const SizedBox(height: 12),
-                  _styledDropdownField<String>(
-                    value: gateId,
-                    decoration: _fieldDecoration(
-                      'Entry gate',
-                      Icons.door_front_door_outlined,
-                    ),
-                    hint: 'Select entry gate',
-                    validator: (value) => value == null
-                        ? 'Select an entry gate.'
-                        : null,
-                    items: data.gates
-                        .map(
-                          (gate) => DropdownMenuItem(
-                            value: gate.id,
-                            child: Text(gate.name),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) => setSheetState(() => gateId = value),
-                  ),
-                  const SizedBox(height: 18),
-                  SizedBox(
-                    height: 52,
-                    child: FilledButton.icon(
-                      onPressed: saving
-                          ? null
-                          : () async {
-                              if (data.destinations.isEmpty) {
-                                _showError(
-                                  'Add an active resident and assign a flat before registering visitors.',
-                                );
-                                return;
-                              }
-                              if (!formKey.currentState!.validate()) {
-                                return;
-                              }
-                              setSheetState(() => saving = true);
-                              try {
-                                final profile = await _GuardApi.post(
-                                  '/visitors/profiles',
-                                  {
-                                    'societyId': widget.user.societyId,
-                                    'name': name.text.trim(),
-                                    'visitorType': visitorType!,
-                                    'phone': phone.text.trim(),
-                                    'idType': idType,
-                                    'vehicleNo': vehicleNo.text.trim().toUpperCase(),
-                                    'deliveryCompany':
-                                        visitorType == 'DELIVERY_PERSON'
-                                        ? deliveryCompany.text.trim()
-                                        : null,
-                                  },
-                                  widget.user.accessToken,
-                                );
-                                final profileId = profile['id']?.toString();
-                                if (profileId == null || profileId.isEmpty) {
-                                  throw const _GuardApiException(
-                                    'The server did not return a visitor record.',
-                                  );
-                                }
-                                final pass = await _GuardApi.post('/visitors/passes', {
-                                  'visitorProfileId': profileId,
-                                  'gateId': gateId!,
-                                  'unitId': destination!.unitId,
-                                  'residentId': destination!.residentId,
-                                  'passNo':
-                                      'WALKIN-${DateTime.now().millisecondsSinceEpoch}',
-                                }, widget.user.accessToken);
-                                if ('${pass['id'] ?? ''}'.isEmpty) {
-                                  throw const _GuardApiException(
-                                    'The server did not return the visitor pass.',
-                                  );
-                                }
-                                if (sheetContext.mounted) {
-                                  Navigator.pop(sheetContext, {
-                                    'profile': profile,
-                                    'pass': pass,
-                                  });
-                                }
-                              } on _GuardApiException catch (error) {
-                                if (sheetContext.mounted) {
-                                  setSheetState(() => saving = false);
-                                }
-                                if (mounted) {
-                                  _showError(error.message);
-                                }
-                              }
-                            },
-                      icon: saving
-                          ? const SizedBox.square(
-                              dimension: 17,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Icon(Icons.person_add_alt_1_rounded),
-                      label: Text(
-                        saving ? 'Saving visitor...' : 'Create visitor pass',
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              ),
-            ),
-          ),
+      builder: (_) => _RegisterVisitorSheet(
+        user: widget.user,
+        destinations: data.destinations,
+        gates: data.gates,
+      ),
+    );
+    if (created == null || !mounted) return;
+    final profile = _Visitor.fromJson(
+      Map<String, dynamic>.from(created['profile'] as Map),
+    );
+    final pass = _GuardPass.fromJson(
+      Map<String, dynamic>.from(created['pass'] as Map),
+    );
+    setState(() {
+      data.profiles[profile.id] = profile;
+      data.passes.removeWhere((item) => item.id == pass.id);
+      data.passes.insert(0, pass);
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Visitor registered. Record their arrival when they reach the gate.',
         ),
       ),
     );
-    name.dispose();
-    phone.dispose();
-    deliveryCompany.dispose();
-    vehicleNo.dispose();
-    if (created != null && mounted) {
-      final visitorJson = Map<String, dynamic>.from(
-        created['profile'] as Map,
-      );
-      final passJson = Map<String, dynamic>.from(created['pass'] as Map);
-      final visitor = _Visitor.fromJson(visitorJson);
-      final pass = _GuardPass.fromJson(passJson);
-      setState(() {
-        data.profiles[visitor.id] = visitor;
-        data.passes.removeWhere((item) => item.id == pass.id);
-        data.passes.insert(0, pass);
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Visitor registered. Record their arrival when they reach the gate.',
-          ),
-        ),
-      );
-    }
   }
 
   void _showError(String message) {
@@ -683,9 +396,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
       child: FutureBuilder<_GuardSnapshot>(
         future: _snapshot,
         builder: (context, state) {
-          if (state.hasError) {
-            return _errorView(state.error.toString());
-          }
+          if (state.hasError) return _errorView(state.error!);
           if (!state.hasData) {
             return const Center(
               child: CircularProgressIndicator(color: AppColors.indigo),
@@ -693,6 +404,12 @@ class _SecurityHomeState extends State<_SecurityHome> {
           }
           final data = state.data!;
           _loadedSnapshot = data;
+          final content = switch (_tab) {
+            1 => _SecurityVisitorsScreen(owner: this, data: data),
+            2 => _SecurityGateLogScreen(owner: this, data: data),
+            3 => _SecurityDeliveriesScreen(owner: this, data: data),
+            _ => _overview(data),
+          };
           return Column(
             children: [
               Expanded(
@@ -707,22 +424,12 @@ class _SecurityHomeState extends State<_SecurityHome> {
                         child: ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 900),
                           child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               _header(data),
-                              if (_tab == 0) ...[
-                                const SizedBox(height: 24),
-                                _greeting(),
-                                const SizedBox(height: 20),
-                                _securitySummaryCard(data),
-                              ],
-                              SizedBox(height: _tab == 0 ? 24 : 18),
-                              switch (_tab) {
-                                0 => _overview(data),
-                                1 => _SecurityVisitorsScreen(owner: this, data: data),
-                                2 => _SecurityGateLogScreen(owner: this, data: data),
-                                3 => _SecurityDeliveriesScreen(owner: this, data: data),
-                                _ => const SizedBox.shrink(),
-                              },
+                              const SizedBox(height: 20),
+                              if (_tab == 0) _greeting(),
+                              content,
                             ],
                           ),
                         ),
@@ -1134,97 +841,16 @@ class _SecurityHomeState extends State<_SecurityHome> {
       _showError('No resident flats are available for delivery registration.');
       return;
     }
-    final formKey = GlobalKey<FormState>();
-    final courier = TextEditingController();
-    String? unitId;
-    String visitorId = '';
-    String deliveryType = 'COURIER';
-    bool saving = false;
     final created = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (context, setSheetState) => Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-          child: _surface(
-            context,
-            padding: const EdgeInsets.fromLTRB(22, 12, 22, 24),
-            child: SingleChildScrollView(
-              child: Form(
-                key: formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Center(child: Container(width: 42, height: 4, decoration: BoxDecoration(color: const Color(0xFFDCE2EE), borderRadius: BorderRadius.circular(5)))),
-                    const SizedBox(height: 20),
-                    Text('Register delivery', style: _titleStyle(20)),
-                    const SizedBox(height: 16),
-                    _styledDropdownField<String>(
-                      value: unitId,
-                      decoration: _fieldDecoration('Unit', Icons.apartment_rounded),
-                      hint: 'Select destination flat',
-                      validator: (value) => value == null ? 'Select a flat.' : null,
-                      items: data.units.map((unit) => DropdownMenuItem(value: unit.id, child: Text(unit.label, overflow: TextOverflow.ellipsis))).toList(),
-                      onChanged: (value) => setSheetState(() => unitId = value),
-                    ),
-                    const SizedBox(height: 12),
-                    _styledDropdownField<String>(
-                      value: visitorId,
-                      decoration: _fieldDecoration('Visitor profile (optional)', Icons.person_outline_rounded),
-                      items: [
-                        const DropdownMenuItem(value: '', child: Text('No linked visitor')),
-                        ...data.profiles.values.map((visitor) => DropdownMenuItem(value: visitor.id, child: Text(visitor.name, overflow: TextOverflow.ellipsis))),
-                      ],
-                      onChanged: (value) => setSheetState(() => visitorId = value ?? ''),
-                    ),
-                    const SizedBox(height: 12),
-                    _styledDropdownField<String>(
-                      value: deliveryType,
-                      decoration: _fieldDecoration('Delivery type', Icons.category_outlined),
-                      items: const [
-                        DropdownMenuItem(value: 'COURIER', child: Text('Courier')),
-                        DropdownMenuItem(value: 'FOOD', child: Text('Food')),
-                        DropdownMenuItem(value: 'E_COMMERCE', child: Text('E-commerce')),
-                        DropdownMenuItem(value: 'GROCERY', child: Text('Grocery')),
-                        DropdownMenuItem(value: 'OTHER', child: Text('Other')),
-                      ],
-                      onChanged: (value) => setSheetState(() => deliveryType = value ?? 'COURIER'),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(controller: courier, decoration: _fieldDecoration('Courier / source (optional)', Icons.local_shipping_outlined)),
-                    const SizedBox(height: 18),
-                    SizedBox(height: 50, child: FilledButton.icon(
-                      onPressed: saving ? null : () async {
-                        if (!formKey.currentState!.validate()) return;
-                        setSheetState(() => saving = true);
-                        try {
-                          final result = await _GuardApi.post('/deliveries', {
-                            'societyId': widget.user.societyId,
-                            'unitId': unitId,
-                            'visitorProfileId': visitorId.isEmpty ? null : visitorId,
-                            'deliveryType': deliveryType,
-                            'courierName': courier.text.trim(),
-                          }, widget.user.accessToken);
-                          if (sheetContext.mounted) Navigator.pop(sheetContext, result);
-                        } on _GuardApiException catch (error) {
-                          if (sheetContext.mounted) setSheetState(() => saving = false);
-                          if (mounted) _showError(error.message);
-                        }
-                      },
-                      icon: saving ? const SizedBox.square(dimension: 17, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.add_rounded),
-                      label: Text(saving ? 'Registering...' : 'Register delivery'),
-                    )),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
+      builder: (_) => _RegisterDeliverySheet(
+        user: widget.user,
+        units: data.units,
+        profiles: data.profiles.values.toList(),
       ),
     );
-    courier.dispose();
     if (created != null && mounted) {
       final delivery = _Delivery.fromJson(created);
       setState(() => data.deliveries.insert(0, delivery));
@@ -1874,6 +1500,291 @@ class _GateEvent {
     gateId: '${json['gate_id'] ?? ''}',
     at: DateTime.tryParse('${json['event_at'] ?? ''}'),
   );
+}
+
+class _RegisterVisitorSheet extends StatefulWidget {
+  const _RegisterVisitorSheet({
+    required this.user,
+    required this.destinations,
+    required this.gates,
+  });
+
+  final AuthenticatedUser user;
+  final List<_GuardDestination> destinations;
+  final List<_Gate> gates;
+
+  @override
+  State<_RegisterVisitorSheet> createState() => _RegisterVisitorSheetState();
+}
+
+class _RegisterVisitorSheetState extends State<_RegisterVisitorSheet> {
+  final _formKey = GlobalKey<FormState>();
+  final _name = TextEditingController();
+  final _phone = TextEditingController();
+  final _company = TextEditingController();
+  final _vehicleNo = TextEditingController();
+  String? _visitorType;
+  String? _gateId;
+  String? _idType;
+  _GuardDestination? _destination;
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _phone.dispose();
+    _company.dispose();
+    _vehicleNo.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (widget.destinations.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Add an active resident and assign a flat before registering visitors.'),
+      ));
+      return;
+    }
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _saving = true);
+    try {
+      final profile = await _GuardApi.post('/visitors/profiles', {
+        'societyId': widget.user.societyId,
+        'name': _name.text.trim(),
+        'visitorType': _visitorType,
+        'phone': _phone.text.trim(),
+        'idType': _idType,
+        'vehicleNo': _vehicleNo.text.trim().toUpperCase(),
+        'deliveryCompany': _visitorType == 'DELIVERY_PERSON'
+            ? _company.text.trim()
+            : null,
+      }, widget.user.accessToken);
+      final profileId = profile['id']?.toString();
+      if (profileId == null || profileId.isEmpty) {
+        throw const _GuardApiException('The server did not return a visitor record.');
+      }
+      final pass = await _GuardApi.post('/visitors/passes', {
+        'visitorProfileId': profileId,
+        'gateId': _gateId,
+        'unitId': _destination!.unitId,
+        'residentId': _destination!.residentId,
+        'passNo': 'WALKIN-${DateTime.now().millisecondsSinceEpoch}',
+      }, widget.user.accessToken);
+      if ('${pass['id'] ?? ''}'.isEmpty) {
+        throw const _GuardApiException('The server did not return the visitor pass.');
+      }
+      if (mounted) Navigator.of(context).pop({'profile': profile, 'pass': pass});
+    } on _GuardApiException catch (error) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+        child: _surface(
+          context,
+          padding: const EdgeInsets.fromLTRB(22, 12, 22, 24),
+          child: SingleChildScrollView(
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(child: Container(width: 42, height: 4, decoration: BoxDecoration(color: const Color(0xFFDCE2EE), borderRadius: BorderRadius.circular(5)))),
+                  const SizedBox(height: 20),
+                  Row(children: [
+                    IconButton(tooltip: 'Close visitor form', onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.arrow_back_rounded)),
+                    Expanded(child: Text('Register a visitor', style: _titleStyle(20))),
+                  ]),
+                  const Text('Create a walk-in record for the selected gate.', style: TextStyle(color: AppColors.muted)),
+                  const SizedBox(height: 20),
+                  TextFormField(controller: _name, textCapitalization: TextCapitalization.words, validator: (value) => value == null || value.trim().isEmpty ? 'Enter the visitor name.' : null, decoration: _fieldDecoration('Visitor name', Icons.person_outline_rounded)),
+                  const SizedBox(height: 12),
+                  TextField(controller: _phone, keyboardType: TextInputType.phone, decoration: _fieldDecoration('Phone (optional)', Icons.phone_outlined)),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: _visitorType,
+                    decoration: _fieldDecoration('Visitor type', Icons.category_outlined),
+                    validator: (value) => value == null ? 'Select a visitor type.' : null,
+                    items: const [
+                      DropdownMenuItem(value: 'GUEST', child: Text('Guest')),
+                      DropdownMenuItem(value: 'DELIVERY_PERSON', child: Text('Delivery person')),
+                      DropdownMenuItem(value: 'SERVICE_PROVIDER', child: Text('Service provider')),
+                      DropdownMenuItem(value: 'OTHER', child: Text('Other')),
+                    ],
+                    onChanged: (value) => setState(() => _visitorType = value),
+                  ),
+                  if (_visitorType == 'DELIVERY_PERSON') ...[
+                    const SizedBox(height: 12),
+                    TextFormField(controller: _company, validator: (value) => value == null || value.trim().isEmpty ? 'Enter the delivery company.' : null, decoration: _fieldDecoration('Delivery company', Icons.local_shipping_outlined)),
+                  ],
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: _idType,
+                    decoration: _fieldDecoration('ID proof type (optional)', Icons.badge_outlined),
+                    items: const [
+                      DropdownMenuItem(value: 'AADHAAR', child: Text('Aadhaar')),
+                      DropdownMenuItem(value: 'DRIVING_LICENSE', child: Text('Driving license')),
+                      DropdownMenuItem(value: 'PASSPORT', child: Text('Passport')),
+                      DropdownMenuItem(value: 'OTHER', child: Text('Other')),
+                    ],
+                    onChanged: (value) => setState(() => _idType = value),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(controller: _vehicleNo, textCapitalization: TextCapitalization.characters, decoration: _fieldDecoration('Vehicle number (optional)', Icons.directions_car_outlined)),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<_GuardDestination>(
+                    value: _destination,
+                    decoration: _fieldDecoration('Visiting flat / resident', Icons.apartment_rounded),
+                    validator: (value) => value == null ? 'Select the flat and resident being visited.' : null,
+                    items: widget.destinations.map((item) => DropdownMenuItem(value: item, child: Text(item.label, overflow: TextOverflow.ellipsis))).toList(),
+                    onChanged: (value) => setState(() => _destination = value),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: _gateId,
+                    decoration: _fieldDecoration('Entry gate', Icons.door_front_door_outlined),
+                    validator: (value) => value == null ? 'Select an entry gate.' : null,
+                    items: widget.gates.map((gate) => DropdownMenuItem(value: gate.id, child: Text(gate.name))).toList(),
+                    onChanged: (value) => setState(() => _gateId = value),
+                  ),
+                  const SizedBox(height: 18),
+                  SizedBox(height: 52, child: FilledButton.icon(
+                    onPressed: _saving ? null : _submit,
+                    icon: _saving ? const SizedBox.square(dimension: 17, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.person_add_alt_1_rounded),
+                    label: Text(_saving ? 'Saving visitor...' : 'Create visitor pass'),
+                  )),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+}
+
+class _RegisterDeliverySheet extends StatefulWidget {
+  const _RegisterDeliverySheet({
+    required this.user,
+    required this.units,
+    required this.profiles,
+  });
+
+  final AuthenticatedUser user;
+  final List<_GuardUnit> units;
+  final List<_Visitor> profiles;
+
+  @override
+  State<_RegisterDeliverySheet> createState() => _RegisterDeliverySheetState();
+}
+
+class _RegisterDeliverySheetState extends State<_RegisterDeliverySheet> {
+  final _formKey = GlobalKey<FormState>();
+  final _courier = TextEditingController();
+  String? _unitId;
+  String _visitorId = '';
+  String _deliveryType = 'COURIER';
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _courier.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _saving = true);
+    try {
+      final result = await _GuardApi.post('/deliveries', {
+        'societyId': widget.user.societyId,
+        'unitId': _unitId,
+        'visitorProfileId': _visitorId.isEmpty ? null : _visitorId,
+        'deliveryType': _deliveryType,
+        'courierName': _courier.text.trim(),
+      }, widget.user.accessToken);
+      if (mounted) Navigator.of(context).pop(result);
+    } on _GuardApiException catch (error) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.message)),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+        child: _surface(
+          context,
+          padding: const EdgeInsets.fromLTRB(22, 12, 22, 24),
+          child: SingleChildScrollView(
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(child: Container(width: 42, height: 4, decoration: BoxDecoration(color: const Color(0xFFDCE2EE), borderRadius: BorderRadius.circular(5)))),
+                  const SizedBox(height: 20),
+                  Text('Register delivery', style: _titleStyle(20)),
+                  const SizedBox(height: 16),
+                  _styledDropdownField<String>(
+                    value: _unitId,
+                    decoration: _fieldDecoration('Unit', Icons.apartment_rounded),
+                    hint: 'Select destination flat',
+                    validator: (value) => value == null ? 'Select a flat.' : null,
+                    items: widget.units.map((unit) => DropdownMenuItem(value: unit.id, child: Text(unit.label, overflow: TextOverflow.ellipsis))).toList(),
+                    onChanged: (value) => setState(() => _unitId = value),
+                  ),
+                  const SizedBox(height: 12),
+                  _styledDropdownField<String>(
+                    value: _visitorId,
+                    decoration: _fieldDecoration('Visitor profile (optional)', Icons.person_outline_rounded),
+                    items: [
+                      const DropdownMenuItem(value: '', child: Text('No linked visitor')),
+                      ...widget.profiles.map((visitor) => DropdownMenuItem(value: visitor.id, child: Text(visitor.name, overflow: TextOverflow.ellipsis))),
+                    ],
+                    onChanged: (value) => setState(() => _visitorId = value ?? ''),
+                  ),
+                  const SizedBox(height: 12),
+                  _styledDropdownField<String>(
+                    value: _deliveryType,
+                    decoration: _fieldDecoration('Delivery type', Icons.category_outlined),
+                    items: const [
+                      DropdownMenuItem(value: 'COURIER', child: Text('Courier')),
+                      DropdownMenuItem(value: 'FOOD', child: Text('Food')),
+                      DropdownMenuItem(value: 'E_COMMERCE', child: Text('E-commerce')),
+                      DropdownMenuItem(value: 'GROCERY', child: Text('Grocery')),
+                      DropdownMenuItem(value: 'OTHER', child: Text('Other')),
+                    ],
+                    onChanged: (value) => setState(() => _deliveryType = value ?? 'COURIER'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(controller: _courier, decoration: _fieldDecoration('Courier / source (optional)', Icons.local_shipping_outlined)),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    height: 50,
+                    child: FilledButton.icon(
+                      onPressed: _saving ? null : _submit,
+                      icon: _saving
+                          ? const SizedBox.square(dimension: 17, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.add_rounded),
+                      label: Text(_saving ? 'Registering...' : 'Register delivery'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
 }
 
 class _GuardApi {

@@ -8,6 +8,7 @@ const {
   updateProfileSchema,
   setBlacklistStatusSchema,
   createInviteSchema,
+  createResidentInviteSchema,
   listInvitesQuerySchema,
   decideInviteSchema,
   createPassSchema,
@@ -64,6 +65,7 @@ router.patch(
 );
 
 // Visitor invites (pre-approval)
+router.post('/resident-invites', validate(createResidentInviteSchema), controller.createResidentInvite);
 router.post('/invites', authorize('VISITOR_INVITE_CREATE'), validate(createInviteSchema), controller.createInvite);
 router.get('/invites', authorize('VISITOR_INVITE_READ'), validate(listInvitesQuerySchema, 'query'), controller.listInvites);
 router.get('/invites/:inviteId', authorize('VISITOR_INVITE_READ'), controller.getInvite);

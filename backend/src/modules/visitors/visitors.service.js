@@ -2,6 +2,7 @@ const ApiError = require('../../common/ApiError');
 const { query } = require('../../config/db');
 const repository = require('./visitors.repository');
 const gatesRepository = require('../gates/gates.repository');
+const deliveriesRepository = require('../deliveries/deliveries.repository');
 
 const requireResidentId = async (user) => {
   if (!user.societyId) {
@@ -82,6 +83,27 @@ const createInvite = async ({ societyId, invitedBy, unitId, visitorProfileId, ex
     throw new ApiError(400, 'This visitor is blacklisted and cannot be pre-approved');
   }
   return repository.createInvite({ societyId, invitedBy, unitId, visitorProfileId, expectedFrom, expectedUntil, purpose });
+};
+
+const createResidentInvite = async (user, { name, phone, visitorType, expectedFrom, expectedUntil, purpose }) => {
+  const residentId = await requireResidentId(user);
+  const societyId = user.societyId;
+  const destinations = await repository.listDestinations(societyId);
+  const destination = destinations.find((item) => item.resident_id === residentId);
+  if (!destination) throw new ApiError(403, 'Your account is not linked to an active home');
+  const profile = await repository.createProfile({ societyId, name, phone, visitorType });
+  const invite = await repository.createInvite({
+    societyId, invitedBy: user.id, unitId: destination.unit_id,
+    visitorProfileId: profile.id, expectedFrom, expectedUntil, purpose,
+  });
+  await repository.updateInviteStatus(invite.id, 'APPROVED');
+  const [gate] = await gatesRepository.listGates(societyId);
+  if (!gate) throw new ApiError(409, 'No active gate is configured for this society');
+  await repository.createPass({
+    inviteId: invite.id, visitorProfileId: profile.id, gateId: gate.id,
+    passNo: invite.id, unitId: destination.unit_id, residentId,
+  });
+  return invite;
 };
 
 const listInvites = (query) => repository.listInvites(query);
@@ -174,7 +196,9 @@ const recordArrival = async (id) => {
   if (pass.resident_decision === 'REJECTED') {
     throw new ApiError(400, 'The resident rejected this visitor request');
   }
-  return repository.updatePassStatus(id, 'ARRIVED');
+  const updated = await repository.updatePassStatus(id, 'ARRIVED');
+  await deliveriesRepository.syncStatusFromVisitorPass(id, 'ARRIVED');
+  return updated;
 };
 
 /** "Entry recorded" + "Inside-premises timer begins" steps. */
@@ -203,7 +227,9 @@ const recordEntry = async (id, { capturedBy }) => {
     capturedBy,
   });
 
-  return repository.updatePassStatus(id, 'INSIDE');
+  const updated = await repository.updatePassStatus(id, 'INSIDE');
+  await deliveriesRepository.syncStatusFromVisitorPass(id, 'INSIDE');
+  return updated;
 };
 
 const listResidentVisitorRequests = async (user) => {
@@ -227,9 +253,13 @@ const decideResidentVisitorRequest = async (user, passId, decision) => {
   const updated = await repository.decideResidentVisitorRequest({
     passId,
     residentId,
+    societyId: user.societyId,
     decision,
   });
   if (!updated) throw new ApiError(404, 'Pending visitor request not found');
+  if (decision === 'REJECTED') {
+    await deliveriesRepository.syncStatusFromVisitorPass(passId, 'CANCELLED');
+  }
   return updated;
 };
 
@@ -311,6 +341,7 @@ module.exports = {
   updateProfile,
   setBlacklistStatus,
   createInvite,
+  createResidentInvite,
   listInvites,
   getInvite,
   decideInvite,
