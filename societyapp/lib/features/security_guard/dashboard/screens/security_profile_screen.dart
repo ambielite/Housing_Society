@@ -8,12 +8,14 @@ class SecurityProfileScreen extends StatefulWidget {
   const SecurityProfileScreen({
     required this.user,
     required this.gateNames,
+    required this.loadShiftAssignments,
     this.profilePhotoUrl,
     required this.onSignOut,
   });
 
   final AuthenticatedUser user;
   final List<String> gateNames;
+  final Future<List<SecurityShiftAssignment>> Function() loadShiftAssignments;
   final String? profilePhotoUrl;
   final VoidCallback onSignOut;
 
@@ -22,9 +24,34 @@ class SecurityProfileScreen extends StatefulWidget {
       _SecurityProfileScreenState();
 }
 
+class SecurityShiftAssignment {
+  const SecurityShiftAssignment({
+    required this.shiftName,
+    required this.shiftType,
+    required this.startTime,
+    required this.endTime,
+    required this.breakMinutes,
+    required this.rosterDate,
+    required this.status,
+    this.remarks,
+  });
+
+  final String shiftName;
+  final String shiftType;
+  final String startTime;
+  final String endTime;
+  final int breakMinutes;
+  final DateTime? rosterDate;
+  final String status;
+  final String? remarks;
+}
+
 class _SecurityProfileScreenState extends State<SecurityProfileScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _entryController;
+  List<SecurityShiftAssignment> _shiftAssignments = const [];
+  bool _loadingShiftAssignments = true;
+  bool _shiftAssignmentsFailed = false;
 
   @override
   void initState() {
@@ -33,6 +60,28 @@ class _SecurityProfileScreenState extends State<SecurityProfileScreen>
       vsync: this,
       duration: const Duration(milliseconds: 900),
     )..forward();
+    _loadShiftAssignments();
+  }
+
+  Future<void> _loadShiftAssignments() async {
+    setState(() {
+      _loadingShiftAssignments = true;
+      _shiftAssignmentsFailed = false;
+    });
+    try {
+      final assignments = await widget.loadShiftAssignments();
+      if (!mounted) return;
+      setState(() {
+        _shiftAssignments = assignments;
+        _loadingShiftAssignments = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _shiftAssignmentsFailed = true;
+        _loadingShiftAssignments = false;
+      });
+    }
   }
 
   @override
@@ -230,6 +279,8 @@ class _SecurityProfileScreenState extends State<SecurityProfileScreen>
               2,
             ),
             const SizedBox(height: 14),
+            _entry(_shiftAssignmentsSection(), 3),
+            const SizedBox(height: 14),
             _entry(
               _profileSection('Account details', Icons.manage_accounts_outlined, [
                 _profileInfo(
@@ -248,19 +299,99 @@ class _SecurityProfileScreenState extends State<SecurityProfileScreen>
                   _dateTime(user.lastLoginAt),
                 ),
               ]),
-              3,
+              4,
             ),
             const SizedBox(height: 14),
             _entry(
               _profileSection('Quick actions', Icons.bolt_rounded, [
                 _profileSignOut(),
               ]),
-              4,
+              5,
             ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _shiftAssignmentsSection() {
+    if (_loadingShiftAssignments) {
+      return _profileSection('Assigned shifts', Icons.schedule_rounded, [
+        _profileInfo(Icons.hourglass_top_rounded, 'Schedule', 'Loading shift details'),
+      ]);
+    }
+    if (_shiftAssignmentsFailed) {
+      return _profileSection('Assigned shifts', Icons.schedule_rounded, [
+        _profileInfo(Icons.error_outline_rounded, 'Schedule', 'Could not load shift details'),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: _loadShiftAssignments,
+            icon: const Icon(Icons.refresh_rounded, size: 17),
+            label: const Text('Try again'),
+          ),
+        ),
+      ]);
+    }
+    if (_shiftAssignments.isEmpty) {
+      return _profileSection('Assigned shifts', Icons.schedule_rounded, [
+        _profileInfo(Icons.event_busy_rounded, 'Schedule', 'No upcoming shifts are currently assigned'),
+      ]);
+    }
+    return _profileSection(
+      'Assigned shifts',
+      Icons.schedule_rounded,
+      [
+        for (var index = 0; index < _shiftAssignments.length; index++) ...[
+          if (index > 0)
+            const Padding(
+              padding: EdgeInsets.only(left: 44),
+              child: Divider(height: 12),
+            ),
+          _shiftAssignmentInfo(_shiftAssignments[index]),
+        ],
+      ],
+    );
+  }
+
+  Widget _shiftAssignmentInfo(SecurityShiftAssignment assignment) {
+    final date = assignment.rosterDate;
+    final dateText = date == null
+        ? 'Date unavailable'
+        : '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+    final breakText = assignment.breakMinutes <= 0
+        ? 'No break'
+        : assignment.breakMinutes % 60 == 0
+            ? '${assignment.breakMinutes ~/ 60} hr break'
+            : assignment.breakMinutes >= 60
+                ? '${assignment.breakMinutes ~/ 60} hr ${assignment.breakMinutes % 60} min break'
+                : '${assignment.breakMinutes} min break';
+    final shiftLabel = assignment.shiftType.isEmpty
+        ? assignment.shiftName
+        : '${assignment.shiftName} · ${_profileHumanize(assignment.shiftType)}';
+    return Column(
+      children: [
+        _profileInfo(Icons.event_outlined, 'Schedule date', dateText),
+        _profileInfo(
+          Icons.access_time_rounded,
+          'Shift time',
+          '${_profileTime(assignment.startTime)} – ${_profileTime(assignment.endTime)}',
+        ),
+        _profileInfo(Icons.badge_outlined, 'Shift', shiftLabel),
+        _profileInfo(Icons.coffee_outlined, 'Break', breakText),
+        _profileInfo(Icons.check_circle_outline_rounded, 'Schedule status', _profileHumanize(assignment.status)),
+        if (assignment.remarks != null && assignment.remarks!.trim().isNotEmpty)
+          _profileInfo(Icons.notes_rounded, 'Notes', assignment.remarks!.trim()),
+      ],
+    );
+  }
+
+  String _profileTime(String value) {
+    final match = RegExp(r'^(\d{1,2}):(\d{2})').firstMatch(value.trim());
+    if (match == null) return _value(value);
+    final hour24 = int.tryParse(match.group(1)!) ?? 0;
+    final hour = hour24 % 12 == 0 ? 12 : hour24 % 12;
+    return '$hour:${match.group(2)} ${hour24 < 12 ? 'AM' : 'PM'}';
   }
 
   Widget _profileSection(String title, IconData icon, List<Widget> children) =>

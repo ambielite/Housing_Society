@@ -229,6 +229,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
           user: widget.user,
           gateNames: gateNames,
           profilePhotoUrl: _loadedSnapshot?.accountPhotoUrl,
+          loadShiftAssignments: () => _GuardApi.loadShiftAssignments(widget.user),
           onSignOut: _signOut,
         ),
       ),
@@ -402,6 +403,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
                   ),
                   const SizedBox(height: 20),
                   TextFormField(
+                    key: const ValueKey('visitor-name-field'),
                     controller: name,
                     textCapitalization: TextCapitalization.words,
                     validator: (value) => value == null || value.trim().isEmpty
@@ -414,6 +416,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
                   ),
                   const SizedBox(height: 12),
                   TextField(
+                    key: const ValueKey('visitor-phone-field'),
                     controller: phone,
                     keyboardType: TextInputType.phone,
                     decoration: _fieldDecoration(
@@ -446,6 +449,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
                   if (visitorType == 'DELIVERY_PERSON') ...[
                     const SizedBox(height: 12),
                     TextFormField(
+                      key: const ValueKey('delivery-company-field'),
                       controller: deliveryCompany,
                       validator: (value) =>
                           visitorType == 'DELIVERY_PERSON' &&
@@ -473,6 +477,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
                   ),
                   const SizedBox(height: 12),
                   TextField(
+                    key: const ValueKey('visitor-vehicle-field'),
                     controller: vehicleNo,
                     textCapitalization: TextCapitalization.characters,
                     decoration: _fieldDecoration(
@@ -2003,13 +2008,87 @@ class _GuardApi {
         .toList();
   }
 
+  static Future<List<SecurityShiftAssignment>> loadShiftAssignments(
+    AuthenticatedUser user,
+  ) async {
+    final societyId = user.societyId;
+    if (societyId == null || societyId.isEmpty) return const [];
+
+    final guards = await _get('/gates/guards', user.accessToken, {
+      'societyId': societyId,
+    });
+    final guard = guards.cast<Map<String, dynamic>?>().firstWhere(
+          (row) =>
+              row != null &&
+              (row['user_id']?.toString() == user.userId ||
+                  row['userId']?.toString() == user.userId ||
+                  (user.employeeCode != null &&
+                      (row['employee_code'] ?? row['employeeCode'])?.toString().toUpperCase() ==
+                          user.employeeCode!.toUpperCase())),
+          orElse: () => null,
+        );
+    final staffId = (guard?['staff_id'] ?? guard?['staffId'])?.toString();
+    if (staffId == null || staffId.isEmpty) return const [];
+
+    final responses = await Future.wait([
+      _get(
+        '/rosters/staff/${Uri.encodeComponent(staffId)}',
+        user.accessToken,
+      ),
+      _get(
+        '/shifts',
+        user.accessToken,
+        {'societyId': societyId},
+      ),
+    ]);
+    final shiftsById = <String, Map<String, dynamic>>{
+      for (final shift in responses[1])
+        if ((shift['id'] ?? '').toString().isNotEmpty)
+          (shift['id'] ?? '').toString(): shift,
+    };
+    final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
+    final assignments = <SecurityShiftAssignment>[];
+    for (final roster in responses[0]) {
+      final dateValue = (roster['rosterDate'] ?? roster['roster_date'])?.toString();
+      final rosterDate = dateValue == null ? null : DateTime.tryParse(dateValue);
+      final status = (roster['status'] ?? '').toString().toUpperCase();
+      if (rosterDate == null ||
+          DateTime(rosterDate.year, rosterDate.month, rosterDate.day).isBefore(todayDate) ||
+          status == 'CANCELLED') {
+        continue;
+      }
+      final shiftId = (roster['shiftId'] ?? roster['shift_id'])?.toString();
+      final shift = shiftId == null ? null : shiftsById[shiftId];
+      if (shift == null) continue;
+      assignments.add(
+        SecurityShiftAssignment(
+          shiftName: (shift['shiftName'] ?? shift['shift_name'] ?? 'Shift').toString(),
+          shiftType: (shift['shiftType'] ?? shift['shift_type'] ?? '').toString(),
+          startTime: (shift['startTime'] ?? shift['start_time'] ?? '').toString(),
+          endTime: (shift['endTime'] ?? shift['end_time'] ?? '').toString(),
+          breakMinutes: int.tryParse('${shift['breakMinutes'] ?? shift['break_minutes'] ?? 0}') ?? 0,
+          rosterDate: rosterDate,
+          status: status.isEmpty ? 'SCHEDULED' : status,
+          remarks: (roster['remarks'] ?? '').toString(),
+        ),
+      );
+    }
+    assignments.sort((a, b) => a.rosterDate!.compareTo(b.rosterDate!));
+    return assignments.take(5).toList(growable: false);
+  }
+
   static Future<List<Map<String, dynamic>>> _get(
     String path,
     String token, [
     Map<String, String>? query,
   ]) async {
     try {
-      final uri = Uri.parse('$_apiBaseUrl$path')
+      final useLegacyApi = path == '/shifts' || path.startsWith('/rosters/');
+      final baseUrl = useLegacyApi
+          ? _apiBaseUrl.replaceFirst(RegExp(r'/api/v1/?$'), '/api')
+          : _apiBaseUrl;
+      final uri = Uri.parse('$baseUrl$path')
           .replace(queryParameters: query);
       final response = await http
           .get(
@@ -2182,6 +2261,7 @@ Widget _styledDropdownField<T>({
   String? hint,
   String? Function(T?)? validator,
 }) => _StyledDropdownField<T>(
+  key: ValueKey<String>(decoration.labelText ?? hint ?? 'dropdown'),
   value: value,
   decoration: decoration,
   items: items,
@@ -2192,6 +2272,7 @@ Widget _styledDropdownField<T>({
 
 class _StyledDropdownField<T> extends StatefulWidget {
   const _StyledDropdownField({
+    super.key,
     required this.value,
     required this.decoration,
     required this.items,

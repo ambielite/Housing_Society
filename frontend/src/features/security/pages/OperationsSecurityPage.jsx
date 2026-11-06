@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
+import useAuth from "../../../app/providers/useAuth";
 import {
   Activity,
   AlertOctagon,
@@ -48,6 +49,91 @@ const formatTime = (value) => {
   const minute = match[2];
   return `${hour % 12 || 12}:${minute} ${hour >= 12 ? "PM" : "AM"}`;
 };
+const formatBreakTime = (value) => {
+  const minutes = Number(value);
+  if (!Number.isFinite(minutes) || minutes <= 0) return "No break";
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  const parts = [];
+  if (hours) parts.push(`${hours} hr${hours === 1 ? "" : "s"}`);
+  if (remainingMinutes) parts.push(`${remainingMinutes} min`);
+  return `${parts.join(" ")} break`;
+};
+const isSecurityScheduleStaff = (person) => {
+  const normalize = (value) => String(value || "").replace(/[^a-z0-9]/gi, "").toUpperCase();
+  if (normalize(person?.staffType) === "SECURITYGUARD") return true;
+  const roles = [
+    person?.role,
+    person?.roleCode,
+    person?.roleName,
+    ...(Array.isArray(person?.roles) ? person.roles : []),
+    person?.user?.role,
+    person?.user?.roleCode,
+    person?.user?.roleName,
+    ...(Array.isArray(person?.user?.roles) ? person.user.roles : []),
+  ];
+  return roles.some((role) =>
+    normalize(typeof role === "object" ? role?.code || role?.name || role?.roleCode || role?.roleName : role) === "SECURITYHEAD",
+  );
+};
+const toTimeInput = (value) => {
+  if (!value) return "";
+  const match = String(value).match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return String(value);
+  const hour = Number(match[1]);
+  return `${String(hour % 12 || 12).padStart(2, "0")}:${match[2]} ${hour >= 12 ? "PM" : "AM"}`;
+};
+const toApiTime = (value) => {
+  const match = /^(\d{1,2}):([0-5]\d)\s*(AM|PM)$/i.exec(String(value).trim());
+  if (!match) return null;
+  const hour = Number(match[1]);
+  if (hour < 1 || hour > 12) return null;
+  const hour24 = (hour % 12) + (match[3].toUpperCase() === "PM" ? 12 : 0);
+  return `${String(hour24).padStart(2, "0")}:${match[2]}`;
+};
+const timeParts = (value) => {
+  const match = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(String(value || ""));
+  return match
+    ? { hour: String(Number(match[1])).padStart(2, "0"), minute: match[2], period: match[3].toUpperCase() }
+    : { hour: "", minute: "", period: "" };
+};
+function TimeSelect({ name, value, defaultValue = "", onChange }) {
+  const [selectedParts, setSelectedParts] = useState(() => timeParts(value ?? defaultValue));
+  useEffect(() => {
+    if (value) setSelectedParts(timeParts(value));
+  }, [value]);
+  const parts = selectedParts;
+  const selectedValue = parts.hour && parts.minute && parts.period
+    ? `${parts.hour}:${parts.minute} ${parts.period}`
+    : "";
+  const update = (key, nextValue) => {
+    const next = { ...parts, [key]: nextValue };
+    const formatted = next.hour && next.minute && next.period
+      ? `${next.hour}:${next.minute} ${next.period}`
+      : "";
+    setSelectedParts(next);
+    if (formatted) onChange?.(formatted);
+  };
+
+  return (
+    <div className="security-time-select">
+      <input type="hidden" name={name} value={selectedValue} />
+      <select aria-label={`${name} hour`} required value={parts.hour} onChange={(event) => update("hour", event.target.value)}>
+        <option value="">Hour</option>
+        {Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, "0")).map((hour) => <option key={hour} value={hour}>{hour}</option>)}
+      </select>
+      <select aria-label={`${name} minute`} required value={parts.minute} onChange={(event) => update("minute", event.target.value)}>
+        <option value="">Minute</option>
+        {Array.from({ length: 60 }, (_, minute) => String(minute).padStart(2, "0")).map((minute) => <option key={minute} value={minute}>{minute}</option>)}
+      </select>
+      <select aria-label={`${name} AM or PM`} required value={parts.period} onChange={(event) => update("period", event.target.value)}>
+        <option value="">AM/PM</option>
+        <option value="AM">AM</option>
+        <option value="PM">PM</option>
+      </select>
+    </div>
+  );
+}
 const documentUrl = (filePath) => {
   if (!filePath) return "#";
   if (/^https?:\/\//i.test(filePath)) return filePath;
@@ -64,7 +150,7 @@ const tabs = [
   ["overview", "Overview", Shield],
   ["staff", "Staff", Users],
   ["attendance", "Attendance", ClipboardCheck],
-  ["rosters", "Shifts & rosters", CalendarDays],
+  ["rosters", "Shifts & schedules", CalendarDays],
   ["tasks", "Tasks", Activity],
   ["patrols", "Patrols", MapPin],
   ["incidents", "Incidents", AlertOctagon],
@@ -125,26 +211,26 @@ const configs = {
     fields: [
       ["shiftCode", "Shift code"],
       ["shiftName", "Shift name"],
+      ["startTime", "Start time (AM/PM)", "ampm"],
+      ["endTime", "End time (AM/PM)", "ampm"],
       [
         "shiftType",
         "Shift type",
         "select",
         ["MORNING", "AFTERNOON", "EVENING", "NIGHT", "GENERAL", "OTHER"],
       ],
-      ["startTime", "Start time", "time"],
-      ["endTime", "End time", "time"],
       ["breakMinutes", "Break minutes", "number"],
       ["graceMinutes", "Grace minutes", "number"],
     ],
   },
   roster: {
-    title: "Roster Entry",
+    title: "Staff schedule",
     api: "createRoster",
     fields: [
       ["staffId", "Staff", "staff"],
       ["shiftId", "Shift", "shift"],
-      ["rosterDate", "Roster date", "date"],
-      ["rosterType", "Roster type", "select", ["DAILY", "WEEKLY", "MONTHLY"]],
+      ["rosterDate", "Schedule date", "date"],
+      ["rosterType", "Schedule type", "select", ["DAILY", "WEEKLY", "MONTHLY"]],
     ],
   },
   task: {
@@ -292,6 +378,7 @@ const display = (value) =>
 
 export default function SecurityPage() {
   const { section } = useParams();
+  const { user } = useAuth();
   const [tab, setTab] = useState(section || "overview");
   const [data, setData] = useState({});
   const [loading, setLoading] = useState(true);
@@ -447,6 +534,16 @@ export default function SecurityPage() {
     const payload = form === "staff" && profilePicture?.size
       ? formData
       : Object.fromEntries(formData.entries());
+    if (form === "shift") {
+      const startTime = toApiTime(payload.startTime);
+      const endTime = toApiTime(payload.endTime);
+      if (!startTime || !endTime) {
+        setFormError("Enter both shift times in 12-hour format, such as 06:00 AM or 06:00 PM.");
+        return;
+      }
+      payload.startTime = startTime;
+      payload.endTime = endTime;
+    }
     if (form === "staff" && profilePicture?.size > 5 * 1024 * 1024) {
       setFormError("The profile picture must be 5 MB or smaller.");
       return;
@@ -476,6 +573,13 @@ export default function SecurityPage() {
     )
       if (payload instanceof FormData) payload.set("societyId", societyId());
       else payload.societyId = societyId();
+    if (form === "roster") {
+      const assignedBy = user?.id || user?.userId || user?.user?.id || user?.data?.id;
+      if (assignedBy) {
+        if (payload instanceof FormData) payload.set("assignedBy", assignedBy);
+        else payload.assignedBy = assignedBy;
+      }
+    }
     setBusy(true);
     try {
       await securityApi[config.api](payload);
@@ -563,7 +667,7 @@ export default function SecurityPage() {
   const headings = {
     staff: ["Employee", "Employee code", "Type", "Contact", "Joined", "Status"],
     attendance: ["Staff", "Date", "Check in", "Check out", "Status"],
-    rosters: ["Staff", "Shift", "Date", "Type", "Status"],
+    rosters: ["Staff", "Shift", "Schedule date", "Schedule type", "Status"],
     tasks: ["Title", "Staff", "Type", "Due", "Priority", "Status"],
     patrols: ["Patrol", "Staff", "Gate", "Date", "Window", "Status"],
     incidents: ["Number", "Incident", "Severity", "Location", "Status"],
@@ -785,7 +889,7 @@ export default function SecurityPage() {
             )}
             {tab === "rosters" && (
               <button
-                className="society-add-button"
+                className="society-add-button security-shift-toolbar-action"
                 onClick={() => setForm("shift")}
               >
                 <Plus size={16} /> Add shift
@@ -803,7 +907,7 @@ export default function SecurityPage() {
               }[tab],
             ) && (
               <button
-                className="society-add-button"
+                className={`society-add-button ${tab === "rosters" ? "security-shift-toolbar-action" : ""}`}
                 onClick={() =>
                   setForm(
                     {
@@ -821,7 +925,7 @@ export default function SecurityPage() {
                 {tab === "staff"
                   ? "staff"
                   : tab === "rosters"
-                    ? "roster"
+                    ? "staff schedule"
                     : tab.slice(0, -1)}
               </button>
             )}
@@ -833,11 +937,14 @@ export default function SecurityPage() {
                 <article key={shift.id}>
                   <strong>{shift.shiftName}</strong>
                   <span>
-                    {shift.startTime}–{shift.endTime} ·{" "}
-                    {titleCase(shift.shiftType)}
+                    {formatTime(shift.startTime)}–{formatTime(shift.endTime)} ·{" "}
+                    {formatBreakTime(shift.breakMinutes)} · {titleCase(shift.shiftType)}
                   </span>
-                  <em>{titleCase(shift.status)}</em>
+                  <span className={`security-shift-status ${shift.status === "ACTIVE" ? "is-active" : "is-inactive"}`}>
+                    {shift.status === "ACTIVE" ? "ACTIVE" : "INACTIVE"}
+                  </span>
                   <button
+                    className={`security-shift-action ${shift.status === "ACTIVE" ? "is-deactivate" : "is-activate"}`}
                     onClick={() =>
                       act(
                         shift.status === "ACTIVE"
@@ -850,6 +957,7 @@ export default function SecurityPage() {
                     {shift.status === "ACTIVE" ? "Deactivate" : "Activate"}
                   </button>
                   <button
+                    className="security-shift-action is-edit"
                     onClick={() =>
                       setEditRecord({ item: shift, tab: "shifts" })
                     }
@@ -857,6 +965,7 @@ export default function SecurityPage() {
                     Edit
                   </button>
                   <button
+                    className="security-shift-action is-delete society-delete-action"
                     onClick={() =>
                       window.confirm("Delete this shift?") &&
                       act(securityApi.deleteShift, shift.id)
@@ -947,7 +1056,7 @@ export default function SecurityPage() {
             <header className="security-modal-header">
               <div>
                 <h2>{configs[form]?.title}</h2>
-                <p>{form === "staff" ? "Security Guard staff are added to User Management with an active Security Head account. You can suspend or reactivate this account from its user profile." : "Enter the record details below."}</p>
+                <p>{form === "staff" ? "Security Guard staff are added to User Management with an active Security Head account. You can suspend or reactivate this account from its user profile." : form === "shift" ? "Choose the hour, minute, and AM/PM for each shift time." : "Enter the record details below."}</p>
               </div>
               <button aria-label="Close" onClick={() => setForm("")}>
                 <X size={18} />
@@ -971,7 +1080,7 @@ export default function SecurityPage() {
                       ) : type === "staff" ? (
                         <select name={name} required>
                           <option value="">Select staff member</option>
-                          {staff.map((person) => (
+                          {(form === "roster" ? staff.filter(isSecurityScheduleStaff) : staff).map((person) => (
                             <option key={person.id} value={person.id}>
                               {person.firstName} {person.lastName} ·{" "}
                               {person.employeeCode}
@@ -992,13 +1101,15 @@ export default function SecurityPage() {
                           <option value="">Select shift</option>
                           {(data.shifts || []).map((shift) => (
                             <option key={shift.id} value={shift.id}>
-                              {shift.shiftName} · {shift.startTime}–
-                              {shift.endTime}
+                              {shift.shiftName} · {formatTime(shift.startTime)}–
+                              {formatTime(shift.endTime)} · {formatBreakTime(shift.breakMinutes)}
                             </option>
                           ))}
                         </select>
                       ) : type === "file" ? (
                         <><input name={name} type="file" accept="image/jpeg,image/png,image/webp" /><small>JPG, PNG, or WEBP · Up to 5 MB</small></>
+                      ) : type === "ampm" ? (
+                        <TimeSelect name={name} />
                       ) : type === "textarea" ? (
                         <textarea
                           name={name}
@@ -1052,6 +1163,8 @@ export default function SecurityPage() {
         <RecordEditModal
           record={editRecord.item}
           tab={editRecord.tab}
+          staff={staff}
+          shifts={data.shifts || []}
           onClose={() => setEditRecord(null)}
           onSave={async (id, sectionName, patchData) => {
             const resource = {
@@ -1105,7 +1218,15 @@ export default function SecurityPage() {
   );
 }
 
-function RecordEditModal({ record, tab, onClose, onSave }) {
+function RecordEditModal({ record, tab, staff = [], shifts = [], onClose, onSave }) {
+  const fieldToken = (key) => String(key).replace(/[^a-z0-9]/gi, "").toLowerCase();
+  const rosterCanonicalKey = (key) => ({
+    staffid: "staffId",
+    shiftid: "shiftId",
+    rosterdate: "rosterDate",
+    rostertype: "rosterType",
+    remarks: "remarks",
+  })[fieldToken(key)] || key;
   const normalizeDate = (value) => {
     if (!value || value === "Invalid date") return "";
     const date = String(value).match(/^\d{4}-\d{2}-\d{2}/)?.[0];
@@ -1115,6 +1236,7 @@ function RecordEditModal({ record, tab, onClose, onSave }) {
     Object.entries(record).filter(
       ([key, value]) =>
         !["id", "createdAt", "updatedAt", "deletedAt", ...(tab === "staff" ? ["photoPath"] : [])].includes(key) &&
+        !(tab === "rosters" && ["societyid", "assignedby", "status"].includes(fieldToken(key))) &&
         (value == null ||
           ["string", "number", "boolean"].includes(typeof value)),
     ),
@@ -1122,7 +1244,11 @@ function RecordEditModal({ record, tab, onClose, onSave }) {
   const [values, setValues] = useState(() => Object.fromEntries(
     Object.entries(editable).map(([key, value]) => [
       key,
-      ["dateOfBirth", "joiningDate"].includes(key) ? normalizeDate(value) : value,
+      (["dateOfBirth", "joiningDate"].includes(key) || (tab === "rosters" && fieldToken(key) === "rosterdate"))
+        ? normalizeDate(value)
+        : tab === "shifts" && ["startTime", "endTime"].includes(key)
+          ? toTimeInput(value)
+          : value,
     ]),
   ));
   const [profilePicture, setProfilePicture] = useState(null);
@@ -1135,6 +1261,26 @@ function RecordEditModal({ record, tab, onClose, onSave }) {
         value === "" ? null : value,
       ]),
     );
+    if (tab === "rosters") {
+      const normalizedPayload = {};
+      Object.entries(payload).forEach(([key, value]) => {
+        const token = fieldToken(key);
+        if (["societyid", "assignedby", "status"].includes(token)) return;
+        normalizedPayload[rosterCanonicalKey(key)] = value;
+      });
+      Object.keys(payload).forEach((key) => delete payload[key]);
+      Object.assign(payload, normalizedPayload);
+    }
+    if (tab === "shifts") {
+      const startTime = toApiTime(payload.startTime);
+      const endTime = toApiTime(payload.endTime);
+      if (!startTime || !endTime) {
+        setError("Enter both shift times in 12-hour format, such as 06:00 AM or 06:00 PM.");
+        return;
+      }
+      payload.startTime = startTime;
+      payload.endTime = endTime;
+    }
     if (tab === "staff" && !payload.joiningDate) {
       setError("Enter a valid joining date before saving staff details.");
       return;
@@ -1166,7 +1312,7 @@ function RecordEditModal({ record, tab, onClose, onSave }) {
       <section className="society-form-modal">
         <header className="security-modal-header">
           <div>
-            <h2>Edit {titleCase(tab)} record</h2>
+            <h2>{tab === "rosters" ? "Edit Staff schedule" : `Edit ${titleCase(tab)} record`}</h2>
             <p>Update record details and save your changes.</p>
           </div>
           <button aria-label="Close" onClick={onClose}>
@@ -1178,7 +1324,9 @@ function RecordEditModal({ record, tab, onClose, onSave }) {
             {tab === "staff" && <label className="security-profile-picture-edit">Profile picture{record.photoPath && <img src={documentUrl(record.photoPath)} alt="Current staff profile" />}<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setProfilePicture(event.target.files?.[0] || null)} /><small>Choose a JPG, PNG, or WEBP image up to 5 MB. Leave empty to keep the current picture.</small></label>}
             {Object.entries(values).map(([key, value]) => (
               <label key={key}>
-                {titleCase(key)}
+                {tab === "shifts" && ["startTime", "endTime"].includes(key)
+                  ? `${titleCase(key)} (AM/PM)`
+                  : titleCase(key)}
                 {tab === "assignments" && key === "unitId" ? (
                   <select
                     value={value ?? ""}
@@ -1195,8 +1343,10 @@ function RecordEditModal({ record, tab, onClose, onSave }) {
                       </option>
                     ))}
                   </select>
-                ) : tab === "assignments" && key === "staffId" ? (
+                ) : (tab === "assignments" && key === "staffId") ||
+                  (tab === "rosters" && fieldToken(key) === "staffid") ? (
                   <select
+                    required={tab === "rosters"}
                     value={value ?? ""}
                     onChange={(event) =>
                       setValues((current) => ({
@@ -1205,16 +1355,53 @@ function RecordEditModal({ record, tab, onClose, onSave }) {
                       }))
                     }
                   >
-                    {staff.map((person) => (
+                    {tab === "rosters" && <option value="">Select staff member</option>}
+                    {(tab === "rosters" ? staff.filter(isSecurityScheduleStaff) : staff).map((person) => (
                       <option key={person.id} value={person.id}>
                         {person.firstName} {person.lastName} ·{" "}
                         {person.employeeCode}
                       </option>
                     ))}
                   </select>
+                ) : tab === "rosters" && fieldToken(key) === "shiftid" ? (
+                  <select
+                    required
+                    value={value ?? ""}
+                    onChange={(event) =>
+                      setValues((current) => ({ ...current, [key]: event.target.value }))
+                    }
+                  >
+                    <option value="">Select shift</option>
+                    {shifts.map((shift) => (
+                      <option key={shift.id} value={shift.id}>
+                        {shift.shiftName || "Shift"} · {formatTime(shift.startTime)}–{formatTime(shift.endTime)} · {formatBreakTime(shift.breakMinutes)}
+                      </option>
+                    ))}
+                  </select>
+                ) : tab === "shifts" && key === "status" ? (
+                  <select
+                    value={value ?? "ACTIVE"}
+                    onChange={(event) =>
+                      setValues((current) => ({
+                        ...current,
+                        [key]: event.target.value,
+                      }))
+                    }
+                  >
+                    <option value="ACTIVE">Active</option>
+                    <option value="INACTIVE">Inactive</option>
+                  </select>
+                ) : tab === "shifts" && ["startTime", "endTime"].includes(key) ? (
+                  <TimeSelect
+                    name={key}
+                    value={value ?? ""}
+                    onChange={(nextValue) =>
+                      setValues((current) => ({ ...current, [key]: nextValue }))
+                    }
+                  />
                 ) : (
                   <input
-                    type={["dateOfBirth", "joiningDate"].includes(key) ? "date" : "text"}
+                    type={["dateOfBirth", "joiningDate"].includes(key) || (tab === "rosters" && fieldToken(key) === "rosterdate") ? "date" : "text"}
                     required={tab === "staff" && key === "joiningDate"}
                     value={value ?? ""}
                     onChange={(event) =>
@@ -1279,9 +1466,9 @@ function SecurityWorkflowDialog({
           ]
         : type === "rosters"
           ? [
-              ["confirm", "Confirm roster"],
-              ["complete", "Complete roster"],
-              ["cancel", "Cancel roster"],
+              ["confirm", "Confirm schedule"],
+              ["complete", "Complete schedule"],
+              ["cancel", "Cancel schedule"],
             ]
           : type === "incidents"
             ? [

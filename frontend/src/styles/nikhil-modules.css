@@ -1917,23 +1917,40 @@ tbody tr:hover {
 .security-subpanels { display: grid; grid-template-columns: minmax(240px, .85fr) minmax(0, 1.5fr); gap: 13px; margin: 14px 18px 18px; }
 .security-subpanels section, .security-shifts { min-width: 0; border: 1px solid #eaecf0; border-radius: 9px; background: #fff; }
 .security-subpanels section { padding: 14px; }
-.security-subpanels h3, .security-shifts h3 { color: #344054; font-size: 13px; font-weight: 650; }
+.security-subpanels h3, .security-shifts h3 { color: #344054; font-size: 14px; font-weight: 650; }
 .security-subpanels h3 { display: flex; justify-content: space-between; align-items: center; margin: 0 0 12px; }
 .security-subpanels h3 button, .security-subpanels p button { padding: 4px 7px; border: 0; border-radius: 5px; background: #f2f4ff; color: #4338ca; font: inherit; font-size: 10px; cursor: pointer; }
 .security-subpanels p { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin: 0; padding: 9px 0; border-top: 1px solid #f0f1f4; color: #475467; font-size: 11px; }
 .security-subpanels p span { margin-left: auto; color: #667085; }
 .security-shifts { margin: 0 18px 18px; padding: 14px; }
 .security-shifts h3 { margin: 0 0 8px; }
-.security-shifts article { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid #f0f1f4; font-size: 11px; }
+.security-shifts article { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid #f0f1f4; font-size: 13px; }
 .security-shifts article span { color: #667085; }
 .security-shifts article em { margin-left: auto; color: #667085; font-style: normal; }
 .security-shifts article button { padding: 5px 8px; border: 1px solid #e2e5eb; border-radius: 5px; background: #fff; color: #475467; font-size: 10px; cursor: pointer; }
+.security-shift-status { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; margin-left: auto; padding: 4px 7px; border: 1px solid transparent; border-radius: 999px; font-size: 10px; font-weight: 650; line-height: 1.2; white-space: nowrap; }
+.security-shift-status.is-active { border-color: color-mix(in srgb, var(--success) 24%, transparent); background: var(--success-bg); color: var(--success); }
+.security-shift-status.is-inactive { border-color: var(--field-border); background: var(--surface-2); color: var(--muted); }
+.security-shifts article button.security-shift-action { min-height: 30px; padding: 0 9px; border: 1px solid transparent; border-radius: 7px; font-size: 11px; font-weight: 650; cursor: pointer; transition: color var(--motion-fast), background-color var(--motion-fast), border-color var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast); }
+.security-shifts article button.security-shift-action.is-activate { border-color: #abefc6; background: #ecfdf3; color: #027a48; }
+.security-shifts article button.security-shift-action.is-deactivate { border-color: #fedf89; background: #fffaeb; color: #b54708; }
+.security-shifts article button.security-shift-action.is-edit { border-color: #d9d6fe; background: #f4f3ff; color: #5925dc; }
+.security-shifts article button.security-shift-action.is-delete { border-color: #fecdca; background: #fef3f2; color: #b42318; }
+.security-shifts article button.security-shift-action.is-activate:hover:not(:disabled) { border-color: #75e0a7; background: #d1fadf; box-shadow: 0 3px 10px rgba(2, 122, 72, .12); transform: translateY(-1px); }
+.security-shifts article button.security-shift-action.is-deactivate:hover:not(:disabled) { border-color: #fec84b; background: #fef0c7; box-shadow: 0 3px 10px rgba(181, 71, 8, .12); transform: translateY(-1px); }
+.security-shifts article button.security-shift-action.is-edit:hover:not(:disabled) { border-color: #bdb4fe; background: #e9e7ff; box-shadow: 0 3px 10px rgba(89, 37, 220, .12); transform: translateY(-1px); }
+.security-shifts article button.security-shift-action.is-delete:hover:not(:disabled) { border-color: #fda29b; background: #fee4e2; box-shadow: 0 3px 10px rgba(180, 35, 24, .12); transform: translateY(-1px); }
+.security-page .security-shift-toolbar-action { min-height: 36px; gap: 6px; padding: 0 12px; font-size: 12px; }
+.security-page .security-shift-toolbar-action svg { width: 15px; height: 15px; }
 .security-modal-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 21px 24px 17px; border-bottom: 1px solid #eaecf0; }
 .security-modal-header h2 { margin: 0; color: #101828; font-size: 19px; font-weight: 650; }
 .security-modal-header p { margin: 5px 0 0; color: #667085; font-size: 12px; }
 .security-modal-header > button { display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 6px; background: transparent; color: #667085; cursor: pointer; }
 .security-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 15px; padding: 20px 24px; overflow-y: auto; }
 .security-form-grid label, .security-field { display: grid; gap: 6px; color: #344054; font-size: 12px; font-weight: 550; }
+.security-form-note { margin: 0 24px 16px; padding: 10px 12px; border: 1px solid var(--field-border); border-radius: 8px; background: var(--surface-2); color: var(--muted); font-size: 12px; }
+.security-time-select { display: grid; grid-template-columns: 1fr 1fr .85fr; gap: 7px; min-width: 0; }
+.security-time-select select { min-width: 0; }
 .security-form-grid input, .security-form-grid select, .security-form-grid textarea, .security-field input, .security-field select, .security-field textarea { width: 100%; min-height: 39px; box-sizing: border-box; padding: 9px 10px; border: 1px solid #d0d5dd; border-radius: 7px; background: #fff; color: #344054; font: inherit; font-weight: 400; outline: none; }
 .security-form-grid input:focus, .security-form-grid select:focus, .security-form-grid textarea:focus, .security-field input:focus, .security-field select:focus, .security-field textarea:focus { border-color: #818cf8; box-shadow: 0 0 0 3px rgba(99,102,241,.12); }
 .security-modal-footer { display: flex; justify-content: flex-end; gap: 9px; padding: 14px 24px 18px; border-top: 1px solid #eaecf0; }
