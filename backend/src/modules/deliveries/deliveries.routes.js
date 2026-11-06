@@ -15,6 +15,9 @@ const router = express.Router();
 
 router.use(authenticate);
 
+router.get('/resident-notifications', controller.listResidentNotifications);
+router.patch('/resident-notifications/:notificationId/read', controller.markResidentNotificationRead);
+
 // Parcels (static prefix, declared before "/:deliveryId" below)
 router.post('/parcels', authorize('PARCEL_CREATE'), validate(createParcelSchema), controller.createParcel);
 router.get('/parcels', authorize('PARCEL_READ'), validate(listParcelsQuerySchema, 'query'), controller.listParcels);

@@ -82,6 +82,22 @@ class ResidentVisitorsApi {
     );
   }
 
+  static Future<void> createPreApproval({
+    required String token,
+    required String name,
+    required String phone,
+    required DateTime expectedFrom,
+    required String purpose,
+  }) async {
+    await _request(token, '/visitors/resident-invites', method: 'POST', payload: {
+      'name': name,
+      'phone': phone,
+      'visitorType': 'GUEST',
+      'expectedFrom': expectedFrom.toUtc().toIso8601String(),
+      'purpose': purpose,
+    });
+  }
+
   static Future<dynamic> _request(
     String token,
     String path, {
@@ -100,7 +116,15 @@ class ResidentVisitorsApi {
                   'Authorization': 'Bearer $token',
                   'Cache-Control': 'no-cache, no-store',
                 })
-              : http.patch(uri,
+              : method == 'POST'
+                  ? http.post(uri,
+                      headers: {
+                        'Accept': 'application/json',
+                        'Authorization': 'Bearer $token',
+                        'Content-Type': 'application/json',
+                      },
+                      body: jsonEncode(payload))
+                  : http.patch(uri,
                   headers: {
                     'Accept': 'application/json',
                     'Authorization': 'Bearer $token',

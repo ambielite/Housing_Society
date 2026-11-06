@@ -170,7 +170,14 @@ const listInvites = async ({ societyId, unitId, status }) => {
 
   const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const result = await db.query(
-    `SELECT * FROM visitor_invites ${whereClause} ORDER BY expected_from DESC`,
+    `SELECT vi.*, vp.name AS visitor_name, vp.visitor_type, vp.phone,
+            u.unit_number, r.display_name AS resident_name
+       FROM visitor_invites vi
+       JOIN visitor_profiles vp ON vp.id = vi.visitor_profile_id
+       JOIN units u ON u.id = vi.unit_id
+       LEFT JOIN residents r ON r.user_id = vi.invited_by AND r.society_id = vi.society_id
+       ${whereClause.replace(/\bsociety_id\b/g, 'vi.society_id').replace(/\bunit_id\b/g, 'vi.unit_id').replace(/\bstatus\b/g, 'vi.status')}
+      ORDER BY vi.expected_from DESC`,
     params
   );
   return result.rows;
@@ -209,8 +216,18 @@ const listResidentVisitorRequests = async ({ residentId, societyId }) => {
        JOIN visitor_profiles pf ON pf.id = vp.visitor_profile_id
        JOIN gates g ON g.id = vp.gate_id
        LEFT JOIN units u ON u.id = vp.unit_id
-      WHERE vp.resident_id = $1
-        AND g.society_id = $2
+      WHERE g.society_id = $2
+        AND (
+          EXISTS (SELECT 1 FROM owner_units ou
+                   WHERE ou.unit_id = vp.unit_id AND ou.owner_id = $1
+                     AND ou.society_id = $2 AND ou.status = 'ACTIVE'
+                     AND ou.effective_from <= CURRENT_DATE
+                     AND (ou.effective_to IS NULL OR ou.effective_to >= CURRENT_DATE))
+          OR EXISTS (SELECT 1 FROM occupancies o
+                      WHERE o.unit_id = vp.unit_id AND o.resident_id = $1
+                        AND o.society_id = $2 AND COALESCE(o.is_current, true) = true
+                        AND (o.end_date IS NULL OR o.end_date >= CURRENT_DATE))
+        )
         AND vp.resident_decision = 'PENDING'
         AND vp.status IN ('EXPECTED', 'ARRIVED')
       ORDER BY vp.created_at DESC`,
@@ -229,8 +246,18 @@ const listResidentVisitorHistory = async ({ residentId, societyId }) => {
        JOIN visitor_profiles pf ON pf.id = vp.visitor_profile_id
        JOIN gates g ON g.id = vp.gate_id
        LEFT JOIN units u ON u.id = vp.unit_id
-      WHERE vp.resident_id = $1
-        AND g.society_id = $2
+      WHERE g.society_id = $2
+        AND (
+          EXISTS (SELECT 1 FROM owner_units ou
+                   WHERE ou.unit_id = vp.unit_id AND ou.owner_id = $1
+                     AND ou.society_id = $2 AND ou.status = 'ACTIVE'
+                     AND ou.effective_from <= CURRENT_DATE
+                     AND (ou.effective_to IS NULL OR ou.effective_to >= CURRENT_DATE))
+          OR EXISTS (SELECT 1 FROM occupancies o
+                      WHERE o.unit_id = vp.unit_id AND o.resident_id = $1
+                        AND o.society_id = $2 AND COALESCE(o.is_current, true) = true
+                        AND (o.end_date IS NULL OR o.end_date >= CURRENT_DATE))
+        )
       ORDER BY vp.created_at DESC
       LIMIT 100`,
     [residentId, societyId],
@@ -238,7 +265,7 @@ const listResidentVisitorHistory = async ({ residentId, societyId }) => {
   return result.rows;
 };
 
-const decideResidentVisitorRequest = async ({ passId, residentId, decision }) => {
+const decideResidentVisitorRequest = async ({ passId, residentId, societyId, decision }) => {
   const result = await db.query(
     `UPDATE visitor_passes
         SET resident_decision = $3,
@@ -246,11 +273,22 @@ const decideResidentVisitorRequest = async ({ passId, residentId, decision }) =>
             resident_decided_by = $2,
             updated_at = now()
       WHERE id = $1
-        AND resident_id = $2
         AND resident_decision = 'PENDING'
         AND status IN ('EXPECTED', 'ARRIVED')
+        AND EXISTS (SELECT 1 FROM gates g WHERE g.id = visitor_passes.gate_id AND g.society_id = $4)
+        AND (
+          EXISTS (SELECT 1 FROM owner_units ou
+                   WHERE ou.unit_id = visitor_passes.unit_id AND ou.owner_id = $2
+                     AND ou.society_id = $4 AND ou.status = 'ACTIVE'
+                     AND ou.effective_from <= CURRENT_DATE
+                     AND (ou.effective_to IS NULL OR ou.effective_to >= CURRENT_DATE))
+          OR EXISTS (SELECT 1 FROM occupancies o
+                      WHERE o.unit_id = visitor_passes.unit_id AND o.resident_id = $2
+                        AND o.society_id = $4 AND COALESCE(o.is_current, true) = true
+                        AND (o.end_date IS NULL OR o.end_date >= CURRENT_DATE))
+        )
       RETURNING id, resident_decision, status`,
-    [passId, residentId, decision],
+    [passId, residentId, decision, societyId],
   );
   return result.rows[0] || null;
 };

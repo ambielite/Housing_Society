@@ -53,6 +53,15 @@ const createInviteSchema = Joi.object({
   purpose: Joi.string().max(255).allow('', null),
 });
 
+const createResidentInviteSchema = Joi.object({
+  name: Joi.string().trim().min(1).max(150).required(),
+  phone: Joi.string().trim().max(20).allow('', null),
+  visitorType: Joi.string().valid('GUEST', 'DELIVERY_PERSON', 'SERVICE_PROVIDER', 'STAFF', 'OTHER').default('GUEST'),
+  expectedFrom: Joi.date().iso().required(),
+  expectedUntil: Joi.date().iso().min(Joi.ref('expectedFrom')).allow(null),
+  purpose: Joi.string().max(255).allow('', null),
+});
+
 const listInvitesQuerySchema = Joi.object({
   societyId: Joi.string().uuid(),
   unitId: Joi.string().uuid(),
@@ -106,6 +115,7 @@ module.exports = {
   updateProfileSchema,
   setBlacklistStatusSchema,
   createInviteSchema,
+  createResidentInviteSchema,
   listInvitesQuerySchema,
   decideInviteSchema,
   createPassSchema,

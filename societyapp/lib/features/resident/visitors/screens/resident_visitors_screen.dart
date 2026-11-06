@@ -104,6 +104,21 @@ class _ResidentVisitorsScreenState extends State<ResidentVisitorsScreen>
     }
   }
 
+  Future<void> _preApproveVisitor() async {
+    final details = await showDialog<List<String>>(
+      context: context,
+      builder: (_) => const _PreApproveVisitorDialog(),
+    );
+    if (details == null || !mounted) return;
+    try {
+      await ResidentVisitorsApi.createPreApproval(token: widget.user.accessToken, name: details[0], phone: details[1], purpose: details[2], expectedFrom: DateTime.now());
+      await _refresh();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Visitor pre-approved. Security can see them in Expected.')));
+    } on ResidentVisitorException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
         backgroundColor: _pageBackground,
@@ -113,6 +128,7 @@ class _ResidentVisitorsScreenState extends State<ResidentVisitorsScreen>
           elevation: 0,
           title: const Text('Visitors'),
           actions: [
+            IconButton(tooltip: 'Pre-approve visitor', onPressed: _preApproveVisitor, icon: const Icon(Icons.person_add_alt_1_rounded)),
             IconButton(
               tooltip: 'Refresh visitors',
               onPressed: _refreshing ? null : _refresh,
@@ -327,4 +343,71 @@ class _ResidentVisitorsScreenState extends State<ResidentVisitorsScreen>
     final minute = local.minute.toString().padLeft(2, '0');
     return '$day, $hour:$minute ${local.hour >= 12 ? 'PM' : 'AM'}';
   }
+}
+
+class _PreApproveVisitorDialog extends StatefulWidget {
+  const _PreApproveVisitorDialog();
+
+  @override
+  State<_PreApproveVisitorDialog> createState() =>
+      _PreApproveVisitorDialogState();
+}
+
+class _PreApproveVisitorDialogState extends State<_PreApproveVisitorDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _name = TextEditingController();
+  final _phone = TextEditingController();
+  final _purpose = TextEditingController();
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _phone.dispose();
+    _purpose.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: const Text('Pre-approve a visitor'),
+        content: Form(
+          key: _formKey,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextFormField(
+              controller: _name,
+              decoration: const InputDecoration(labelText: 'Visitor name'),
+              validator: (value) => value == null || value.trim().isEmpty
+                  ? 'Enter a visitor name'
+                  : null,
+            ),
+            TextFormField(
+              controller: _phone,
+              decoration: const InputDecoration(labelText: 'Phone (optional)'),
+              keyboardType: TextInputType.phone,
+            ),
+            TextFormField(
+              controller: _purpose,
+              decoration: const InputDecoration(labelText: 'Purpose (optional)'),
+            ),
+          ]),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (_formKey.currentState!.validate()) {
+                Navigator.of(context).pop([
+                  _name.text.trim(),
+                  _phone.text.trim(),
+                  _purpose.text.trim(),
+                ]);
+              }
+            },
+            child: const Text('Pre-approve'),
+          ),
+        ],
+      );
 }

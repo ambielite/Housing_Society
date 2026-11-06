@@ -8,6 +8,7 @@ import '../../../auth/presentation/screens/login_screen.dart';
 import '../../amenities/screens/resident_amenities_screen.dart';
 import '../../complaints/data/resident_complaints_api.dart';
 import '../../complaints/screens/resident_complaints_screen.dart';
+import '../data/resident_delivery_notifications_api.dart';
 import '../../visitors/data/resident_visitors_api.dart';
 import '../../visitors/screens/resident_visitors_screen.dart';
 import '../data/resident_dashboard_api.dart';
@@ -31,11 +32,14 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
   Timer? _dashboardRefreshTimer;
   Timer? _complaintsRefreshTimer;
   Timer? _visitorRequestsRefreshTimer;
+  Timer? _deliveryNotificationsRefreshTimer;
   bool _refreshingDashboard = false;
   bool _refreshingComplaints = false;
   bool _refreshingVisitorRequests = false;
+  bool _refreshingDeliveryNotifications = false;
   final Set<String> _decidingVisitorRequestIds = {};
   List<ResidentVisitorRequest> _visitorRequests = const [];
+  List<ResidentDeliveryNotification> _deliveryNotifications = const [];
 
   String get _firstName => widget.user.name.trim().split(' ').first;
 
@@ -53,7 +57,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
       widget.user.accessToken,
     );
     _dashboardRefreshTimer = Timer.periodic(
-      const Duration(seconds: 30),
+      const Duration(seconds: 2),
       (_) => _refreshDashboardInBackground(),
     );
     _complaintsRefreshTimer = Timer.periodic(
@@ -61,9 +65,14 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
       (_) => _refreshComplaintsInBackground(),
     );
     unawaited(_refreshVisitorRequests());
+    unawaited(_refreshDeliveryNotifications());
     _visitorRequestsRefreshTimer = Timer.periodic(
-      const Duration(seconds: 5),
+      const Duration(seconds: 2),
       (_) => _refreshVisitorRequests(),
+    );
+    _deliveryNotificationsRefreshTimer = Timer.periodic(
+      const Duration(seconds: 3),
+      (_) => _refreshDeliveryNotifications(),
     );
   }
 
@@ -73,6 +82,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
       _refreshDashboardInBackground();
       _refreshComplaintsInBackground();
       _refreshVisitorRequests();
+      _refreshDeliveryNotifications();
     }
   }
 
@@ -81,6 +91,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     _dashboardRefreshTimer?.cancel();
     _complaintsRefreshTimer?.cancel();
     _visitorRequestsRefreshTimer?.cancel();
+    _deliveryNotificationsRefreshTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -160,6 +171,38 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
       // Leave any already visible gate requests on screen during network errors.
     } finally {
       _refreshingVisitorRequests = false;
+    }
+  }
+
+  Future<void> _refreshDeliveryNotifications() async {
+    if (!mounted ||
+        _refreshingDeliveryNotifications ||
+        WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed ||
+        ModalRoute.of(context)?.isCurrent == false) return;
+    _refreshingDeliveryNotifications = true;
+    try {
+      final notifications = await ResidentDeliveryNotificationsApi.list(
+        widget.user.accessToken,
+      );
+      if (mounted) setState(() => _deliveryNotifications = notifications);
+    } catch (_) {
+      // Keep the last visible delivery alerts when the network is unavailable.
+    } finally {
+      _refreshingDeliveryNotifications = false;
+    }
+  }
+
+  Future<void> _dismissDeliveryNotification(
+    ResidentDeliveryNotification notification,
+  ) async {
+    setState(() => _deliveryNotifications.removeWhere((item) => item.id == notification.id));
+    try {
+      await ResidentDeliveryNotificationsApi.markRead(
+        widget.user.accessToken,
+        notification.id,
+      );
+    } catch (_) {
+      unawaited(_refreshDeliveryNotifications());
     }
   }
 
@@ -307,6 +350,10 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                               if (_visitorRequests.isNotEmpty) ...[
                                 const SizedBox(height: 16),
                                 _visitorAttentionSection(),
+                              ],
+                              if (_deliveryNotifications.isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                _deliveryAttentionSection(),
                               ],
                               const SizedBox(height: 22),
                               _societyCard(dashboard),
@@ -984,6 +1031,59 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
       ],
     ),
   );
+
+  Widget _deliveryAttentionSection() => Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEAF5FF),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFFD5E9FF)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Delivery updates', style: TextStyle(
+              color: AppColors.ink, fontSize: 18, fontWeight: FontWeight.w800,
+            )),
+            const SizedBox(height: 10),
+            ..._deliveryNotifications.map((notification) => Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(color: const Color(0xFFE8ECF3)),
+                  ),
+                  child: Row(children: [
+                    Icon(
+                      notification.type == 'PARCEL'
+                          ? Icons.inventory_2_outlined
+                          : Icons.local_shipping_outlined,
+                      color: AppColors.indigo,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(notification.title, style: const TextStyle(
+                          fontWeight: FontWeight.w700, color: AppColors.ink,
+                        )),
+                        const SizedBox(height: 3),
+                        Text(notification.message, style: const TextStyle(
+                          color: Color(0xFF8792A7), fontSize: 12,
+                        )),
+                      ],
+                    )),
+                    IconButton(
+                      tooltip: 'Dismiss update',
+                      onPressed: () => _dismissDeliveryNotification(notification),
+                      icon: const Icon(Icons.close_rounded, size: 19),
+                    ),
+                  ]),
+                )),
+          ],
+        ),
+      );
 
   Widget _visitorRequestCard(ResidentVisitorRequest request) {
     final busy = _decidingVisitorRequestIds.contains(request.id);
