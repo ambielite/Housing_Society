@@ -11,6 +11,7 @@ import '../../../auth/data/auth_api.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../resident/dashboard/screens/resident_home_screen.dart';
 import 'security_profile_screen.dart';
+import '../../visitor_check_in/security_register_visitor_screen.dart';
 
 part '../../visitor_check_in/security_visitors_screen.dart';
 part '../../gate_log/security_gate_log_screen.dart';
@@ -151,12 +152,19 @@ class _SecurityHomeState extends State<_SecurityHome> {
   Timer? _visitorPassSyncTimer;
   bool _deliverySyncRunning = false;
   bool _visitorPassSyncRunning = false;
+  bool _shiftSyncRunning = false;
   final ValueNotifier<int> _deliveryRevision = ValueNotifier(0);
+  final ValueNotifier<int> _shiftRevision = ValueNotifier(0);
+  final ValueNotifier<DateTime> _shiftClock = ValueNotifier(DateTime.now());
+  Timer? _shiftClockTimer;
 
   @override
   void initState() {
     super.initState();
     _snapshot = _GuardApi.load(widget.user);
+    _shiftClockTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      _shiftClock.value = DateTime.now();
+    });
   }
 
   Future<void> _refresh() async {
@@ -187,6 +195,41 @@ class _SecurityHomeState extends State<_SecurityHome> {
       }
     } finally {
       _deliverySyncRunning = false;
+    }
+  }
+
+  Future<void> _refreshShiftAssignments({bool showResult = false}) async {
+    final snapshot = _loadedSnapshot;
+    if (!mounted || snapshot == null || _shiftSyncRunning) return;
+    _shiftSyncRunning = true;
+    _shiftRevision.value++;
+    try {
+      final assignments = await _GuardApi.loadShiftAssignments(widget.user);
+      if (!mounted) return;
+      snapshot.shiftAssignments = List.of(assignments);
+      // Refresh only the shift card; keep the rest of the dashboard in place.
+      _shiftRevision.value++;
+      if (showResult && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              assignments.isEmpty
+                  ? 'No shift is currently assigned to you.'
+                  : 'Shift details refreshed.',
+            ),
+          ),
+        );
+      }
+    } on _GuardApiException catch (error) {
+      if (showResult && mounted) _showError(error.message);
+    } catch (_) {
+      // Keep the last successful assignment visible through transient errors.
+      if (showResult && mounted) {
+        _showError('Could not refresh shift details. Please try again.');
+      }
+    } finally {
+      _shiftSyncRunning = false;
+      if (mounted) _shiftRevision.value++;
     }
   }
 
@@ -221,7 +264,8 @@ class _SecurityHomeState extends State<_SecurityHome> {
     _deliverySyncTimer = null;
     _visitorPassSyncTimer?.cancel();
     _visitorPassSyncTimer = null;
-    final gateNames = _loadedSnapshot?.gates.map((gate) => gate.name).toList() ??
+    final gateNames =
+        _loadedSnapshot?.gates.map((gate) => gate.name).toList() ??
         const <String>[];
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
@@ -229,12 +273,105 @@ class _SecurityHomeState extends State<_SecurityHome> {
           user: widget.user,
           gateNames: gateNames,
           profilePhotoUrl: _loadedSnapshot?.accountPhotoUrl,
-          loadShiftAssignments: () => _GuardApi.loadShiftAssignments(widget.user),
+          loadShiftAssignments: () =>
+              _GuardApi.loadShiftAssignments(widget.user),
           onSignOut: _signOut,
         ),
       ),
     );
-    if (mounted) setState(() => _tab = 0);
+    if (mounted) {
+      setState(() => _tab = 0);
+    }
+  }
+
+  Future<void> _cancelAssignedShift(
+    SecurityShiftAssignment assignment,
+    _GuardSnapshot data,
+  ) async {
+    final reasonController = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cancel assigned shift'),
+        content: TextField(
+          controller: reasonController,
+          autofocus: true,
+          minLines: 3,
+          maxLines: 5,
+          maxLength: 1000,
+          decoration: const InputDecoration(
+            labelText: 'Reason for cancellation',
+            hintText: 'Describe the emergency or reason',
+            border: OutlineInputBorder(),
+            alignLabelWithHint: true,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Keep shift'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFB42332),
+            ),
+            onPressed: () {
+              final value = reasonController.text.trim();
+              if (value.length < 5) {
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  const SnackBar(
+                    content: Text('Enter at least 5 characters for the reason.'),
+                  ),
+                );
+                return;
+              }
+              Navigator.pop(dialogContext, value);
+            },
+            child: const Text('Submit cancellation'),
+          ),
+        ],
+      ),
+    );
+    if (reason == null || !mounted) {
+      reasonController.dispose();
+      return;
+    }
+    try {
+      await _GuardApi.post(
+        '/rosters/${Uri.encodeComponent(assignment.rosterId)}/cancel',
+        {'reason': reason},
+        widget.user.accessToken,
+      );
+      final index = data.shiftAssignments.indexWhere(
+        (item) => item.rosterId == assignment.rosterId,
+      );
+      if (index >= 0) {
+        data.shiftAssignments[index] = assignment.copyWith(
+          status: 'CANCELLED',
+          cancellationReason: reason,
+          cancelledAt: DateTime.now(),
+        );
+        _shiftRevision.value++;
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Shift cancelled. Your administrator has been notified.',
+            ),
+          ),
+        );
+      }
+    } on _GuardApiException catch (error) {
+      if (mounted) _showError(error.message);
+    } catch (error) {
+      debugPrint('Shift cancellation failed: $error');
+      if (mounted) {
+        _showError('Could not cancel this shift. Please try again.');
+      }
+    } finally {
+      reasonController.dispose();
+    }
   }
 
   Future<void> _refreshVisitorPasses() async {
@@ -267,6 +404,9 @@ class _SecurityHomeState extends State<_SecurityHome> {
     _deliverySyncTimer?.cancel();
     _visitorPassSyncTimer?.cancel();
     _deliveryRevision.dispose();
+    _shiftClockTimer?.cancel();
+    _shiftRevision.dispose();
+    _shiftClock.dispose();
     super.dispose();
   }
 
@@ -341,14 +481,52 @@ class _SecurityHomeState extends State<_SecurityHome> {
       _showError('There is no active gate configured for this society.');
       return;
     }
-    final created = await showModalBottomSheet<Map<String, dynamic>>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _RegisterVisitorSheet(
-        user: widget.user,
-        destinations: data.destinations,
-        gates: data.gates,
+    final created = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute(
+        builder: (_) => SecurityRegisterVisitorScreen(
+          destinations: data.destinations
+              .map(
+                (destination) => SecurityVisitorDestination(
+                  unitId: destination.unitId,
+                  residentId: destination.residentId,
+                  label: destination.label,
+                ),
+              )
+              .toList(growable: false),
+          gates: data.gates
+              .map((gate) => SecurityVisitorGate(id: gate.id, name: gate.name))
+              .toList(growable: false),
+          onRegister: (registration) async {
+            final profile = await _GuardApi.post('/visitors/profiles', {
+              'societyId': widget.user.societyId,
+              'name': registration.name,
+              'visitorType': registration.visitorType,
+              'phone': registration.phone,
+              'idType': registration.idType,
+              'vehicleNo': registration.vehicleNo,
+              'deliveryCompany': registration.deliveryCompany,
+            }, widget.user.accessToken);
+            final profileId = profile['id']?.toString();
+            if (profileId == null || profileId.isEmpty) {
+              throw const _GuardApiException(
+                'The server did not return a visitor record.',
+              );
+            }
+            final pass = await _GuardApi.post('/visitors/passes', {
+              'visitorProfileId': profileId,
+              'gateId': registration.gateId,
+              'unitId': registration.unitId,
+              'residentId': registration.residentId,
+              'passNo': 'WALKIN-${DateTime.now().millisecondsSinceEpoch}',
+            }, widget.user.accessToken);
+            if ('${pass['id'] ?? ''}'.isEmpty) {
+              throw const _GuardApiException(
+                'The server did not return the visitor pass.',
+              );
+            }
+            return {'profile': profile, 'pass': pass};
+          },
+        ),
       ),
     );
     if (created == null || !mounted) return;
@@ -428,7 +606,22 @@ class _SecurityHomeState extends State<_SecurityHome> {
                             children: [
                               _header(data),
                               const SizedBox(height: 20),
-                              if (_tab == 0) _greeting(),
+                              if (_tab == 0) ...[
+                                _greeting(),
+                                const SizedBox(height: 18),
+                                _securitySummaryCard(data),
+                                const SizedBox(height: 14),
+                                ValueListenableBuilder<DateTime>(
+                                  valueListenable: _shiftClock,
+                                  builder: (context, now, _) =>
+                                      ValueListenableBuilder<int>(
+                                        valueListenable: _shiftRevision,
+                                        builder: (context, _, _) =>
+                                            _assignedShiftCard(data, now),
+                                      ),
+                                ),
+                                const SizedBox(height: 20),
+                              ],
                               content,
                             ],
                           ),
@@ -836,6 +1029,286 @@ class _SecurityHomeState extends State<_SecurityHome> {
     ],
   );
 
+  DateTime _shiftDateTime(DateTime date, String time) {
+    final match = RegExp(r'^(\d{1,2}):(\d{2})').firstMatch(time.trim());
+    if (match == null) return date;
+    return DateTime(
+      date.year,
+      date.month,
+      date.day,
+      int.tryParse(match.group(1)!) ?? 0,
+      int.tryParse(match.group(2)!) ?? 0,
+    );
+  }
+
+  DateTime _shiftEnd(SecurityShiftAssignment assignment) {
+    final date = assignment.rosterDate ?? DateTime.now();
+    final start = _shiftDateTime(date, assignment.startTime);
+    var end = _shiftDateTime(date, assignment.endTime);
+    if (assignment.isOvernight || !end.isAfter(start)) {
+      end = end.add(const Duration(days: 1));
+    }
+    return end;
+  }
+
+  String _shiftClockLabel(String value) {
+    final match = RegExp(r'^(\d{1,2}):(\d{2})').firstMatch(value.trim());
+    if (match == null) return value;
+    final hour24 = int.tryParse(match.group(1)!) ?? 0;
+    final hour12 = hour24 % 12 == 0 ? 12 : hour24 % 12;
+    return '$hour12:${match.group(2)} ${hour24 < 12 ? 'AM' : 'PM'}';
+  }
+
+  Widget _assignedShiftCard(_GuardSnapshot data, DateTime now) {
+    final upcomingOrActive =
+        data.shiftAssignments.where((assignment) {
+          if (assignment.status == 'CANCELLED' ||
+              assignment.status == 'COMPLETED') {
+            return false;
+          }
+          return _shiftEnd(assignment).isAfter(now);
+        }).toList()..sort(
+          (a, b) => _shiftDateTime(
+            a.rosterDate ?? now,
+            a.startTime,
+          ).compareTo(_shiftDateTime(b.rosterDate ?? now, b.startTime)),
+        );
+    final active = upcomingOrActive.where((assignment) {
+      final start = _shiftDateTime(
+        assignment.rosterDate ?? now,
+        assignment.startTime,
+      );
+      return !now.isBefore(start) && now.isBefore(_shiftEnd(assignment));
+    });
+    final cancelledToday = data.shiftAssignments.where((assignment) {
+      final date = assignment.rosterDate;
+      return assignment.status == 'CANCELLED' &&
+          date != null &&
+          date.year == now.year &&
+          date.month == now.month &&
+          date.day == now.day;
+    });
+    final endedToday = data.shiftAssignments.where((assignment) {
+      final date = assignment.rosterDate;
+      return date != null &&
+          date.year == now.year &&
+          date.month == now.month &&
+          date.day == now.day &&
+          (assignment.status == 'COMPLETED' ||
+              !_shiftEnd(assignment).isAfter(now));
+    });
+    final upcomingToday = upcomingOrActive.where((assignment) {
+      final date = assignment.rosterDate;
+      return date != null &&
+          date.year == now.year &&
+          date.month == now.month &&
+          date.day == now.day;
+    });
+    final assignment = active.isNotEmpty
+        ? active.first
+        : cancelledToday.isNotEmpty
+        ? cancelledToday.first
+        : upcomingToday.isNotEmpty
+        ? upcomingToday.first
+        : endedToday.isNotEmpty
+        ? endedToday.first
+        : upcomingOrActive.isNotEmpty
+        ? upcomingOrActive.first
+        : null;
+
+    if (assignment == null) {
+      return _shiftCardSurface(
+        icon: Icons.event_available_outlined,
+        title: 'Your shift',
+        subtitle: 'No upcoming shift is assigned.',
+        status: 'No shift assigned',
+        statusColor: const Color(0xFF61708A),
+        child: const SizedBox.shrink(),
+      );
+    }
+
+    final date = assignment.rosterDate ?? now;
+    final start = _shiftDateTime(date, assignment.startTime);
+    final end = _shiftEnd(assignment);
+    final isCancelled = assignment.status == 'CANCELLED';
+    final isEnded = assignment.status == 'COMPLETED' || !now.isBefore(end);
+    final isInProgress = !isCancelled && !isEnded && !now.isBefore(start);
+    final untilStart = start.difference(now);
+    final startsSoon =
+        !isCancelled &&
+        !isEnded &&
+        !isInProgress &&
+        untilStart <= const Duration(hours: 1);
+    final status = isCancelled
+        ? 'Shift cancelled'
+        : isEnded
+        ? 'Your shift has ended'
+        : isInProgress
+        ? 'Your shift is in progress'
+        : startsSoon
+        ? 'Your shift starts in ${_remainingTime(untilStart)}'
+        : 'Upcoming shift';
+    final statusColor = isCancelled || isEnded
+        ? const Color(0xFF65728A)
+        : isInProgress
+        ? const Color(0xFF188754)
+        : const Color(0xFF7651A1);
+    final canCancel = !isCancelled && !isEnded;
+
+    return _shiftCardSurface(
+      icon: Icons.schedule_rounded,
+      title: assignment.shiftName,
+      subtitle:
+          '${_dateLabel(date)}  ·  ${_shiftClockLabel(assignment.startTime)} – ${_shiftClockLabel(assignment.endTime)}',
+      status: status,
+      statusColor: statusColor,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 8),
+          Text(
+            '${assignment.shiftType.replaceAll('_', ' ')}  ·  ${assignment.scheduleType.replaceAll('_', ' ')} schedule',
+            style: const TextStyle(color: AppColors.muted, fontSize: 12),
+          ),
+          if (isCancelled && assignment.cancellationReason != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Reason: ${assignment.cancellationReason}',
+              style: const TextStyle(color: AppColors.inkSoft, fontSize: 12),
+            ),
+            if (assignment.cancelledAt != null)
+              Text(
+                'Cancelled at ${_dateTimeLabel(assignment.cancelledAt!)}',
+                style: const TextStyle(color: AppColors.muted, fontSize: 11),
+              ),
+          ],
+          if (canCancel) ...[
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: () => _cancelAssignedShift(assignment, data),
+                icon: const Icon(Icons.emergency_outlined, size: 17),
+                label: const Text('Cancel shift'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFFB42332),
+                  side: const BorderSide(color: Color(0xFFE8A7AE)),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _shiftCardSurface({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required String status,
+    required Color statusColor,
+    required Widget child,
+  }) => Container(
+    padding: const EdgeInsets.all(15),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: const Color(0xFFE7EAF1)),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x080F1A35),
+          blurRadius: 10,
+          offset: Offset(0, 3),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, color: AppColors.indigo, size: 20),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.ink,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+              decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: .10),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                status,
+                style: TextStyle(
+                  color: statusColor,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            IconButton(
+              tooltip: 'Refresh shift details',
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints.tightFor(
+                width: 34,
+                height: 34,
+              ),
+              onPressed: _shiftSyncRunning
+                  ? null
+                  : () => _refreshShiftAssignments(showResult: true),
+              icon: _shiftSyncRunning
+                  ? const SizedBox(
+                      width: 17,
+                      height: 17,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.refresh_rounded, size: 19),
+            ),
+          ],
+        ),
+        const SizedBox(height: 5),
+        Text(
+          subtitle,
+          style: const TextStyle(color: AppColors.inkSoft, fontSize: 12),
+        ),
+        child,
+      ],
+    ),
+  );
+
+  String _remainingTime(Duration duration) {
+    final minutes = duration.inMinutes;
+    if (minutes < 1) return 'less than a minute';
+    final hours = minutes ~/ 60;
+    final remainingMinutes = minutes % 60;
+    if (hours == 0) return '$remainingMinutes min';
+    return remainingMinutes == 0
+        ? '$hours hr'
+        : '$hours hr $remainingMinutes min';
+  }
+
+  String _dateLabel(DateTime date) =>
+      '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+
+  String _dateTimeLabel(DateTime date) {
+    final local = date.toLocal();
+    return '${_dateLabel(local)} ${_shiftClockLabel('${local.hour}:${local.minute.toString().padLeft(2, '0')}')}';
+  }
+
   Future<void> _registerDelivery(_GuardSnapshot data) async {
     if (data.units.isEmpty) {
       _showError('No resident flats are available for delivery registration.');
@@ -854,7 +1327,8 @@ class _SecurityHomeState extends State<_SecurityHome> {
     if (created != null && mounted) {
       final delivery = _Delivery.fromJson(created);
       setState(() => data.deliveries.insert(0, delivery));
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Delivery registered.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Delivery registered.')));
     }
   }
 
@@ -872,52 +1346,106 @@ class _SecurityHomeState extends State<_SecurityHome> {
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => StatefulBuilder(
         builder: (context, setSheetState) => Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(context).bottom,
+          ),
           child: _surface(
             context,
             padding: const EdgeInsets.fromLTRB(22, 12, 22, 24),
-            child: SingleChildScrollView(child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(child: Container(width: 42, height: 4, decoration: BoxDecoration(color: const Color(0xFFDCE2EE), borderRadius: BorderRadius.circular(5)))),
-                const SizedBox(height: 20),
-                Text('Log parcel', style: _titleStyle(20)),
-                const SizedBox(height: 16),
-                _styledDropdownField<String>(
-                  value: deliveryId,
-                  decoration: _fieldDecoration('Related delivery', Icons.local_shipping_outlined),
-                  hint: 'Select delivery',
-                  items: data.deliveries.map((item) => DropdownMenuItem(value: item.id, child: Text('${_humanize(item.type)} · ${item.courierName ?? 'Delivery'}', overflow: TextOverflow.ellipsis))).toList(),
-                  onChanged: (value) => setSheetState(() => deliveryId = value),
-                ),
-                const SizedBox(height: 12),
-                TextField(controller: location, decoration: _fieldDecoration('Storage location (optional)', Icons.inventory_2_outlined)),
-                const SizedBox(height: 18),
-                SizedBox(height: 50, child: FilledButton.icon(
-                  onPressed: saving ? null : () async {
-                    if (deliveryId == null) {
-                      _showError('Select the delivery for this parcel.');
-                      return;
-                    }
-                    setSheetState(() => saving = true);
-                    try {
-                      final result = await _GuardApi.post('/deliveries/parcels', {
-                        'deliveryId': deliveryId,
-                        'storageLocation': location.text.trim(),
-                        'receivedBy': widget.user.userId,
-                      }, widget.user.accessToken);
-                      if (sheetContext.mounted) Navigator.pop(sheetContext, result);
-                    } on _GuardApiException catch (error) {
-                      if (sheetContext.mounted) setSheetState(() => saving = false);
-                      if (mounted) _showError(error.message);
-                    }
-                  },
-                  icon: saving ? const SizedBox.square(dimension: 17, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.add_rounded),
-                  label: Text(saving ? 'Saving parcel...' : 'Log parcel'),
-                )),
-              ],
-            )),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 42,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDCE2EE),
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text('Log parcel', style: _titleStyle(20)),
+                  const SizedBox(height: 16),
+                  _styledDropdownField<String>(
+                    value: deliveryId,
+                    decoration: _fieldDecoration(
+                      'Related delivery',
+                      Icons.local_shipping_outlined,
+                    ),
+                    hint: 'Select delivery',
+                    items: data.deliveries
+                        .map(
+                          (item) => DropdownMenuItem(
+                            value: item.id,
+                            child: Text(
+                              '${_humanize(item.type)} · ${item.courierName ?? 'Delivery'}',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) =>
+                        setSheetState(() => deliveryId = value),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: location,
+                    decoration: _fieldDecoration(
+                      'Storage location (optional)',
+                      Icons.inventory_2_outlined,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    height: 50,
+                    child: FilledButton.icon(
+                      onPressed: saving
+                          ? null
+                          : () async {
+                              if (deliveryId == null) {
+                                _showError(
+                                  'Select the delivery for this parcel.',
+                                );
+                                return;
+                              }
+                              setSheetState(() => saving = true);
+                              try {
+                                final result = await _GuardApi.post(
+                                  '/deliveries/parcels',
+                                  {
+                                    'deliveryId': deliveryId,
+                                    'storageLocation': location.text.trim(),
+                                    'receivedBy': widget.user.userId,
+                                  },
+                                  widget.user.accessToken,
+                                );
+                                if (sheetContext.mounted)
+                                  Navigator.pop(sheetContext, result);
+                              } on _GuardApiException catch (error) {
+                                if (sheetContext.mounted)
+                                  setSheetState(() => saving = false);
+                                if (mounted) _showError(error.message);
+                              }
+                            },
+                      icon: saving
+                          ? const SizedBox.square(
+                              dimension: 17,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.add_rounded),
+                      label: Text(saving ? 'Saving parcel...' : 'Log parcel'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -926,59 +1454,95 @@ class _SecurityHomeState extends State<_SecurityHome> {
     if (created != null && mounted) {
       final parcel = _Parcel.fromJson(created);
       setState(() => data.parcels.insert(0, parcel));
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Parcel logged.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Parcel logged.')));
     }
   }
 
-  Future<void> _changeDeliveryStatus(_Delivery delivery, _GuardSnapshot data) async {
+  Future<void> _changeDeliveryStatus(
+    _Delivery delivery,
+    _GuardSnapshot data,
+  ) async {
     final choices = _deliveryTransitions[delivery.status] ?? const <String>[];
     final status = await _chooseStatus('Change delivery status', choices);
     if (status == null) return;
     final now = DateTime.now().toIso8601String();
     try {
-      final updatedJson = await _GuardApi.patch('/deliveries/${delivery.id}/status', {
-        'status': status,
-        'receivedAt': status == 'ARRIVED' ? now : null,
-        'handedOverAt': status == 'PICKED_UP' || status == 'EXITED' ? now : null,
-      }, widget.user.accessToken);
+      final updatedJson = await _GuardApi.patch(
+        '/deliveries/${delivery.id}/status',
+        {
+          'status': status,
+          'receivedAt': status == 'ARRIVED' ? now : null,
+          'handedOverAt': status == 'PICKED_UP' || status == 'EXITED'
+              ? now
+              : null,
+        },
+        widget.user.accessToken,
+      );
       if (!mounted) return;
       final updated = _Delivery.fromJson(updatedJson);
       setState(() {
-        final index = data.deliveries.indexWhere((item) => item.id == delivery.id);
+        final index = data.deliveries.indexWhere(
+          (item) => item.id == delivery.id,
+        );
         if (index >= 0) data.deliveries[index] = updated;
       });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delivery marked ${_humanize(status).toLowerCase()}.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Delivery marked ${_humanize(status).toLowerCase()}.'),
+        ),
+      );
     } on _GuardApiException catch (error) {
       if (mounted) _showError(error.message);
     }
   }
 
   Future<void> _changeParcelStatus(_Parcel parcel, _GuardSnapshot data) async {
-    final status = await _chooseStatus('Update parcel status', const ['COLLECTED', 'DAMAGED', 'LOST']);
+    final status = await _chooseStatus('Update parcel status', const [
+      'COLLECTED',
+      'DAMAGED',
+      'LOST',
+    ]);
     if (status == null) return;
     try {
-      final updatedJson = await _GuardApi.patch('/deliveries/parcels/${parcel.id}/status', {
-        'status': status,
-        'collectedBy': status == 'COLLECTED' ? widget.user.userId : null,
-      }, widget.user.accessToken);
+      final updatedJson = await _GuardApi.patch(
+        '/deliveries/parcels/${parcel.id}/status',
+        {
+          'status': status,
+          'collectedBy': status == 'COLLECTED' ? widget.user.userId : null,
+        },
+        widget.user.accessToken,
+      );
       if (!mounted) return;
       final updated = _Parcel.fromJson(updatedJson);
       setState(() {
         final index = data.parcels.indexWhere((item) => item.id == parcel.id);
         if (index >= 0) data.parcels[index] = updated;
         if (status == 'COLLECTED') {
-          final deliveryIndex = data.deliveries.indexWhere((item) => item.id == parcel.deliveryId && (item.status == 'LEFT_AT_GATE' || item.status == 'OVERSTAY'));
+          final deliveryIndex = data.deliveries.indexWhere(
+            (item) =>
+                item.id == parcel.deliveryId &&
+                (item.status == 'LEFT_AT_GATE' || item.status == 'OVERSTAY'),
+          );
           if (deliveryIndex >= 0) {
             final old = data.deliveries[deliveryIndex];
             data.deliveries[deliveryIndex] = _Delivery(
-              id: old.id, unitId: old.unitId, type: old.type, status: 'PICKED_UP',
-              visitorProfileId: old.visitorProfileId, courierName: old.courierName,
+              id: old.id,
+              unitId: old.unitId,
+              type: old.type,
+              status: 'PICKED_UP',
+              visitorProfileId: old.visitorProfileId,
+              courierName: old.courierName,
               createdAt: old.createdAt,
             );
           }
         }
       });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Parcel marked ${_humanize(status).toLowerCase()}.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Parcel marked ${_humanize(status).toLowerCase()}.'),
+        ),
+      );
     } on _GuardApiException catch (error) {
       if (mounted) _showError(error.message);
     }
@@ -997,12 +1561,14 @@ class _SecurityHomeState extends State<_SecurityHome> {
             children: [
               Text(title, style: _titleStyle(18)),
               const SizedBox(height: 10),
-              ...choices.map((choice) => ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(_humanize(choice)),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: () => Navigator.pop(sheetContext, choice),
-              )),
+              ...choices.map(
+                (choice) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(_humanize(choice)),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => Navigator.pop(sheetContext, choice),
+                ),
+              ),
             ],
           ),
         ),
@@ -1252,7 +1818,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
 }
 
 class _GuardSnapshot {
-  const _GuardSnapshot({
+  _GuardSnapshot({
     this.societyName,
     this.societyLogoUrl,
     this.accountPhotoUrl,
@@ -1263,6 +1829,7 @@ class _GuardSnapshot {
     required this.events,
     required this.deliveries,
     required this.parcels,
+    required this.shiftAssignments,
   });
 
   final String? societyName;
@@ -1275,6 +1842,7 @@ class _GuardSnapshot {
   final List<_GateEvent> events;
   final List<_Delivery> deliveries;
   final List<_Parcel> parcels;
+  List<SecurityShiftAssignment> shiftAssignments;
 
   List<_GuardUnit> get units {
     final byId = <String, _GuardUnit>{};
@@ -1369,14 +1937,19 @@ class _GuardDestination {
     final tower = '${json['tower_name'] ?? ''}'.trim();
     final flat = '${json['unit_number'] ?? ''}'.trim();
     final floor = '${json['floor_name'] ?? ''}'.trim();
-    final home = [if (tower.isNotEmpty) tower, if (flat.isNotEmpty) flat]
-        .join(' · ');
-    final details = [if (floor.isNotEmpty) floor, if (home.isNotEmpty) home]
-        .join(' · ');
+    final home = [
+      if (tower.isNotEmpty) tower,
+      if (flat.isNotEmpty) flat,
+    ].join(' · ');
+    final details = [
+      if (floor.isNotEmpty) floor,
+      if (home.isNotEmpty) home,
+    ].join(' · ');
     return _GuardDestination(
       unitId: '${json['unit_id'] ?? ''}',
       residentId: '${json['resident_id'] ?? ''}',
-      label: '${details.isEmpty ? 'Flat' : details} — ${json['resident_name'] ?? 'Resident'}',
+      label:
+          '${details.isEmpty ? 'Flat' : details} — ${json['resident_name'] ?? 'Resident'}',
       homeLabel: details.isEmpty ? 'Flat' : details,
     );
   }
@@ -1442,7 +2015,10 @@ class _Parcel {
 }
 
 class _GuardDeliverySnapshot {
-  const _GuardDeliverySnapshot({required this.deliveries, required this.parcels});
+  const _GuardDeliverySnapshot({
+    required this.deliveries,
+    required this.parcels,
+  });
 
   final List<_Delivery> deliveries;
   final List<_Parcel> parcels;
@@ -1478,8 +2054,8 @@ class _GuardPass {
     createdAt: DateTime.tryParse('${json['created_at'] ?? ''}'),
     unitId: json['unit_id']?.toString(),
     residentId: json['resident_id']?.toString(),
-    residentDecision:
-        '${json['resident_decision'] ?? 'NOT_REQUIRED'}'.toUpperCase(),
+    residentDecision: '${json['resident_decision'] ?? 'NOT_REQUIRED'}'
+        .toUpperCase(),
   );
 }
 
@@ -1500,171 +2076,6 @@ class _GateEvent {
     gateId: '${json['gate_id'] ?? ''}',
     at: DateTime.tryParse('${json['event_at'] ?? ''}'),
   );
-}
-
-class _RegisterVisitorSheet extends StatefulWidget {
-  const _RegisterVisitorSheet({
-    required this.user,
-    required this.destinations,
-    required this.gates,
-  });
-
-  final AuthenticatedUser user;
-  final List<_GuardDestination> destinations;
-  final List<_Gate> gates;
-
-  @override
-  State<_RegisterVisitorSheet> createState() => _RegisterVisitorSheetState();
-}
-
-class _RegisterVisitorSheetState extends State<_RegisterVisitorSheet> {
-  final _formKey = GlobalKey<FormState>();
-  final _name = TextEditingController();
-  final _phone = TextEditingController();
-  final _company = TextEditingController();
-  final _vehicleNo = TextEditingController();
-  String? _visitorType;
-  String? _gateId;
-  String? _idType;
-  _GuardDestination? _destination;
-  bool _saving = false;
-
-  @override
-  void dispose() {
-    _name.dispose();
-    _phone.dispose();
-    _company.dispose();
-    _vehicleNo.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submit() async {
-    if (widget.destinations.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Add an active resident and assign a flat before registering visitors.'),
-      ));
-      return;
-    }
-    if (!_formKey.currentState!.validate()) return;
-    setState(() => _saving = true);
-    try {
-      final profile = await _GuardApi.post('/visitors/profiles', {
-        'societyId': widget.user.societyId,
-        'name': _name.text.trim(),
-        'visitorType': _visitorType,
-        'phone': _phone.text.trim(),
-        'idType': _idType,
-        'vehicleNo': _vehicleNo.text.trim().toUpperCase(),
-        'deliveryCompany': _visitorType == 'DELIVERY_PERSON'
-            ? _company.text.trim()
-            : null,
-      }, widget.user.accessToken);
-      final profileId = profile['id']?.toString();
-      if (profileId == null || profileId.isEmpty) {
-        throw const _GuardApiException('The server did not return a visitor record.');
-      }
-      final pass = await _GuardApi.post('/visitors/passes', {
-        'visitorProfileId': profileId,
-        'gateId': _gateId,
-        'unitId': _destination!.unitId,
-        'residentId': _destination!.residentId,
-        'passNo': 'WALKIN-${DateTime.now().millisecondsSinceEpoch}',
-      }, widget.user.accessToken);
-      if ('${pass['id'] ?? ''}'.isEmpty) {
-        throw const _GuardApiException('The server did not return the visitor pass.');
-      }
-      if (mounted) Navigator.of(context).pop({'profile': profile, 'pass': pass});
-    } on _GuardApiException catch (error) {
-      if (mounted) {
-        setState(() => _saving = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-        child: _surface(
-          context,
-          padding: const EdgeInsets.fromLTRB(22, 12, 22, 24),
-          child: SingleChildScrollView(
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Center(child: Container(width: 42, height: 4, decoration: BoxDecoration(color: const Color(0xFFDCE2EE), borderRadius: BorderRadius.circular(5)))),
-                  const SizedBox(height: 20),
-                  Row(children: [
-                    IconButton(tooltip: 'Close visitor form', onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.arrow_back_rounded)),
-                    Expanded(child: Text('Register a visitor', style: _titleStyle(20))),
-                  ]),
-                  const Text('Create a walk-in record for the selected gate.', style: TextStyle(color: AppColors.muted)),
-                  const SizedBox(height: 20),
-                  TextFormField(controller: _name, textCapitalization: TextCapitalization.words, validator: (value) => value == null || value.trim().isEmpty ? 'Enter the visitor name.' : null, decoration: _fieldDecoration('Visitor name', Icons.person_outline_rounded)),
-                  const SizedBox(height: 12),
-                  TextField(controller: _phone, keyboardType: TextInputType.phone, decoration: _fieldDecoration('Phone (optional)', Icons.phone_outlined)),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    value: _visitorType,
-                    decoration: _fieldDecoration('Visitor type', Icons.category_outlined),
-                    validator: (value) => value == null ? 'Select a visitor type.' : null,
-                    items: const [
-                      DropdownMenuItem(value: 'GUEST', child: Text('Guest')),
-                      DropdownMenuItem(value: 'DELIVERY_PERSON', child: Text('Delivery person')),
-                      DropdownMenuItem(value: 'SERVICE_PROVIDER', child: Text('Service provider')),
-                      DropdownMenuItem(value: 'OTHER', child: Text('Other')),
-                    ],
-                    onChanged: (value) => setState(() => _visitorType = value),
-                  ),
-                  if (_visitorType == 'DELIVERY_PERSON') ...[
-                    const SizedBox(height: 12),
-                    TextFormField(controller: _company, validator: (value) => value == null || value.trim().isEmpty ? 'Enter the delivery company.' : null, decoration: _fieldDecoration('Delivery company', Icons.local_shipping_outlined)),
-                  ],
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    value: _idType,
-                    decoration: _fieldDecoration('ID proof type (optional)', Icons.badge_outlined),
-                    items: const [
-                      DropdownMenuItem(value: 'AADHAAR', child: Text('Aadhaar')),
-                      DropdownMenuItem(value: 'DRIVING_LICENSE', child: Text('Driving license')),
-                      DropdownMenuItem(value: 'PASSPORT', child: Text('Passport')),
-                      DropdownMenuItem(value: 'OTHER', child: Text('Other')),
-                    ],
-                    onChanged: (value) => setState(() => _idType = value),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(controller: _vehicleNo, textCapitalization: TextCapitalization.characters, decoration: _fieldDecoration('Vehicle number (optional)', Icons.directions_car_outlined)),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<_GuardDestination>(
-                    value: _destination,
-                    decoration: _fieldDecoration('Visiting flat / resident', Icons.apartment_rounded),
-                    validator: (value) => value == null ? 'Select the flat and resident being visited.' : null,
-                    items: widget.destinations.map((item) => DropdownMenuItem(value: item, child: Text(item.label, overflow: TextOverflow.ellipsis))).toList(),
-                    onChanged: (value) => setState(() => _destination = value),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    value: _gateId,
-                    decoration: _fieldDecoration('Entry gate', Icons.door_front_door_outlined),
-                    validator: (value) => value == null ? 'Select an entry gate.' : null,
-                    items: widget.gates.map((gate) => DropdownMenuItem(value: gate.id, child: Text(gate.name))).toList(),
-                    onChanged: (value) => setState(() => _gateId = value),
-                  ),
-                  const SizedBox(height: 18),
-                  SizedBox(height: 52, child: FilledButton.icon(
-                    onPressed: _saving ? null : _submit,
-                    icon: _saving ? const SizedBox.square(dimension: 17, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.person_add_alt_1_rounded),
-                    label: Text(_saving ? 'Saving visitor...' : 'Create visitor pass'),
-                  )),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
 }
 
 class _RegisterDeliverySheet extends StatefulWidget {
@@ -1711,80 +2122,131 @@ class _RegisterDeliverySheetState extends State<_RegisterDeliverySheet> {
     } on _GuardApiException catch (error) {
       if (mounted) {
         setState(() => _saving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.message)),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.message)));
       }
     }
   }
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-        child: _surface(
-          context,
-          padding: const EdgeInsets.fromLTRB(22, 12, 22, 24),
-          child: SingleChildScrollView(
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Center(child: Container(width: 42, height: 4, decoration: BoxDecoration(color: const Color(0xFFDCE2EE), borderRadius: BorderRadius.circular(5)))),
-                  const SizedBox(height: 20),
-                  Text('Register delivery', style: _titleStyle(20)),
-                  const SizedBox(height: 16),
-                  _styledDropdownField<String>(
-                    value: _unitId,
-                    decoration: _fieldDecoration('Unit', Icons.apartment_rounded),
-                    hint: 'Select destination flat',
-                    validator: (value) => value == null ? 'Select a flat.' : null,
-                    items: widget.units.map((unit) => DropdownMenuItem(value: unit.id, child: Text(unit.label, overflow: TextOverflow.ellipsis))).toList(),
-                    onChanged: (value) => setState(() => _unitId = value),
+    padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+    child: _surface(
+      context,
+      padding: const EdgeInsets.fromLTRB(22, 12, 22, 24),
+      child: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFDCE2EE),
+                    borderRadius: BorderRadius.circular(5),
                   ),
-                  const SizedBox(height: 12),
-                  _styledDropdownField<String>(
-                    value: _visitorId,
-                    decoration: _fieldDecoration('Visitor profile (optional)', Icons.person_outline_rounded),
-                    items: [
-                      const DropdownMenuItem(value: '', child: Text('No linked visitor')),
-                      ...widget.profiles.map((visitor) => DropdownMenuItem(value: visitor.id, child: Text(visitor.name, overflow: TextOverflow.ellipsis))),
-                    ],
-                    onChanged: (value) => setState(() => _visitorId = value ?? ''),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text('Register delivery', style: _titleStyle(20)),
+              const SizedBox(height: 16),
+              _styledDropdownField<String>(
+                value: _unitId,
+                decoration: _fieldDecoration('Unit', Icons.apartment_rounded),
+                hint: 'Select destination flat',
+                validator: (value) => value == null ? 'Select a flat.' : null,
+                items: widget.units
+                    .map(
+                      (unit) => DropdownMenuItem(
+                        value: unit.id,
+                        child: Text(
+                          unit.label,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) => setState(() => _unitId = value),
+              ),
+              const SizedBox(height: 12),
+              _styledDropdownField<String>(
+                value: _visitorId,
+                decoration: _fieldDecoration(
+                  'Visitor profile (optional)',
+                  Icons.person_outline_rounded,
+                ),
+                items: [
+                  const DropdownMenuItem(
+                    value: '',
+                    child: Text('No linked visitor'),
                   ),
-                  const SizedBox(height: 12),
-                  _styledDropdownField<String>(
-                    value: _deliveryType,
-                    decoration: _fieldDecoration('Delivery type', Icons.category_outlined),
-                    items: const [
-                      DropdownMenuItem(value: 'COURIER', child: Text('Courier')),
-                      DropdownMenuItem(value: 'FOOD', child: Text('Food')),
-                      DropdownMenuItem(value: 'E_COMMERCE', child: Text('E-commerce')),
-                      DropdownMenuItem(value: 'GROCERY', child: Text('Grocery')),
-                      DropdownMenuItem(value: 'OTHER', child: Text('Other')),
-                    ],
-                    onChanged: (value) => setState(() => _deliveryType = value ?? 'COURIER'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(controller: _courier, decoration: _fieldDecoration('Courier / source (optional)', Icons.local_shipping_outlined)),
-                  const SizedBox(height: 18),
-                  SizedBox(
-                    height: 50,
-                    child: FilledButton.icon(
-                      onPressed: _saving ? null : _submit,
-                      icon: _saving
-                          ? const SizedBox.square(dimension: 17, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                          : const Icon(Icons.add_rounded),
-                      label: Text(_saving ? 'Registering...' : 'Register delivery'),
+                  ...widget.profiles.map(
+                    (visitor) => DropdownMenuItem(
+                      value: visitor.id,
+                      child: Text(
+                        visitor.name,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ),
                 ],
+                onChanged: (value) => setState(() => _visitorId = value ?? ''),
               ),
-            ),
+              const SizedBox(height: 12),
+              _styledDropdownField<String>(
+                value: _deliveryType,
+                decoration: _fieldDecoration(
+                  'Delivery type',
+                  Icons.category_outlined,
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'COURIER', child: Text('Courier')),
+                  DropdownMenuItem(value: 'FOOD', child: Text('Food')),
+                  DropdownMenuItem(
+                    value: 'E_COMMERCE',
+                    child: Text('E-commerce'),
+                  ),
+                  DropdownMenuItem(value: 'GROCERY', child: Text('Grocery')),
+                  DropdownMenuItem(value: 'OTHER', child: Text('Other')),
+                ],
+                onChanged: (value) =>
+                    setState(() => _deliveryType = value ?? 'COURIER'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _courier,
+                decoration: _fieldDecoration(
+                  'Courier / source (optional)',
+                  Icons.local_shipping_outlined,
+                ),
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                height: 50,
+                child: FilledButton.icon(
+                  onPressed: _saving ? null : _submit,
+                  icon: _saving
+                      ? const SizedBox.square(
+                          dimension: 17,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.add_rounded),
+                  label: Text(_saving ? 'Registering...' : 'Register delivery'),
+                ),
+              ),
+            ],
           ),
         ),
-      );
+      ),
+    ),
+  );
 }
 
 class _GuardApi {
@@ -1814,6 +2276,7 @@ class _GuardApi {
         'This guard account is not linked to a society. Ask an administrator to check the staff assignment.',
       );
     }
+    final shiftAssignmentsFuture = loadShiftAssignments(user);
     final gatesJson = await _get('/gates', user.accessToken);
     final gates = gatesJson
         .map(_Gate.fromJson)
@@ -1855,6 +2318,12 @@ class _GuardApi {
     final events = results[2].map(_GateEvent.fromJson).toList();
     final deliveries = results[3].map(_Delivery.fromJson).toList();
     final parcels = results[4].map(_Parcel.fromJson).toList();
+    List<SecurityShiftAssignment> shiftAssignments;
+    try {
+      shiftAssignments = await shiftAssignmentsFuture;
+    } catch (_) {
+      shiftAssignments = const [];
+    }
     final passes = results
         .skip(5)
         .expand((rows) => rows)
@@ -1899,6 +2368,7 @@ class _GuardApi {
       events: events,
       deliveries: deliveries,
       parcels: parcels,
+      shiftAssignments: shiftAssignments,
     );
   }
 
@@ -1908,15 +2378,11 @@ class _GuardApi {
   ) async {
     final responses = await Future.wait(
       gates.map(
-        (gate) => _get('/visitors/passes', user.accessToken, {
-          'gateId': gate.id,
-        }),
+        (gate) =>
+            _get('/visitors/passes', user.accessToken, {'gateId': gate.id}),
       ),
     );
-    return responses
-        .expand((rows) => rows)
-        .map(_GuardPass.fromJson)
-        .toList();
+    return responses.expand((rows) => rows).map(_GuardPass.fromJson).toList();
   }
 
   static Future<List<SecurityShiftAssignment>> loadShiftAssignments(
@@ -1929,28 +2395,23 @@ class _GuardApi {
       'societyId': societyId,
     });
     final guard = guards.cast<Map<String, dynamic>?>().firstWhere(
-          (row) =>
-              row != null &&
-              (row['user_id']?.toString() == user.userId ||
-                  row['userId']?.toString() == user.userId ||
-                  (user.employeeCode != null &&
-                      (row['employee_code'] ?? row['employeeCode'])?.toString().toUpperCase() ==
-                          user.employeeCode!.toUpperCase())),
-          orElse: () => null,
-        );
+      (row) =>
+          row != null &&
+          (row['user_id']?.toString() == user.userId ||
+              row['userId']?.toString() == user.userId ||
+              (user.employeeCode != null &&
+                  (row['employee_code'] ?? row['employeeCode'])
+                          ?.toString()
+                          .toUpperCase() ==
+                      user.employeeCode!.toUpperCase())),
+      orElse: () => null,
+    );
     final staffId = (guard?['staff_id'] ?? guard?['staffId'])?.toString();
     if (staffId == null || staffId.isEmpty) return const [];
 
     final responses = await Future.wait([
-      _get(
-        '/rosters/staff/${Uri.encodeComponent(staffId)}',
-        user.accessToken,
-      ),
-      _get(
-        '/shifts',
-        user.accessToken,
-        {'societyId': societyId},
-      ),
+      _get('/rosters/staff/${Uri.encodeComponent(staffId)}', user.accessToken),
+      _get('/shifts', user.accessToken, {'societyId': societyId}),
     ]);
     final shiftsById = <String, Map<String, dynamic>>{
       for (final shift in responses[1])
@@ -1961,26 +2422,87 @@ class _GuardApi {
     final todayDate = DateTime(today.year, today.month, today.day);
     final assignments = <SecurityShiftAssignment>[];
     for (final roster in responses[0]) {
-      final dateValue = (roster['rosterDate'] ?? roster['roster_date'])?.toString();
-      final rosterDate = dateValue == null ? null : DateTime.tryParse(dateValue);
+      final dateValue = (roster['rosterDate'] ?? roster['roster_date'])
+          ?.toString();
+      final rosterDate = dateValue == null
+          ? null
+          : DateTime.tryParse(dateValue);
       final status = (roster['status'] ?? '').toString().toUpperCase();
       if (rosterDate == null ||
-          DateTime(rosterDate.year, rosterDate.month, rosterDate.day).isBefore(todayDate) ||
-          status == 'CANCELLED') {
+          DateTime(
+            rosterDate.year,
+            rosterDate.month,
+            rosterDate.day,
+          ).isBefore(todayDate.subtract(const Duration(days: 1)))) {
         continue;
       }
       final shiftId = (roster['shiftId'] ?? roster['shift_id'])?.toString();
       final shift = shiftId == null ? null : shiftsById[shiftId];
       if (shift == null) continue;
+      final isOvernight =
+          shift['isOvernight'] == true ||
+          shift['is_overnight'] == true ||
+          '${shift['isOvernight'] ?? shift['is_overnight'] ?? ''}'
+                  .toLowerCase() ==
+              'true';
+      final startValue = (shift['startTime'] ?? shift['start_time'] ?? '')
+          .toString();
+      final endValue = (shift['endTime'] ?? shift['end_time'] ?? '').toString();
+      final timeParts = RegExp(r'^(\d{1,2}):(\d{2})');
+      DateTime scheduleTime(DateTime date, String value) {
+        final match = timeParts.firstMatch(value.trim());
+        if (match == null) return date;
+        return DateTime(
+          date.year,
+          date.month,
+          date.day,
+          int.tryParse(match.group(1)!) ?? 0,
+          int.tryParse(match.group(2)!) ?? 0,
+        );
+      }
+
+      final scheduleStart = scheduleTime(rosterDate, startValue);
+      var scheduleEnd = scheduleTime(rosterDate, endValue);
+      final isOvernightShift =
+          isOvernight || !scheduleEnd.isAfter(scheduleStart);
+      if (isOvernightShift) {
+        scheduleEnd = scheduleEnd.add(const Duration(days: 1));
+      }
+      final isYesterdayRoster = DateTime(
+        rosterDate.year,
+        rosterDate.month,
+        rosterDate.day,
+      ).isBefore(todayDate);
+      if (isYesterdayRoster &&
+          (status == 'CANCELLED' || !DateTime.now().isBefore(scheduleEnd))) {
+        continue;
+      }
       assignments.add(
         SecurityShiftAssignment(
-          shiftName: (shift['shiftName'] ?? shift['shift_name'] ?? 'Shift').toString(),
-          shiftType: (shift['shiftType'] ?? shift['shift_type'] ?? '').toString(),
-          startTime: (shift['startTime'] ?? shift['start_time'] ?? '').toString(),
-          endTime: (shift['endTime'] ?? shift['end_time'] ?? '').toString(),
-          breakMinutes: int.tryParse('${shift['breakMinutes'] ?? shift['break_minutes'] ?? 0}') ?? 0,
+          rosterId: (roster['id'] ?? '').toString(),
+          shiftName: (shift['shiftName'] ?? shift['shift_name'] ?? 'Shift')
+              .toString(),
+          shiftType: (shift['shiftType'] ?? shift['shift_type'] ?? '')
+              .toString(),
+          scheduleType:
+              (roster['rosterType'] ?? roster['roster_type'] ?? 'DAILY')
+                  .toString(),
+          startTime: startValue,
+          endTime: endValue,
+          breakMinutes:
+              int.tryParse(
+                '${shift['breakMinutes'] ?? shift['break_minutes'] ?? 0}',
+              ) ??
+              0,
           rosterDate: rosterDate,
           status: status.isEmpty ? 'SCHEDULED' : status,
+          isOvernight: isOvernightShift,
+          cancellationReason: _optionalString(
+            roster['cancellationReason'] ?? roster['cancellation_reason'],
+          ),
+          cancelledAt: DateTime.tryParse(
+            '${roster['cancelledAt'] ?? roster['cancelled_at'] ?? ''}',
+          ),
           remarks: (roster['remarks'] ?? '').toString(),
         ),
       );
@@ -1999,8 +2521,7 @@ class _GuardApi {
       final baseUrl = useLegacyApi
           ? _apiBaseUrl.replaceFirst(RegExp(r'/api/v1/?$'), '/api')
           : _apiBaseUrl;
-      final uri = Uri.parse('$baseUrl$path')
-          .replace(queryParameters: query);
+      final uri = Uri.parse('$baseUrl$path').replace(queryParameters: query);
       final response = await http
           .get(
             uri,
@@ -2067,7 +2588,9 @@ class _GuardApi {
     } on _GuardApiException {
       rethrow;
     } on http.ClientException {
-      throw const _GuardApiException('Cannot reach the society details service.');
+      throw const _GuardApiException(
+        'Cannot reach the society details service.',
+      );
     } on TimeoutException {
       throw const _GuardApiException('Society details request timed out.');
     } on FormatException {
@@ -2093,7 +2616,12 @@ class _GuardApi {
     String token,
   ) async {
     try {
-      final uri = Uri.parse('$_apiBaseUrl$path');
+      final useLegacyApi =
+          path.startsWith('/rosters/') || path.startsWith('/shifts');
+      final baseUrl = useLegacyApi
+          ? _apiBaseUrl.replaceFirst(RegExp(r'/api/v1/?$'), '/api')
+          : _apiBaseUrl;
+      final uri = Uri.parse('$baseUrl$path');
       final response =
           await (method == 'POST'
                   ? http.post(
@@ -2299,7 +2827,8 @@ class _StyledDropdownFieldState<T> extends State<_StyledDropdownField<T>> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  color: widget.items[index].value == field.value
+                                  color:
+                                      widget.items[index].value == field.value
                                       ? const Color(0xFF76519A)
                                       : AppColors.ink,
                                   fontSize: 14,
@@ -2405,7 +2934,10 @@ Color _statusColor(String status) => switch (status) {
 String _humanize(String value) => value
     .toLowerCase()
     .split('_')
-    .map((word) => word.isEmpty ? word : '${word[0].toUpperCase()}${word.substring(1)}')
+    .map(
+      (word) =>
+          word.isEmpty ? word : '${word[0].toUpperCase()}${word.substring(1)}',
+    )
     .join(' ');
 
 Color _deliveryStatusColor(String status) => switch (status) {

@@ -448,6 +448,28 @@ export default function SecurityPage() {
     loadData();
   }, []);
   useEffect(() => {
+    if (tab !== "rosters") return undefined;
+    let active = true;
+    const refreshRosters = async () => {
+      try {
+        const result = await securityApi.getRosters();
+        if (active) {
+          setData((current) => ({ ...current, rosters: rowsFrom(result) }));
+        }
+      } catch {
+        // Preserve the last successful schedule view during temporary errors.
+      }
+    };
+    void refreshRosters();
+    const interval = window.setInterval(refreshRosters, 5000);
+    window.addEventListener("focus", refreshRosters);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshRosters);
+    };
+  }, [tab]);
+  useEffect(() => {
     setTab(section || "overview");
   }, [section]);
   useEffect(() => {
@@ -667,7 +689,7 @@ export default function SecurityPage() {
   const headings = {
     staff: ["Employee", "Employee code", "Type", "Contact", "Joined", "Status"],
     attendance: ["Staff", "Date", "Check in", "Check out", "Status"],
-    rosters: ["Staff", "Shift", "Schedule date", "Schedule type", "Status"],
+    rosters: ["Staff", "Shift", "Schedule date", "Schedule type", "Status", "Cancellation details"],
     tasks: ["Title", "Staff", "Type", "Due", "Priority", "Status"],
     patrols: ["Patrol", "Staff", "Gate", "Date", "Window", "Status"],
     incidents: ["Number", "Incident", "Severity", "Location", "Status"],
@@ -697,6 +719,14 @@ export default function SecurityPage() {
         item.rosterDate?.slice(0, 10),
         titleCase(item.rosterType),
         <SecurityBadge value={item.status} />,
+        item.cancellationReason ? (
+          <span className="security-roster-cancellation">
+            <strong>{item.cancellationReason}</strong>
+            <small>
+              Cancelled {item.cancelledAt ? new Date(item.cancelledAt).toLocaleString() : "time unavailable"}
+            </small>
+          </span>
+        ) : "—",
       ],
       tasks: [
         item.title,
@@ -999,9 +1029,57 @@ export default function SecurityPage() {
                 <tbody>
                   {filtered.map((item) => (
                     <tr key={item.id}>
-                      {cells(item).map((value, index) => (
-                        <td key={index}>{tab === "staff" && index === 0 ? <div className="staff-record-cell"><span className="staff-record-avatar">{item.photoPath && <img className="staff-record-photo" src={documentUrl(item.photoPath)} alt="" onError={(event) => { event.currentTarget.hidden = true; event.currentTarget.nextElementSibling.hidden = false; }} />}<Users className="staff-record-fallback" size={18} hidden={Boolean(item.photoPath)} /></span><button type="button" className="record-details-trigger staff-record-name" onClick={() => setViewingStaff(item)}>{value}</button></div> : value}</td>
-                      ))}
+                      {cells(item).map((value, index) => {
+                        const staffRecord =
+                          tab === "staff" && index === 0
+                            ? item
+                            : tab === "rosters" && index === 0
+                              ? staff.find(
+                                  (person) =>
+                                    String(person.id) === String(item.staffId),
+                                )
+                              : null;
+                        return (
+                          <td key={index}>
+                            {staffRecord ? (
+                              <div className="staff-record-cell">
+                                <span className="staff-record-avatar">
+                                  {staffRecord.photoPath && (
+                                    <img
+                                      className="staff-record-photo"
+                                      src={documentUrl(staffRecord.photoPath)}
+                                      alt=""
+                                      loading="lazy"
+                                      onError={(event) => {
+                                        event.currentTarget.hidden = true;
+                                        event.currentTarget.nextElementSibling.hidden = false;
+                                      }}
+                                    />
+                                  )}
+                                  <Users
+                                    className="staff-record-fallback"
+                                    size={18}
+                                    hidden={Boolean(staffRecord.photoPath)}
+                                  />
+                                </span>
+                                {tab === "staff" ? (
+                                  <button
+                                    type="button"
+                                    className="record-details-trigger staff-record-name"
+                                    onClick={() => setViewingStaff(item)}
+                                  >
+                                    {value}
+                                  </button>
+                                ) : (
+                                  value
+                                )}
+                              </div>
+                            ) : (
+                              value
+                            )}
+                          </td>
+                        );
+                      })}
                       <td>
                         <div className="society-row-actions">
                           {actionsFor(item)}

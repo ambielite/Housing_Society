@@ -239,11 +239,13 @@ const cancelRoster = async (
 
     try {
 
-        const result =
-            await RosterService
-                .cancelRoster(
-                    req.params.id
-                );
+        const result = req.body?.reason
+            ? await RosterService.cancelRosterByGuard(
+                req.params.id,
+                req.user,
+                req.body.reason
+            )
+            : await RosterService.cancelRoster(req.params.id);
 
         return res.status(200).json({
             success: true,

@@ -1039,6 +1039,9 @@ a {
 .security-page .staff-record-cell { display: flex; min-height: 48px; align-items: center; gap: 12px; }
 .security-page .staff-record-avatar { display: grid; width: 44px; height: 44px; flex: 0 0 44px; overflow: hidden; place-items: center; border: 1px solid #e5eaf2; border-radius: 11px; background: #f1f5f9; color: #667085; }
 .security-page .staff-record-photo { display: block; width: 100%; height: 100%; max-width: none; border-radius: 0; object-fit: cover; object-position: center 25%; }
+.security-page .security-roster-cancellation { display: grid; max-width: 260px; gap: 3px; white-space: normal; overflow-wrap: anywhere; }
+.security-page .security-roster-cancellation strong { color: #8c3440; font-size: 12px; font-weight: 650; }
+.security-page .security-roster-cancellation small { color: #667085; font-size: 10px; }
 .security-page .staff-record-fallback[hidden] { display: none; }
 .security-page .staff-record-name { min-width: 0; line-height: 1.35; }
 .maid-unit-mapping-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin-bottom: 12px; }

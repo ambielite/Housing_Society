@@ -20,30 +20,59 @@ class SecurityProfileScreen extends StatefulWidget {
   final VoidCallback onSignOut;
 
   @override
-  State<SecurityProfileScreen> createState() =>
-      _SecurityProfileScreenState();
+  State<SecurityProfileScreen> createState() => _SecurityProfileScreenState();
 }
 
 class SecurityShiftAssignment {
   const SecurityShiftAssignment({
+    required this.rosterId,
     required this.shiftName,
     required this.shiftType,
+    this.scheduleType = 'DAILY',
     required this.startTime,
     required this.endTime,
     required this.breakMinutes,
     required this.rosterDate,
     required this.status,
+    this.isOvernight = false,
+    this.cancellationReason,
+    this.cancelledAt,
     this.remarks,
   });
 
+  final String rosterId;
   final String shiftName;
   final String shiftType;
+  final String scheduleType;
   final String startTime;
   final String endTime;
   final int breakMinutes;
   final DateTime? rosterDate;
   final String status;
+  final bool isOvernight;
+  final String? cancellationReason;
+  final DateTime? cancelledAt;
   final String? remarks;
+
+  SecurityShiftAssignment copyWith({
+    String? status,
+    String? cancellationReason,
+    DateTime? cancelledAt,
+  }) => SecurityShiftAssignment(
+    rosterId: rosterId,
+    shiftName: shiftName,
+    shiftType: shiftType,
+    scheduleType: scheduleType,
+    startTime: startTime,
+    endTime: endTime,
+    breakMinutes: breakMinutes,
+    rosterDate: rosterDate,
+    status: status ?? this.status,
+    isOvernight: isOvernight,
+    cancellationReason: cancellationReason ?? this.cancellationReason,
+    cancelledAt: cancelledAt ?? this.cancelledAt,
+    remarks: remarks,
+  );
 }
 
 class _SecurityProfileScreenState extends State<SecurityProfileScreen>
@@ -249,11 +278,7 @@ class _SecurityProfileScreenState extends State<SecurityProfileScreen>
             _entry(
               _profileSection('Your contact', Icons.contact_mail_outlined, [
                 _profileInfo(Icons.mail_outline_rounded, 'Email', user.email),
-                _profileInfo(
-                  Icons.phone_outlined,
-                  'Phone',
-                  _value(user.phone),
-                ),
+                _profileInfo(Icons.phone_outlined, 'Phone', _value(user.phone)),
               ]),
               1,
             ),
@@ -282,23 +307,27 @@ class _SecurityProfileScreenState extends State<SecurityProfileScreen>
             _entry(_shiftAssignmentsSection(), 3),
             const SizedBox(height: 14),
             _entry(
-              _profileSection('Account details', Icons.manage_accounts_outlined, [
-                _profileInfo(
-                  Icons.check_circle_outline_rounded,
-                  'Account status',
-                  status,
-                ),
-                _profileInfo(
-                  Icons.event_outlined,
-                  'Account created',
-                  _date(user.createdAt),
-                ),
-                _profileInfo(
-                  Icons.login_rounded,
-                  'Last sign-in',
-                  _dateTime(user.lastLoginAt),
-                ),
-              ]),
+              _profileSection(
+                'Account details',
+                Icons.manage_accounts_outlined,
+                [
+                  _profileInfo(
+                    Icons.check_circle_outline_rounded,
+                    'Account status',
+                    status,
+                  ),
+                  _profileInfo(
+                    Icons.event_outlined,
+                    'Account created',
+                    _date(user.createdAt),
+                  ),
+                  _profileInfo(
+                    Icons.login_rounded,
+                    'Last sign-in',
+                    _dateTime(user.lastLoginAt),
+                  ),
+                ],
+              ),
               4,
             ),
             const SizedBox(height: 14),
@@ -317,12 +346,20 @@ class _SecurityProfileScreenState extends State<SecurityProfileScreen>
   Widget _shiftAssignmentsSection() {
     if (_loadingShiftAssignments) {
       return _profileSection('Assigned shifts', Icons.schedule_rounded, [
-        _profileInfo(Icons.hourglass_top_rounded, 'Schedule', 'Loading shift details'),
+        _profileInfo(
+          Icons.hourglass_top_rounded,
+          'Schedule',
+          'Loading shift details',
+        ),
       ]);
     }
     if (_shiftAssignmentsFailed) {
       return _profileSection('Assigned shifts', Icons.schedule_rounded, [
-        _profileInfo(Icons.error_outline_rounded, 'Schedule', 'Could not load shift details'),
+        _profileInfo(
+          Icons.error_outline_rounded,
+          'Schedule',
+          'Could not load shift details',
+        ),
         Align(
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
@@ -335,23 +372,23 @@ class _SecurityProfileScreenState extends State<SecurityProfileScreen>
     }
     if (_shiftAssignments.isEmpty) {
       return _profileSection('Assigned shifts', Icons.schedule_rounded, [
-        _profileInfo(Icons.event_busy_rounded, 'Schedule', 'No upcoming shifts are currently assigned'),
+        _profileInfo(
+          Icons.event_busy_rounded,
+          'Schedule',
+          'No upcoming shifts are currently assigned',
+        ),
       ]);
     }
-    return _profileSection(
-      'Assigned shifts',
-      Icons.schedule_rounded,
-      [
-        for (var index = 0; index < _shiftAssignments.length; index++) ...[
-          if (index > 0)
-            const Padding(
-              padding: EdgeInsets.only(left: 44),
-              child: Divider(height: 12),
-            ),
-          _shiftAssignmentInfo(_shiftAssignments[index]),
-        ],
+    return _profileSection('Assigned shifts', Icons.schedule_rounded, [
+      for (var index = 0; index < _shiftAssignments.length; index++) ...[
+        if (index > 0)
+          const Padding(
+            padding: EdgeInsets.only(left: 44),
+            child: Divider(height: 12),
+          ),
+        _shiftAssignmentInfo(_shiftAssignments[index]),
       ],
-    );
+    ]);
   }
 
   Widget _shiftAssignmentInfo(SecurityShiftAssignment assignment) {
@@ -362,10 +399,10 @@ class _SecurityProfileScreenState extends State<SecurityProfileScreen>
     final breakText = assignment.breakMinutes <= 0
         ? 'No break'
         : assignment.breakMinutes % 60 == 0
-            ? '${assignment.breakMinutes ~/ 60} hr break'
-            : assignment.breakMinutes >= 60
-                ? '${assignment.breakMinutes ~/ 60} hr ${assignment.breakMinutes % 60} min break'
-                : '${assignment.breakMinutes} min break';
+        ? '${assignment.breakMinutes ~/ 60} hr break'
+        : assignment.breakMinutes >= 60
+        ? '${assignment.breakMinutes ~/ 60} hr ${assignment.breakMinutes % 60} min break'
+        : '${assignment.breakMinutes} min break';
     final shiftLabel = assignment.shiftType.isEmpty
         ? assignment.shiftName
         : '${assignment.shiftName} · ${_profileHumanize(assignment.shiftType)}';
@@ -379,9 +416,29 @@ class _SecurityProfileScreenState extends State<SecurityProfileScreen>
         ),
         _profileInfo(Icons.badge_outlined, 'Shift', shiftLabel),
         _profileInfo(Icons.coffee_outlined, 'Break', breakText),
-        _profileInfo(Icons.check_circle_outline_rounded, 'Schedule status', _profileHumanize(assignment.status)),
+        _profileInfo(
+          Icons.check_circle_outline_rounded,
+          'Schedule status',
+          _profileHumanize(assignment.status),
+        ),
+        if (assignment.cancellationReason != null)
+          _profileInfo(
+            Icons.info_outline_rounded,
+            'Cancellation reason',
+            assignment.cancellationReason!,
+          ),
+        if (assignment.cancelledAt != null)
+          _profileInfo(
+            Icons.event_busy_outlined,
+            'Cancelled at',
+            _dateTime(assignment.cancelledAt),
+          ),
         if (assignment.remarks != null && assignment.remarks!.trim().isNotEmpty)
-          _profileInfo(Icons.notes_rounded, 'Notes', assignment.remarks!.trim()),
+          _profileInfo(
+            Icons.notes_rounded,
+            'Notes',
+            assignment.remarks!.trim(),
+          ),
       ],
     );
   }
@@ -558,6 +615,7 @@ class _SecurityProfileScreenState extends State<SecurityProfileScreen>
     ),
   );
 }
+
 String _profileInitials(String value) => value
     .trim()
     .split(RegExp(r'\s+'))
@@ -569,5 +627,8 @@ String _profileInitials(String value) => value
 String _profileHumanize(String value) => value
     .toLowerCase()
     .split('_')
-    .map((word) => word.isEmpty ? word : '${word[0].toUpperCase()}${word.substring(1)}')
+    .map(
+      (word) =>
+          word.isEmpty ? word : '${word[0].toUpperCase()}${word.substring(1)}',
+    )
     .join(' ');

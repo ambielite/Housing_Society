@@ -81,6 +81,24 @@ const Roster = sequelize.define(
             allowNull: true
         },
 
+        cancellationReason: {
+            type: DataTypes.TEXT,
+            allowNull: true,
+            field: "cancellation_reason"
+        },
+
+        cancelledAt: {
+            type: DataTypes.DATE,
+            allowNull: true,
+            field: "cancelled_at"
+        },
+
+        cancelledBy: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            field: "cancelled_by"
+        },
+
         createdAt: {
             type: DataTypes.DATE,
             allowNull: false,

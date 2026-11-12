@@ -128,7 +128,7 @@ export default function Topbar() {
 
   useEffect(() => {
     void loadUnreadNotifications();
-    const interval = window.setInterval(loadUnreadNotifications, 60000);
+    const interval = window.setInterval(loadUnreadNotifications, 5000);
     const onFocus = () => void loadUnreadNotifications();
     window.addEventListener('focus', onFocus);
     return () => {

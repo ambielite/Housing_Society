@@ -8,9 +8,9 @@ const create = async (data) => {
 };
 
 
-const findById = async (id) => {
+const findById = async (id, options = {}) => {
 
-    return await Roster.findByPk(id);
+    return await Roster.findByPk(id, options);
 };
 
 
@@ -73,11 +73,13 @@ const findAll = async (
 
 const update = async (
     roster,
-    data
+    data,
+    options = {}
 ) => {
 
     return await roster.update(
-        data
+        data,
+        options
     );
 };
 
