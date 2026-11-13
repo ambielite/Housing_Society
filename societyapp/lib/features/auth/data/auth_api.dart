@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:http/http.dart' as http;
 import 'package:housing_society_app/app/session_manager.dart';
 
@@ -9,6 +10,7 @@ const _configuredApiBaseUrl = String.fromEnvironment('API_BASE_URL');
 
 String get _apiBaseUrl {
   if (_configuredApiBaseUrl.isNotEmpty) return _configuredApiBaseUrl;
+  if (kReleaseMode) return '';
   return kIsWeb
       ? 'http://localhost:5000/api/v1'
       : 'http://10.0.2.2:5000/api/v1';
@@ -53,7 +55,10 @@ class AuthApi {
     required String email,
     required String password,
     String? securityCode,
+    Uint8List? selfieBytes,
+    String? selfieMimeType,
   }) async {
+    _requireConfiguredApiBaseUrl();
     try {
       final response = await http
           .post(
@@ -63,6 +68,12 @@ class AuthApi {
               'email': email,
               'password': password,
               ...?securityCode == null ? null : {'securityCode': securityCode},
+              ...?selfieBytes == null
+                  ? null
+                  : {
+                      'selfieData': base64Encode(selfieBytes),
+                      'selfieMimeType': selfieMimeType ?? 'image/jpeg',
+                    },
             }),
           )
           .timeout(const Duration(seconds: 20));
@@ -136,15 +147,17 @@ class AuthApi {
   }
 
   static Future<void> forgotPassword({required String email}) async {
-    await _post('/auth/forgot-password', {'email': email});
+    await _post('/auth/resident-forgot-password', {'email': email});
   }
 
   static Future<void> resetPassword({
-    required String token,
+    required String email,
+    required String otp,
     required String newPassword,
   }) async {
-    await _post('/auth/reset-password', {
-      'token': token,
+    await _post('/auth/resident-reset-password', {
+      'email': email,
+      'otp': otp,
       'newPassword': newPassword,
     });
   }
@@ -162,6 +175,7 @@ class AuthApi {
     Map<String, dynamic> payload, {
     String? accessToken,
   }) async {
+    _requireConfiguredApiBaseUrl();
     try {
       final headers = <String, String>{'Content-Type': 'application/json'};
       if (accessToken != null) headers['Authorization'] = 'Bearer $accessToken';
@@ -194,6 +208,14 @@ class AuthApi {
       );
     } on FormatException {
       throw const AuthException('The server returned an invalid response.');
+    }
+  }
+
+  static void _requireConfiguredApiBaseUrl() {
+    if (_apiBaseUrl.isEmpty) {
+      throw const AuthException(
+        'The app API address is not configured for this release. Please contact support.',
+      );
     }
   }
 }

@@ -158,6 +158,12 @@ const createResident = async (data, profilePicture, assignedBy) => {
                     transaction
                 }
             );
+            if (profilePhoto) {
+                await sequelize.query(
+                    "UPDATE users SET profile_picture_url = :profilePhoto, updated_at = now() WHERE id = :userId",
+                    { replacements: { profilePhoto, userId }, transaction }
+                );
+            }
             return created;
         });
     } catch (error) {
@@ -330,7 +336,20 @@ const updateResident = async (
     const previousPhoto = resident.profilePhoto;
     const profilePhoto = profilePicture ? saveProfilePicture(profilePicture) : null;
     try {
-        const updated = await residentRepository.update(resident, { ...data, ...(profilePhoto ? { profilePhoto } : {}) });
+        const updated = await sequelize.transaction(async (transaction) => {
+            const savedResident = await residentRepository.update(
+                resident,
+                { ...data, ...(profilePhoto ? { profilePhoto } : {}) },
+                { transaction }
+            );
+            if (profilePhoto && resident.userId) {
+                await sequelize.query(
+                    "UPDATE users SET profile_picture_url = :profilePhoto, updated_at = now() WHERE id = :userId",
+                    { replacements: { profilePhoto, userId: resident.userId }, transaction }
+                );
+            }
+            return savedResident;
+        });
         if (profilePhoto) removeProfilePicture(previousPhoto);
         return updated;
     } catch (error) {

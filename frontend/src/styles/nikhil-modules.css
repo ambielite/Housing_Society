@@ -1646,6 +1646,41 @@ tbody tr:hover {
     box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.10);
 }
 
+.resident-password-input {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.resident-password-input input {
+    padding-right: 44px;
+}
+
+.resident-password-toggle {
+    position: absolute;
+    right: 8px;
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: #667085;
+    cursor: pointer;
+}
+
+.resident-password-toggle:hover {
+    background: #f3f4f6;
+    color: #344054;
+}
+
+.resident-password-toggle:focus-visible {
+    outline: 2px solid #6366f1;
+    outline-offset: 1px;
+}
+
 .invoice-remarks textarea {
     min-height: 88px;
     resize: vertical;

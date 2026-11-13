@@ -11,9 +11,24 @@ const rbacRepository = require('../rbac/rbac.repository');
 const emailProvider = require('../notifications/providers/email.provider');
 
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
+const hashPasswordResetOtp = (userId, otp) => crypto
+  .createHmac('sha256', env.jwt.accessSecret)
+  .update(`${userId}:${otp}`)
+  .digest('hex');
 const generateAccessToken = (user) =>
   jwt.sign({ sub: user.id }, env.jwt.accessSecret, { expiresIn: env.jwt.accessExpiresIn });
 const generateRandomToken = () => crypto.randomBytes(48).toString('hex');
+const hasValidSecuritySelfie = (mimeType, encodedImage) => {
+  const image = Buffer.from(encodedImage, 'base64');
+  if (image.length < 16 || image.length > 1_500_000) return false;
+  if (mimeType === 'image/jpeg') {
+    return image[0] === 0xff && image[1] === 0xd8 && image[2] === 0xff;
+  }
+  if (mimeType === 'image/png') {
+    return image.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  }
+  return false;
+};
 
 const sanitizeUser = (user) => {
   const { password_hash, ...safe } = user; // eslint-disable-line no-unused-vars
@@ -55,7 +70,7 @@ const issueTokens = async (user, meta = {}) => {
   return { accessToken, refreshToken };
 };
 
-const login = async ({ email, password, securityCode }, meta = {}) => {
+const login = async ({ email, password, securityCode, selfieData, selfieMimeType }, meta = {}) => {
   const user = await usersRepository.findByEmail(email.toLowerCase());
 
   if (!user) {
@@ -131,6 +146,16 @@ const login = async ({ email, password, securityCode }, meta = {}) => {
         failureReason: 'INVALID_SECURITY_CODE',
       });
       throw new ApiError(401, 'Invalid security login credentials or employee code');
+    }
+    if (!hasValidSecuritySelfie(selfieMimeType, selfieData)) {
+      await authRepository.createLoginHistory({
+        userId: user.id,
+        ipAddress: meta.ipAddress,
+        userAgent: meta.deviceInfo,
+        success: false,
+        failureReason: 'INVALID_SECURITY_SELFIE',
+      });
+      throw new ApiError(400, 'Take a valid selfie before signing in as a guard.');
     }
     authenticatedUser = guardResult.rows[0];
   } else if (securityHeadRole.rowCount) {
@@ -233,20 +258,66 @@ const changePassword = async (userId, { currentPassword, newPassword }) => {
   await authRepository.revokeAllUserRefreshTokens(userId);
 };
 
-const forgotPassword = async (email) => {
-  const user = await usersRepository.findByEmail(email.toLowerCase());
-  if (!user) {
-    throw new ApiError(
-      404,
-      'No account was found with this email address. Check the email and try again.',
-    );
+const requestResidentPasswordResetOtp = async (email) => {
+  const user = await authRepository.findResidentByEmail(email.trim().toLowerCase());
+  // Same response for unknown, inactive, and non-resident accounts prevents
+  // this public endpoint from becoming an account enumeration oracle.
+  if (!user) return { message: 'If this email belongs to a resident account, a verification code will be sent.' };
+  if (await authRepository.hasRecentPasswordResetRequest(user.id)) {
+    return { message: 'If this email belongs to a resident account, a verification code will be sent.' };
   }
 
-  const rawToken = generateRandomToken();
-  const tokenHash = hashToken(rawToken);
-  const expiresAt = new Date(Date.now() + parseDuration('30m'));
+  const otp = String(crypto.randomInt(100000, 1000000));
+  const tokenHash = hashPasswordResetOtp(user.id, otp);
+  const expiresAt = new Date(Date.now() + parseDuration('10m'));
+  await authRepository.revokeActivePasswordResetTokens(user.id);
   await authRepository.createPasswordResetToken({ userId: user.id, tokenHash, expiresAt });
 
+  try {
+    await emailProvider.sendEmail({
+      email: user.email,
+      userId: user.id,
+      subject: 'Your Housing Society password reset code',
+      title: 'Password reset code',
+      message: `Your password reset verification code is ${otp}. It expires in 10 minutes and can only be used once. If you did not request this code, ignore this email.`,
+    });
+  } catch (error) {
+    await authRepository.revokeActivePasswordResetTokens(user.id);
+    console.error('Password reset email delivery failed:', error.message);
+    throw new ApiError(503, 'We could not send the verification code. Please try again later.');
+  }
+  return {
+    message: 'If this email belongs to a resident account, a verification code will be sent.',
+  };
+};
+
+const resetResidentPasswordWithOtp = async ({ email, otp, newPassword }) => {
+  const user = await authRepository.findResidentByEmail(email.trim().toLowerCase());
+  if (!user) throw new ApiError(400, 'The code is invalid or has expired. Request a new code and try again.');
+  const tokenHash = hashPasswordResetOtp(user.id, otp);
+  const record = await authRepository.findPasswordResetToken(tokenHash);
+  if (!record || record.user_id !== user.id || record.used_at || new Date(record.expires_at) < new Date() || record.attempts >= 5) {
+    if (!record) await authRepository.incrementActivePasswordResetAttempts(user.id);
+    throw new ApiError(400, 'The code is invalid or has expired. Request a new code and try again.');
+  }
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+  if (!await authRepository.completePasswordReset({
+    tokenId: record.id,
+    userId: user.id,
+    passwordHash,
+  })) {
+    throw new ApiError(400, 'The code is invalid or has expired. Request a new code and try again.');
+  }
+};
+
+// Keep the existing web/admin reset token API compatible. The resident app
+// uses the dedicated OTP endpoints above.
+const forgotPassword = async (email) => {
+  const user = await usersRepository.findByEmail(email.toLowerCase());
+  if (!user) throw new ApiError(404, 'No account was found with this email address. Check the email and try again.');
+  const rawToken = generateRandomToken();
+  const expiresAt = new Date(Date.now() + parseDuration('30m'));
+  await authRepository.createPasswordResetToken({ userId: user.id, tokenHash: hashToken(rawToken), expiresAt });
   try {
     await emailProvider.sendEmail({
       email: user.email,
@@ -256,25 +327,21 @@ const forgotPassword = async (email) => {
       message: `Use this reset token in the app: ${rawToken}\n\nIt expires in 30 minutes and can only be used once. If you did not request a password reset, ignore this email.`,
     });
   } catch (error) {
-    // Keep the response generic so this endpoint does not reveal whether an
-    // address is registered. The server log gives operators the delivery error.
     console.error('Password reset email delivery failed:', error.message);
+    throw new ApiError(503, 'We could not send the password reset email. Please try again later.');
   }
-  return {
-    message: 'Reset instructions are ready. Enter the token sent to your email.',
-  };
+  return { message: 'Reset instructions were sent to your email.' };
 };
 
 const resetPassword = async ({ token, newPassword }) => {
-  const tokenHash = hashToken(token);
-  const record = await authRepository.findPasswordResetToken(tokenHash);
+  const record = await authRepository.findPasswordResetToken(hashToken(token));
   if (!record || record.used_at || new Date(record.expires_at) < new Date()) {
     throw new ApiError(400, 'Password reset token is invalid or has expired');
   }
   const passwordHash = await bcrypt.hash(newPassword, 12);
-  await usersRepository.updatePassword(record.user_id, passwordHash);
-  await authRepository.markPasswordResetTokenUsed(record.id);
-  await authRepository.revokeAllUserRefreshTokens(record.user_id);
+  if (!await authRepository.completePasswordReset({ tokenId: record.id, userId: record.user_id, passwordHash })) {
+    throw new ApiError(400, 'Password reset token is invalid or has expired');
+  }
 };
 
 module.exports = {
@@ -287,4 +354,6 @@ module.exports = {
   changePassword,
   forgotPassword,
   resetPassword,
+  requestResidentPasswordResetOtp,
+  resetResidentPasswordWithOtp,
 };

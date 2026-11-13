@@ -1,4 +1,9 @@
+import 'dart:async';
+import 'dart:typed_data';
+
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show MissingPluginException;
 
 import '../../../../app/session_manager.dart';
 import '../../../../app/theme/app_colors.dart';
@@ -21,6 +26,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _securityCodeController = TextEditingController();
+  Uint8List? _securitySelfieBytes;
+  String? _securitySelfieMimeType;
   bool _securityLogin = false;
   bool _obscurePassword = true;
   bool _submitting = false;
@@ -53,6 +60,10 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _signIn() async {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
+    if (_securityLogin && _securitySelfieBytes == null) {
+      setState(() => _error = 'Take a selfie before signing in as a guard.');
+      return;
+    }
 
     setState(() {
       _submitting = true;
@@ -66,6 +77,8 @@ class _LoginScreenState extends State<LoginScreen> {
         securityCode: _securityLogin
             ? _securityCodeController.text.trim()
             : null,
+        selfieBytes: _securitySelfieBytes,
+        selfieMimeType: _securitySelfieMimeType,
       );
       if (!mounted) return;
       SessionManager.sessionStarted();
@@ -79,6 +92,68 @@ class _LoginScreenState extends State<LoginScreen> {
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
+  }
+
+  Future<void> _captureSecuritySelfie() async {
+    try {
+      final cameras = await availableCameras();
+      if (!mounted) return;
+      if (cameras.isEmpty) {
+        setState(() => _error = 'No camera was found on this device.');
+        return;
+      }
+      final camera = cameras.firstWhere(
+        (device) => device.lensDirection == CameraLensDirection.front,
+        orElse: () => cameras.first,
+      );
+      final selfie = await showDialog<XFile>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => _GuardSelfieCameraDialog(camera: camera),
+      );
+      if (selfie == null || !mounted) return;
+
+      final bytes = await selfie.readAsBytes();
+      final mimeType = selfie.mimeType ?? 'image/jpeg';
+      if (bytes.isEmpty || !const {'image/jpeg', 'image/png'}.contains(mimeType)) {
+        setState(
+          () => _error =
+              'The camera returned an unsupported image. Please take the selfie again.',
+        );
+        return;
+      }
+      setState(() {
+        _securitySelfieBytes = bytes;
+        _securitySelfieMimeType = mimeType;
+        _error = null;
+      });
+    } on CameraException catch (error) {
+      if (mounted) {
+        setState(
+          () => _error = _cameraAccessMessage(error),
+        );
+      }
+    } on MissingPluginException {
+      if (mounted) {
+        setState(
+          () => _error =
+              'Camera support did not load. Stop the app, run flutter pub get, then launch it again.',
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() => _error = 'Could not start the camera: $error');
+      }
+    }
+  }
+
+  String _cameraAccessMessage(CameraException error) {
+    if (error.code.toLowerCase().contains('denied') ||
+        error.code.toLowerCase().contains('permission')) {
+      return 'Camera access is blocked. Allow camera access for this site in Chrome settings, then try again.';
+    }
+    return error.description ??
+        'Could not start the camera. Use HTTPS or localhost and check that a camera is available.';
   }
 
   @override
@@ -205,6 +280,65 @@ class _LoginScreenState extends State<LoginScreen> {
                             ? 'Enter your employee code'
                             : null,
                       ),
+                      const SizedBox(height: 20),
+                      const _FieldLabel('Selfie verification'),
+                      const SizedBox(height: 8),
+                      if (_securitySelfieBytes == null)
+                        OutlinedButton.icon(
+                          onPressed: _submitting
+                              ? null
+                              : _captureSecuritySelfie,
+                          icon: const Icon(Icons.camera_alt_outlined),
+                          label: const Text('Take a selfie'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.indigo,
+                            minimumSize: const Size.fromHeight(52),
+                            side: const BorderSide(color: AppColors.indigo),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        )
+                      else
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: const Color(0xFFDDE3F0)),
+                          ),
+                          child: Row(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: Image.memory(
+                                  _securitySelfieBytes!,
+                                  width: 64,
+                                  height: 64,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              const Expanded(
+                                child: Text(
+                                  'Selfie captured',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: _submitting
+                                    ? null
+                                    : _captureSecuritySelfie,
+                                child: const Text('Retake'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'A front-camera selfie is required for guard sign-in.',
+                        style: TextStyle(color: AppColors.muted, fontSize: 12),
+                      ),
                     ],
                     if (_error != null) ...[
                       const SizedBox(height: 18),
@@ -272,6 +406,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           ? null
                           : () => setState(() {
                               _securityLogin = !_securityLogin;
+                              _securityCodeController.clear();
+                              _securitySelfieBytes = null;
+                              _securitySelfieMimeType = null;
                               _error = null;
                               _formKey.currentState?.reset();
                             }),
@@ -346,4 +483,182 @@ class _FieldLabel extends StatelessWidget {
       fontSize: 14,
     ),
   );
+}
+
+class _GuardSelfieCameraDialog extends StatefulWidget {
+  const _GuardSelfieCameraDialog({required this.camera});
+
+  final CameraDescription camera;
+
+  @override
+  State<_GuardSelfieCameraDialog> createState() =>
+      _GuardSelfieCameraDialogState();
+}
+
+class _GuardSelfieCameraDialogState extends State<_GuardSelfieCameraDialog> {
+  CameraController? _controller;
+  Future<void>? _initialization;
+  Object? _initializationError;
+  String? _captureError;
+  bool _takingPicture = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeCamera();
+  }
+
+  void _initializeCamera() {
+    final previous = _controller;
+    if (previous != null) unawaited(previous.dispose());
+
+    final controller = CameraController(
+      widget.camera,
+      ResolutionPreset.medium,
+      enableAudio: false,
+    );
+    _controller = controller;
+    _initializationError = null;
+    _captureError = null;
+    _initialization = controller.initialize().then<void>((_) {
+      if (mounted && identical(_controller, controller)) setState(() {});
+    }).catchError((Object error) {
+      if (mounted && identical(_controller, controller)) {
+        setState(() => _initializationError = error);
+      }
+    });
+  }
+
+  Future<void> _takePicture() async {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) return;
+    setState(() {
+      _takingPicture = true;
+      _captureError = null;
+    });
+    try {
+      final picture = await controller.takePicture();
+      if (mounted) Navigator.of(context).pop(picture);
+    } on CameraException catch (error) {
+      if (mounted) {
+        setState(() => _captureError =
+            error.description ?? 'Could not capture the selfie. Try again.');
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _captureError = 'Could not capture the selfie. Try again.');
+      }
+    } finally {
+      if (mounted) setState(() => _takingPicture = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    final controller = _controller;
+    if (controller != null) unawaited(controller.dispose());
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = _controller;
+    return AlertDialog(
+      title: const Text('Take a selfie'),
+      content: SizedBox(
+        width: 340,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_initializationError != null)
+              _cameraErrorContent(_initializationError!)
+            else if (_initialization == null || controller == null)
+              const Center(child: CircularProgressIndicator())
+            else
+              FutureBuilder<void>(
+                future: _initialization,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState != ConnectionState.done) {
+                    return const SizedBox(
+                      height: 220,
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  if (_initializationError != null) {
+                    return _cameraErrorContent(_initializationError!);
+                  }
+                  return Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: 320,
+                        maxHeight: 300,
+                      ),
+                      child: AspectRatio(
+                        aspectRatio: controller.value.aspectRatio,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          child: CameraPreview(controller),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            if (_captureError != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                _captureError!,
+                style: const TextStyle(color: Color(0xFF9D2635)),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _takingPicture ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        if (_initializationError != null)
+          TextButton(
+            onPressed: _takingPicture ? null : () => setState(_initializeCamera),
+            child: const Text('Try again'),
+          )
+        else
+          FilledButton.icon(
+            onPressed: _takingPicture ||
+                    controller == null ||
+                    !controller.value.isInitialized
+                ? null
+                : _takePicture,
+            icon: _takingPicture
+                ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.camera_alt_outlined),
+            label: const Text('Capture'),
+          ),
+      ],
+    );
+  }
+
+  Widget _cameraErrorContent(Object error) {
+    final message = error is CameraException &&
+            (error.code.toLowerCase().contains('denied') ||
+                error.code.toLowerCase().contains('permission'))
+        ? 'Camera access is blocked. Allow camera access for this site in Chrome settings, then try again.'
+        : error is CameraException && error.description != null
+        ? error.description!
+        : 'Could not start the camera. Use HTTPS or localhost and check that a camera is available.';
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.videocam_off_outlined, size: 34),
+        const SizedBox(height: 10),
+        Text(message, textAlign: TextAlign.center),
+      ],
+    );
+  }
 }

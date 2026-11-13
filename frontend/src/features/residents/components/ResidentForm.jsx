@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Camera, X } from "lucide-react";
+import { Camera, Eye, EyeOff, X } from "lucide-react";
 
 import societyApi from "../../societies/api/society.api";
 import towerApi from "../../towers/api/tower.api";
@@ -65,6 +65,7 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
     const [residentRoleUsers, setResidentRoleUsers] = useState([]);
     const [accountMode, setAccountMode] = useState("existing");
     const [accountPassword, setAccountPassword] = useState("");
+    const [showAccountPassword, setShowAccountPassword] = useState(false);
     const [towers, setTowers] = useState([]);
     const [towerFloors, setTowerFloors] = useState([]);
     const [units, setUnits] = useState([]);
@@ -376,7 +377,12 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
                                     <small className="field-hint">Only active accounts assigned the Resident role, and no other role in this society, are available.</small>
                                 </> : <>
                                     <label htmlFor="resident-account-password">Initial login password<span className="required">*</span></label>
-                                    <input id="resident-account-password" type="password" value={accountPassword} onChange={(event) => setAccountPassword(event.target.value)} minLength={8} maxLength={128} autoComplete="new-password" required />
+                                    <div className="resident-password-input">
+                                        <input id="resident-account-password" type={showAccountPassword ? "text" : "password"} value={accountPassword} onChange={(event) => setAccountPassword(event.target.value)} minLength={8} maxLength={128} autoComplete="new-password" required />
+                                        <button type="button" className="resident-password-toggle" onClick={() => setShowAccountPassword((visible) => !visible)} aria-label={showAccountPassword ? "Hide password" : "Show password"} aria-pressed={showAccountPassword}>
+                                            {showAccountPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                        </button>
+                                    </div>
                                     <small className="field-hint">A new active user account will be created using the resident’s name, email, and mobile. The Resident role will be assigned automatically. Share this password securely with the resident.</small>
                                 </>}
                             </div>}

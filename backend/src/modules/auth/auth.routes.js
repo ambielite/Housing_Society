@@ -3,6 +3,7 @@ const controller = require('./auth.controller');
 const validate = require('../../common/validate');
 const {
   registerSchema, loginSchema, refreshSchema, changePasswordSchema, forgotPasswordSchema, resetPasswordSchema,
+  residentOtpResetPasswordSchema,
 } = require('./auth.validation');
 const { authenticate } = require('../../common/authMiddleware');
 const { authLimiter } = require('../../common/rateLimiter');
@@ -24,5 +25,7 @@ router.get('/me', authenticate, controller.me);
 router.post('/change-password', authenticate, validate(changePasswordSchema), controller.changePassword);
 router.post('/forgot-password', authLimiter, validate(forgotPasswordSchema), controller.forgotPassword);
 router.post('/reset-password', authLimiter, validate(resetPasswordSchema), controller.resetPassword);
+router.post('/resident-forgot-password', authLimiter, validate(forgotPasswordSchema), controller.requestResidentPasswordResetOtp);
+router.post('/resident-reset-password', authLimiter, validate(residentOtpResetPasswordSchema), controller.resetResidentPasswordWithOtp);
 
 module.exports = router;

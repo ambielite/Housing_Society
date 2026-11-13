@@ -13,6 +13,16 @@ const loginSchema = Joi.object({
   email: Joi.string().email().required(),
   password: Joi.string().required(),
   securityCode: Joi.string().trim().max(50),
+  selfieMimeType: Joi.string().valid('image/jpeg', 'image/png').when('securityCode', {
+    is: Joi.exist(),
+    then: Joi.required(),
+    otherwise: Joi.forbidden(),
+  }),
+  selfieData: Joi.string().base64().min(12).max(2_000_000).when('securityCode', {
+    is: Joi.exist(),
+    then: Joi.required(),
+    otherwise: Joi.forbidden(),
+  }),
 });
 
 const refreshSchema = Joi.object({
@@ -33,6 +43,12 @@ const resetPasswordSchema = Joi.object({
   newPassword: Joi.string().min(8).max(128).required(),
 });
 
+const residentOtpResetPasswordSchema = Joi.object({
+  email: Joi.string().email().required(),
+  otp: Joi.string().pattern(/^\d{6}$/).required(),
+  newPassword: Joi.string().min(8).max(128).required(),
+});
+
 module.exports = {
   registerSchema,
   loginSchema,
@@ -40,4 +56,5 @@ module.exports = {
   changePasswordSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  residentOtpResetPasswordSchema,
 };

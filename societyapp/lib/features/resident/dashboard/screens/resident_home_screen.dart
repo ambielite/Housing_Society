@@ -69,9 +69,12 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
       const Duration(seconds: 2),
       (_) => _refreshComplaintsInBackground(),
     );
-    unawaited(_refreshVisitorRequests());
-    unawaited(_refreshDeliveryNotifications());
-    unawaited(_refreshNotifications());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(_refreshVisitorRequests());
+      unawaited(_refreshDeliveryNotifications());
+      unawaited(_refreshNotifications());
+    });
     _visitorRequestsRefreshTimer = Timer.periodic(
       const Duration(seconds: 2),
       (_) => _refreshVisitorRequests(),

@@ -102,9 +102,9 @@ const findAll = async (where = {}) => {
 };
 
 
-const update = async (resident, data) => {
+const update = async (resident, data, options = {}) => {
 
-    await resident.update(data);
+    await resident.update(data, options);
 
     return resident;
 };

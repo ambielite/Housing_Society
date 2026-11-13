@@ -119,16 +119,26 @@ const ResidentListPage = () => {
                 const floorsById = new Map(rowsFrom(floorsResult.value).map((item) => [item.id, item]));
                 const towersById = new Map(rowsFrom(towersResult.value).map((item) => [item.id, item]));
                 const assignments = {};
+                const assignedUnitIds = {};
+                const addAssignment = (residentId, unit) => {
+                    const residentKey = String(residentId);
+                    const unitKey = String(unit.id);
+                    (assignedUnitIds[residentKey] ||= new Set());
+                    if (assignedUnitIds[residentKey].has(unitKey)) return;
+                    assignedUnitIds[residentKey].add(unitKey);
 
-                owners.forEach((owner) => {
-                    const unit = unitsById.get(owner.unitId);
-                    const floor = unit && floorsById.get(unit.floorId);
+                    const floor = floorsById.get(unit.floorId);
                     const tower = floor && towersById.get(floor.towerId);
-                    if (!unit) return;
-                    (assignments[owner.ownerId] ||= []).push({
+                    (assignments[residentKey] ||= []).push({
                         unitNumber: unit.unitNumber,
                         towerName: tower?.name
                     });
+                };
+
+                owners.forEach((owner) => {
+                    const unit = unitsById.get(owner.unitId);
+                    if (!unit) return;
+                    addAssignment(owner.ownerId, unit);
                 });
 
                 const tenantResidents = residentRows.filter((resident) => resident.role === "TENANT");
@@ -142,13 +152,8 @@ const ResidentListPage = () => {
                         .filter((occupancy) => occupancy.isCurrent)
                         .forEach((occupancy) => {
                             const unit = unitsById.get(occupancy.unitId);
-                            const floor = unit && floorsById.get(unit.floorId);
-                            const tower = floor && towersById.get(floor.towerId);
                             if (!unit) return;
-                            (assignments[resident.id] ||= []).push({
-                                unitNumber: unit.unitNumber,
-                                towerName: tower?.name
-                            });
+                            addAssignment(resident.id, unit);
                         });
                 });
                 setResidentUnits(assignments);

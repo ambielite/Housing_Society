@@ -77,8 +77,6 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light.copyWith(
         statusBarColor: Colors.transparent,
@@ -94,131 +92,143 @@ class _SplashScreenState extends State<SplashScreen>
               stops: [0, 0.58, 1],
             ),
           ),
-          child: AnimatedBuilder(
-            animation: Listenable.merge([_intro, _energy]),
-            builder: (context, _) {
-              final sunSize = size.width * 0.78;
-              final sunRise = _p(0, 2.2, Curves.easeOut);
-              final wm = _p(1.6, 0.9, Curves.easeOut);
-              final tg = _p(2.0, 0.9, Curves.easeOut);
-              final skylineHeight = size.width * 0.9;
-              final energy = _energy.value;
-              final pulse = (math.sin(energy * math.pi * 2) + 1) / 2;
-              final orbitSize = sunSize * 1.18;
-              final sunBottom = -sunSize * 0.38 + sunSize * 0.45 * sunRise;
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // Routes can briefly receive near-zero constraints while
+              // transitioning. Avoid laying out the wordmark column in that
+              // transient size, which otherwise causes a RenderFlex overflow.
+              if (constraints.maxWidth < 40 || constraints.maxHeight < 40) {
+                return const SizedBox.expand();
+              }
+              final size = Size(constraints.maxWidth, constraints.maxHeight);
 
-              return Stack(
-                children: [
-                  // Drifting neon dust gives the dark sky a little movement.
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: CustomPaint(
-                        painter: _SparkFieldPainter(progress: energy),
-                      ),
-                    ),
-                  ),
+              return AnimatedBuilder(
+                animation: Listenable.merge([_intro, _energy]),
+                builder: (context, _) {
+                  final sunSize = size.width * 0.78;
+                  final sunRise = _p(0, 2.2, Curves.easeOut);
+                  final wm = _p(1.6, 0.9, Curves.easeOut);
+                  final tg = _p(2.0, 0.9, Curves.easeOut);
+                  final skylineHeight = size.width * 0.9;
+                  final energy = _energy.value;
+                  final pulse = (math.sin(energy * math.pi * 2) + 1) / 2;
+                  final orbitSize = sunSize * 1.18;
+                  final sunBottom = -sunSize * 0.38 + sunSize * 0.45 * sunRise;
 
-                  // A rotating orbit and satellite accents frame the sunrise.
-                  Positioned(
-                    left: (size.width - orbitSize) / 2,
-                    bottom: sunBottom - (orbitSize - sunSize) / 2,
-                    width: orbitSize,
-                    height: orbitSize,
-                    child: IgnorePointer(
-                      child: Transform.rotate(
-                        angle: energy * math.pi * 2,
-                        child: CustomPaint(
-                          painter: _OrbitPainter(pulse: pulse),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  // Rising sun.
-                  Positioned(
-                    left: (size.width - sunSize) / 2,
-                    bottom: sunBottom,
-                    child: IgnorePointer(
-                      child: Container(
-                        width: sunSize,
-                        height: sunSize,
-                        // The glow is animated, so this decoration must be
-                        // rebuilt with the current pulse value.
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: RadialGradient(
-                            colors: [_sunYellow, _hotPink, Color(0x00FF4FA3)],
-                            stops: [0, 0.55, 0.72],
+                  return Stack(
+                    children: [
+                      // Drifting neon dust gives the dark sky a little movement.
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: CustomPaint(
+                            painter: _SparkFieldPainter(progress: energy),
                           ),
                         ),
                       ),
-                    ),
-                  ),
 
-                  // Wordmark and tagline.
-                  Align(
-                    alignment: const Alignment(0, -0.5),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Opacity(
-                          opacity: wm,
-                          child: Transform.translate(
-                            offset: Offset(0, (1 - wm) * 14),
-                            child: Transform.rotate(
-                              angle: math.sin(energy * math.pi * 2) * 0.018,
-                              child: Transform.scale(
-                                scale: 1 + pulse * 0.025,
-                                child: const Text(
-                                  kAppName,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 28,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 8,
+                      // A rotating orbit and satellite accents frame the sunrise.
+                      Positioned(
+                        left: (size.width - orbitSize) / 2,
+                        bottom: sunBottom - (orbitSize - sunSize) / 2,
+                        width: orbitSize,
+                        height: orbitSize,
+                        child: IgnorePointer(
+                          child: Transform.rotate(
+                            angle: energy * math.pi * 2,
+                            child: CustomPaint(
+                              painter: _OrbitPainter(pulse: pulse),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // Rising sun.
+                      Positioned(
+                        left: (size.width - sunSize) / 2,
+                        bottom: sunBottom,
+                        child: IgnorePointer(
+                          child: Container(
+                            width: sunSize,
+                            height: sunSize,
+                            // The glow is animated, so this decoration must be
+                            // rebuilt with the current pulse value.
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: RadialGradient(
+                                colors: [_sunYellow, _hotPink, Color(0x00FF4FA3)],
+                                stops: [0, 0.55, 0.72],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // Wordmark and tagline.
+                      Align(
+                        alignment: const Alignment(0, -0.5),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Opacity(
+                              opacity: wm,
+                              child: Transform.translate(
+                                offset: Offset(0, (1 - wm) * 14),
+                                child: Transform.rotate(
+                                  angle: math.sin(energy * math.pi * 2) * 0.018,
+                                  child: Transform.scale(
+                                    scale: 1 + pulse * 0.025,
+                                    child: const Text(
+                                      kAppName,
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 28,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 8,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        Opacity(
-                          opacity: tg,
-                          child: Transform.translate(
-                            offset: Offset(0, (1 - tg) * 14),
-                            child: const Text(
-                              kTagline,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Color(0xFFD7F8FF),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 1.8,
+                            const SizedBox(height: 14),
+                            Opacity(
+                              opacity: tg,
+                              child: Transform.translate(
+                                offset: Offset(0, (1 - tg) * 14),
+                                child: const Text(
+                                  kTagline,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Color(0xFFD7F8FF),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 1.8,
+                                  ),
+                                ),
                               ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Skyline.
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        height: skylineHeight,
+                        child: ClipRect(
+                          child: CustomPaint(
+                            painter: _SkylinePainter(
+                              elapsed: _intro.value * _totalSeconds,
                             ),
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-
-                  // Skyline.
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    height: skylineHeight,
-                    child: ClipRect(
-                      child: CustomPaint(
-                        painter: _SkylinePainter(
-                          elapsed: _intro.value * _totalSeconds,
-                        ),
                       ),
-                    ),
-                  ),
-                ],
+                    ],
+                  );
+                },
               );
             },
           ),

@@ -49,6 +49,16 @@ const resetPassword = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, null, 'Password reset successfully');
 });
 
+const requestResidentPasswordResetOtp = asyncHandler(async (req, res) => {
+  const result = await authService.requestResidentPasswordResetOtp(req.body.email);
+  return ApiResponse.success(res, result, 'Request processed');
+});
+
+const resetResidentPasswordWithOtp = asyncHandler(async (req, res) => {
+  await authService.resetResidentPasswordWithOtp(req.body);
+  return ApiResponse.success(res, null, 'Password reset successfully');
+});
+
 module.exports = {
   register,
   login,
@@ -59,4 +69,6 @@ module.exports = {
   changePassword,
   forgotPassword,
   resetPassword,
+  requestResidentPasswordResetOtp,
+  resetResidentPasswordWithOtp,
 };

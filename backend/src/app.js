@@ -74,7 +74,8 @@ app.use((req, res, next) => {
     next();
 });
 
-app.use(express.json());
+// The guard login request carries one compressed, short-lived selfie payload.
+app.use(express.json({ limit: '3mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // All legacy Nikhil module routes are mounted directly under /api and do not

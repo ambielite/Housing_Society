@@ -19,7 +19,7 @@ class ResetPasswordScreen extends StatefulWidget {
 class _ResetPasswordScreenState extends State<ResetPasswordScreen>
     with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
-  final _tokenController = TextEditingController();
+  final _otpController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   late final AnimationController _entryController;
@@ -42,7 +42,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
   void dispose() {
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();
-    _tokenController.dispose();
+    _otpController.dispose();
     _entryController.dispose();
     super.dispose();
   }
@@ -56,7 +56,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
     });
     try {
       await AuthApi.resetPassword(
-        token: _tokenController.text.trim(),
+        email: widget.email,
+        otp: _otpController.text.trim(),
         newPassword: _newPasswordController.text,
       );
       if (mounted) {
@@ -134,22 +135,27 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              _otpSentMessage(),
+              const SizedBox(height: 16),
               if (_error != null) ...[
                 _errorMessage(_error!),
                 const SizedBox(height: 16),
               ],
               TextFormField(
-                controller: _tokenController,
-                keyboardType: TextInputType.text,
+                controller: _otpController,
+                keyboardType: TextInputType.number,
                 textInputAction: TextInputAction.next,
                 autocorrect: false,
                 enableSuggestions: false,
+                maxLength: 6,
                 decoration: const InputDecoration(
-                  labelText: 'Reset token',
+                  labelText: '6-digit verification code',
                   prefixIcon: Icon(Icons.mark_email_read_outlined),
+                  counterText: '',
                 ),
-                validator: (value) => value == null || value.trim().isEmpty
-                    ? 'Enter the reset token from your email'
+                validator: (value) =>
+                    value == null || !RegExp(r'^\d{6}$').hasMatch(value.trim())
+                    ? 'Enter the 6-digit code sent to your email'
                     : null,
               ),
               const SizedBox(height: 16),
@@ -210,11 +216,58 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
       ),
       const SizedBox(height: 16),
       Text(
-        'Enter the reset token sent to ${widget.email}. It expires in 30 minutes and can only be used once.',
+        'Enter the verification code sent to ${widget.email}. It expires in 10 minutes and can only be used once.',
         textAlign: TextAlign.center,
         style: TextStyle(color: AppColors.muted, fontSize: 12),
       ),
     ],
+  );
+
+  Widget _otpSentMessage() => Semantics(
+    liveRegion: true,
+    child: Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEAF8F2),
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: const Color(0xFFC7EEDD)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.mark_email_read_rounded,
+            color: Color(0xFF188754),
+            size: 19,
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Verification code sent',
+                  style: TextStyle(
+                    color: Color(0xFF146C43),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'We’ve sent a verification code to your email.',
+                  style: const TextStyle(
+                    color: Color(0xFF267653),
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
   );
 
   Widget _successContent() => Column(
