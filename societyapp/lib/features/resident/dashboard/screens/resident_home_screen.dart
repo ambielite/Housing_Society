@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../auth/data/auth_api.dart';
@@ -9,6 +10,8 @@ import '../../amenities/screens/resident_amenities_screen.dart';
 import '../../complaints/data/resident_complaints_api.dart';
 import '../../complaints/screens/resident_complaints_screen.dart';
 import '../data/resident_delivery_notifications_api.dart';
+import '../data/resident_emergency_contacts_api.dart';
+import '../data/resident_notifications_api.dart';
 import '../../visitors/data/resident_visitors_api.dart';
 import '../../visitors/screens/resident_visitors_screen.dart';
 import '../data/resident_dashboard_api.dart';
@@ -33,13 +36,16 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
   Timer? _complaintsRefreshTimer;
   Timer? _visitorRequestsRefreshTimer;
   Timer? _deliveryNotificationsRefreshTimer;
+  Timer? _notificationsRefreshTimer;
   bool _refreshingDashboard = false;
   bool _refreshingComplaints = false;
   bool _refreshingVisitorRequests = false;
   bool _refreshingDeliveryNotifications = false;
+  bool _refreshingNotifications = false;
   final Set<String> _decidingVisitorRequestIds = {};
   List<ResidentVisitorRequest> _visitorRequests = const [];
   List<ResidentDeliveryNotification> _deliveryNotifications = const [];
+  List<ResidentAppNotification> _notifications = const [];
 
   String get _firstName => widget.user.name.trim().split(' ').first;
 
@@ -47,12 +53,11 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _dashboardFuture = ResidentDashboardApi.load(widget.user.accessToken).then(
-      (data) {
-        _dashboardData = data;
-        return data;
-      },
-    );
+    _dashboardFuture = ResidentDashboardApi.load(widget.user.accessToken)
+        .then((data) {
+          _dashboardData = data;
+          return data;
+        });
     _complaintsFuture = ResidentComplaintsApi.listComplaints(
       widget.user.accessToken,
     );
@@ -66,6 +71,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     );
     unawaited(_refreshVisitorRequests());
     unawaited(_refreshDeliveryNotifications());
+    unawaited(_refreshNotifications());
     _visitorRequestsRefreshTimer = Timer.periodic(
       const Duration(seconds: 2),
       (_) => _refreshVisitorRequests(),
@@ -73,6 +79,10 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     _deliveryNotificationsRefreshTimer = Timer.periodic(
       const Duration(seconds: 3),
       (_) => _refreshDeliveryNotifications(),
+    );
+    _notificationsRefreshTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => _refreshNotifications(),
     );
   }
 
@@ -83,6 +93,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
       _refreshComplaintsInBackground();
       _refreshVisitorRequests();
       _refreshDeliveryNotifications();
+      _refreshNotifications();
     }
   }
 
@@ -92,6 +103,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     _complaintsRefreshTimer?.cancel();
     _visitorRequestsRefreshTimer?.cancel();
     _deliveryNotificationsRefreshTimer?.cancel();
+    _notificationsRefreshTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -178,7 +190,9 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     if (!mounted ||
         _refreshingDeliveryNotifications ||
         WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed ||
-        ModalRoute.of(context)?.isCurrent == false) return;
+        ModalRoute.of(context)?.isCurrent == false) {
+      return;
+    }
     _refreshingDeliveryNotifications = true;
     try {
       final notifications = await ResidentDeliveryNotificationsApi.list(
@@ -192,10 +206,301 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     }
   }
 
+  Future<void> _refreshNotifications() async {
+    if (!mounted ||
+        _refreshingNotifications ||
+        WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed ||
+        ModalRoute.of(context)?.isCurrent == false) {
+      return;
+    }
+    _refreshingNotifications = true;
+    try {
+      final notifications = await ResidentNotificationsApi.listUnread(
+        widget.user.accessToken,
+      );
+      if (mounted) setState(() => _notifications = notifications);
+    } catch (_) {
+      // Keep the last known unread count when the service is unavailable.
+    } finally {
+      _refreshingNotifications = false;
+    }
+  }
+
+  Future<void> _markNotificationRead(
+    ResidentAppNotification notification,
+  ) async {
+    setState(
+      () => _notifications.removeWhere((item) => item.id == notification.id),
+    );
+    try {
+      await ResidentNotificationsApi.markRead(
+        widget.user.accessToken,
+        notification.id,
+      );
+    } catch (_) {
+      unawaited(_refreshNotifications());
+    }
+  }
+
+  void _openNotifications() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => SafeArea(
+        top: false,
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(sheetContext).height * .78,
+          ),
+          decoration: const BoxDecoration(
+            color: Color(0xFFF7F8FC),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 11),
+              Container(
+                width: 38,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD9DEEA),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 18, 14),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Notifications',
+                            style: TextStyle(
+                              color: AppColors.ink,
+                              fontSize: 19,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          SizedBox(height: 3),
+                          Text(
+                            'Updates for your society and home',
+                            style: TextStyle(
+                              color: Color(0xFF818B9D),
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.of(sheetContext).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+              ),
+              if (_notifications.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(24, 28, 24, 36),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.notifications_none_rounded,
+                        color: Color(0xFF9AA4B4),
+                        size: 38,
+                      ),
+                      SizedBox(height: 10),
+                      Text(
+                        'You’re all caught up',
+                        style: TextStyle(
+                          color: AppColors.ink,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'New notifications will appear here.',
+                        style: TextStyle(
+                          color: Color(0xFF818B9D),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+                    itemCount: _notifications.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 9),
+                    itemBuilder: (context, index) {
+                      final notification = _notifications[index];
+                      return _notificationTile(
+                        notification,
+                        onTap: () {
+                          Navigator.of(sheetContext).pop();
+                          unawaited(_markNotificationRead(notification));
+                          _showNotificationDetails(notification);
+                        },
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _notificationTile(
+    ResidentAppNotification notification, {
+    required VoidCallback onTap,
+  }) {
+    final isUrgent =
+        notification.priority == 'HIGH' || notification.priority == 'CRITICAL';
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: isUrgent
+                      ? const Color(0xFFFFF0ED)
+                      : const Color(0xFFEAF0FF),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  _notificationIcon(notification),
+                  size: 19,
+                  color: isUrgent ? const Color(0xFFD65F4B) : AppColors.indigo,
+                ),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            notification.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppColors.ink,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                        if (isUrgent)
+                          const Text(
+                            'URGENT',
+                            style: TextStyle(
+                              color: Color(0xFFD65F4B),
+                              fontSize: 8,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: .6,
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      notification.message,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF68748A),
+                        height: 1.4,
+                        fontSize: 11,
+                      ),
+                    ),
+                    if (notification.createdAt != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        _relativeDate(notification.createdAt),
+                        style: const TextStyle(
+                          color: Color(0xFF9AA4B4),
+                          fontSize: 9,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 5),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: Color(0xFF9AA4B4),
+                size: 19,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  IconData _notificationIcon(ResidentAppNotification notification) {
+    if (notification.priority == 'CRITICAL' ||
+        notification.type == 'EMERGENCY') {
+      return Icons.warning_amber_rounded;
+    }
+    if (notification.referenceType == 'NOTICE') return Icons.campaign_outlined;
+    return Icons.notifications_active_outlined;
+  }
+
+  Future<void> _showNotificationDetails(ResidentAppNotification notification) =>
+      showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          icon: Icon(
+            _notificationIcon(notification),
+            color:
+                notification.priority == 'HIGH' ||
+                    notification.priority == 'CRITICAL'
+                ? const Color(0xFFD65F4B)
+                : AppColors.indigo,
+          ),
+          title: Text(notification.title),
+          content: SingleChildScrollView(child: Text(notification.message)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+
   Future<void> _dismissDeliveryNotification(
     ResidentDeliveryNotification notification,
   ) async {
-    setState(() => _deliveryNotifications.removeWhere((item) => item.id == notification.id));
+    setState(
+      () => _deliveryNotifications.removeWhere(
+        (item) => item.id == notification.id,
+      ),
+    );
     try {
       await ResidentDeliveryNotificationsApi.markRead(
         widget.user.accessToken,
@@ -219,12 +524,13 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
         decision: decision,
       );
       if (!mounted) return;
-      setState(() => _visitorRequests.removeWhere((item) => item.id == request.id));
+      setState(
+        () => _visitorRequests.removeWhere((item) => item.id == request.id),
+      );
     } on ResidentVisitorException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.message)),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.message)));
       }
     } finally {
       if (mounted) {
@@ -347,6 +653,8 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                               _topBar(context, dashboard),
                               const SizedBox(height: 26),
                               _greeting(),
+                              const SizedBox(height: 17),
+                              _emergencyContactsCard(dashboard),
                               if (_visitorRequests.isNotEmpty) ...[
                                 const SizedBox(height: 16),
                                 _visitorAttentionSection(),
@@ -355,8 +663,6 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                                 const SizedBox(height: 12),
                                 _deliveryAttentionSection(),
                               ],
-                              const SizedBox(height: 22),
-                              _societyCard(dashboard),
                               const SizedBox(height: 25),
                               _sectionTitle(
                                 'Quick actions',
@@ -490,7 +796,8 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
       ),
       _roundIcon(
         Icons.notifications_none_rounded,
-        badge: dashboard.notices.isNotEmpty,
+        badgeCount: _notifications.length,
+        onTap: _openNotifications,
       ),
       const SizedBox(width: 9),
       PopupMenuButton<String>(
@@ -617,130 +924,453 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     );
   }
 
-  Widget _societyCard(ResidentDashboardData dashboard) => Container(
-    padding: const EdgeInsets.all(18),
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(22),
-      gradient: const LinearGradient(
-        colors: [Color(0xFF6557E9), Color(0xFF8878F6)],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ),
-      boxShadow: const [
-        BoxShadow(
-          color: Color(0x286455E9),
-          blurRadius: 20,
-          offset: Offset(0, 10),
-        ),
-      ],
-    ),
-    child: Stack(
-      children: [
-        Positioned(
-          right: -18,
-          top: -28,
-          child: Container(
-            width: 130,
-            height: 130,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white.withValues(alpha: .08),
-            ),
-          ),
-        ),
-        Column(
+  Widget _emergencyContactsCard(ResidentDashboardData dashboard) => Material(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(18),
+    child: InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: _showEmergencyContacts,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+        decoration: _cardDecoration(),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 const Icon(
                   Icons.location_on_outlined,
-                  color: Color(0xFFDCD8FF),
-                  size: 16,
+                  color: AppColors.indigo,
+                  size: 18,
                 ),
-                const SizedBox(width: 5),
-                const Expanded(
+                const SizedBox(width: 7),
+                Expanded(
                   child: Text(
-                    'YOUR HOME',
-                    style: TextStyle(
-                      color: Color(0xFFE2DFFF),
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.25,
-                    ),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 9,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: .17),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Text(
-                    'ACTIVE',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: .7,
+                    _residentHomeLabel(dashboard),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.ink,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            Text(
-              dashboard.societyName ?? 'Society',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 21,
-                fontWeight: FontWeight.w800,
-              ),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Divider(height: 1, color: Color(0xFFEAEFF5)),
             ),
-            const SizedBox(height: 5),
-            Text(
-              _unitLabel(dashboard),
-              style: const TextStyle(
-                color: Color(0xFFE7E4FF),
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 19),
-            Container(height: 1, color: Colors.white.withValues(alpha: .22)),
-            const SizedBox(height: 13),
             Row(
-              children: const [
-                Icon(
-                  Icons.groups_2_outlined,
-                  color: Color(0xFFE7E4FF),
-                  size: 17,
-                ),
-                SizedBox(width: 7),
-                Text(
-                  'A better community, together',
-                  style: TextStyle(
-                    color: Color(0xFFE7E4FF),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF1ED),
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: const Icon(
+                    Icons.phone_in_talk_outlined,
+                    color: Color(0xFFDF654D),
+                    size: 20,
                   ),
                 ),
-                Spacer(),
-                Icon(
-                  Icons.arrow_forward_rounded,
-                  color: Colors.white,
-                  size: 18,
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Emergency contacts',
+                        style: TextStyle(
+                          color: AppColors.ink,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      SizedBox(height: 3),
+                      Text(
+                        'Police, ambulance, security & more',
+                        style: TextStyle(
+                          color: Color(0xFF818B9D),
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: Color(0xFF8994A7),
                 ),
               ],
             ),
           ],
         ),
-      ],
+      ),
     ),
   );
+
+  void _showEmergencyContacts() {
+    final contactsFuture = ResidentEmergencyContactsApi.list(
+      widget.user.accessToken,
+    );
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => DraggableScrollableSheet(
+        initialChildSize: .72,
+        minChildSize: .48,
+        maxChildSize: .92,
+        expand: false,
+        builder: (context, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFFF7F8FC),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+          ),
+          child: Column(
+            children: [
+              const SizedBox(height: 11),
+              Container(
+                width: 38,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD9DEEA),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 12, 14),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFEEE9),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(
+                        Icons.call_rounded,
+                        color: Color(0xFFDF654D),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Emergency contacts',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.ink,
+                            ),
+                          ),
+                          SizedBox(height: 3),
+                          Text(
+                            'Your society response directory',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF818B9D),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.of(sheetContext).pop(),
+                      icon: const Icon(
+                        Icons.close_rounded,
+                        color: Color(0xFF818B9D),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: FutureBuilder<List<ResidentEmergencyContact>>(
+                  future: contactsFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState != ConnectionState.done) {
+                      return const Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.indigo,
+                        ),
+                      );
+                    }
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.cloud_off_rounded,
+                                color: Color(0xFF9AA4B4),
+                                size: 34,
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                '${snapshot.error}',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Color(0xFF68748A),
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              OutlinedButton.icon(
+                                onPressed: () =>
+                                    Navigator.of(sheetContext).pop(),
+                                icon: const Icon(Icons.close_rounded),
+                                label: const Text('Close'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+                    final contacts =
+                        (snapshot.data ?? const <ResidentEmergencyContact>[])
+                            .where((contact) => contact.isActive)
+                            .toList();
+                    if (contacts.isEmpty) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(28),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.contact_phone_outlined,
+                                color: Color(0xFF9AA4B4),
+                                size: 38,
+                              ),
+                              SizedBox(height: 10),
+                              Text(
+                                'No emergency contacts available',
+                                style: TextStyle(
+                                  color: AppColors.ink,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              SizedBox(height: 5),
+                              Text(
+                                'Your society administrator can add contacts in the admin portal.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Color(0xFF818B9D),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+                    return ListView.separated(
+                      controller: scrollController,
+                      padding: const EdgeInsets.fromLTRB(16, 2, 16, 24),
+                      itemCount: contacts.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 10),
+                      itemBuilder: (context, index) =>
+                          _emergencyContactTile(contacts[index]),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _emergencyContactTile(ResidentEmergencyContact contact) {
+    final category = contact.category
+        .toLowerCase()
+        .split('_')
+        .map(
+          (part) => part.isEmpty
+              ? part
+              : '${part[0].toUpperCase()}${part.substring(1)}',
+        )
+        .join(' ');
+    final subtitle = contact.available24x7
+        ? 'Available 24/7'
+        : (contact.operatingHours?.isNotEmpty == true
+              ? contact.operatingHours!
+              : 'Hours not listed');
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: _cardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  category.toUpperCase(),
+                  style: const TextStyle(
+                    color: AppColors.indigo,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ),
+              if (contact.available24x7)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEAF7F0),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    '24/7',
+                    style: TextStyle(
+                      color: Color(0xFF278454),
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 7),
+          Text(
+            contact.name,
+            style: const TextStyle(
+              color: AppColors.ink,
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(
+                Icons.schedule_rounded,
+                size: 14,
+                color: Color(0xFF8994A7),
+              ),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: Color(0xFF7F8A9D),
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (contact.address?.isNotEmpty == true) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(
+                  Icons.location_on_outlined,
+                  size: 14,
+                  color: Color(0xFF8994A7),
+                ),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: Text(
+                    contact.address!,
+                    style: const TextStyle(
+                      color: Color(0xFF7F8A9D),
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 12),
+          _contactNumberButton(contact.phone),
+          if (contact.alternatePhone?.isNotEmpty == true) ...[
+            const SizedBox(height: 7),
+            _contactNumberButton(
+              contact.alternatePhone!,
+              label: 'Alternate number',
+            ),
+          ],
+          if (contact.notes?.isNotEmpty == true) ...[
+            const SizedBox(height: 9),
+            Text(
+              contact.notes!,
+              style: const TextStyle(
+                color: Color(0xFF68748A),
+                fontSize: 11,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _contactNumberButton(String phone, {String? label}) => SizedBox(
+    width: double.infinity,
+    child: OutlinedButton.icon(
+      onPressed: () => _callEmergencyNumber(phone),
+      icon: const Icon(Icons.call_outlined, size: 16),
+      label: Row(
+        children: [
+          if (label != null)
+            Text(
+              '$label  ',
+              style: const TextStyle(color: Color(0xFF8994A7), fontSize: 11),
+            ),
+          Expanded(
+            child: Text(
+              phone,
+              style: const TextStyle(
+                color: AppColors.ink,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+      style: OutlinedButton.styleFrom(
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        foregroundColor: AppColors.indigo,
+        side: const BorderSide(color: Color(0xFFE7EAF1)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    ),
+  );
+
+  Future<void> _callEmergencyNumber(String phone) async {
+    final uri = Uri(
+      scheme: 'tel',
+      path: phone.replaceAll(RegExp(r'[^+0-9]'), ''),
+    );
+    final launched = await launchUrl(uri);
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Your device cannot open the phone app.')),
+      );
+    }
+  }
 
   Widget _sectionTitle(String title, {required String trailing}) => Row(
     children: [
@@ -1016,80 +1646,96 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
             ),
             Text(
               'Today',
-              style: TextStyle(
-                color: const Color(0xFF7B72C9),
-                fontSize: 13,
-              ),
+              style: TextStyle(color: const Color(0xFF7B72C9), fontSize: 13),
             ),
           ],
         ),
         const SizedBox(height: 12),
-        ..._visitorRequests.map((request) => Padding(
-          padding: const EdgeInsets.only(bottom: 9),
-          child: _visitorRequestCard(request),
-        )),
+        ..._visitorRequests.map(
+          (request) => Padding(
+            padding: const EdgeInsets.only(bottom: 9),
+            child: _visitorRequestCard(request),
+          ),
+        ),
       ],
     ),
   );
 
   Widget _deliveryAttentionSection() => Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: const Color(0xFFEAF5FF),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFD5E9FF)),
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: const Color(0xFFEAF5FF),
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: const Color(0xFFD5E9FF)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Delivery updates',
+          style: TextStyle(
+            color: AppColors.ink,
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+          ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Delivery updates', style: TextStyle(
-              color: AppColors.ink, fontSize: 18, fontWeight: FontWeight.w800,
-            )),
-            const SizedBox(height: 10),
-            ..._deliveryNotifications.map((notification) => Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(15),
-                    border: Border.all(color: const Color(0xFFE8ECF3)),
+        const SizedBox(height: 10),
+        ..._deliveryNotifications.map(
+          (notification) => Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: const Color(0xFFE8ECF3)),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  notification.type == 'PARCEL'
+                      ? Icons.inventory_2_outlined
+                      : Icons.local_shipping_outlined,
+                  color: AppColors.indigo,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        notification.title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.ink,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        notification.message,
+                        style: const TextStyle(
+                          color: Color(0xFF8792A7),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
-                  child: Row(children: [
-                    Icon(
-                      notification.type == 'PARCEL'
-                          ? Icons.inventory_2_outlined
-                          : Icons.local_shipping_outlined,
-                      color: AppColors.indigo,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(notification.title, style: const TextStyle(
-                          fontWeight: FontWeight.w700, color: AppColors.ink,
-                        )),
-                        const SizedBox(height: 3),
-                        Text(notification.message, style: const TextStyle(
-                          color: Color(0xFF8792A7), fontSize: 12,
-                        )),
-                      ],
-                    )),
-                    IconButton(
-                      tooltip: 'Dismiss update',
-                      onPressed: () => _dismissDeliveryNotification(notification),
-                      icon: const Icon(Icons.close_rounded, size: 19),
-                    ),
-                  ]),
-                )),
-          ],
+                ),
+                IconButton(
+                  tooltip: 'Dismiss update',
+                  onPressed: () => _dismissDeliveryNotification(notification),
+                  icon: const Icon(Icons.close_rounded, size: 19),
+                ),
+              ],
+            ),
+          ),
         ),
-      );
+      ],
+    ),
+  );
 
   Widget _visitorRequestCard(ResidentVisitorRequest request) {
     final busy = _decidingVisitorRequestIds.contains(request.id);
-    final visitorType = request.visitorType
-        .replaceAll('_', ' ')
-        .toLowerCase();
+    final visitorType = request.visitorType.replaceAll('_', ' ').toLowerCase();
     final waitingLabel = request.status == 'ARRIVED'
         ? 'Arrived ${_visitorElapsed(request.createdAt)}'
         : 'Registered ${_visitorElapsed(request.createdAt)}';
@@ -1113,8 +1759,11 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
         children: [
           Row(
             children: [
-              const Icon(Icons.access_time_rounded,
-                  size: 17, color: AppColors.indigo),
+              const Icon(
+                Icons.access_time_rounded,
+                size: 17,
+                color: AppColors.indigo,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -1310,7 +1959,9 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     final date = booking.slotDate;
     final weekday = date == null ? '' : _weekdayShort(date.weekday);
     final month = date == null ? '' : _monthShort(date.month);
-    final dateLabel = date == null ? 'Date unavailable' : '$weekday ${date.day} $month';
+    final dateLabel = date == null
+        ? 'Date unavailable'
+        : '$weekday ${date.day} $month';
     final timeRange = _bookingTimeRange(booking.startTime, booking.endTime);
     final duration = _bookingDuration(booking.startTime, booking.endTime);
     final confirmed = booking.status.toUpperCase() == 'CONFIRMED';
@@ -1350,7 +2001,10 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
               ),
               const SizedBox(width: 10),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 11,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFF123D38),
                   borderRadius: BorderRadius.circular(18),
@@ -1429,7 +2083,10 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      [timeRange, if (duration.isNotEmpty) duration].join(' · '),
+                      [
+                        timeRange,
+                        if (duration.isNotEmpty) duration,
+                      ].join(' · '),
                       style: const TextStyle(
                         color: Color(0xFFB5B1D1),
                         fontSize: 13,
@@ -1446,15 +2103,8 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     );
   }
 
-  String _weekdayShort(int weekday) => const [
-    'Mon',
-    'Tue',
-    'Wed',
-    'Thu',
-    'Fri',
-    'Sat',
-    'Sun',
-  ][weekday - 1];
+  String _weekdayShort(int weekday) =>
+      const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][weekday - 1];
 
   String _monthShort(int month) => const [
     'Jan',
@@ -1723,12 +2373,14 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     ),
   );
 
-  String _unitLabel(ResidentDashboardData dashboard) {
+  String _residentHomeLabel(ResidentDashboardData dashboard) {
     final parts = [
-      if (dashboard.towerName != null) dashboard.towerName!,
-      if (dashboard.unitNumber != null) 'Flat ${dashboard.unitNumber}',
+      if (dashboard.societyName?.isNotEmpty == true) dashboard.societyName!,
+      if (dashboard.towerName?.isNotEmpty == true) dashboard.towerName!,
+      if (dashboard.unitNumber?.isNotEmpty == true)
+        'Flat ${dashboard.unitNumber}',
     ];
-    return parts.isEmpty ? 'Unit information unavailable' : parts.join('  ·  ');
+    return parts.isEmpty ? 'Your home' : parts.join(' · ');
   }
 
   String _currencySymbol(String currency) => switch (currency.toUpperCase()) {
@@ -1832,33 +2484,56 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     );
   }
 
-  Widget _roundIcon(IconData icon, {bool badge = false}) => Container(
-    width: 42,
-    height: 42,
-    decoration: BoxDecoration(
-      color: Colors.white,
-      shape: BoxShape.circle,
-      border: Border.all(color: const Color(0xFFE8ECF3)),
-    ),
-    child: Stack(
-      alignment: Alignment.center,
-      children: [
-        Icon(icon, color: const Color(0xFF68748A), size: 21),
-        if (badge)
-          const Positioned(
-            right: 10,
-            top: 9,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: Color(0xFFFF6F72),
-                shape: BoxShape.circle,
-              ),
-              child: SizedBox(width: 7, height: 7),
+  Widget _roundIcon(IconData icon, {int badgeCount = 0, VoidCallback? onTap}) =>
+      Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFFE8ECF3)),
+            ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                Icon(icon, color: const Color(0xFF68748A), size: 21),
+                if (badgeCount > 0)
+                  Positioned(
+                    right: -5,
+                    top: -5,
+                    child: Container(
+                      constraints: const BoxConstraints(
+                        minWidth: 17,
+                        minHeight: 17,
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      alignment: Alignment.center,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFE4515D),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        badgeCount > 99 ? '99+' : '$badgeCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 8,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
-      ],
-    ),
-  );
+        ),
+      );
 
   BoxDecoration _cardDecoration() => BoxDecoration(
     color: Colors.white,

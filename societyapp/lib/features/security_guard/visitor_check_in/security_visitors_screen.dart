@@ -77,11 +77,11 @@ extension _SecurityVisitorsBuilder on _SecurityHomeState {
         : pass.status == 'ARRIVED' && residentWaiting
         ? (null, null)
         : switch (pass.status) {
-      'EXPECTED' => ('Record arrival', 'ARRIVAL'),
-      'ARRIVED' => ('Allow entry', 'ENTRY'),
-      'INSIDE' || 'OVERSTAY' => ('Record exit', 'EXIT'),
-      _ => (null, null),
-    };
+            'EXPECTED' => ('Record arrival', 'ARRIVAL'),
+            'ARRIVED' => ('Allow entry', 'ENTRY'),
+            'INSIDE' || 'OVERSTAY' => ('Record exit', 'EXIT'),
+            _ => (null, null),
+          };
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: _cardDecoration(),
@@ -127,7 +127,8 @@ extension _SecurityVisitorsBuilder on _SecurityHomeState {
                         fontSize: 11,
                       ),
                     ),
-                    if (data.destinationLabel(pass) case final destination?) ...[
+                    if (data.destinationLabel(pass)
+                        case final destination?) ...[
                       const SizedBox(height: 3),
                       Text(
                         'Visiting $destination',
@@ -155,17 +156,24 @@ extension _SecurityVisitorsBuilder on _SecurityHomeState {
                 color: AppColors.muted,
               ),
               const SizedBox(width: 5),
-              Text(
-                'Pass ${pass.passNo}',
-                style: const TextStyle(
-                  color: AppColors.inkSoft,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
+              Expanded(
+                child: Text(
+                  'Pass ${pass.passNo}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.inkSoft,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               Text(
                 _formatDate(pass.createdAt),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.right,
                 style: const TextStyle(color: AppColors.muted, fontSize: 10),
               ),
             ],
@@ -190,7 +198,7 @@ extension _SecurityVisitorsBuilder on _SecurityHomeState {
             SizedBox(
               height: 43,
               child: FilledButton.icon(
-                      onPressed: () => _changePass(pass, action.$2!, data),
+                onPressed: () => _changePass(pass, action.$2!, data),
                 icon: Icon(
                   action.$2 == 'EXIT'
                       ? Icons.logout_rounded

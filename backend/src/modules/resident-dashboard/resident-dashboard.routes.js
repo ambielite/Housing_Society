@@ -4,6 +4,8 @@ const controller = require('./resident-dashboard.controller');
 
 const router = express.Router();
 
+router.get('/notifications', authenticate, controller.listNotifications);
+router.patch('/notifications/:id/read', authenticate, controller.markNotificationRead);
 router.get('/', authenticate, controller.getDashboard);
 
 module.exports = router;

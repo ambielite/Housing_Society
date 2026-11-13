@@ -52,6 +52,14 @@ const createBooking = async ({ amenitySlotId, unitId, bookedBy, guestsCount, mem
       throw new ApiError(400, `This slot is currently ${slot.status} and cannot be booked`);
     }
 
+    const { rows: [slotDateCheck] } = await client.query(
+      'SELECT $1::date < CURRENT_DATE AS expired',
+      [slot.slot_date]
+    );
+    if (slotDateCheck.expired) {
+      throw new ApiError(400, 'This amenity slot has expired and cannot be booked');
+    }
+
     const amenity = await amenitiesRepository.findAmenityById(slot.amenity_id);
     if (!amenity) {
       throw new ApiError(404, 'Amenity not found');

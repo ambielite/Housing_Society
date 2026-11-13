@@ -1,5 +1,36 @@
 const { query } = require('../../config/db');
 const noticesService = require('../notices/notices.service');
+const ApiError = require('../../common/ApiError');
+
+const listResidentNotifications = async (user) => {
+  if (!user.societyId) return [];
+  const result = await query(
+    `SELECT id, title, message, notification_type, priority,
+            reference_type, reference_id, created_at
+       FROM notifications
+      WHERE society_id = $1 AND user_id = $2 AND channel = 'IN_APP'
+        AND is_read = false AND status IN ('PENDING', 'SENT', 'DELIVERED')
+      ORDER BY created_at DESC
+      LIMIT 50`,
+    [user.societyId, user.id],
+  );
+  return result.rows;
+};
+
+const markResidentNotificationRead = async (user, notificationId) => {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(notificationId)) {
+    throw new ApiError(400, 'Invalid notification ID');
+  }
+  const result = await query(
+    `UPDATE notifications
+        SET is_read = true, read_at = now(), updated_at = now()
+      WHERE id = $1 AND society_id = $2 AND user_id = $3 AND channel = 'IN_APP'
+      RETURNING id`,
+    [notificationId, user.societyId, user.id],
+  );
+  if (!result.rows[0]) throw new ApiError(404, 'Notification not found');
+  return result.rows[0];
+};
 
 const getDashboard = async (user) => {
   const societyId = user.societyId;
@@ -139,4 +170,8 @@ const getDashboard = async (user) => {
   };
 };
 
-module.exports = { getDashboard };
+module.exports = {
+  getDashboard,
+  listResidentNotifications,
+  markResidentNotificationRead,
+};

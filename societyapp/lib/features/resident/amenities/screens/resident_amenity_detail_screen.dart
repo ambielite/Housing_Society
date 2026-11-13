@@ -35,6 +35,7 @@ class _ResidentAmenityDetailScreenState
   bool _refreshingSlots = false;
   bool _refreshingBookings = false;
   bool _bookingsLoaded = false;
+  DateTime _lastObservedDay = DateTime.now();
   String? _bookingsError;
   Map<String, ResidentAmenityBooking> _bookingsBySlotId = {};
   String? _bookingError;
@@ -47,13 +48,17 @@ class _ResidentAmenityDetailScreenState
     _loadBookings();
     _bookingStatusTimer = Timer.periodic(
       const Duration(seconds: 30),
-      (_) => _refreshBookingStatusInBackground(),
+      (_) {
+        _expireSlotsOnDateChange();
+        _refreshBookingStatusInBackground();
+      },
     );
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      _expireSlotsOnDateChange();
       _refreshBookingStatusInBackground();
     }
   }
@@ -67,6 +72,16 @@ class _ResidentAmenityDetailScreenState
 
   Future<List<ResidentAmenitySlot>> _loadSlots() =>
       ResidentAmenitiesApi.listSlots(widget.user.accessToken, widget.amenity.id);
+
+  void _expireSlotsOnDateChange() {
+    final now = DateTime.now();
+    if (now.year == _lastObservedDay.year &&
+        now.month == _lastObservedDay.month &&
+        now.day == _lastObservedDay.day) {
+      return;
+    }
+    setState(() => _lastObservedDay = DateTime(now.year, now.month, now.day));
+  }
 
   Future<void> _loadBookings() async {
     if (_refreshingBookings) return;
@@ -211,7 +226,9 @@ class _ResidentAmenityDetailScreenState
               if (!snapshot.hasData) {
                 return const Center(child: CircularProgressIndicator(color: _amenityAccent));
               }
-              final slots = snapshot.data!;
+              final slots = snapshot.data!
+                  .where((slot) => !_isBeforeToday(slot.date))
+                  .toList();
               return ListView(
                 padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
                 children: [
@@ -337,8 +354,6 @@ class _ResidentAmenityDetailScreenState
               _bookingBadge('Booking confirmed', const Color(0xFFE8F8EF), const Color(0xFF16834B))
             else if (_bookingsBySlotId.containsKey(slot.id))
               _bookingBadge('Booked', const Color(0xFFFFF4DF), const Color(0xFF9B6500))
-            else if (_isPast(slot))
-              _slotStateLabel('Past', const Color(0xFFE7E7E7), const Color(0xFF888888))
             else if (_bookingsError != null)
               _slotStateLabel('Unavailable', const Color(0xFFFFECEE), const Color(0xFF9D2635))
             else if (!_bookingsLoaded)
@@ -400,7 +415,7 @@ class _ResidentAmenityDetailScreenState
         child: const Column(children: [
           Icon(Icons.event_busy_rounded, color: _amenityMuted, size: 38),
           SizedBox(height: 10),
-          Text('No time slots have been added yet', style: TextStyle(
+          Text('No upcoming time slots are available', style: TextStyle(
             color: _amenityText, fontWeight: FontWeight.w800,
           )),
           SizedBox(height: 5),
@@ -439,14 +454,11 @@ String _dateLabel(DateTime? date) {
   return '${date.day} ${months[date.month - 1]} ${date.year}';
 }
 
-bool _isPast(ResidentAmenitySlot slot) {
-  final date = slot.date;
+bool _isBeforeToday(DateTime? date) {
   if (date == null) return true;
-  final timeParts = slot.startTime.split(':');
-  final hour = int.tryParse(timeParts.first) ?? 0;
-  final minute = timeParts.length > 1 ? int.tryParse(timeParts[1]) ?? 0 : 0;
-  return DateTime(date.year, date.month, date.day, hour, minute)
-      .isBefore(DateTime.now());
+  final today = DateTime.now();
+  return DateTime(date.year, date.month, date.day)
+      .isBefore(DateTime(today.year, today.month, today.day));
 }
 
 String _money(num amount) => '₹${amount.toStringAsFixed(2)}';
