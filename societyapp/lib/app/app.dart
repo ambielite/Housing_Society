@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'session_manager.dart';
 import '../features/auth/presentation/screens/login_screen.dart';
@@ -45,6 +46,18 @@ class _SocietyAppState extends State<SocietyApp> {
       title: 'Housing Society',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
+      builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.dark.copyWith(
+          statusBarColor: Colors.transparent,
+          systemNavigationBarColor: Colors.transparent,
+          systemNavigationBarDividerColor: Colors.transparent,
+          systemNavigationBarContrastEnforced: false,
+          systemStatusBarContrastEnforced: false,
+          statusBarIconBrightness: Brightness.dark,
+          systemNavigationBarIconBrightness: Brightness.dark,
+        ),
+        child: child ?? const SizedBox.shrink(),
+      ),
       home: SplashScreen(
         onFinished: () {
           final navigator = _appNavigatorKey.currentState;

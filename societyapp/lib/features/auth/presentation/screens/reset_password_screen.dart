@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-import '../../../../app/theme/app_colors.dart';
 import '../../data/auth_api.dart';
 import 'login_screen.dart';
 
@@ -84,41 +84,118 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
       parent: _entryController,
       curve: Curves.easeOutCubic,
     );
-    return Scaffold(
-      backgroundColor: AppColors.canvas,
-      appBar: AppBar(
-        title: const Text('Reset password'),
-        backgroundColor: AppColors.canvas,
-        foregroundColor: AppColors.ink,
-        elevation: 0,
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light.copyWith(
+        statusBarColor: Colors.transparent,
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarDividerColor: Colors.transparent,
+        systemNavigationBarContrastEnforced: false,
+        systemStatusBarContrastEnforced: false,
+        systemNavigationBarIconBrightness: Brightness.dark,
       ),
-      body: SafeArea(
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8F5EC),
+        body: SafeArea(
         top: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 500),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(22, 30, 22, 32),
-              children: [
-                FadeTransition(
-                  opacity: entrance,
-                  child: SlideTransition(
-                    position: entrance.drive(
-                      Tween<Offset>(
-                        begin: const Offset(0, .12),
-                        end: Offset.zero,
-                      ),
+        bottom: false,
+        child: Column(
+          children: [
+            SizedBox(
+              height:
+                  (keyboardOpen ? 96.0 : 190.0) +
+                  MediaQuery.viewPaddingOf(context).top,
+              child: _recoveryHero(),
+            ),
+            Expanded(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 500),
+                  child: ListView(
+                    padding: EdgeInsets.fromLTRB(
+                      22,
+                      22,
+                      22,
+                      MediaQuery.viewPaddingOf(context).bottom + 26,
                     ),
-                    child: _success ? _successContent() : _formContent(),
+                    children: [
+                      FadeTransition(
+                        opacity: entrance,
+                        child: SlideTransition(
+                          position: entrance.drive(
+                            Tween<Offset>(
+                              begin: const Offset(0, .12),
+                              end: Offset.zero,
+                            ),
+                          ),
+                          child: _success ? _successContent() : _formContent(),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
+          ],
+        ),
         ),
       ),
     );
   }
+
+  Widget _recoveryHero() => Stack(
+    fit: StackFit.expand,
+    children: [
+      Image.asset('assets/images/shubhnivas_residence.jpg', fit: BoxFit.cover),
+      const DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xC8052D32), Color(0xE8052D32)],
+          ),
+        ),
+      ),
+      Padding(
+        padding: EdgeInsets.fromLTRB(
+          22,
+          MediaQuery.viewPaddingOf(context).top +
+              (MediaQuery.viewInsetsOf(context).bottom == 0 ? 12 : 0),
+          22,
+          MediaQuery.viewInsetsOf(context).bottom == 0 ? 12 : 0,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.arrow_back_rounded),
+                  color: Colors.white,
+                  tooltip: 'Back',
+                ),
+                const SizedBox(width: 6),
+                const Text(
+                  'Choose a new password',
+                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700),
+                ),
+              ],
+            ),
+            if (MediaQuery.viewInsetsOf(context).bottom == 0) ...[
+              const Spacer(),
+              const Text(
+                'One last step.',
+                style: TextStyle(color: Color(0xFFFFD56A), fontFamily: 'serif', fontSize: 25),
+              ),
+              const SizedBox(height: 4),
+              const Text('Set a strong password for your account.', style: TextStyle(color: Color(0xFFE3E9E4), fontSize: 12)),
+            ],
+          ],
+        ),
+      ),
+    ],
+  );
 
   Widget _formContent() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -126,7 +203,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
       _heading(
         icon: Icons.lock_reset_rounded,
         title: 'Choose a new password',
-        subtitle: 'Create a strong password you haven’t used before.',
+        subtitle: 'Create a strong password you can remember.',
       ),
       const SizedBox(height: 26),
       _card(
@@ -152,6 +229,16 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
                   labelText: '6-digit verification code',
                   prefixIcon: Icon(Icons.mark_email_read_outlined),
                   counterText: '',
+                  filled: true,
+                  fillColor: Color(0xFFFFFEFB),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(12)),
+                    borderSide: BorderSide(color: Color(0xFFE0D9C8)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(12)),
+                    borderSide: BorderSide(color: Color(0xFF9A7835), width: 1.5),
+                  ),
                 ),
                 validator: (value) =>
                     value == null || !RegExp(r'^\d{6}$').hasMatch(value.trim())
@@ -188,7 +275,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
                 children: [
                   _passwordRule(
                     icon: Icons.numbers_rounded,
-                    label: '8–128 characters',
+                    label: '8 to 128 characters',
                     complete:
                         _newPasswordController.text.length >= 8 &&
                         _newPasswordController.text.length <= 128,
@@ -205,7 +292,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
               ),
               const SizedBox(height: 20),
               _button(
-                label: _submitting ? 'Updating…' : 'Update password',
+                label: _submitting ? 'Updating...' : 'Update password',
                 icon: Icons.check_rounded,
                 loading: _submitting,
                 onPressed: _submitting ? null : _resetPassword,
@@ -218,7 +305,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
       Text(
         'Enter the verification code sent to ${widget.email}. It expires in 10 minutes and can only be used once.',
         textAlign: TextAlign.center,
-        style: TextStyle(color: AppColors.muted, fontSize: 12),
+        style: const TextStyle(color: Color(0xFF879895), fontSize: 12),
       ),
     ],
   );
@@ -228,9 +315,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
     child: Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFEAF8F2),
+        color: Color(0xFFEAF8F2),
         borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: const Color(0xFFC7EEDD)),
+        border: Border.all(color: Color(0xFFC7EEDD)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -255,7 +342,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'We’ve sent a verification code to your email.',
+                  'We have sent a verification code to your email.',
                   style: const TextStyle(
                     color: Color(0xFF267653),
                     fontSize: 12,
@@ -306,12 +393,12 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
             gradient: LinearGradient(
               colors: success
                   ? const [Color(0xFF39C89A), Color(0xFF159B75)]
-                  : const [Color(0xFF8174FF), Color(0xFF5948DC)],
+                  : const [Color(0xFF0D5354), Color(0xFF082F36)],
             ),
             borderRadius: BorderRadius.circular(25),
             boxShadow: [
               BoxShadow(
-                color: (success ? const Color(0xFF159B75) : AppColors.indigo)
+                color: (success ? const Color(0xFF159B75) : const Color(0xFF0D5354))
                     .withValues(alpha: .22),
                 blurRadius: 22,
                 offset: const Offset(0, 9),
@@ -345,7 +432,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
         title,
         textAlign: TextAlign.center,
         style: const TextStyle(
-          color: AppColors.ink,
+          color: Color(0xFF18363A),
+          fontFamily: 'serif',
           fontSize: 23,
           fontWeight: FontWeight.w800,
           letterSpacing: -.3,
@@ -356,7 +444,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
         subtitle,
         textAlign: TextAlign.center,
         style: const TextStyle(
-          color: AppColors.inkSoft,
+          color: Color(0xFF718489),
           fontSize: 14,
           height: 1.5,
         ),
@@ -367,12 +455,12 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
   Widget _card(Widget child) => Container(
     padding: const EdgeInsets.all(18),
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: Color(0xFFFFFEFB),
       borderRadius: BorderRadius.circular(21),
-      border: Border.all(color: const Color(0xFFE3E9F3)),
+      border: Border.all(color: Color(0xFFE0D9C8)),
       boxShadow: const [
         BoxShadow(
-          color: Color(0x0C101A35),
+          color: Color(0x14052D32),
           blurRadius: 20,
           offset: Offset(0, 7),
         ),
@@ -384,9 +472,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
   Widget _errorMessage(String message) => Container(
     padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(
-      color: const Color(0xFFFFF0F0),
+      color: Color(0xFFFFF0F0),
       borderRadius: BorderRadius.circular(13),
-      border: Border.all(color: const Color(0xFFFFD4D4)),
+      border: Border.all(color: Color(0xFFFFD4D4)),
     ),
     child: Text(
       message,
@@ -399,7 +487,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
     required String label,
     required bool complete,
   }) {
-    final color = complete ? const Color(0xFF168B68) : AppColors.muted;
+    final color = complete ? const Color(0xFF168B68) : const Color(0xFF879895);
     return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
@@ -422,7 +510,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
           Text(
             label,
             style: TextStyle(
-              color: complete ? const Color(0xFF168B68) : AppColors.inkSoft,
+              color: complete ? const Color(0xFF168B68) : const Color(0xFF718489),
               fontSize: 11,
               fontWeight: FontWeight.w700,
             ),
@@ -447,14 +535,14 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
               dimension: 18,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                color: Colors.white,
+                color: const Color(0xFF17383B),
               ),
             )
           : Icon(icon, size: 18),
       label: Text(label),
       style: FilledButton.styleFrom(
-        backgroundColor: AppColors.indigo,
-        foregroundColor: Colors.white,
+        backgroundColor: const Color(0xFFDDB84E),
+        foregroundColor: const Color(0xFF17383B),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       ),
     ),
@@ -475,7 +563,17 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
     onChanged: (_) => setState(() {}),
     decoration: InputDecoration(
       labelText: label,
-      prefixIcon: const Icon(Icons.lock_outline_rounded),
+      prefixIcon: const Icon(Icons.lock_outline_rounded, color: Color(0xFF879895)),
+      filled: true,
+      fillColor: const Color(0xFFFFFEFB),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFE0D9C8)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFF9A7835), width: 1.5),
+      ),
       suffixIcon: IconButton(
         onPressed: onToggle,
         tooltip: obscured ? 'Show password' : 'Hide password',
