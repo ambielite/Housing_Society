@@ -315,6 +315,19 @@ const updateResident = async (
         }
     }
 
+    // A linked resident's email is also their login identifier. Keep the
+    // account and resident record aligned, and prevent changing it to another
+    // account's email address.
+    if (resident.userId && data.email && data.email !== resident.email) {
+        const existingAccount = await sequelize.query(
+            "SELECT id FROM users WHERE lower(email) = lower(:email) AND id <> :userId LIMIT 1",
+            { replacements: { email: data.email.trim(), userId: resident.userId }, type: QueryTypes.SELECT }
+        );
+        if (existingAccount.length) {
+            throw new Error("An account already uses this email. Enter a different email address.");
+        }
+    }
+
     // Rebuild display name if name changes
     if (
         data.firstName ||
@@ -342,6 +355,27 @@ const updateResident = async (
                 { ...data, ...(profilePhoto ? { profilePhoto } : {}) },
                 { transaction }
             );
+            if (resident.userId) {
+                await sequelize.query(
+                    `UPDATE users SET
+                       email = COALESCE(:email, email),
+                       phone = COALESCE(:mobile, phone),
+                       first_name = COALESCE(:firstName, first_name),
+                       last_name = COALESCE(:lastName, last_name),
+                       updated_at = now()
+                     WHERE id = :userId`,
+                    {
+                        replacements: {
+                            email: data.email === undefined ? null : data.email.trim().toLowerCase(),
+                            mobile: data.mobile === undefined ? null : data.mobile,
+                            firstName: data.firstName === undefined ? null : data.firstName,
+                            lastName: data.lastName === undefined ? null : data.lastName,
+                            userId: resident.userId
+                        },
+                        transaction
+                    }
+                );
+            }
             if (profilePhoto && resident.userId) {
                 await sequelize.query(
                     "UPDATE users SET profile_picture_url = :profilePhoto, updated_at = now() WHERE id = :userId",

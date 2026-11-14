@@ -71,6 +71,13 @@ const updateProfile = async (id, payload) => {
     throw new ApiError(404, 'User not found');
   }
   const { profilePicture, ...profileFields } = payload;
+  if (profileFields.email !== undefined) {
+    profileFields.email = profileFields.email.trim().toLowerCase();
+    const existing = await repository.findByEmail(profileFields.email);
+    if (existing && String(existing.id) !== String(id)) {
+      throw new ApiError(409, 'A user with this email already exists');
+    }
+  }
   const profilePictureUrl = profilePicture ? saveProfilePicture(profilePicture) : null;
   let updated;
   try {

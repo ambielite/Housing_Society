@@ -15,8 +15,7 @@ const imageUrl = (value) => {
 
 /**
  * mode="create": all fields, sends the full payload.
- * mode="edit":   name + phone only (the API never changes email/password/status here);
- *                sends just the fields that actually changed.
+ * mode="edit":   account contact details; sends only fields that changed.
  */
 export default function UserForm({ mode, initialValues, societyId, onSubmit, submitting, submitError, cancelTo }) {
   const isEdit = mode === 'edit';
@@ -47,9 +46,9 @@ export default function UserForm({ mode, initialValues, societyId, onSubmit, sub
     else if (values.firstName.trim().length > 100) next.firstName = 'Use 100 characters or fewer.';
     if (values.lastName.trim().length > 100) next.lastName = 'Use 100 characters or fewer.';
     if (values.phone.trim() && !PHONE_PATTERN.test(values.phone.trim())) next.phone = 'Enter a valid phone number.';
+    if (!values.email.trim()) next.email = 'Enter an email address.';
+    else if (!isValidEmail(values.email)) next.email = 'Enter a valid email address.';
     if (!isEdit) {
-      if (!values.email.trim()) next.email = 'Enter an email address.';
-      else if (!isValidEmail(values.email)) next.email = 'Enter a valid email address.';
       const pwError = passwordError(values.password);
       if (pwError) next.password = pwError;
     }
@@ -72,6 +71,8 @@ export default function UserForm({ mode, initialValues, societyId, onSubmit, sub
       Object.keys(trimmed).forEach((key) => {
         if (trimmed[key] !== (initialValues[key] || '')) changes[key] = trimmed[key];
       });
+      const email = values.email.trim().toLowerCase();
+      if (email !== (initialValues.email || '').trim().toLowerCase()) changes.email = email;
       if (Object.keys(changes).length === 0 && !profilePicture) {
         setNote("You haven't changed anything yet.");
         return;
@@ -135,8 +136,7 @@ export default function UserForm({ mode, initialValues, societyId, onSubmit, sub
           value={values.email}
           onChange={onChange}
           error={errors.email}
-          disabled={isEdit}
-          hint={isEdit ? "Email can't be changed." : undefined}
+          hint={isEdit ? 'Changing this email also changes the resident login email.' : undefined}
         />
         <TextField id="phone" name="phone" type="tel" label="Phone" value={values.phone} onChange={onChange} error={errors.phone} />
         {!isEdit && (

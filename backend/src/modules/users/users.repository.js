@@ -107,20 +107,52 @@ const createUser = async ({ societyId, email, phone, passwordHash, firstName, la
   return result.rows[0];
 };
 
-const updateProfile = async (id, { firstName, lastName, phone, societyId, profilePictureUrl }) => {
-  const result = await db.query(
-    `UPDATE users SET
-       first_name = COALESCE($2, first_name),
-       last_name  = COALESCE($3, last_name),
-       phone      = COALESCE($4, phone),
-       society_id = COALESCE($5, society_id),
-       profile_picture_url = COALESCE($6, profile_picture_url),
-       updated_at = now()
-     WHERE id = $1
-     RETURNING *`,
-    [id, firstName, lastName, phone, societyId, profilePictureUrl]
-  );
-  return result.rows[0] || null;
+const updateProfile = async (id, { email, firstName, lastName, phone, societyId, profilePictureUrl }) => {
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+    const result = await client.query(
+      `UPDATE users SET
+         email = COALESCE($2, email),
+         first_name = COALESCE($3, first_name),
+         last_name  = COALESCE($4, last_name),
+         phone      = COALESCE($5, phone),
+         society_id = COALESCE($6, society_id),
+         profile_picture_url = COALESCE($7, profile_picture_url),
+         updated_at = now()
+       WHERE id = $1
+       RETURNING *`,
+      [id, email, firstName, lastName, phone, societyId, profilePictureUrl]
+    );
+    const updated = result.rows[0] || null;
+    if (updated) {
+      await client.query(
+        `UPDATE residents SET
+           email = $2,
+           first_name = $3,
+           last_name = $4,
+           mobile = COALESCE(NULLIF($5, ''), mobile),
+           profile_photo = COALESCE($6, profile_photo),
+           updated_at = now()
+         WHERE user_id = $1`,
+        [id, updated.email, updated.first_name, updated.last_name, updated.phone, updated.profile_picture_url]
+      );
+      // Keep the resident display name in step with the account name without
+      // duplicating previous first/last names already stored in display_name.
+      await client.query(
+        `UPDATE residents SET display_name = concat_ws(' ', first_name, NULLIF(middle_name, ''), last_name)
+         WHERE user_id = $1`,
+        [id]
+      );
+    }
+    await client.query('COMMIT');
+    return updated;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 const updateStatus = async (id, status) => {

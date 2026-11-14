@@ -9,6 +9,7 @@ const db = require('../../config/db');
 const usersRepository = require('../users/users.repository');
 const rbacRepository = require('../rbac/rbac.repository');
 const emailProvider = require('../notifications/providers/email.provider');
+const Notification = require('../notifications/notification/notification.model');
 
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
 const hashPasswordResetOtp = (userId, otp) => crypto
@@ -28,6 +29,33 @@ const hasValidSecuritySelfie = (mimeType, encodedImage) => {
     return image.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
   }
   return false;
+};
+
+const notifyAdminsOfResidentPasswordUpdate = async (userId, action) => {
+  try {
+    const recipients = await authRepository.findResidentPasswordNotificationRecipients(userId);
+    if (!recipients.length) return;
+    const isReset = action === 'reset';
+    const eventId = crypto.randomBytes(16).toString('hex');
+    const changedAt = new Date().toISOString();
+    await Notification.bulkCreate(recipients.map((recipient) => ({
+      societyId: recipient.society_id,
+      userId: recipient.user_id,
+      channel: 'IN_APP',
+      notificationType: 'OPERATIONAL',
+      title: isReset ? 'Resident password reset' : 'Resident password changed',
+      subject: isReset ? 'Resident password reset' : 'Resident password changed',
+      message: `${recipient.resident_name || 'A resident'} ${isReset ? 'reset' : 'changed'} their account password.`,
+      data: { eventId, residentId: recipient.resident_id, action, changedAt },
+      referenceType: 'RESIDENT_PASSWORD',
+      referenceId: recipient.resident_id,
+      priority: 'MEDIUM',
+    })));
+  } catch (error) {
+    // The password update has already succeeded. A notification failure must
+    // not report the credential change itself as failed to the resident.
+    console.error('Could not notify society administrators about resident password update:', error.message);
+  }
 };
 
 const sanitizeUser = (user) => {
@@ -256,6 +284,7 @@ const changePassword = async (userId, { currentPassword, newPassword }) => {
   const passwordHash = await bcrypt.hash(newPassword, 12);
   await usersRepository.updatePassword(userId, passwordHash);
   await authRepository.revokeAllUserRefreshTokens(userId);
+  await notifyAdminsOfResidentPasswordUpdate(userId, 'change');
 };
 
 const requestResidentPasswordResetOtp = async (email) => {
@@ -308,6 +337,7 @@ const resetResidentPasswordWithOtp = async ({ email, otp, newPassword }) => {
   })) {
     throw new ApiError(400, 'The code is invalid or has expired. Request a new code and try again.');
   }
+  await notifyAdminsOfResidentPasswordUpdate(user.id, 'reset');
 };
 
 // Keep the existing web/admin reset token API compatible. The resident app
@@ -342,6 +372,7 @@ const resetPassword = async ({ token, newPassword }) => {
   if (!await authRepository.completePasswordReset({ tokenId: record.id, userId: record.user_id, passwordHash })) {
     throw new ApiError(400, 'Password reset token is invalid or has expired');
   }
+  await notifyAdminsOfResidentPasswordUpdate(record.user_id, 'reset');
 };
 
 module.exports = {

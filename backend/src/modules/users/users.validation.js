@@ -12,6 +12,7 @@ const createUserSchema = Joi.object({
 });
 
 const updateProfileSchema = Joi.object({
+  email: Joi.string().email().max(255),
   firstName: Joi.string().max(100),
   lastName: Joi.string().max(100).allow('', null),
   phone: Joi.string().max(20).allow('', null),

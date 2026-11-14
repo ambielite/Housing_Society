@@ -80,7 +80,39 @@ export default function NotificationsPage() {
         return () => { document.body.style.overflow = oldOverflow; window.removeEventListener("keydown", onKey); };
     }, [form]);
 
-    const notifications = data.notifications || [];
+    const notifications = useMemo(() => {
+        const grouped = new Map();
+        for (const item of data.notifications || []) {
+            if (item.referenceType !== "RESIDENT_PASSWORD") {
+                grouped.set(item.id, { ...item, recipientNotifications: [item] });
+                continue;
+            }
+            // eventId groups new recipient copies. The fallback combines older
+            // copies that were created before shared event IDs were added.
+            const timestamp = new Date(item.created_at).getTime();
+            const legacyWindow = Number.isFinite(timestamp) ? Math.floor(timestamp / 2000) : item.created_at;
+            const key = item.data?.eventId
+                ? `resident-password:${item.data.eventId}`
+                : `resident-password:${item.referenceId}:${item.data?.action || item.title}:${legacyWindow}`;
+            const current = grouped.get(key);
+            if (current) current.recipientNotifications.push(item);
+            else grouped.set(key, { ...item, sharedEvent: true, recipientNotifications: [item] });
+        }
+
+        return Array.from(grouped.values()).map((item) => {
+            if (!item.sharedEvent) return item;
+            const recipients = item.recipientNotifications;
+            const statuses = recipients.map((recipient) => recipient.status);
+            const status = statuses.every((value) => value === "DELIVERED")
+                ? "DELIVERED"
+                : statuses.some((value) => value === "FAILED")
+                    ? "FAILED"
+                    : statuses.some((value) => ["PENDING", "PROCESSING"].includes(value))
+                        ? "PENDING"
+                        : "SENT";
+            return { ...item, status, isRead: recipients.every((recipient) => recipient.isRead) };
+        });
+    }, [data.notifications]);
     const templates = data.templates || [];
     const preferences = data.preferences || [];
     const broadcasts = data.broadcasts || [];
@@ -189,7 +221,7 @@ export default function NotificationsPage() {
     };
 
     const notificationActions = (item) => <div className="society-row-actions">
-        <button className="notification-row-action" disabled={busy} onClick={() => act(() => item.isRead ? notificationsApi.markUnread(item.id) : notificationsApi.markRead(item.id), item.isRead ? "Marked unread." : "Marked read.")}>{item.isRead ? "Mark unread" : "Mark read"}</button>
+        <button className="notification-row-action" disabled={busy} onClick={() => act(() => Promise.all((item.recipientNotifications || [item]).map((recipient) => item.isRead ? notificationsApi.markUnread(recipient.id) : notificationsApi.markRead(recipient.id))), item.isRead ? "Marked unread for admins." : "Marked read for admins.")}>{item.isRead ? "Mark unread" : "Mark read"}</button>
         {item.status === "PENDING" && <button className="notification-row-action" disabled={busy} onClick={() => act(() => notificationsApi.sendNotification(item.id), "Notification dispatched to the selected channel.")}>Send now</button>}
         {item.status === "SENT" && <button className="notification-row-action" disabled={busy} onClick={() => act(() => notificationsApi.markDelivered(item.id), "Delivery recorded.")}>Mark delivered</button>}
         {item.status === "FAILED" && <button className="notification-row-action" disabled={busy} onClick={() => act(() => notificationsApi.updateNotification(item.id, { status: "PENDING", errorMessage: null }), "Notification queued for retry.")}>Retry</button>}

@@ -90,6 +90,26 @@ const findResidentByEmail = async (email) => {
   return result.rows[0] || null;
 };
 
+const findResidentPasswordNotificationRecipients = async (userId) => {
+  const result = await db.query(
+    `SELECT DISTINCT res.society_id,
+           res.id AS resident_id,
+           admin.id AS user_id,
+           COALESCE(NULLIF(res.display_name, ''), concat_ws(' ', res.first_name, res.last_name)) AS resident_name
+     FROM residents res
+     JOIN users admin ON admin.status = 'ACTIVE'
+     JOIN user_roles ur ON ur.user_id = admin.id
+     JOIN roles r ON r.id = ur.role_id
+     WHERE res.user_id = $1
+       AND admin.id <> $1
+       AND r.status = 'ACTIVE'
+       AND r.code IN ('SOCIETY_ADMIN', 'SUPER_ADMIN', 'PRESIDENT_SECRETARY')
+       AND (ur.society_id = res.society_id OR (r.code = 'SUPER_ADMIN' AND ur.society_id IS NULL))`,
+    [userId]
+  );
+  return result.rows;
+};
+
 const revokeActivePasswordResetTokens = async (userId) => {
   await db.query(
     'UPDATE password_reset_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL',
@@ -169,6 +189,7 @@ module.exports = {
   listLoginHistory,
   createPasswordResetToken,
   findResidentByEmail,
+  findResidentPasswordNotificationRecipients,
   revokeActivePasswordResetTokens,
   hasRecentPasswordResetRequest,
   findPasswordResetToken,
