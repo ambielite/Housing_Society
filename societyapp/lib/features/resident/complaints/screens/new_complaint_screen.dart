@@ -119,44 +119,53 @@ class _NewComplaintScreenState extends State<NewComplaintScreen> {
                           const SizedBox(height: 18),
                           _fieldLabel('Category'),
                           const SizedBox(height: 8),
-                          DropdownButtonFormField<String>(
-                            value: selectedId,
-                            isExpanded: true,
-                            menuMaxHeight: 320,
-                            elevation: 4,
-                            dropdownColor: Colors.white,
-                            borderRadius: BorderRadius.circular(14),
-                            icon: const Icon(
-                              Icons.keyboard_arrow_down_rounded,
-                              color: Color(0xFF76519A),
-                            ),
-                            style: const TextStyle(
-                              color: AppColors.ink,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
+                          InputDecorator(
                             decoration: _decoration(
                               hint: 'Choose a category',
                               icon: Icons.category_outlined,
                             ),
-                            items: categories
-                                .map((category) => DropdownMenuItem<String>(
-                                      value: category.id,
-                                      child: Text(
-                                        category.name,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ))
-                                .toList(),
-                            onChanged: _saving
-                                ? null
-                                : (value) => setState(() {
-                                    _categoryId = value;
-                                    _categoryName = categories
-                                        .firstWhere((item) => item.id == value)
-                                        .name;
-                                  }),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: selectedId,
+                                isExpanded: true,
+                                menuWidth: (MediaQuery.sizeOf(context).width * .84)
+                                    .clamp(0.0, 420.0)
+                                    .toDouble(),
+                                menuMaxHeight: 320,
+                                elevation: 4,
+                                dropdownColor: Colors.white,
+                                borderRadius: BorderRadius.circular(14),
+                                icon: const Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  color: Color(0xFF76519A),
+                                ),
+                                style: const TextStyle(
+                                  color: AppColors.ink,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                items: categories
+                                    .map((category) => DropdownMenuItem<String>(
+                                          value: category.id,
+                                          child: Text(
+                                            category.name,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ))
+                                    .toList(),
+                                onChanged: _saving
+                                    ? null
+                                    : (value) => setState(() {
+                                        _categoryId = value;
+                                        _categoryName = categories
+                                            .firstWhere(
+                                              (item) => item.id == value,
+                                            )
+                                            .name;
+                                      }),
+                              ),
+                            ),
                           ),
                           const SizedBox(height: 18),
                           _fieldLabel('Subject'),
