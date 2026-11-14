@@ -1023,16 +1023,20 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => DraggableScrollableSheet(
-        initialChildSize: .72,
-        minChildSize: .48,
-        maxChildSize: .92,
+        initialChildSize: .76,
+        minChildSize: .5,
+        maxChildSize: .94,
+        snap: true,
+        snapSizes: const [.76, .94],
         expand: false,
         builder: (context, scrollController) => Container(
+          clipBehavior: Clip.antiAlias,
           decoration: const BoxDecoration(
             color: Color(0xFFF7F8FC),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
           ),
           child: Column(
             children: [
@@ -1046,7 +1050,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 18, 12, 14),
+                padding: const EdgeInsets.fromLTRB(20, 18, 16, 16),
                 child: Row(
                   children: [
                     Container(
@@ -1076,7 +1080,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                           ),
                           SizedBox(height: 3),
                           Text(
-                            'Your society response directory',
+                            'Tap a number to call for help',
                             style: TextStyle(
                               fontSize: 11,
                               color: Color(0xFF818B9D),
@@ -1085,12 +1089,17 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                         ],
                       ),
                     ),
-                    IconButton(
-                      tooltip: 'Close',
-                      onPressed: () => Navigator.of(sheetContext).pop(),
-                      icon: const Icon(
-                        Icons.close_rounded,
-                        color: Color(0xFF818B9D),
+                    Material(
+                      color: const Color(0xFFEEF1F7),
+                      shape: const CircleBorder(),
+                      child: IconButton(
+                        tooltip: 'Close emergency contacts',
+                        onPressed: () => Navigator.of(sheetContext).pop(),
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: Color(0xFF68748A),
+                          size: 19,
+                        ),
                       ),
                     ),
                   ],
@@ -1183,7 +1192,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                       controller: scrollController,
                       padding: const EdgeInsets.fromLTRB(16, 2, 16, 24),
                       itemCount: contacts.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 10),
+                      separatorBuilder: (_, _) => const SizedBox(height: 12),
                       itemBuilder: (context, index) =>
                           _emergencyContactTile(contacts[index]),
                     );
@@ -1214,15 +1223,42 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
               : 'Hours not listed');
     return Container(
       padding: const EdgeInsets.all(15),
-      decoration: _cardDecoration(),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE9EDF4)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x070F1A35),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1EEFF),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  _emergencyCategoryIcon(category),
+                  size: 16,
+                  color: AppColors.indigo,
+                ),
+              ),
+              const SizedBox(width: 9),
               Expanded(
                 child: Text(
                   category.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: AppColors.indigo,
                     fontSize: 9,
@@ -1307,10 +1343,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           _contactNumberButton(contact.phone),
           if (contact.alternatePhone?.isNotEmpty == true) ...[
             const SizedBox(height: 7),
-            _contactNumberButton(
-              contact.alternatePhone!,
-              label: 'Alternate number',
-            ),
+            _contactNumberButton(contact.alternatePhone!),
           ],
           if (contact.notes?.isNotEmpty == true) ...[
             const SizedBox(height: 9),
@@ -1328,46 +1361,76 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     );
   }
 
-  Widget _contactNumberButton(String phone, {String? label}) => SizedBox(
-    width: double.infinity,
-    child: OutlinedButton.icon(
-      onPressed: () => _callEmergencyNumber(phone),
-      icon: const Icon(Icons.call_outlined, size: 16),
-      label: Row(
-        children: [
-          if (label != null)
-            Text(
-              '$label  ',
-              style: const TextStyle(color: Color(0xFF8994A7), fontSize: 11),
-            ),
-          Expanded(
-            child: Text(
-              phone,
-              style: const TextStyle(
-                color: AppColors.ink,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
+  Widget _contactNumberButton(String phone, {String? label}) => Material(
+    color: const Color(0xFFFAFAFD),
+    borderRadius: BorderRadius.circular(12),
+    child: InkWell(
+      onTap: () => _callEmergencyNumber(phone),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 43),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE8EAF2)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.call_rounded, size: 16, color: AppColors.indigo),
+            const SizedBox(width: 9),
+            if (label != null) ...[
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF8994A7),
+                    fontSize: 10,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 5),
+            ],
+            Expanded(
+              child: Text(
+                phone,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.ink,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
-          ),
-        ],
-      ),
-      style: OutlinedButton.styleFrom(
-        alignment: Alignment.centerLeft,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-        foregroundColor: AppColors.indigo,
-        side: const BorderSide(color: Color(0xFFE7EAF1)),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ],
+        ),
       ),
     ),
   );
+
+  IconData _emergencyCategoryIcon(String category) {
+    final value = category.toLowerCase();
+    if (value.contains('ambulance') || value.contains('medical')) {
+      return Icons.medical_services_outlined;
+    }
+    if (value.contains('fire')) return Icons.local_fire_department_outlined;
+    if (value.contains('police')) return Icons.local_police_outlined;
+    if (value.contains('hospital')) return Icons.local_hospital_outlined;
+    if (value.contains('security')) return Icons.shield_outlined;
+    return Icons.support_agent_rounded;
+  }
 
   Future<void> _callEmergencyNumber(String phone) async {
     final uri = Uri(
       scheme: 'tel',
       path: phone.replaceAll(RegExp(r'[^+0-9]'), ''),
     );
-    final launched = await launchUrl(uri);
+    final launched = await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
     if (!launched && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Your device cannot open the phone app.')),
