@@ -62,7 +62,29 @@ class _SocietyAppState extends State<SocietyApp> {
         onFinished: () {
           final navigator = _appNavigatorKey.currentState;
           navigator?.pushReplacement(
-            MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
+            PageRouteBuilder<void>(
+              transitionDuration: const Duration(milliseconds: 520),
+              reverseTransitionDuration: const Duration(milliseconds: 320),
+              pageBuilder: (_, animation, secondaryAnimation) =>
+                  const LoginScreen(),
+              transitionsBuilder: (_, animation, secondaryAnimation, child) {
+                final eased = CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOutCubic,
+                  reverseCurve: Curves.easeInCubic,
+                );
+                return FadeTransition(
+                  opacity: eased,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0, .025),
+                      end: Offset.zero,
+                    ).animate(eased),
+                    child: child,
+                  ),
+                );
+              },
+            ),
           );
         },
       ),

@@ -6,6 +6,7 @@ import '../../../auth/data/auth_api.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../data/resident_dashboard_api.dart';
 import 'resident_change_password_screen.dart';
+import 'resident_edit_profile_screen.dart';
 
 class ResidentProfileScreen extends StatefulWidget {
   const ResidentProfileScreen({
@@ -13,11 +14,13 @@ class ResidentProfileScreen extends StatefulWidget {
     required this.user,
     required this.dashboard,
     required this.header,
+    this.onProfileUpdated,
   });
 
   final AuthenticatedUser user;
   final ResidentDashboardData dashboard;
   final Widget header;
+  final ValueChanged<AuthenticatedUser>? onProfileUpdated;
 
   @override
   State<ResidentProfileScreen> createState() => _ResidentProfileScreenState();
@@ -26,10 +29,16 @@ class ResidentProfileScreen extends StatefulWidget {
 class _ResidentProfileScreenState extends State<ResidentProfileScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _entryController;
+  late AuthenticatedUser _user;
+  late String _residentName;
 
   @override
   void initState() {
     super.initState();
+    _user = widget.user;
+    _residentName = widget.dashboard.residentName?.trim().isNotEmpty == true
+        ? widget.dashboard.residentName!.trim()
+        : widget.user.name;
     _entryController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1050),
@@ -61,8 +70,7 @@ class _ResidentProfileScreenState extends State<ResidentProfileScreen>
   }
 
   String? get _photoUrl {
-    final path =
-        widget.dashboard.residentPhotoUrl ?? widget.user.profilePictureUrl;
+    final path = widget.dashboard.residentPhotoUrl ?? _user.profilePictureUrl;
     if (path == null || path.trim().isEmpty) return null;
     final parsed = Uri.tryParse(path);
     if (parsed == null) return null;
@@ -72,7 +80,7 @@ class _ResidentProfileScreenState extends State<ResidentProfileScreen>
         ? configuredBaseUrl
         : kIsWeb
         ? 'http://localhost:5000/api/v1'
-        : 'http://10.0.2.2:5000/api/v1';
+        : 'http://localhost:5000/api/v1';
     return Uri.parse(baseUrl)
         .resolve(path.startsWith('/') ? path : '/$path')
         .toString();
@@ -82,8 +90,25 @@ class _ResidentProfileScreenState extends State<ResidentProfileScreen>
     Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) =>
-            ResidentChangePasswordScreen(accessToken: widget.user.accessToken),
+            ResidentChangePasswordScreen(accessToken: _user.accessToken),
       ),
+    );
+  }
+
+  Future<void> _editProfile() async {
+    final savedUser = await Navigator.of(context).push<AuthenticatedUser>(
+      MaterialPageRoute<AuthenticatedUser>(
+        builder: (_) => ResidentEditProfileScreen(user: _user),
+      ),
+    );
+    if (savedUser == null || !mounted) return;
+    setState(() {
+      _user = savedUser;
+      _residentName = savedUser.name;
+    });
+    widget.onProfileUpdated?.call(savedUser);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Profile updated successfully.')),
     );
   }
 
@@ -117,106 +142,126 @@ class _ResidentProfileScreenState extends State<ResidentProfileScreen>
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(18, 8, 18, 30),
                 children: [
-            _entry(_profileHero(photoUrl), 0),
-            const SizedBox(height: 16),
-            _entry(
-              _section('Your contact', Icons.contact_mail_outlined, [
-                _infoTile(
-                  Icons.mail_outline_rounded,
-                  'Email',
-                  widget.user.email,
-                ),
-                _infoTile(
-                  Icons.phone_outlined,
-                  'Phone',
-                  _value(widget.user.phone),
-                ),
-              ]),
-              1,
-            ),
-            const SizedBox(height: 14),
-            _entry(
-              _section('Society details', Icons.apartment_rounded, [
-                _infoTile(
-                  Icons.apartment_rounded,
-                  'Your society',
-                  _value(dashboard.societyName),
-                ),
-                _infoTile(
-                  Icons.location_on_outlined,
-                  'Address',
-                  _value(dashboard.societyAddress),
-                ),
-                _infoTile(
-                  Icons.mail_outline_rounded,
-                  'Society email',
-                  _value(dashboard.societyEmail),
-                ),
-                _infoTile(
-                  Icons.phone_outlined,
-                  'Society phone',
-                  _value(dashboard.societyPhone),
-                ),
-              ]),
-              2,
-            ),
-            const SizedBox(height: 14),
-            _entry(
-              _section('Resident details', Icons.home_work_outlined, [
-                _infoTile(
-                  Icons.home_outlined,
-                  'Home',
-                  unitLabel.isEmpty ? 'Not assigned' : unitLabel,
-                ),
-                _infoTile(
-                  Icons.layers_outlined,
-                  'Floor',
-                  _value(dashboard.floorName),
-                ),
-                _infoTile(Icons.verified_user_outlined, 'Role', 'Resident'),
-              ]),
-              3,
-            ),
-            const SizedBox(height: 14),
-            _entry(
-              _section('Account details', Icons.manage_accounts_outlined, [
-                _infoTile(
-                  Icons.check_circle_outline_rounded,
-                  'Account status',
-                  _label(widget.user.status),
-                ),
-                _infoTile(
-                  Icons.event_outlined,
-                  'Account created',
-                  _date(widget.user.createdAt),
-                ),
-                _infoTile(
-                  Icons.login_rounded,
-                  'Last sign-in',
-                  _dateTime(widget.user.lastLoginAt),
-                ),
-              ]),
-              4,
-            ),
-            const SizedBox(height: 14),
-            _entry(
-              _section('Quick actions', Icons.bolt_rounded, [
-                _actionTile(
-                  Icons.key_outlined,
-                  'Change password',
-                  'Update your account password',
-                  onTap: _changePassword,
-                ),
-                _actionTile(
-                  Icons.logout_rounded,
-                  'Sign out',
-                  'Sign out of this device',
-                  onTap: _returnToLogin,
-                  isDestructive: true,
-                ),
-              ]),
-              5,
-            ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: _editProfile,
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      label: const Text('Edit profile'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.ink,
+                        textStyle: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
+                  _entry(_profileHero(photoUrl), 0),
+                  const SizedBox(height: 16),
+                  _entry(
+                    _section('Your contact', Icons.contact_mail_outlined, [
+                      _infoTile(
+                        Icons.mail_outline_rounded,
+                        'Email',
+                        _user.email,
+                      ),
+                      _infoTile(
+                        Icons.phone_outlined,
+                        'Phone',
+                        _value(_user.phone),
+                      ),
+                    ]),
+                    1,
+                  ),
+                  const SizedBox(height: 14),
+                  _entry(
+                    _section('Society details', Icons.apartment_rounded, [
+                      _infoTile(
+                        Icons.apartment_rounded,
+                        'Your society',
+                        _value(dashboard.societyName),
+                      ),
+                      _infoTile(
+                        Icons.location_on_outlined,
+                        'Address',
+                        _value(dashboard.societyAddress),
+                      ),
+                      _infoTile(
+                        Icons.mail_outline_rounded,
+                        'Society email',
+                        _value(dashboard.societyEmail),
+                      ),
+                      _infoTile(
+                        Icons.phone_outlined,
+                        'Society phone',
+                        _value(dashboard.societyPhone),
+                      ),
+                    ]),
+                    2,
+                  ),
+                  const SizedBox(height: 14),
+                  _entry(
+                    _section('Resident details', Icons.home_work_outlined, [
+                      _infoTile(
+                        Icons.home_outlined,
+                        'Home',
+                        unitLabel.isEmpty ? 'Not assigned' : unitLabel,
+                      ),
+                      _infoTile(
+                        Icons.layers_outlined,
+                        'Floor',
+                        _value(dashboard.floorName),
+                      ),
+                      _infoTile(
+                        Icons.verified_user_outlined,
+                        'Role',
+                        'Resident',
+                      ),
+                    ]),
+                    3,
+                  ),
+                  const SizedBox(height: 14),
+                  _entry(
+                    _section(
+                      'Account details',
+                      Icons.manage_accounts_outlined,
+                      [
+                        _infoTile(
+                          Icons.check_circle_outline_rounded,
+                          'Account status',
+                          _label(_user.status),
+                        ),
+                        _infoTile(
+                          Icons.event_outlined,
+                          'Account created',
+                          _date(_user.createdAt),
+                        ),
+                        _infoTile(
+                          Icons.login_rounded,
+                          'Last sign-in',
+                          _dateTime(_user.lastLoginAt),
+                        ),
+                      ],
+                    ),
+                    4,
+                  ),
+                  const SizedBox(height: 14),
+                  _entry(
+                    _section('Quick actions', Icons.bolt_rounded, [
+                      _actionTile(
+                        Icons.key_outlined,
+                        'Change password',
+                        'Update your account password',
+                        onTap: _changePassword,
+                      ),
+                      _actionTile(
+                        Icons.logout_rounded,
+                        'Sign out',
+                        'Sign out of this device',
+                        onTap: _returnToLogin,
+                        isDestructive: true,
+                      ),
+                    ]),
+                    5,
+                  ),
                 ],
               ),
             ),
@@ -227,10 +272,8 @@ class _ResidentProfileScreenState extends State<ResidentProfileScreen>
   }
 
   Widget _profileHero(String? photoUrl) {
-    final status = _label(widget.user.status);
-    final fullName = widget.dashboard.residentName?.trim().isNotEmpty == true
-        ? widget.dashboard.residentName!.trim()
-        : widget.user.name;
+    final status = _label(_user.status);
+    final fullName = _residentName;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(

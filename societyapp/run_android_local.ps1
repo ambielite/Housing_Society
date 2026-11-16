@@ -1,3 +1,5 @@
+param([switch]$PrepareOnly)
+
 $ErrorActionPreference = 'Stop'
 
 $adb = Join-Path $env:LOCALAPPDATA 'Android\Sdk\platform-tools\adb.exe'
@@ -24,5 +26,10 @@ if ($LASTEXITCODE -ne 0) {
     throw 'Could not create the phone-to-PC port mapping. Check the USB connection and USB debugging authorization.'
 }
 
-Write-Host "Phone $deviceId is mapped to the local backend on port 5000. Starting Flutter..."
+Write-Host "Phone $deviceId is mapped to the local backend on port 5000."
+if ($PrepareOnly) {
+    exit 0
+}
+
+Write-Host 'Starting Flutter...'
 flutter run -d $deviceId --dart-define=API_BASE_URL=http://localhost:5000/api/v1

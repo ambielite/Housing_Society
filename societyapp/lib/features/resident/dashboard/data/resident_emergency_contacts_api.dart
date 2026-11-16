@@ -11,7 +11,7 @@ String get _apiBaseUrl => _configuredApiBaseUrl.isNotEmpty
     ? _configuredApiBaseUrl.replaceFirst(RegExp(r'/v1/?$'), '')
     : kIsWeb
     ? 'http://localhost:5000/api'
-    : 'http://10.0.2.2:5000/api';
+    : 'http://localhost:5000/api';
 
 class ResidentEmergencyContact {
   const ResidentEmergencyContact({

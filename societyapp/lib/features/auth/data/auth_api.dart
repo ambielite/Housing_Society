@@ -13,7 +13,7 @@ String get _apiBaseUrl {
   if (kReleaseMode) return '';
   return kIsWeb
       ? 'http://localhost:5000/api/v1'
-      : 'http://10.0.2.2:5000/api/v1';
+      : 'http://localhost:5000/api/v1';
 }
 
 class AuthenticatedUser {
@@ -24,6 +24,8 @@ class AuthenticatedUser {
     required this.accessToken,
     required this.roles,
     required this.permissions,
+    this.firstName,
+    this.lastName,
     this.employeeCode,
     this.phone,
     this.profilePictureUrl,
@@ -36,6 +38,8 @@ class AuthenticatedUser {
   final String userId;
   final String name;
   final String email;
+  final String? firstName;
+  final String? lastName;
   final String accessToken;
   final List<String> roles;
   final List<String> permissions;
@@ -46,6 +50,30 @@ class AuthenticatedUser {
   final String? societyId;
   final DateTime? createdAt;
   final DateTime? lastLoginAt;
+
+  AuthenticatedUser copyWith({
+    String? name,
+    String? email,
+    String? firstName,
+    String? lastName,
+    String? phone,
+  }) => AuthenticatedUser(
+    userId: userId,
+    name: name ?? this.name,
+    email: email ?? this.email,
+    accessToken: accessToken,
+    roles: roles,
+    permissions: permissions,
+    firstName: firstName ?? this.firstName,
+    lastName: lastName ?? this.lastName,
+    employeeCode: employeeCode,
+    phone: phone ?? this.phone,
+    profilePictureUrl: profilePictureUrl,
+    status: status,
+    societyId: societyId,
+    createdAt: createdAt,
+    lastLoginAt: lastLoginAt,
+  );
 }
 
 class AuthApi {
@@ -112,6 +140,8 @@ class AuthApi {
         permissions: (user['permissions'] as List<dynamic>? ?? const [])
             .map((permission) => permission.toString())
             .toList(growable: false),
+        firstName: firstName,
+        lastName: lastName,
         employeeCode: user['guard_employee_code']?.toString(),
         phone: user['phone']?.toString(),
         profilePictureUrl: user['profile_picture_url']?.toString(),
@@ -148,6 +178,53 @@ class AuthApi {
 
   static Future<void> forgotPassword({required String email}) async {
     await _post('/auth/resident-forgot-password', {'email': email});
+  }
+
+  static Future<Map<String, dynamic>> updateResidentProfile({
+    required String accessToken,
+    required String firstName,
+    required String lastName,
+    required String email,
+    required String phone,
+  }) async {
+    _requireConfiguredApiBaseUrl();
+    try {
+      final response = await http
+          .patch(
+            Uri.parse('$_apiBaseUrl/users/me/profile'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $accessToken',
+            },
+            body: jsonEncode({
+              'firstName': firstName,
+              'lastName': lastName,
+              'email': email,
+              'phone': phone,
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
+      final body = response.body.isEmpty
+          ? <String, dynamic>{}
+          : jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.statusCode == 401) SessionManager.expire();
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw AuthException(
+          body['message'] as String? ?? 'Profile could not be updated.',
+        );
+      }
+      return body['data'] as Map<String, dynamic>? ?? const {};
+    } on AuthException {
+      rethrow;
+    } on http.ClientException {
+      throw const AuthException('Cannot reach the server. Try again.');
+    } on TimeoutException {
+      throw const AuthException(
+        'The server took too long to respond. Try again.',
+      );
+    } on FormatException {
+      throw const AuthException('The server returned an invalid response.');
+    }
   }
 
   static Future<void> resetPassword({

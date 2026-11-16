@@ -65,15 +65,15 @@ extension _SecurityDeliveriesBuilder on _SecurityHomeState {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: showingDeliveries
                 ? data.deliveries.isEmpty
-                    ? [_emptyCard('Incoming deliveries will appear here.')]
-                    : data.deliveries
-                          .map((delivery) => _deliveryCard(delivery, data))
-                          .toList()
+                      ? [_emptyCard('Incoming deliveries will appear here.')]
+                      : data.deliveries
+                            .map((delivery) => _deliveryCard(delivery, data))
+                            .toList()
                 : data.parcels.isEmpty
-                    ? [_emptyCard('Parcels logged at the gate will appear here.')]
-                    : data.parcels
-                          .map((parcel) => _parcelCard(parcel, data))
-                          .toList(),
+                ? [_emptyCard('Parcels logged at the gate will appear here.')]
+                : data.parcels
+                      .map((parcel) => _parcelCard(parcel, data))
+                      .toList(),
           ),
         ),
       ],
@@ -83,7 +83,7 @@ extension _SecurityDeliveriesBuilder on _SecurityHomeState {
   Widget _deliverySwitch(String label, int index) => ChoiceChip(
     label: Text(label),
     selected: _deliveryTab == index,
-    onSelected: (_) => setState(() => _deliveryTab = index),
+    onSelected: (_) => _selectDeliveryTab(index),
     selectedColor: const Color(0xFFEAE8FF),
     labelStyle: TextStyle(
       color: _deliveryTab == index ? AppColors.indigo : AppColors.inkSoft,
@@ -143,15 +143,15 @@ extension _SecurityDeliveriesBuilder on _SecurityHomeState {
                       '$unitLabel${visitor == null ? '' : ' · ${visitor.name}'}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.black,
-                        fontSize: 11,
-                      ),
+                      style: const TextStyle(color: Colors.black, fontSize: 11),
                     ),
                   ],
                 ),
               ),
-              _statusBadge(delivery.status, _deliveryStatusColor(delivery.status)),
+              _statusBadge(
+                delivery.status,
+                _deliveryStatusColor(delivery.status),
+              ),
             ],
           ),
           if (delivery.courierName?.isNotEmpty == true) ...[
@@ -175,7 +175,9 @@ extension _SecurityDeliveriesBuilder on _SecurityHomeState {
   }
 
   Widget _parcelCard(_Parcel parcel, _GuardSnapshot data) {
-    final delivery = data.deliveries.where((item) => item.id == parcel.deliveryId);
+    final delivery = data.deliveries.where(
+      (item) => item.id == parcel.deliveryId,
+    );
     final parent = delivery.isEmpty ? null : delivery.first;
     final matchingUnits = parent == null
         ? const <_GuardUnit>[]
@@ -222,10 +224,7 @@ extension _SecurityDeliveriesBuilder on _SecurityHomeState {
                       '${unit?.label ?? 'Delivery'} · ${parcel.storageLocation?.isNotEmpty == true ? parcel.storageLocation : 'No storage location'}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.black,
-                        fontSize: 11,
-                      ),
+                      style: const TextStyle(color: Colors.black, fontSize: 11),
                     ),
                   ],
                 ),

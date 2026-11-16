@@ -11,7 +11,7 @@ String get _apiBaseUrl => _configuredApiBaseUrl.isNotEmpty
     ? _configuredApiBaseUrl
     : kIsWeb
     ? 'http://localhost:5000/api/v1'
-    : 'http://10.0.2.2:5000/api/v1';
+    : 'http://localhost:5000/api/v1';
 
 class ResidentDashboardData {
   const ResidentDashboardData({

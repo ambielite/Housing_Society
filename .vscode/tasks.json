@@ -1,0 +1,19 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Prepare Android phone backend connection",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\societyapp\\run_android_local.ps1",
+        "-PrepareOnly"
+      ],
+      "problemMatcher": []
+    }
+  ]
+}

@@ -33,8 +33,7 @@ extension _SecurityVisitorsBuilder on _SecurityHomeState {
                         filter == 'ALL' ? 'All' : _statusLabel(filter),
                       ),
                       selected: _visitorFilter == filter,
-                      onSelected: (_) =>
-                          setState(() => _visitorFilter = filter),
+                      onSelected: (_) => _selectVisitorFilter(filter),
                       selectedColor: const Color(0xFFEAE8FF),
                       labelStyle: TextStyle(
                         color: _visitorFilter == filter
@@ -122,10 +121,7 @@ extension _SecurityVisitorsBuilder on _SecurityHomeState {
                       '${_visitorTypeLabel(pass, data)}  ·  ${data.gateName(pass.gateId)}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.black,
-                        fontSize: 11,
-                      ),
+                      style: const TextStyle(color: Colors.black, fontSize: 11),
                     ),
                     if (data.destinationLabel(pass)
                         case final destination?) ...[

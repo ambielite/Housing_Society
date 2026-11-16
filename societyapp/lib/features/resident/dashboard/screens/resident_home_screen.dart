@@ -35,6 +35,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
   late Future<ResidentDashboardData> _dashboardFuture;
   late Future<List<ResidentComplaint>> _complaintsFuture;
   ResidentDashboardData? _dashboardData;
+  String? _updatedResidentName;
   Timer? _dashboardRefreshTimer;
   Timer? _complaintsRefreshTimer;
   Timer? _visitorRequestsRefreshTimer;
@@ -50,7 +51,8 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
   List<ResidentDeliveryNotification> _deliveryNotifications = const [];
   List<ResidentAppNotification> _notifications = const [];
 
-  String get _firstName => widget.user.name.trim().split(' ').first;
+  String get _residentDisplayName => _updatedResidentName ?? widget.user.name;
+  String get _firstName => _residentDisplayName.trim().split(' ').first;
 
   @override
   void initState() {
@@ -294,10 +296,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                           SizedBox(height: 3),
                           Text(
                             'Updates for your society and home',
-                            style: TextStyle(
-                              color: Colors.black,
-                              fontSize: 11,
-                            ),
+                            style: TextStyle(color: Colors.black, fontSize: 11),
                           ),
                         ],
                       ),
@@ -332,10 +331,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                       SizedBox(height: 4),
                       Text(
                         'New notifications will appear here.',
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontSize: 12,
-                        ),
+                        style: TextStyle(color: Colors.black, fontSize: 12),
                       ),
                     ],
                   ),
@@ -652,6 +648,11 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                       user: widget.user,
                       dashboard: dashboard,
                       header: _topBar(context, dashboard),
+                      onProfileUpdated: (user) {
+                        if (!mounted) return;
+                        setState(() => _updatedResidentName = user.name);
+                        unawaited(_refreshDashboard().catchError((_) {}));
+                      },
                     );
                   }
                   return Column(
@@ -662,8 +663,9 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                       ),
                       Expanded(
                         child: switch (_activeSection) {
-                          _ResidentSection.visitors =>
-                            ResidentVisitorsScreen(user: widget.user),
+                          _ResidentSection.visitors => ResidentVisitorsScreen(
+                            user: widget.user,
+                          ),
                           _ResidentSection.complaints =>
                             ResidentComplaintsScreen(user: widget.user),
                           _ResidentSection.amenities => ResidentAmenitiesScreen(
@@ -671,85 +673,99 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                             onBookingCreated: _addUpcomingBooking,
                           ),
                           _ => RefreshIndicator(
-                    color: AppColors.indigo,
-                    onRefresh: _refreshDashboard,
-                    child: CustomScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      slivers: [
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
-                          sliver: SliverList.list(
-                            children: [
-                              const SizedBox(height: 26),
-                              _greeting(),
-                              const SizedBox(height: 17),
-                              _emergencyContactsCard(dashboard),
-                              if (_visitorRequests.isNotEmpty) ...[
-                                const SizedBox(height: 16),
-                                _visitorAttentionSection(),
-                              ],
-                              if (_deliveryNotifications.isNotEmpty) ...[
-                                const SizedBox(height: 12),
-                                _deliveryAttentionSection(),
-                              ],
-                              const SizedBox(height: 25),
-                              _sectionTitle('Quick actions', trailing: ''),
-                              const SizedBox(height: 14),
-                              _quickActions(context),
-                              const SizedBox(height: 27),
-                              _sectionTitle(
-                                'Complaint status',
-                                trailing: 'View all',
-                                onTap: _openHelp,
-                              ),
-                              const SizedBox(height: 13),
-                              _complaintStatusSection(context),
-                              const SizedBox(height: 27),
-                              _sectionTitle(
-                                'Maintenance',
-                                trailing: 'View details',
-                              ),
-                              const SizedBox(height: 13),
-                              _maintenanceCard(dashboard),
-                              if (dashboard.upcomingBookings.isNotEmpty) ...[
-                                const SizedBox(height: 27),
-                                const Text(
-                                  'Upcoming booking',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: -.25,
-                                    color: AppColors.ink,
+                            color: AppColors.indigo,
+                            onRefresh: _refreshDashboard,
+                            child: CustomScrollView(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              slivers: [
+                                SliverPadding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    20,
+                                    14,
+                                    20,
+                                    28,
+                                  ),
+                                  sliver: SliverList.list(
+                                    children: [
+                                      const SizedBox(height: 26),
+                                      _greeting(),
+                                      const SizedBox(height: 17),
+                                      _emergencyContactsCard(dashboard),
+                                      if (_visitorRequests.isNotEmpty) ...[
+                                        const SizedBox(height: 16),
+                                        _visitorAttentionSection(),
+                                      ],
+                                      if (_deliveryNotifications
+                                          .isNotEmpty) ...[
+                                        const SizedBox(height: 12),
+                                        _deliveryAttentionSection(),
+                                      ],
+                                      const SizedBox(height: 25),
+                                      _sectionTitle(
+                                        'Quick actions',
+                                        trailing: '',
+                                      ),
+                                      const SizedBox(height: 14),
+                                      _quickActions(context),
+                                      const SizedBox(height: 27),
+                                      _sectionTitle(
+                                        'Complaint status',
+                                        trailing: 'View all',
+                                        onTap: _openHelp,
+                                      ),
+                                      const SizedBox(height: 13),
+                                      _complaintStatusSection(context),
+                                      const SizedBox(height: 27),
+                                      _sectionTitle(
+                                        'Maintenance',
+                                        trailing: 'View details',
+                                      ),
+                                      const SizedBox(height: 13),
+                                      _maintenanceCard(dashboard),
+                                      if (dashboard
+                                          .upcomingBookings
+                                          .isNotEmpty) ...[
+                                        const SizedBox(height: 27),
+                                        const Text(
+                                          'Upcoming booking',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w800,
+                                            letterSpacing: -.25,
+                                            color: AppColors.ink,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 13),
+                                        ...dashboard.upcomingBookings.expand(
+                                          (booking) => [
+                                            _upcomingBookingCard(booking),
+                                            const SizedBox(height: 10),
+                                          ],
+                                        ),
+                                      ],
+                                      const SizedBox(height: 27),
+                                      _sectionTitle(
+                                        'Announcements',
+                                        trailing:
+                                            '${dashboard.notices.length} updates',
+                                      ),
+                                      const SizedBox(height: 13),
+                                      ...dashboard.notices.expand(
+                                        (notice) => [
+                                          _noticeCard(notice),
+                                          const SizedBox(height: 10),
+                                        ],
+                                      ),
+                                      if (dashboard.notices.isEmpty)
+                                        _emptyCard(
+                                          'There are no current notices.',
+                                        ),
+                                      const SizedBox(height: 16),
+                                    ],
                                   ),
                                 ),
-                                const SizedBox(height: 13),
-                                ...dashboard.upcomingBookings.expand(
-                                  (booking) => [
-                                    _upcomingBookingCard(booking),
-                                    const SizedBox(height: 10),
-                                  ],
-                                ),
                               ],
-                              const SizedBox(height: 27),
-                              _sectionTitle(
-                                'Announcements',
-                                trailing: '${dashboard.notices.length} updates',
-                              ),
-                              const SizedBox(height: 13),
-                              ...dashboard.notices.expand(
-                                (notice) => [
-                                  _noticeCard(notice),
-                                  const SizedBox(height: 10),
-                                ],
-                              ),
-                              if (dashboard.notices.isEmpty)
-                                _emptyCard('There are no current notices.'),
-                              const SizedBox(height: 16),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+                            ),
                           ),
                         },
                       ),
@@ -859,7 +875,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
         radius: 22,
         backgroundColor: const Color(0xFFEAE8FF),
         child: Text(
-          _initials(widget.user.name),
+          _initials(_residentDisplayName),
           style: const TextStyle(
             color: AppColors.indigo,
             fontWeight: FontWeight.w800,
@@ -879,7 +895,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           fit: BoxFit.cover,
           errorBuilder: (_, _, _) => Center(
             child: Text(
-              _initials(widget.user.name),
+              _initials(_residentDisplayName),
               style: const TextStyle(
                 color: AppColors.indigo,
                 fontWeight: FontWeight.w800,
@@ -949,7 +965,10 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
         const SizedBox(height: 5),
         const Text(
           'Here’s what’s happening in your community.',
-          style: TextStyle(fontSize: 13, color: Color.fromARGB(255, 11, 11, 11)),
+          style: TextStyle(
+            fontSize: 13,
+            color: Color.fromARGB(255, 11, 11, 11),
+          ),
         ),
       ],
     );
@@ -1024,10 +1043,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                       SizedBox(height: 3),
                       Text(
                         'Police, ambulance, security & more',
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontSize: 11,
-                        ),
+                        style: TextStyle(color: Colors.black, fontSize: 11),
                       ),
                     ],
                   ),
@@ -1109,10 +1125,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                           SizedBox(height: 3),
                           Text(
                             'Tap a number to call for help',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.black,
-                            ),
+                            style: TextStyle(fontSize: 11, color: Colors.black),
                           ),
                         ],
                       ),
@@ -1337,10 +1350,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
               Expanded(
                 child: Text(
                   subtitle,
-                  style: const TextStyle(
-                    color: Colors.black,
-                    fontSize: 11,
-                  ),
+                  style: const TextStyle(color: Colors.black, fontSize: 11),
                 ),
               ),
             ],
@@ -1358,10 +1368,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                 Expanded(
                   child: Text(
                     contact.address!,
-                    style: const TextStyle(
-                      color: Colors.black,
-                      fontSize: 11,
-                    ),
+                    style: const TextStyle(color: Colors.black, fontSize: 11),
                   ),
                 ),
               ],
@@ -1412,10 +1419,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.black,
-                    fontSize: 10,
-                  ),
+                  style: const TextStyle(color: Colors.black, fontSize: 10),
                 ),
               ),
               const SizedBox(width: 5),
@@ -1455,10 +1459,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
       scheme: 'tel',
       path: phone.replaceAll(RegExp(r'[^+0-9]'), ''),
     );
-    final launched = await launchUrl(
-      uri,
-      mode: LaunchMode.externalApplication,
-    );
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!launched && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Your device cannot open the phone app.')),
@@ -1617,8 +1618,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
       child: Column(
         children: [
           for (var index = 0; index < invoices.length; index++) ...[
-            if (index > 0)
-              const Divider(height: 1, color: Color(0xFFEBEFF5)),
+            if (index > 0) const Divider(height: 1, color: Color(0xFFEBEFF5)),
             _maintenanceInvoiceRow(invoices[index], dashboard.currency),
           ],
         ],
@@ -1674,10 +1674,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                 const SizedBox(height: 5),
                 Text(
                   dueDate,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: Colors.black,
-                  ),
+                  style: const TextStyle(fontSize: 10, color: Colors.black),
                 ),
               ],
             ),
@@ -1928,10 +1925,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                       '${_capitalize(visitorType)}  ·  ${request.gateName}  ·  $waitingLabel',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.black,
-                        fontSize: 11,
-                      ),
+                      style: const TextStyle(color: Colors.black, fontSize: 11),
                     ),
                   ],
                 ),
@@ -2424,10 +2418,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                 const SizedBox(height: 7),
                 Text(
                   '${notice.postedAt!.day} ${_monthName(notice.postedAt!.month)} ${notice.postedAt!.year}',
-                  style: const TextStyle(
-                    color: Colors.black,
-                    fontSize: 12,
-                  ),
+                  style: const TextStyle(color: Colors.black, fontSize: 12),
                 ),
               ],
               const SizedBox(height: 18),
@@ -2548,12 +2539,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
               2,
               onTap: _openVisitors,
             ),
-            _tab(
-              Icons.help_outline_rounded,
-              'Help',
-              3,
-              onTap: _openHelp,
-            ),
+            _tab(Icons.help_outline_rounded, 'Help', 3, onTap: _openHelp),
             _tab(
               Icons.person_outline_rounded,
               'Profile',
@@ -2580,7 +2566,9 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
               Icon(
                 icon,
                 size: 21,
-                color: selected ? AppColors.indigo : const Color.fromARGB(255, 0, 1, 3),
+                color: selected
+                    ? AppColors.indigo
+                    : const Color.fromARGB(255, 0, 1, 3),
               ),
               const SizedBox(height: 4),
               Text(
@@ -2588,7 +2576,9 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                 style: TextStyle(
                   fontSize: 9,
                   fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                  color: selected ? AppColors.indigo : const Color.fromARGB(255, 0, 1, 3),
+                  color: selected
+                      ? AppColors.indigo
+                      : const Color.fromARGB(255, 0, 1, 3),
                 ),
               ),
             ],

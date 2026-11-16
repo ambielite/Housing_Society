@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../data/auth_api.dart';
+import '../widgets/auth_brand_header.dart';
 import 'reset_password_screen.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
@@ -43,15 +44,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
       _error = null;
     });
     try {
-      await AuthApi.forgotPassword(
-        email: _emailController.text.trim(),
-      );
+      await AuthApi.forgotPassword(email: _emailController.text.trim());
       if (mounted) {
         Navigator.of(context).push<void>(
           MaterialPageRoute<void>(
-            builder: (_) => ResetPasswordScreen(
-              email: _emailController.text.trim(),
-            ),
+            builder: (_) =>
+                ResetPasswordScreen(email: _emailController.text.trim()),
           ),
         );
       }
@@ -72,114 +70,57 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light.copyWith(
         statusBarColor: Colors.transparent,
-        systemNavigationBarColor: Colors.transparent,
-        systemNavigationBarDividerColor: Colors.transparent,
-        systemNavigationBarContrastEnforced: false,
-        systemStatusBarContrastEnforced: false,
+        systemNavigationBarColor: const Color(0xFFF7FAFD),
         systemNavigationBarIconBrightness: Brightness.dark,
       ),
       child: Scaffold(
-        backgroundColor: const Color(0xFFF8F5EC),
+        backgroundColor: const Color(0xFFF7FAFD),
         body: SafeArea(
-        top: false,
-        bottom: false,
-        child: Column(
-          children: [
-            SizedBox(
-              height:
-                  (keyboardOpen ? 96.0 : 190.0) +
-                  MediaQuery.viewPaddingOf(context).top,
-              child: _recoveryHero(),
-            ),
-            Expanded(
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 500),
-                  child: ListView(
-                    padding: EdgeInsets.fromLTRB(
-                      22,
-                      22,
-                      22,
-                      MediaQuery.viewPaddingOf(context).bottom + 24,
+          top: false,
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    AuthBrandHeader(
+                      height: keyboardOpen ? 220 : 270,
+                      headline: 'A secure way back in.',
+                      subtitle: 'Your community account stays protected.',
+                      onBack: () => Navigator.of(context).pop(),
+                      backLabel: 'Back to sign in',
                     ),
-                    children: [
-                      FadeTransition(
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        22,
+                        6,
+                        22,
+                        MediaQuery.viewPaddingOf(context).bottom + 24,
+                      ),
+                      child: FadeTransition(
                         opacity: entrance,
                         child: SlideTransition(
                           position: entrance.drive(
                             Tween<Offset>(
-                              begin: const Offset(0, .12),
+                              begin: const Offset(0, .08),
                               end: Offset.zero,
                             ),
                           ),
                           child: _requestContent(),
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
-          ],
-        ),
+          ),
         ),
       ),
     );
   }
-
-  Widget _recoveryHero() => Stack(
-    fit: StackFit.expand,
-    children: [
-      Image.asset('assets/images/shubhnivas_residence.jpg', fit: BoxFit.cover),
-      const DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xC8052D32), Color(0xE8052D32)],
-          ),
-        ),
-      ),
-      Padding(
-        padding: EdgeInsets.fromLTRB(
-          22,
-          MediaQuery.viewPaddingOf(context).top +
-              (MediaQuery.viewInsetsOf(context).bottom == 0 ? 12 : 0),
-          22,
-          MediaQuery.viewInsetsOf(context).bottom == 0 ? 12 : 0,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.arrow_back_rounded),
-                  color: Colors.white,
-                  tooltip: 'Back to sign in',
-                ),
-                const SizedBox(width: 6),
-                const Text(
-                  'Account recovery',
-                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700),
-                ),
-              ],
-            ),
-            if (MediaQuery.viewInsetsOf(context).bottom == 0) ...[
-              const Spacer(),
-              const Text(
-                'A secure way back in.',
-                style: TextStyle(color: Color(0xFFFFD56A), fontFamily: 'serif', fontSize: 25),
-              ),
-              const SizedBox(height: 4),
-              const Text('Your community account stays protected.', style: TextStyle(color: Color(0xFFE3E9E4), fontSize: 12)),
-            ],
-          ],
-        ),
-      ),
-    ],
-  );
 
   Widget _requestContent() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -187,7 +128,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
       _heading(
         icon: Icons.mark_email_unread_rounded,
         title: 'Recover your account',
-        message: 'Enter your account email to continue resetting your password.',
+        message:
+            'Enter your account email to continue resetting your password.',
       ),
       const SizedBox(height: 26),
       _card(
@@ -253,13 +195,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
             gradient: LinearGradient(
               colors: success
                   ? const [Color(0xFF39C89A), Color(0xFF159B75)]
-                  : const [Color(0xFF0D5354), Color(0xFF082F36)],
+                  : const [Color(0xFF16466F), Color(0xFF102A43)],
             ),
             borderRadius: BorderRadius.circular(25),
             boxShadow: [
               BoxShadow(
-                color: (success ? const Color(0xFF159B75) : const Color(0xFF0D5354))
-                    .withValues(alpha: .22),
+                color:
+                    (success
+                            ? const Color(0xFF159B75)
+                            : const Color(0xFF16466F))
+                        .withValues(alpha: .22),
                 blurRadius: 22,
                 offset: const Offset(0, 9),
               ),
@@ -273,8 +218,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
         title,
         textAlign: TextAlign.center,
         style: const TextStyle(
-          color: Color(0xFF18363A),
-          fontFamily: 'serif',
+          color: Color(0xFF102A43),
           fontSize: 23,
           fontWeight: FontWeight.w800,
           letterSpacing: -.3,
@@ -285,7 +229,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
         message,
         textAlign: TextAlign.center,
         style: const TextStyle(
-          color: Color(0xFF718489),
+          color: Color(0xFF5B6E82),
           fontSize: 14,
           height: 1.5,
         ),
@@ -296,12 +240,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
   Widget _card(Widget child) => Container(
     padding: const EdgeInsets.all(18),
     decoration: BoxDecoration(
-      color: Color(0xFFFFFEFB),
+      color: Color(0xFFFFFFFF),
       borderRadius: BorderRadius.circular(21),
-      border: Border.all(color: Color(0xFFE0D9C8)),
+      border: Border.all(color: Color(0xFFDDE6EF)),
       boxShadow: const [
         BoxShadow(
-          color: Color(0x14052D32),
+          color: Color(0x14102A43),
           blurRadius: 20,
           offset: Offset(0, 7),
         ),
@@ -342,14 +286,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
               dimension: 18,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                color: const Color(0xFF17383B),
+                color: const Color(0xFF152B46),
               ),
             )
           : Icon(icon ?? Icons.send_rounded, size: 18),
       label: Text(label),
       style: FilledButton.styleFrom(
-        backgroundColor: const Color(0xFFDDB84E),
-        foregroundColor: const Color(0xFF17383B),
+        backgroundColor: const Color(0xFFFFD000),
+        foregroundColor: const Color(0xFF152B46),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       ),
     ),
@@ -359,25 +303,25 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     onPressed: () => Navigator.of(context).pop(),
     icon: const Icon(Icons.arrow_back_rounded, size: 17),
     label: const Text('Back to sign in'),
-    style: TextButton.styleFrom(foregroundColor: const Color(0xFF84682F)),
+    style: TextButton.styleFrom(foregroundColor: const Color(0xFF2786C5)),
   );
 
   InputDecoration _decoration(String label, IconData icon) => InputDecoration(
     labelText: label,
-    prefixIcon: Icon(icon, color: Color(0xFF879895)),
+    prefixIcon: Icon(icon, color: Color(0xFF718096)),
     filled: true,
-    fillColor: const Color(0xFFFFFEFB),
+    fillColor: const Color(0xFFFFFFFF),
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(14),
-      borderSide: const BorderSide(color: Color(0xFFE0D9C8)),
+      borderSide: const BorderSide(color: Color(0xFFDDE6EF)),
     ),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(14),
-      borderSide: const BorderSide(color: Color(0xFFE0D9C8)),
+      borderSide: const BorderSide(color: Color(0xFFDDE6EF)),
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(14),
-      borderSide: const BorderSide(color: Color(0xFF9A7835), width: 1.5),
+      borderSide: const BorderSide(color: Color(0xFF2786C5), width: 1.5),
     ),
   );
 }

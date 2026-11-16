@@ -1,6 +1,7 @@
 const service = require('./users.service');
 const ApiResponse = require('../../common/ApiResponse');
 const asyncHandler = require('../../common/asyncHandler');
+const ApiError = require('../../common/ApiError');
 
 const listUsers = asyncHandler(async (req, res) => {
   const result = await service.listUsers(req.query);
@@ -29,6 +30,21 @@ const updateProfile = asyncHandler(async (req, res) => {
     profilePicture: req.file || null,
   });
   return ApiResponse.success(res, user, 'User updated successfully');
+});
+
+const updateMyProfile = asyncHandler(async (req, res) => {
+  if (!req.user.roles.some((role) => ['RESIDENT_APP', 'RESIDENT'].includes(role))) {
+    throw new ApiError(403, 'Only resident accounts can update their profile here');
+  }
+  // Never accept account or society identifiers from the client for a
+  // self-service update. The authenticated user ID is the only target.
+  const user = await service.updateProfile(req.user.id, {
+    email: req.body.email,
+    firstName: req.body.firstName,
+    lastName: req.body.lastName,
+    phone: req.body.phone,
+  });
+  return ApiResponse.success(res, user, 'Profile updated successfully');
 });
 
 const updateStatus = asyncHandler(async (req, res) => {
@@ -64,6 +80,7 @@ module.exports = {
   getUser,
   createUser,
   updateProfile,
+  updateMyProfile,
   updateStatus,
   archiveUser,
   forceLogout,

@@ -149,7 +149,7 @@ class _SecurityProfileScreenState extends State<SecurityProfileScreen>
         ? configuredBaseUrl
         : kIsWeb
         ? 'http://localhost:5000/api/v1'
-        : 'http://10.0.2.2:5000/api/v1';
+        : 'http://localhost:5000/api/v1';
     return Uri.parse(baseUrl)
         .resolve(path.startsWith('/') ? path : '/$path')
         .toString();

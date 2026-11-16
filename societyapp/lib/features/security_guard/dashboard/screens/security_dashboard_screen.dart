@@ -41,7 +41,7 @@ String get _apiBaseUrl => _configuredApiBaseUrl.isNotEmpty
     ? _configuredApiBaseUrl
     : kIsWeb
     ? 'http://localhost:5000/api/v1'
-    : 'http://10.0.2.2:5000/api/v1';
+    : 'http://localhost:5000/api/v1';
 
 String? _optionalString(Object? value) {
   final text = value?.toString().trim();
@@ -157,6 +157,16 @@ class _SecurityHomeState extends State<_SecurityHome> {
   final ValueNotifier<int> _shiftRevision = ValueNotifier(0);
   final ValueNotifier<DateTime> _shiftClock = ValueNotifier(DateTime.now());
   Timer? _shiftClockTimer;
+
+  void _selectDeliveryTab(int index) {
+    if (_deliveryTab == index) return;
+    setState(() => _deliveryTab = index);
+  }
+
+  void _selectVisitorFilter(String filter) {
+    if (_visitorFilter == filter) return;
+    setState(() => _visitorFilter = filter);
+  }
 
   @override
   void initState() {
@@ -303,7 +313,9 @@ class _SecurityHomeState extends State<_SecurityHome> {
               if (value.length < 5) {
                 ScaffoldMessenger.of(dialogContext).showSnackBar(
                   const SnackBar(
-                    content: Text('Enter at least 5 characters for the reason.'),
+                    content: Text(
+                      'Enter at least 5 characters for the reason.',
+                    ),
                   ),
                 );
                 return;
@@ -1263,10 +1275,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
               tooltip: 'Refresh shift details',
               visualDensity: VisualDensity.compact,
               padding: EdgeInsets.zero,
-              constraints: const BoxConstraints.tightFor(
-                width: 34,
-                height: 34,
-              ),
+              constraints: const BoxConstraints.tightFor(width: 34, height: 34),
               onPressed: _shiftSyncRunning
                   ? null
                   : () => _refreshShiftAssignments(showResult: true),
@@ -1702,10 +1711,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
           ),
         ),
         const SizedBox(width: 5),
-        Text(
-          time,
-          style: const TextStyle(color: Colors.black, fontSize: 10),
-        ),
+        Text(time, style: const TextStyle(color: Colors.black, fontSize: 10)),
       ],
     ),
   );
@@ -1756,7 +1762,9 @@ class _SecurityHomeState extends State<_SecurityHome> {
             Icon(
               icon,
               size: 21,
-              color: _tab == index ? AppColors.indigo : const Color.fromARGB(255, 0, 4, 3),
+              color: _tab == index
+                  ? AppColors.indigo
+                  : const Color.fromARGB(255, 0, 4, 3),
             ),
             const SizedBox(height: 4),
             Text(
