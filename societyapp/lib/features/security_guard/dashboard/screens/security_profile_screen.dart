@@ -259,7 +259,7 @@ class _SecurityProfileScreenState extends State<SecurityProfileScreen>
                           const Text(
                             'Security staff account',
                             style: TextStyle(
-                              color: AppColors.inkSoft,
+                              color: Colors.black,
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                             ),
@@ -523,7 +523,7 @@ class _SecurityProfileScreenState extends State<SecurityProfileScreen>
               Text(
                 label,
                 style: const TextStyle(
-                  color: AppColors.muted,
+                  color: Colors.black,
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
                 ),
@@ -532,7 +532,7 @@ class _SecurityProfileScreenState extends State<SecurityProfileScreen>
               Text(
                 value,
                 style: const TextStyle(
-                  color: AppColors.inkSoft,
+                  color: Colors.black,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                   height: 1.3,
@@ -595,7 +595,7 @@ class _SecurityProfileScreenState extends State<SecurityProfileScreen>
                   Text(
                     'Sign out',
                     style: TextStyle(
-                      color: AppColors.inkSoft,
+                      color: Colors.black,
                       fontSize: 12,
                       fontWeight: FontWeight.w800,
                     ),
@@ -603,7 +603,7 @@ class _SecurityProfileScreenState extends State<SecurityProfileScreen>
                   SizedBox(height: 2),
                   Text(
                     'Sign out of this device',
-                    style: TextStyle(color: AppColors.muted, fontSize: 10),
+                    style: TextStyle(color: Colors.black, fontSize: 10),
                   ),
                 ],
               ),

@@ -205,12 +205,12 @@ class _ResidentAmenitiesScreenState extends State<ResidentAmenitiesScreen> {
                             .where((text) => text.isNotEmpty).join(' · '),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Color(0xFF827D79), fontSize: 11),
+                        style: const TextStyle(color: Colors.black, fontSize: 11),
                       ),
                       if (amenity.capacity != null) ...[
                         const SizedBox(height: 4),
                         Text('Capacity ${amenity.capacity}', style: const TextStyle(
-                          color: Color(0xFF89837E), fontSize: 10,
+                          color: Colors.black, fontSize: 10,
                         )),
                       ],
                     ],

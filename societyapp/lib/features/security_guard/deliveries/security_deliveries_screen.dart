@@ -144,7 +144,7 @@ extension _SecurityDeliveriesBuilder on _SecurityHomeState {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: AppColors.muted,
+                        color: Colors.black,
                         fontSize: 11,
                       ),
                     ),
@@ -158,7 +158,7 @@ extension _SecurityDeliveriesBuilder on _SecurityHomeState {
             const SizedBox(height: 10),
             Text(
               delivery.courierName!,
-              style: const TextStyle(color: AppColors.muted, fontSize: 11),
+              style: const TextStyle(color: Colors.black, fontSize: 11),
             ),
           ],
           if (allowed.isNotEmpty) ...[
@@ -223,7 +223,7 @@ extension _SecurityDeliveriesBuilder on _SecurityHomeState {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: AppColors.muted,
+                        color: Colors.black,
                         fontSize: 11,
                       ),
                     ),

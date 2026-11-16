@@ -290,7 +290,7 @@ class _NewComplaintScreenState extends State<NewComplaintScreen> {
   InputDecoration _decoration({required String hint, required IconData icon}) =>
       InputDecoration(
         hintText: hint,
-        prefixIcon: Icon(icon, color: AppColors.muted),
+        prefixIcon: Icon(icon, color: Colors.black),
         filled: true,
         fillColor: Colors.white,
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),

@@ -12,10 +12,12 @@ class ResidentProfileScreen extends StatefulWidget {
     super.key,
     required this.user,
     required this.dashboard,
+    required this.header,
   });
 
   final AuthenticatedUser user;
   final ResidentDashboardData dashboard;
+  final Widget header;
 
   @override
   State<ResidentProfileScreen> createState() => _ResidentProfileScreenState();
@@ -103,17 +105,18 @@ class _ResidentProfileScreenState extends State<ResidentProfileScreen>
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
-      appBar: AppBar(
-        title: const Text('Profile'),
-        backgroundColor: AppColors.canvas,
-        foregroundColor: AppColors.ink,
-        elevation: 0,
-      ),
       body: SafeArea(
         top: false,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(18, 8, 18, 30),
+        child: Column(
           children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
+              child: widget.header,
+            ),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(18, 8, 18, 30),
+                children: [
             _entry(_profileHero(photoUrl), 0),
             const SizedBox(height: 16),
             _entry(
@@ -214,6 +217,9 @@ class _ResidentProfileScreenState extends State<ResidentProfileScreen>
               ]),
               5,
             ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -297,7 +303,7 @@ class _ResidentProfileScreenState extends State<ResidentProfileScreen>
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: AppColors.inkSoft,
+                    color: Colors.black,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
@@ -403,7 +409,7 @@ class _ResidentProfileScreenState extends State<ResidentProfileScreen>
               Text(
                 label,
                 style: const TextStyle(
-                  color: AppColors.muted,
+                  color: Colors.black,
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
                 ),
@@ -412,7 +418,7 @@ class _ResidentProfileScreenState extends State<ResidentProfileScreen>
               Text(
                 value,
                 style: const TextStyle(
-                  color: AppColors.inkSoft,
+                  color: Colors.black,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                   height: 1.3,
@@ -565,7 +571,7 @@ class _ProfileActionTileState extends State<_ProfileActionTile> {
                         Text(
                           widget.title,
                           style: const TextStyle(
-                            color: AppColors.inkSoft,
+                            color: Colors.black,
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
                           ),
@@ -574,7 +580,7 @@ class _ProfileActionTileState extends State<_ProfileActionTile> {
                         Text(
                           widget.subtitle,
                           style: const TextStyle(
-                            color: AppColors.muted,
+                            color: Colors.black,
                             fontSize: 10,
                           ),
                         ),

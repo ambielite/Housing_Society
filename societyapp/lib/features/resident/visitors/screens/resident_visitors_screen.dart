@@ -178,7 +178,7 @@ class _ResidentVisitorsScreenState extends State<ResidentVisitorsScreen>
                                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.ink)),
                           ),
                           Text('${_history.length} records',
-                              style: const TextStyle(fontSize: 12, color: Color(0xFF8792A7))),
+                              style: const TextStyle(fontSize: 12, color: Colors.black)),
                         ],
                       ),
                       const SizedBox(height: 12),
@@ -240,7 +240,7 @@ class _ResidentVisitorsScreenState extends State<ResidentVisitorsScreen>
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(visitor.visitorName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.ink, fontWeight: FontWeight.w800, fontSize: 15)),
             const SizedBox(height: 4),
-            Text(details, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF8792A7), fontSize: 11)),
+            Text(details, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.black, fontSize: 11)),
           ])),
           _statusChip(pending ? 'Waiting' : _statusLabel(visitor)),
         ]),
@@ -303,7 +303,7 @@ class _ResidentVisitorsScreenState extends State<ResidentVisitorsScreen>
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                        color: Color(0xFF8792A7), fontSize: 10)),
+                        color: Colors.black, fontSize: 10)),
               ],
             ),
           ),
@@ -323,7 +323,7 @@ class _ResidentVisitorsScreenState extends State<ResidentVisitorsScreen>
 
   Widget _count(int value) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), decoration: BoxDecoration(color: const Color(0xFFECE9FF), borderRadius: BorderRadius.circular(20)), child: Text('$value', style: const TextStyle(color: AppColors.indigo, fontWeight: FontWeight.w800, fontSize: 12)));
 
-  Widget _emptyCard(String text) => Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: const Color(0xFFE8ECF3))), child: Text(text, style: const TextStyle(color: Color(0xFF8792A7), fontSize: 13)));
+  Widget _emptyCard(String text) => Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: const Color(0xFFE8ECF3))), child: Text(text, style: const TextStyle(color: Colors.black, fontSize: 13)));
 
   String _statusLabel(ResidentVisitorRecord visitor) => visitor.residentDecision == 'REJECTED' ? 'Rejected' : _label(visitor.status);
   String _label(String value) => value.replaceAll('_', ' ').toLowerCase().split(' ').map((part) => part.isEmpty ? part : '${part[0].toUpperCase()}${part.substring(1)}').join(' ');

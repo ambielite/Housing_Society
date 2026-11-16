@@ -234,7 +234,7 @@ class _SecurityRegisterVisitorScreenState
                       const SizedBox(height: 5),
                       const Text(
                         'Enter visitor details and select who they are visiting.',
-                        style: TextStyle(color: AppColors.muted, height: 1.4),
+                        style: TextStyle(color: Colors.black, height: 1.4),
                       ),
                       const SizedBox(height: 20),
                       TextFormField(

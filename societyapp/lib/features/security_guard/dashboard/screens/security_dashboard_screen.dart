@@ -114,7 +114,7 @@ class SecurityDashboardScreen extends StatelessWidget {
               const Text(
                 'Sign in using the security option and your employee code.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.muted),
+                style: TextStyle(color: Colors.black),
               ),
               const SizedBox(height: 16),
               FilledButton.icon(
@@ -264,24 +264,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
     _deliverySyncTimer = null;
     _visitorPassSyncTimer?.cancel();
     _visitorPassSyncTimer = null;
-    final gateNames =
-        _loadedSnapshot?.gates.map((gate) => gate.name).toList() ??
-        const <String>[];
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => SecurityProfileScreen(
-          user: widget.user,
-          gateNames: gateNames,
-          profilePhotoUrl: _loadedSnapshot?.accountPhotoUrl,
-          loadShiftAssignments: () =>
-              _GuardApi.loadShiftAssignments(widget.user),
-          onSignOut: _signOut,
-        ),
-      ),
-    );
-    if (mounted) {
-      setState(() => _tab = 0);
-    }
+    if (mounted) setState(() => _tab = 4);
   }
 
   Future<void> _cancelAssignedShift(
@@ -582,6 +565,23 @@ class _SecurityHomeState extends State<_SecurityHome> {
           }
           final data = state.data!;
           _loadedSnapshot = data;
+          if (_tab == 4) {
+            return Column(
+              children: [
+                Expanded(
+                  child: SecurityProfileScreen(
+                    user: widget.user,
+                    gateNames: data.gates.map((gate) => gate.name).toList(),
+                    profilePhotoUrl: data.accountPhotoUrl,
+                    loadShiftAssignments: () =>
+                        _GuardApi.loadShiftAssignments(widget.user),
+                    onSignOut: _signOut,
+                  ),
+                ),
+                _bottomBar(),
+              ],
+            );
+          }
           final content = switch (_tab) {
             1 => _SecurityVisitorsScreen(owner: this, data: data),
             2 => _SecurityGateLogScreen(owner: this, data: data),
@@ -693,7 +693,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
                 fontSize: 9,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 1.3,
-                color: AppColors.muted,
+                color: Colors.black,
               ),
             ),
           ],
@@ -835,7 +835,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
             fontSize: 10,
             fontWeight: FontWeight.w800,
             letterSpacing: 1.15,
-            color: AppColors.muted,
+            color: Colors.black,
           ),
         ),
         const SizedBox(height: 7),
@@ -851,7 +851,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
         const SizedBox(height: 5),
         const Text(
           'Here is what is happening at your gate today.',
-          style: TextStyle(fontSize: 13, color: Color(0xFF7C879B)),
+          style: TextStyle(fontSize: 13, color: Color.fromARGB(255, 0, 6, 17)),
         ),
       ],
     );
@@ -1017,7 +1017,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
               child: Text(
                 'Keep each entry and exit recorded to maintain an accurate gate log.',
                 style: TextStyle(
-                  color: AppColors.inkSoft,
+                  color: Colors.black,
                   fontSize: 12,
                   height: 1.35,
                 ),
@@ -1168,18 +1168,18 @@ class _SecurityHomeState extends State<_SecurityHome> {
           const SizedBox(height: 8),
           Text(
             '${assignment.shiftType.replaceAll('_', ' ')}  ·  ${assignment.scheduleType.replaceAll('_', ' ')} schedule',
-            style: const TextStyle(color: AppColors.muted, fontSize: 12),
+            style: const TextStyle(color: Colors.black, fontSize: 12),
           ),
           if (isCancelled && assignment.cancellationReason != null) ...[
             const SizedBox(height: 8),
             Text(
               'Reason: ${assignment.cancellationReason}',
-              style: const TextStyle(color: AppColors.inkSoft, fontSize: 12),
+              style: const TextStyle(color: Colors.black, fontSize: 12),
             ),
             if (assignment.cancelledAt != null)
               Text(
                 'Cancelled at ${_dateTimeLabel(assignment.cancelledAt!)}',
-                style: const TextStyle(color: AppColors.muted, fontSize: 11),
+                style: const TextStyle(color: Colors.black, fontSize: 11),
               ),
           ],
           if (canCancel) ...[
@@ -1283,7 +1283,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
         const SizedBox(height: 5),
         Text(
           subtitle,
-          style: const TextStyle(color: AppColors.inkSoft, fontSize: 12),
+          style: const TextStyle(color: Colors.black, fontSize: 12),
         ),
         child,
       ],
@@ -1617,7 +1617,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
             const SizedBox(height: 3),
             Text(
               subtitle,
-              style: const TextStyle(color: AppColors.muted, fontSize: 10),
+              style: const TextStyle(color: Colors.black, fontSize: 10),
             ),
           ],
         ),
@@ -1631,7 +1631,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
       Text(
         trailing,
         style: const TextStyle(
-          color: AppColors.muted,
+          color: Colors.black,
           fontSize: 11,
           fontWeight: FontWeight.w600,
         ),
@@ -1653,7 +1653,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
         Text(
           text,
           textAlign: TextAlign.center,
-          style: const TextStyle(color: AppColors.muted, fontSize: 12),
+          style: const TextStyle(color: Colors.black, fontSize: 12),
         ),
       ],
     ),
@@ -1696,7 +1696,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
                 subtitle,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: AppColors.muted, fontSize: 10),
+                style: const TextStyle(color: Colors.black, fontSize: 10),
               ),
             ],
           ),
@@ -1704,7 +1704,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
         const SizedBox(width: 5),
         Text(
           time,
-          style: const TextStyle(color: AppColors.muted, fontSize: 10),
+          style: const TextStyle(color: Colors.black, fontSize: 10),
         ),
       ],
     ),
@@ -1756,7 +1756,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
             Icon(
               icon,
               size: 21,
-              color: _tab == index ? AppColors.indigo : const Color(0xFFA0AABD),
+              color: _tab == index ? AppColors.indigo : const Color.fromARGB(255, 0, 4, 3),
             ),
             const SizedBox(height: 4),
             Text(
@@ -1766,7 +1766,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
                 fontWeight: _tab == index ? FontWeight.w800 : FontWeight.w600,
                 color: _tab == index
                     ? AppColors.indigo
-                    : const Color(0xFFA0AABD),
+                    : const Color.fromARGB(255, 0, 4, 3),
               ),
             ),
           ],
@@ -1801,7 +1801,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
             Text(
               error.toString(),
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.muted, fontSize: 12),
+              style: const TextStyle(color: Colors.black, fontSize: 12),
             ),
             const SizedBox(height: 16),
             FilledButton.icon(

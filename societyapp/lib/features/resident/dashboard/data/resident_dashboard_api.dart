@@ -26,7 +26,7 @@ class ResidentDashboardData {
     this.unitNumber,
     this.towerName,
     this.floorName,
-    this.maintenance,
+    this.maintenance = const [],
     this.upcomingBookings = const [],
     this.notices = const [],
   });
@@ -42,7 +42,7 @@ class ResidentDashboardData {
   final String? unitNumber;
   final String? towerName;
   final String? floorName;
-  final ResidentMaintenance? maintenance;
+  final List<ResidentMaintenance> maintenance;
   final List<ResidentUpcomingBooking> upcomingBookings;
   final List<ResidentNotice> notices;
 
@@ -69,7 +69,11 @@ class ResidentDashboardData {
     final society = _asMap(json['society']);
     final resident = _asMap(json['resident']);
     final unit = _asMap(json['unit']);
-    final maintenance = _asMap(json['maintenance']);
+    final maintenanceRows = json['maintenance'] is List
+        ? json['maintenance'] as List<dynamic>
+        : json['maintenance'] is Map<String, dynamic>
+        ? [json['maintenance']]
+        : const <dynamic>[];
     final bookingRows = json['upcomingBookings'] as List<dynamic>?;
     final legacyBooking = _asMap(json['upcomingBooking']);
     final noticeRows = json['notices'] as List<dynamic>? ?? const [];
@@ -85,9 +89,11 @@ class ResidentDashboardData {
       unitNumber: _string(unit?['number']),
       towerName: _string(unit?['tower']),
       floorName: _string(unit?['floor']),
-      maintenance: maintenance == null
-          ? null
-          : ResidentMaintenance.fromJson(maintenance),
+      maintenance: maintenanceRows
+          .whereType<Map<String, dynamic>>()
+          .map(ResidentMaintenance.fromJson)
+          .where((invoice) => invoice.amount > 0)
+          .toList(),
       upcomingBookings: (bookingRows ?? (legacyBooking == null ? [] : [legacyBooking]))
           .whereType<Map<String, dynamic>>()
           .map(ResidentUpcomingBooking.fromJson)

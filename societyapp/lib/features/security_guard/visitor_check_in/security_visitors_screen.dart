@@ -123,7 +123,7 @@ extension _SecurityVisitorsBuilder on _SecurityHomeState {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: AppColors.muted,
+                        color: Colors.black,
                         fontSize: 11,
                       ),
                     ),
@@ -162,7 +162,7 @@ extension _SecurityVisitorsBuilder on _SecurityHomeState {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: AppColors.inkSoft,
+                    color: Colors.black,
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                   ),
@@ -174,7 +174,7 @@ extension _SecurityVisitorsBuilder on _SecurityHomeState {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.right,
-                style: const TextStyle(color: AppColors.muted, fontSize: 10),
+                style: const TextStyle(color: Colors.black, fontSize: 10),
               ),
             ],
           ),

@@ -246,7 +246,7 @@ class _ResidentAmenityDetailScreenState
                       Text(
                         '${slots.length} ${slots.length == 1 ? 'slot' : 'slots'}',
                         style: const TextStyle(
-                          color: Color(0xFF827D79),
+                          color: Colors.black,
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
                         ),
@@ -340,7 +340,7 @@ class _ResidentAmenityDetailScreenState
                   )),
                   const SizedBox(height: 4),
                   Text('${slot.startTime} – ${slot.endTime}', style: const TextStyle(
-                    color: Color(0xFF827D79), fontSize: 11,
+                    color: Colors.black, fontSize: 11,
                   )),
                   const SizedBox(height: 4),
                   Text('${_money(slot.price)} · Capacity ${slot.capacity}', style: const TextStyle(

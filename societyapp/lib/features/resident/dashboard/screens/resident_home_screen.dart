@@ -17,6 +17,8 @@ import '../../visitors/screens/resident_visitors_screen.dart';
 import '../data/resident_dashboard_api.dart';
 import 'resident_profile_screen.dart';
 
+enum _ResidentSection { home, amenities, visitors, complaints, profile }
+
 class ResidentHomeScreen extends StatefulWidget {
   const ResidentHomeScreen({super.key, required this.user});
 
@@ -29,6 +31,7 @@ class ResidentHomeScreen extends StatefulWidget {
 class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     with WidgetsBindingObserver {
   int _selectedTab = 0;
+  _ResidentSection _activeSection = _ResidentSection.home;
   late Future<ResidentDashboardData> _dashboardFuture;
   late Future<List<ResidentComplaint>> _complaintsFuture;
   ResidentDashboardData? _dashboardData;
@@ -292,7 +295,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                           Text(
                             'Updates for your society and home',
                             style: TextStyle(
-                              color: Color(0xFF818B9D),
+                              color: Colors.black,
                               fontSize: 11,
                             ),
                           ),
@@ -330,7 +333,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                       Text(
                         'New notifications will appear here.',
                         style: TextStyle(
-                          color: Color(0xFF818B9D),
+                          color: Colors.black,
                           fontSize: 12,
                         ),
                       ),
@@ -433,7 +436,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: Color(0xFF68748A),
+                        color: Colors.black,
                         height: 1.4,
                         fontSize: 11,
                       ),
@@ -443,7 +446,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                       Text(
                         _relativeDate(notification.createdAt),
                         style: const TextStyle(
-                          color: Color(0xFF9AA4B4),
+                          color: Colors.black,
                           fontSize: 9,
                         ),
                       ),
@@ -604,22 +607,23 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
         sameTime(first.endTime, second.endTime);
   }
 
-  Future<void> _openProfile(BuildContext context) async {
-    setState(() => _selectedTab = 4);
-    ResidentDashboardData dashboard;
-    try {
-      dashboard = await _dashboardFuture;
-    } catch (_) {
-      dashboard = const ResidentDashboardData();
-    }
-    if (!context.mounted) return;
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) =>
-            ResidentProfileScreen(user: widget.user, dashboard: dashboard),
-      ),
-    );
-    if (mounted) setState(() => _selectedTab = 0);
+  void _openProfile() {
+    setState(() {
+      _selectedTab = 4;
+      _activeSection = _ResidentSection.profile;
+    });
+  }
+
+  void _selectTab(int index) {
+    setState(() {
+      _selectedTab = index;
+      _activeSection = switch (index) {
+        2 => _ResidentSection.visitors,
+        3 => _ResidentSection.complaints,
+        4 => _ResidentSection.profile,
+        _ => _ResidentSection.home,
+      };
+    });
   }
 
   @override
@@ -643,7 +647,30 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                     );
                   }
                   final dashboard = snapshot.data!;
-                  return RefreshIndicator(
+                  if (_selectedTab == 4) {
+                    return ResidentProfileScreen(
+                      user: widget.user,
+                      dashboard: dashboard,
+                      header: _topBar(context, dashboard),
+                    );
+                  }
+                  return Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
+                        child: _topBar(context, dashboard),
+                      ),
+                      Expanded(
+                        child: switch (_activeSection) {
+                          _ResidentSection.visitors =>
+                            ResidentVisitorsScreen(user: widget.user),
+                          _ResidentSection.complaints =>
+                            ResidentComplaintsScreen(user: widget.user),
+                          _ResidentSection.amenities => ResidentAmenitiesScreen(
+                            user: widget.user,
+                            onBookingCreated: _addUpcomingBooking,
+                          ),
+                          _ => RefreshIndicator(
                     color: AppColors.indigo,
                     onRefresh: _refreshDashboard,
                     child: CustomScrollView(
@@ -653,7 +680,6 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                           padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
                           sliver: SliverList.list(
                             children: [
-                              _topBar(context, dashboard),
                               const SizedBox(height: 26),
                               _greeting(),
                               const SizedBox(height: 17),
@@ -667,16 +693,14 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                                 _deliveryAttentionSection(),
                               ],
                               const SizedBox(height: 25),
-                              _sectionTitle(
-                                'Quick actions',
-                                trailing: 'See all',
-                              ),
+                              _sectionTitle('Quick actions', trailing: ''),
                               const SizedBox(height: 14),
                               _quickActions(context),
                               const SizedBox(height: 27),
                               _sectionTitle(
                                 'Complaint status',
                                 trailing: 'View all',
+                                onTap: _openHelp,
                               ),
                               const SizedBox(height: 13),
                               _complaintStatusSection(context),
@@ -726,6 +750,10 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                         ),
                       ],
                     ),
+                          ),
+                        },
+                      ),
+                    ],
                   );
                 },
               ),
@@ -791,7 +819,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                 fontSize: 9,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 1.3,
-                color: AppColors.muted,
+                color: Colors.black,
               ),
             ),
           ],
@@ -807,7 +835,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
         tooltip: 'Account',
         onSelected: (value) {
           if (value == 'profile') {
-            _openProfile(context);
+            _openProfile();
           } else if (value == 'logout') {
             Navigator.of(context).pushAndRemoveUntil(
               MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
@@ -905,7 +933,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
             fontSize: 10,
             fontWeight: FontWeight.w800,
             letterSpacing: 1.15,
-            color: AppColors.muted,
+            color: Colors.black,
           ),
         ),
         const SizedBox(height: 7),
@@ -921,7 +949,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
         const SizedBox(height: 5),
         const Text(
           'Here’s what’s happening in your community.',
-          style: TextStyle(fontSize: 13, color: Color(0xFF7C879B)),
+          style: TextStyle(fontSize: 13, color: Color.fromARGB(255, 11, 11, 11)),
         ),
       ],
     );
@@ -997,7 +1025,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                       Text(
                         'Police, ambulance, security & more',
                         style: TextStyle(
-                          color: Color(0xFF818B9D),
+                          color: Colors.black,
                           fontSize: 11,
                         ),
                       ),
@@ -1083,7 +1111,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                             'Tap a number to call for help',
                             style: TextStyle(
                               fontSize: 11,
-                              color: Color(0xFF818B9D),
+                              color: Colors.black,
                             ),
                           ),
                         ],
@@ -1133,7 +1161,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                                 '${snapshot.error}',
                                 textAlign: TextAlign.center,
                                 style: const TextStyle(
-                                  color: Color(0xFF68748A),
+                                  color: Colors.black,
                                   fontSize: 13,
                                 ),
                               ),
@@ -1179,7 +1207,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                                 'Your society administrator can add contacts in the admin portal.',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  color: Color(0xFF818B9D),
+                                  color: Colors.black,
                                   fontSize: 12,
                                 ),
                               ),
@@ -1310,7 +1338,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                 child: Text(
                   subtitle,
                   style: const TextStyle(
-                    color: Color(0xFF7F8A9D),
+                    color: Colors.black,
                     fontSize: 11,
                   ),
                 ),
@@ -1331,7 +1359,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                   child: Text(
                     contact.address!,
                     style: const TextStyle(
-                      color: Color(0xFF7F8A9D),
+                      color: Colors.black,
                       fontSize: 11,
                     ),
                   ),
@@ -1350,7 +1378,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
             Text(
               contact.notes!,
               style: const TextStyle(
-                color: Color(0xFF68748A),
+                color: Colors.black,
                 fontSize: 11,
                 height: 1.4,
               ),
@@ -1385,7 +1413,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: Color(0xFF8994A7),
+                    color: Colors.black,
                     fontSize: 10,
                   ),
                 ),
@@ -1438,7 +1466,11 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     }
   }
 
-  Widget _sectionTitle(String title, {required String trailing}) => Row(
+  Widget _sectionTitle(
+    String title, {
+    required String trailing,
+    VoidCallback? onTap,
+  }) => Row(
     children: [
       Expanded(
         child: Text(
@@ -1451,20 +1483,33 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           ),
         ),
       ),
-      Text(
-        trailing,
-        style: const TextStyle(
-          fontSize: 11,
-          color: AppColors.indigo,
-          fontWeight: FontWeight.w700,
+      if (trailing.isNotEmpty)
+        InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(6),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 5),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  trailing,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.indigo,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(width: 2),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: AppColors.indigo,
+                  size: 17,
+                ),
+              ],
+            ),
+          ),
         ),
-      ),
-      const SizedBox(width: 2),
-      const Icon(
-        Icons.chevron_right_rounded,
-        color: AppColors.indigo,
-        size: 17,
-      ),
     ],
   );
 
@@ -1485,7 +1530,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           'Visitors',
           const Color(0xFFE4F7F1),
           const Color(0xFF229B78),
-          onTap: () => _openVisitors(context),
+          onTap: _openVisitors,
         ),
       ),
       const SizedBox(width: 10),
@@ -1495,7 +1540,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           'Complaints',
           const Color(0xFFFFF1E5),
           const Color(0xFFE68A36),
-          onTap: () => _openHelp(context),
+          onTap: _openHelp,
         ),
       ),
       const SizedBox(width: 10),
@@ -1505,7 +1550,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           'Amenities',
           const Color(0xFFE8F1FF),
           const Color(0xFF4784DB),
-          onTap: () => _openAmenities(context),
+          onTap: _openAmenities,
         ),
       ),
     ],
@@ -1539,74 +1584,76 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           style: const TextStyle(
             fontSize: 10,
             fontWeight: FontWeight.w700,
-            color: Color(0xFF59657A),
+            color: Colors.black,
           ),
         ),
       ],
     ),
   );
 
-  Future<void> _openHelp(BuildContext context) async {
-    setState(() => _selectedTab = 3);
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => ResidentComplaintsScreen(user: widget.user),
-      ),
-    );
-    if (mounted) setState(() => _selectedTab = 0);
+  void _openHelp() {
+    _selectTab(3);
   }
 
-  Future<void> _openVisitors(BuildContext context) async {
-    setState(() => _selectedTab = 2);
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => ResidentVisitorsScreen(user: widget.user),
-      ),
-    );
-    if (mounted) setState(() => _selectedTab = 0);
+  void _openVisitors() {
+    _selectTab(2);
   }
 
-  Future<void> _openAmenities(BuildContext context) async {
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => ResidentAmenitiesScreen(
-          user: widget.user,
-          onBookingCreated: _addUpcomingBooking,
-        ),
-      ),
-    );
+  void _openAmenities() {
+    setState(() {
+      _selectedTab = 0;
+      _activeSection = _ResidentSection.amenities;
+    });
   }
 
   Widget _maintenanceCard(ResidentDashboardData dashboard) {
-    final maintenance = dashboard.maintenance;
-    if (maintenance == null) {
+    final invoices = dashboard.maintenance;
+    if (invoices.isEmpty) {
       return _emptyCard('No outstanding maintenance invoice.');
     }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: _cardDecoration(),
+      child: Column(
+        children: [
+          for (var index = 0; index < invoices.length; index++) ...[
+            if (index > 0)
+              const Divider(height: 1, color: Color(0xFFEBEFF5)),
+            _maintenanceInvoiceRow(invoices[index], dashboard.currency),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _maintenanceInvoiceRow(
+    ResidentMaintenance maintenance,
+    String currency,
+  ) {
     final amount = maintenance.amount
         .toStringAsFixed(2)
         .replaceFirst(RegExp(r'\.00$'), '');
     final dueDate = maintenance.dueDate == null
         ? 'Due date unavailable'
         : 'Due ${maintenance.dueDate!.day} ${_monthName(maintenance.dueDate!.month)}';
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: _cardDecoration(),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
       child: Row(
         children: [
           Container(
-            width: 44,
-            height: 44,
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
               color: const Color(0xFFFFF3E9),
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(13),
             ),
             child: const Icon(
               Icons.account_balance_wallet_outlined,
               color: Color(0xFFE28A38),
-              size: 22,
+              size: 21,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 11),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1616,7 +1663,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                       maintenance.billingPeriod ??
                       maintenance.invoiceNumber ??
                       'Maintenance invoice',
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 12,
@@ -1624,24 +1671,25 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                     color: AppColors.ink,
                   ),
                 ),
-                SizedBox(height: 5),
+                const SizedBox(height: 5),
                 Text(
                   dueDate,
                   style: const TextStyle(
                     fontSize: 10,
-                    color: Color(0xFF8994A7),
+                    color: Colors.black,
                   ),
                 ),
               ],
             ),
           ),
+          const SizedBox(width: 8),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '${_currencySymbol(dashboard.currency)} $amount',
+                '${_currencySymbol(currency)} $amount',
                 style: const TextStyle(
-                  fontSize: 15,
+                  fontSize: 14,
                   fontWeight: FontWeight.w800,
                   color: AppColors.ink,
                 ),
@@ -1779,7 +1827,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                       Text(
                         notification.message,
                         style: const TextStyle(
-                          color: Color(0xFF8792A7),
+                          color: Colors.black,
                           fontSize: 12,
                         ),
                       ),
@@ -1881,7 +1929,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: Color(0xFF8792A7),
+                        color: Colors.black,
                         fontSize: 11,
                       ),
                     ),
@@ -1967,7 +2015,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
       color: Colors.white,
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
-        onTap: () => _openHelp(context),
+        onTap: _openHelp,
         borderRadius: BorderRadius.circular(18),
         child: Container(
           padding: const EdgeInsets.all(16),
@@ -2013,7 +2061,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded, color: AppColors.muted),
+              const Icon(Icons.chevron_right_rounded, color: Colors.black),
             ],
           ),
         ),
@@ -2289,7 +2337,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                         _relativeDate(notice.postedAt),
                         style: const TextStyle(
                           fontSize: 9,
-                          color: Color(0xFF9AA4B4),
+                          color: Colors.black,
                         ),
                       ),
                     ],
@@ -2302,7 +2350,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                     style: const TextStyle(
                       fontSize: 10,
                       height: 1.45,
-                      color: Color(0xFF7F8A9D),
+                      color: Colors.black,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -2377,7 +2425,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                 Text(
                   '${notice.postedAt!.day} ${_monthName(notice.postedAt!.month)} ${notice.postedAt!.year}',
                   style: const TextStyle(
-                    color: Color(0xFF8994A7),
+                    color: Colors.black,
                     fontSize: 12,
                   ),
                 ),
@@ -2386,7 +2434,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
               Text(
                 notice.description,
                 style: const TextStyle(
-                  color: Color(0xFF59657A),
+                  color: Colors.black,
                   fontSize: 14,
                   height: 1.6,
                 ),
@@ -2412,12 +2460,12 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.cloud_off_rounded, color: AppColors.muted, size: 40),
+          const Icon(Icons.cloud_off_rounded, color: Colors.black, size: 40),
           const SizedBox(height: 12),
           Text(
             error,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.inkSoft),
+            style: const TextStyle(color: Colors.black),
           ),
           const SizedBox(height: 14),
           FilledButton(
@@ -2435,7 +2483,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     decoration: _cardDecoration(),
     child: Text(
       message,
-      style: const TextStyle(fontSize: 12, color: Color(0xFF8994A7)),
+      style: const TextStyle(fontSize: 12, color: Colors.black),
     ),
   );
 
@@ -2498,19 +2546,19 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
               Icons.people_alt_outlined,
               'Visitors',
               2,
-              onTap: () => _openVisitors(context),
+              onTap: _openVisitors,
             ),
             _tab(
               Icons.help_outline_rounded,
               'Help',
               3,
-              onTap: () => _openHelp(context),
+              onTap: _openHelp,
             ),
             _tab(
               Icons.person_outline_rounded,
               'Profile',
               4,
-              onTap: () => _openProfile(context),
+              onTap: _openProfile,
             ),
           ],
         ),
@@ -2523,7 +2571,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     return Expanded(
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        onTap: onTap ?? () => setState(() => _selectedTab = index),
+        onTap: onTap ?? () => _selectTab(index),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 5),
           child: Column(
@@ -2532,7 +2580,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
               Icon(
                 icon,
                 size: 21,
-                color: selected ? AppColors.indigo : const Color(0xFFA0AABD),
+                color: selected ? AppColors.indigo : const Color.fromARGB(255, 0, 1, 3),
               ),
               const SizedBox(height: 4),
               Text(
@@ -2540,7 +2588,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                 style: TextStyle(
                   fontSize: 9,
                   fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                  color: selected ? AppColors.indigo : const Color(0xFFA0AABD),
+                  color: selected ? AppColors.indigo : const Color.fromARGB(255, 0, 1, 3),
                 ),
               ),
             ],

@@ -398,7 +398,7 @@ class _ResidentComplaintsScreenState extends State<ResidentComplaintsScreen>
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: Color(0xFF7F8A9D),
+                    color: Colors.black,
                     fontSize: 12,
                     height: 1.4,
                   ),
@@ -431,7 +431,7 @@ class _ResidentComplaintsScreenState extends State<ResidentComplaintsScreen>
                         complaint.ticketNumber,
                         textAlign: TextAlign.end,
                         style: const TextStyle(
-                          color: Color(0xFF8994A7),
+                          color: Colors.black,
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
                         ),
@@ -515,7 +515,7 @@ class _ResidentComplaintsScreenState extends State<ResidentComplaintsScreen>
                     Text(
                       'Category  ·  ${currentComplaint.categoryName}',
                       style: const TextStyle(
-                        color: Color(0xFF7F8A9D),
+                        color: Colors.black,
                         fontSize: 12,
                       ),
                     ),
@@ -524,7 +524,7 @@ class _ResidentComplaintsScreenState extends State<ResidentComplaintsScreen>
                   Text(
                     currentComplaint.description,
                     style: const TextStyle(
-                      color: Color(0xFF59657A),
+                      color: Colors.black,
                       fontSize: 14,
                       height: 1.6,
                     ),
@@ -555,7 +555,7 @@ class _ResidentComplaintsScreenState extends State<ResidentComplaintsScreen>
         ),
         child: const Column(
           children: [
-            Icon(Icons.inbox_outlined, color: AppColors.muted, size: 42),
+            Icon(Icons.inbox_outlined, color: Colors.black, size: 42),
             SizedBox(height: 12),
             Text(
               'No complaints yet',
@@ -569,7 +569,7 @@ class _ResidentComplaintsScreenState extends State<ResidentComplaintsScreen>
             Text(
               'Submit a complaint and the society team will follow up.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xFF8994A7), fontSize: 12),
+              style: TextStyle(color: Colors.black, fontSize: 12),
             ),
           ],
         ),

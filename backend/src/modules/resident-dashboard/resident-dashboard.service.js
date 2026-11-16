@@ -35,7 +35,7 @@ const markResidentNotificationRead = async (user, notificationId) => {
 const getDashboard = async (user) => {
   const societyId = user.societyId;
   if (!societyId) {
-    return { society: null, unit: null, maintenance: null, notices: [] };
+    return { society: null, unit: null, maintenance: [], notices: [] };
   }
 
   const homeResult = await query(
@@ -74,7 +74,7 @@ const getDashboard = async (user) => {
     [user.id],
   );
 
-  let maintenance = null;
+  let maintenance = [];
   let upcomingBookings = [];
   if (home?.resident_id) {
     const invoiceResult = await query(
@@ -87,11 +87,10 @@ const getDashboard = async (user) => {
           AND (ou.effective_to IS NULL OR ou.effective_to >= CURRENT_DATE)
           AND i.society_id = $2 AND i.outstanding_amount > 0
           AND i.status IN ('ISSUED', 'PARTIALLY_PAID', 'OVERDUE')
-        ORDER BY i.due_date ASC
-        LIMIT 1`,
+        ORDER BY i.due_date ASC, i.created_at ASC`,
       [home.resident_id, societyId],
     );
-    maintenance = invoiceResult.rows[0] || null;
+    maintenance = invoiceResult.rows;
 
     const bookingResult = await query(
       `SELECT a.name AS amenity_name, b.status,

@@ -241,7 +241,7 @@ class _ResidentChangePasswordScreenState
       const Text(
         'Your current password is required to confirm this change.',
         textAlign: TextAlign.center,
-        style: TextStyle(color: AppColors.muted, fontSize: 12),
+        style: TextStyle(color: Colors.black, fontSize: 12),
       ),
     ],
   );
@@ -338,7 +338,7 @@ class _ResidentChangePasswordScreenState
         description,
         textAlign: TextAlign.center,
         style: const TextStyle(
-          color: AppColors.inkSoft,
+          color: Colors.black,
           fontSize: 14,
           height: 1.45,
         ),
