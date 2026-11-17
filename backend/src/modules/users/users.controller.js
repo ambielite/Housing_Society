@@ -43,6 +43,7 @@ const updateMyProfile = asyncHandler(async (req, res) => {
     firstName: req.body.firstName,
     lastName: req.body.lastName,
     phone: req.body.phone,
+    profilePicture: req.file || null,
   });
   return ApiResponse.success(res, user, 'Profile updated successfully');
 });

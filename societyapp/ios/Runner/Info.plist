@@ -26,6 +26,8 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Security staff use the camera to take a selfie before signing in.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Choose a profile photo to personalize your resident account.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

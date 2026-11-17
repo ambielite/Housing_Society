@@ -1,6 +1,10 @@
+import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../../../auth/data/auth_api.dart';
+import '../data/profile_photo_picker.dart';
 
 class ResidentEditProfileScreen extends StatefulWidget {
   const ResidentEditProfileScreen({super.key, required this.user});
@@ -25,6 +29,8 @@ class _ResidentEditProfileScreenState extends State<ResidentEditProfileScreen> {
   late final TextEditingController _phoneController;
   bool _saving = false;
   String? _error;
+  Uint8List? _selectedPhotoBytes;
+  String? _selectedPhotoName;
 
   @override
   void initState() {
@@ -66,12 +72,14 @@ class _ResidentEditProfileScreenState extends State<ResidentEditProfileScreen> {
     final email = _emailController.text.trim();
     final phone = _phoneController.text.trim();
     try {
-      await AuthApi.updateResidentProfile(
+      final response = await AuthApi.updateResidentProfile(
         accessToken: widget.user.accessToken,
         firstName: firstName,
         lastName: lastName,
         email: email,
         phone: phone,
+        profilePictureBytes: _selectedPhotoBytes,
+        profilePictureFileName: _selectedPhotoName,
       );
       if (!mounted) return;
       final updatedUser = widget.user.copyWith(
@@ -80,6 +88,9 @@ class _ResidentEditProfileScreenState extends State<ResidentEditProfileScreen> {
         lastName: lastName,
         email: email,
         phone: phone,
+        profilePictureUrl:
+            response['profile_picture_url']?.toString() ??
+            widget.user.profilePictureUrl,
       );
       _saving = false;
       Navigator.of(context).pop(updatedUser);
@@ -93,6 +104,90 @@ class _ResidentEditProfileScreenState extends State<ResidentEditProfileScreen> {
     } finally {
       if (mounted && _saving) setState(() => _saving = false);
     }
+  }
+
+  Future<void> _choosePhoto({required bool useCamera}) async {
+    try {
+      final image = await pickProfilePhoto(useCamera: useCamera);
+      if (image == null || !mounted) return;
+      final bytes = Uint8List.fromList(image.bytes);
+      if (bytes.length > 5 * 1024 * 1024) {
+        setState(() => _error = 'Choose a photo smaller than 5 MB.');
+        return;
+      }
+      setState(() {
+        _selectedPhotoBytes = bytes;
+        _selectedPhotoName = image.name;
+        _error = null;
+      });
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _error = kIsWeb
+              ? 'Could not open or capture your photo: $error'
+              : 'Could not open your photos. Please try again.';
+        });
+      }
+    }
+  }
+
+  Future<void> _showPhotoOptions() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFFFFFEFB),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 38,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD6DCE4),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text('Update profile photo', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _teal)),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined, color: _teal),
+                title: const Text('Choose from photos'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _choosePhoto(useCamera: false);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.camera_alt_outlined, color: _teal),
+                title: const Text('Take a photo'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _choosePhoto(useCamera: true);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  ImageProvider<Object>? get _profileImage {
+    if (_selectedPhotoBytes != null) return MemoryImage(_selectedPhotoBytes!);
+    final path = widget.user.profilePictureUrl;
+    if (path == null || path.trim().isEmpty) return null;
+    final parsed = Uri.tryParse(path);
+    if (parsed == null) return null;
+    if (parsed.hasScheme) return NetworkImage(parsed.toString());
+    const apiBase = String.fromEnvironment('API_BASE_URL');
+    final base = apiBase.isEmpty ? 'http://localhost:5000/api/v1' : apiBase;
+    return NetworkImage(Uri.parse(base).resolve(path).toString());
   }
 
   InputDecoration _decoration(String label, IconData icon) => InputDecoration(
@@ -115,13 +210,6 @@ class _ResidentEditProfileScreenState extends State<ResidentEditProfileScreen> {
       borderSide: const BorderSide(color: _teal, width: 1.6),
     ),
   );
-
-  String get _initials {
-    final first = _firstNameController.text.trim();
-    final last = _lastNameController.text.trim();
-    return '${first.isNotEmpty ? first[0] : ''}${last.isNotEmpty ? last[0] : ''}'
-        .toUpperCase();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -156,25 +244,34 @@ class _ResidentEditProfileScreenState extends State<ResidentEditProfileScreen> {
               ),
               child: Row(
                 children: [
-                  Container(
-                    width: 66,
-                    height: 66,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: _gold,
-                      borderRadius: BorderRadius.circular(22),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: .45),
-                        width: 2,
-                      ),
-                    ),
-                    child: Text(
-                      _initials.isEmpty ? 'SN' : _initials,
-                      style: const TextStyle(
-                        color: _teal,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 21,
-                      ),
+                  GestureDetector(
+                    onTap: _showPhotoOptions,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        CircleAvatar(
+                          radius: 38,
+                          backgroundColor: _gold,
+                          backgroundImage: _profileImage,
+                          child: _profileImage == null
+                              ? const Icon(Icons.person_rounded, size: 40, color: _teal)
+                              : null,
+                        ),
+                        Positioned(
+                          right: -1,
+                          bottom: -1,
+                          child: Container(
+                            width: 27,
+                            height: 27,
+                            decoration: BoxDecoration(
+                              color: _gold,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
+                            child: const Icon(Icons.camera_alt_rounded, size: 14, color: _teal),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(width: 16),

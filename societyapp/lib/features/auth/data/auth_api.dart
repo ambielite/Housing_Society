@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:housing_society_app/app/session_manager.dart';
 
 const _configuredApiBaseUrl = String.fromEnvironment('API_BASE_URL');
@@ -57,6 +58,7 @@ class AuthenticatedUser {
     String? firstName,
     String? lastName,
     String? phone,
+    String? profilePictureUrl,
   }) => AuthenticatedUser(
     userId: userId,
     name: name ?? this.name,
@@ -68,7 +70,7 @@ class AuthenticatedUser {
     lastName: lastName ?? this.lastName,
     employeeCode: employeeCode,
     phone: phone ?? this.phone,
-    profilePictureUrl: profilePictureUrl,
+    profilePictureUrl: profilePictureUrl ?? this.profilePictureUrl,
     status: status,
     societyId: societyId,
     createdAt: createdAt,
@@ -186,24 +188,42 @@ class AuthApi {
     required String lastName,
     required String email,
     required String phone,
+    Uint8List? profilePictureBytes,
+    String? profilePictureFileName,
   }) async {
     _requireConfiguredApiBaseUrl();
     try {
-      final response = await http
-          .patch(
-            Uri.parse('$_apiBaseUrl/users/me/profile'),
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $accessToken',
-            },
-            body: jsonEncode({
-              'firstName': firstName,
-              'lastName': lastName,
-              'email': email,
-              'phone': phone,
-            }),
-          )
-          .timeout(const Duration(seconds: 20));
+      final request = http.MultipartRequest(
+        'PATCH',
+        Uri.parse('$_apiBaseUrl/users/me/profile'),
+      )..headers['Authorization'] = 'Bearer $accessToken';
+      request.fields.addAll({
+        'firstName': firstName,
+        'lastName': lastName,
+        'email': email,
+        'phone': phone,
+      });
+      if (profilePictureBytes != null) {
+        final extension = (profilePictureFileName ?? '')
+            .split('.')
+            .last
+            .toLowerCase();
+        final subtype = switch (extension) {
+          'png' => 'png',
+          'webp' => 'webp',
+          _ => 'jpeg',
+        };
+        request.files.add(http.MultipartFile.fromBytes(
+          'profilePicture',
+          profilePictureBytes,
+          filename: profilePictureFileName ?? 'profile.jpg',
+          contentType: MediaType('image', subtype),
+        ));
+      }
+      final streamedResponse = await request.send().timeout(
+        const Duration(seconds: 20),
+      );
+      final response = await http.Response.fromStream(streamedResponse);
       final body = response.body.isEmpty
           ? <String, dynamic>{}
           : jsonDecode(response.body) as Map<String, dynamic>;

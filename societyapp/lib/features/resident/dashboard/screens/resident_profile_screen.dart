@@ -70,7 +70,7 @@ class _ResidentProfileScreenState extends State<ResidentProfileScreen>
   }
 
   String? get _photoUrl {
-    final path = widget.dashboard.residentPhotoUrl ?? _user.profilePictureUrl;
+    final path = _user.profilePictureUrl ?? widget.dashboard.residentPhotoUrl;
     if (path == null || path.trim().isEmpty) return null;
     final parsed = Uri.tryParse(path);
     if (parsed == null) return null;
@@ -313,14 +313,7 @@ class _ResidentProfileScreenState extends State<ResidentProfileScreen>
                     : NetworkImage(photoUrl),
                 onBackgroundImageError: photoUrl == null ? null : (_, _) {},
                 child: photoUrl == null
-                    ? Text(
-                        _initials(fullName),
-                        style: const TextStyle(
-                          color: AppColors.indigo,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 19,
-                        ),
-                      )
+                    ? const Icon(Icons.person_rounded, size: 38, color: AppColors.indigo)
                     : null,
               ),
             ),

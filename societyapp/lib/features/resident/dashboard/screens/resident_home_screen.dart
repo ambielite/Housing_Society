@@ -50,6 +50,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
   List<ResidentVisitorRequest> _visitorRequests = const [];
   List<ResidentDeliveryNotification> _deliveryNotifications = const [];
   List<ResidentAppNotification> _notifications = const [];
+  AuthenticatedUser? _updatedUser;
 
   String get _residentDisplayName => _updatedResidentName ?? widget.user.name;
   String get _firstName => _residentDisplayName.trim().split(' ').first;
@@ -645,12 +646,15 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                   final dashboard = snapshot.data!;
                   if (_selectedTab == 4) {
                     return ResidentProfileScreen(
-                      user: widget.user,
+                      user: _updatedUser ?? widget.user,
                       dashboard: dashboard,
                       header: _topBar(context, dashboard),
                       onProfileUpdated: (user) {
                         if (!mounted) return;
-                        setState(() => _updatedResidentName = user.name);
+                        setState(() {
+                          _updatedResidentName = user.name;
+                          _updatedUser = user;
+                        });
                         unawaited(_refreshDashboard().catchError((_) {}));
                       },
                     );
@@ -869,18 +873,25 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
   );
 
   Widget _residentAvatar(ResidentDashboardData dashboard) {
-    final photoUrl = dashboard.residentPhotoUrl;
+    final photoPath = _updatedUser?.profilePictureUrl ?? dashboard.residentPhotoUrl;
+    final photoUrl = photoPath == null || photoPath.isEmpty
+        ? null
+        : Uri.tryParse(photoPath)?.hasScheme == true
+        ? photoPath
+        : Uri.parse(
+            const String.fromEnvironment(
+              'API_BASE_URL',
+              defaultValue: 'http://localhost:5000/api/v1',
+            ),
+          ).resolve(photoPath).toString();
     if (photoUrl == null) {
       return CircleAvatar(
         radius: 22,
         backgroundColor: const Color(0xFFEAE8FF),
-        child: Text(
-          _initials(_residentDisplayName),
-          style: const TextStyle(
-            color: AppColors.indigo,
-            fontWeight: FontWeight.w800,
-            fontSize: 13,
-          ),
+        child: const Icon(
+          Icons.person_rounded,
+          color: AppColors.indigo,
+          size: 26,
         ),
       );
     }
@@ -893,14 +904,11 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           width: 44,
           height: 44,
           fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => Center(
-            child: Text(
-              _initials(_residentDisplayName),
-              style: const TextStyle(
-                color: AppColors.indigo,
-                fontWeight: FontWeight.w800,
-                fontSize: 13,
-              ),
+          errorBuilder: (_, _, _) => const Center(
+            child: Icon(
+              Icons.person_rounded,
+              color: AppColors.indigo,
+              size: 26,
             ),
           ),
         ),

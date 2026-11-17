@@ -68,6 +68,7 @@ class ResidentDashboardData {
   factory ResidentDashboardData.fromJson(Map<String, dynamic> json) {
     final society = _asMap(json['society']);
     final resident = _asMap(json['resident']);
+    final account = _asMap(json['account']);
     final unit = _asMap(json['unit']);
     final maintenanceRows = json['maintenance'] is List
         ? json['maintenance'] as List<dynamic>
@@ -84,7 +85,8 @@ class ResidentDashboardData {
       societyEmail: _string(society?['email']),
       societyPhone: _string(society?['phone']),
       residentName: _string(resident?['name']),
-      residentPhotoUrl: _imageUrl(resident?['photoUrl']),
+      residentPhotoUrl:
+          _imageUrl(account?['photoUrl']) ?? _imageUrl(resident?['photoUrl']),
       currency: _string(society?['currency']) ?? 'INR',
       unitNumber: _string(unit?['number']),
       towerName: _string(unit?['tower']),
