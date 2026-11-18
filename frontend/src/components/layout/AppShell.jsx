@@ -19,7 +19,7 @@ export default function AppShell() {
             <span>Help centre</span>
           </nav>
           <span className="footer-status"><i aria-hidden="true" />All systems operational</span>
-          <span className="footer-credit">Powered by <strong>Ambi Elite</strong></span>
+          <span className="footer-credit">Powered by <strong>Ambi Elite Pvt Ltd</strong></span>
         </footer>
       </div>
     </div>
