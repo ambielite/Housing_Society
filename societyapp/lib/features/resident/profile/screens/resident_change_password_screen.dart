@@ -225,7 +225,7 @@ class _ResidentChangePasswordScreenState
                       : const Icon(Icons.check_rounded),
                   label: Text(_submitting ? 'Updating…' : 'Update password'),
                   style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.indigo,
+                    backgroundColor: AppColors.navy,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
@@ -260,7 +260,7 @@ class _ResidentChangePasswordScreenState
         child: FilledButton(
           onPressed: _goToLogin,
           style: FilledButton.styleFrom(
-            backgroundColor: AppColors.indigo,
+            backgroundColor: AppColors.navy,
             foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),

@@ -4,13 +4,25 @@ const ApiError = require('../../common/ApiError');
 
 const listResidentNotifications = async (user) => {
   if (!user.societyId) return [];
+  // Catch up scheduled meetings when the resident opens or refreshes the bell,
+  // even if the background scheduler was delayed or the app missed its event.
+  await noticesService.processSchedule();
   const result = await query(
-    `SELECT id, title, message, notification_type, priority,
-            reference_type, reference_id, created_at
-       FROM notifications
-      WHERE society_id = $1 AND user_id = $2 AND channel = 'IN_APP'
-        AND is_read = false AND status IN ('PENDING', 'SENT', 'DELIVERED')
-      ORDER BY created_at DESC
+    `SELECT notification.id, notification.title, notification.message,
+            notification.notification_type, notification.priority,
+            notification.reference_type, notification.reference_id, notification.created_at,
+            COALESCE(notification.data, '{}'::jsonb) ||
+              CASE WHEN notice.id IS NULL THEN '{}'::jsonb ELSE
+                jsonb_build_object('scheduledAt', notice.scheduled_at, 'expiresAt', notice.expires_at)
+              END AS data
+       FROM notifications notification
+       LEFT JOIN notices notice
+         ON notification.reference_type = 'NOTICE'
+        AND notice.id = notification.reference_id
+        AND notice.society_id = notification.society_id
+      WHERE notification.society_id = $1 AND notification.user_id = $2 AND notification.channel = 'IN_APP'
+        AND notification.is_read = false AND notification.status IN ('PENDING', 'SENT', 'DELIVERED')
+      ORDER BY notification.created_at DESC
       LIMIT 50`,
     [user.societyId, user.id],
   );
@@ -43,6 +55,12 @@ const getDashboard = async (user) => {
             s.logo_url AS society_logo_url, s.address AS society_address,
             s.email AS society_email, s.phone AS society_phone,
             r.id AS resident_id, r.display_name, r.profile_photo AS resident_photo_url,
+            r.email AS resident_email, r.mobile AS resident_mobile,
+            r.alternate_mobile AS resident_alternate_mobile,
+            r.date_of_birth AS resident_date_of_birth,
+            r.emergency_contact_name, r.emergency_contact_mobile,
+            r.emergency_contact_relation, r.role AS resident_role,
+            r.status AS resident_status,
             t.name AS tower_name, f.name AS floor_name, u.id AS unit_id, u.unit_number
        FROM societies s
        LEFT JOIN residents r
@@ -130,7 +148,15 @@ const getDashboard = async (user) => {
     );
     return firstPage.rows.concat(...remainingPages.map((page) => page.rows));
   };
-  const notices = await getAllNotices('current');
+  // Catch up scheduled notices on dashboard access as well as via the cron job.
+  // This keeps notices visible to residents even if the minute scheduler was
+  // delayed or unavailable when the scheduled time passed.
+  await noticesService.processSchedule();
+  const [currentNotices, upcomingNotices] = await Promise.all([
+    getAllNotices('current'),
+    getAllNotices('upcoming'),
+  ]);
+  const notices = [...currentNotices, ...upcomingNotices];
   notices.sort((left, right) => {
     const leftDate = new Date(
       left.posted_at || left.scheduled_at || left.created_at || 0,
@@ -157,6 +183,15 @@ const getDashboard = async (user) => {
     resident: home?.resident_id ? {
       name: home.display_name,
       photoUrl: home.resident_photo_url,
+      email: home.resident_email,
+      phone: home.resident_mobile,
+      alternatePhone: home.resident_alternate_mobile,
+      dateOfBirth: home.resident_date_of_birth,
+      emergencyContactName: home.emergency_contact_name,
+      emergencyContactPhone: home.emergency_contact_mobile,
+      emergencyContactRelation: home.emergency_contact_relation,
+      role: home.resident_role,
+      status: home.resident_status,
     } : null,
     unit: home?.unit_number ? {
       number: home.unit_number,

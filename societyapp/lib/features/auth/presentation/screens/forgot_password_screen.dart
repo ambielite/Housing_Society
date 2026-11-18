@@ -286,14 +286,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
               dimension: 18,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                color: const Color(0xFF152B46),
+                color: Colors.white,
               ),
             )
           : Icon(icon ?? Icons.send_rounded, size: 18),
       label: Text(label),
       style: FilledButton.styleFrom(
-        backgroundColor: const Color(0xFFFFD000),
-        foregroundColor: const Color(0xFF152B46),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       ),
     ),
@@ -303,7 +301,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     onPressed: () => Navigator.of(context).pop(),
     icon: const Icon(Icons.arrow_back_rounded, size: 17),
     label: const Text('Back to sign in'),
-    style: TextButton.styleFrom(foregroundColor: const Color(0xFF2786C5)),
   );
 
   InputDecoration _decoration(String label, IconData icon) => InputDecoration(

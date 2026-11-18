@@ -299,7 +299,7 @@ function GatesPanel({ societyId, societyName, gates, guards, cards, userNames, v
     </div>
     <div className="section">
       <div className="section-head"><div><h2 className="section-title">Access cards</h2><p className="muted section-hint">Credentials are issued to existing users.</p></div>
-        {hasPermission('ACCESS_CARD_CREATE') && <button className="btn btn-primary" onClick={() => setDialog('new-card')}><span className="button-plus" aria-hidden="true">+</span> Issue access card</button>}</div>
+        {hasPermission('ACCESS_CARD_CREATE') && <button className="btn btn-primary" onClick={() => setDialog('new-card')}><Plus size={18} strokeWidth={2.4} aria-hidden="true" /> Issue access card</button>}</div>
       <DataTable tableClassName="society-table security-actions-table" columns={cardColumns} rows={cards} emptyTitle="No access cards" emptyMessage="Issue a credential to an existing user." />
     </div>
 
@@ -315,7 +315,7 @@ function GatesPanel({ societyId, societyName, gates, guards, cards, userNames, v
     </div>
 
     {deviceDialog === 'list' && <Modal title={`${gateForDevices?.name || 'Gate'} devices`} onClose={() => setDeviceDialog(null)}>
-      <div className="section-head"><p className="muted section-hint">Devices registered for this gate.</p>{hasPermission('GATE_DEVICE_CREATE') && <button className="btn btn-primary btn-sm" onClick={() => setDeviceDialog('new')}><span className="button-plus" aria-hidden="true">+</span> Register device</button>}</div>
+      <div className="section-head"><p className="muted section-hint">Devices registered for this gate.</p>{hasPermission('GATE_DEVICE_CREATE') && <button className="btn btn-primary btn-sm" onClick={() => setDeviceDialog('new')}><Plus size={18} strokeWidth={2.4} aria-hidden="true" /> Register device</button>}</div>
       <DataTable tableClassName="society-table security-actions-table" columns={[
         { key: 'device', header: 'Device', render: (d) => <><span className="cell-title">{label(d.device_type)}</span><span className="cell-sub">{d.serial_no}</span></> },
         { key: 'status', header: 'Status', render: (d) => <SecurityBadge value={d.status} /> },

@@ -22,6 +22,8 @@ class ResidentAppNotification {
     required this.priority,
     this.referenceType,
     this.createdAt,
+    this.scheduledAt,
+    this.expiresAt,
   });
 
   final String id;
@@ -31,9 +33,14 @@ class ResidentAppNotification {
   final String priority;
   final String? referenceType;
   final DateTime? createdAt;
+  final DateTime? scheduledAt;
+  final DateTime? expiresAt;
 
-  factory ResidentAppNotification.fromJson(Map<String, dynamic> json) =>
-      ResidentAppNotification(
+  factory ResidentAppNotification.fromJson(Map<String, dynamic> json) {
+    final data = json['data'] is Map<String, dynamic>
+        ? json['data'] as Map<String, dynamic>
+        : const <String, dynamic>{};
+    return ResidentAppNotification(
         id: '${json['id'] ?? ''}',
         title: '${json['title'] ?? json['subject'] ?? 'Notification'}',
         message: '${json['message'] ?? ''}',
@@ -41,7 +48,10 @@ class ResidentAppNotification {
         priority: '${json['priority'] ?? 'MEDIUM'}',
         referenceType: json['reference_type']?.toString(),
         createdAt: DateTime.tryParse('${json['created_at'] ?? ''}'),
+        scheduledAt: DateTime.tryParse('${data['scheduledAt'] ?? ''}'),
+        expiresAt: DateTime.tryParse('${data['expiresAt'] ?? ''}'),
       );
+  }
 }
 
 class ResidentNotificationsApi {

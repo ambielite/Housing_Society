@@ -22,6 +22,7 @@ class ResidentDashboardData {
     this.societyPhone,
     this.residentName,
     this.residentPhotoUrl,
+    this.residentProfile,
     this.currency = 'INR',
     this.unitNumber,
     this.towerName,
@@ -38,6 +39,7 @@ class ResidentDashboardData {
   final String? societyPhone;
   final String? residentName;
   final String? residentPhotoUrl;
+  final ResidentProfileDetails? residentProfile;
   final String currency;
   final String? unitNumber;
   final String? towerName;
@@ -56,6 +58,7 @@ class ResidentDashboardData {
     societyPhone: societyPhone,
     residentName: residentName,
     residentPhotoUrl: residentPhotoUrl,
+    residentProfile: residentProfile,
     currency: currency,
     unitNumber: unitNumber,
     towerName: towerName,
@@ -87,6 +90,9 @@ class ResidentDashboardData {
       residentName: _string(resident?['name']),
       residentPhotoUrl:
           _imageUrl(account?['photoUrl']) ?? _imageUrl(resident?['photoUrl']),
+      residentProfile: resident == null
+          ? null
+          : ResidentProfileDetails.fromJson(resident),
       currency: _string(society?['currency']) ?? 'INR',
       unitNumber: _string(unit?['number']),
       towerName: _string(unit?['tower']),
@@ -106,6 +112,43 @@ class ResidentDashboardData {
           .toList(),
     );
   }
+}
+
+class ResidentProfileDetails {
+  const ResidentProfileDetails({
+    this.email,
+    this.phone,
+    this.alternatePhone,
+    this.dateOfBirth,
+    this.emergencyContactName,
+    this.emergencyContactPhone,
+    this.emergencyContactRelation,
+    this.role,
+    this.status,
+  });
+
+  final String? email;
+  final String? phone;
+  final String? alternatePhone;
+  final String? dateOfBirth;
+  final String? emergencyContactName;
+  final String? emergencyContactPhone;
+  final String? emergencyContactRelation;
+  final String? role;
+  final String? status;
+
+  factory ResidentProfileDetails.fromJson(Map<String, dynamic> json) =>
+      ResidentProfileDetails(
+        email: _string(json['email']),
+        phone: _string(json['phone']),
+        alternatePhone: _string(json['alternatePhone']),
+        dateOfBirth: _string(json['dateOfBirth']),
+        emergencyContactName: _string(json['emergencyContactName']),
+        emergencyContactPhone: _string(json['emergencyContactPhone']),
+        emergencyContactRelation: _string(json['emergencyContactRelation']),
+        role: _string(json['role']),
+        status: _string(json['status']),
+      );
 }
 
 class ResidentUpcomingBooking {
@@ -167,12 +210,16 @@ class ResidentNotice {
     required this.description,
     required this.status,
     this.postedAt,
+    this.scheduledAt,
+    this.expiresAt,
   });
 
   final String title;
   final String description;
   final String status;
   final DateTime? postedAt;
+  final DateTime? scheduledAt;
+  final DateTime? expiresAt;
 
   factory ResidentNotice.fromJson(Map<String, dynamic> json) => ResidentNotice(
     title: _string(json['title']) ?? '',
@@ -181,6 +228,8 @@ class ResidentNotice {
     postedAt: DateTime.tryParse(
       '${json['posted_at'] ?? json['scheduled_at'] ?? json['created_at'] ?? ''}',
     ),
+    scheduledAt: DateTime.tryParse('${json['scheduled_at'] ?? ''}'),
+    expiresAt: DateTime.tryParse('${json['expires_at'] ?? ''}'),
   );
 }
 

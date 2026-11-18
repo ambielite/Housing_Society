@@ -9,6 +9,7 @@ const sequelize = require("../../../config/database");
 const bcrypt = require("bcryptjs");
 const { QueryTypes } = require("sequelize");
 const { saveProfilePicture, removeProfilePicture } = require("../../users/profilePicture.storage");
+const residentDashboardEvents = require("../../resident-dashboard/residentDashboardEvents");
 
 
 // ============================================================
@@ -348,6 +349,34 @@ const updateResident = async (
 
     const previousPhoto = resident.profilePhoto;
     const profilePhoto = profilePicture ? saveProfilePicture(profilePicture) : null;
+    const changedResidentFields = [
+        ["firstName", "first name"],
+        ["middleName", "middle name"],
+        ["lastName", "last name"],
+        ["email", "email address"],
+        ["mobile", "phone number"],
+        ["alternateMobile", "alternate phone number"],
+        ["dateOfBirth", "date of birth"],
+        ["emergencyContactName", "emergency contact name"],
+        ["emergencyContactMobile", "emergency contact phone"],
+        ["emergencyContactRelation", "emergency contact relationship"],
+        ["role", "resident type"],
+        ["status", "account status"],
+        ["directoryPhoneVisible", "directory visibility"],
+        ["personalFields", "additional profile details"],
+        ["remarks", "resident notes"],
+    ].filter(([field]) => {
+        if (!Object.prototype.hasOwnProperty.call(data, field)) return false;
+        const before = resident[field];
+        const after = data[field];
+        if (before == null && after == null) return false;
+        if (typeof before === "object" || typeof after === "object") {
+            return JSON.stringify(before ?? null) !== JSON.stringify(after ?? null);
+        }
+        return String(before ?? "") !== String(after ?? "");
+    }).map(([, label]) => label);
+    if (profilePhoto) changedResidentFields.push("profile picture");
+    let notificationUserIdForEvent = resident.userId;
     try {
         const updated = await sequelize.transaction(async (transaction) => {
             const savedResident = await residentRepository.update(
@@ -382,9 +411,56 @@ const updateResident = async (
                     { replacements: { profilePhoto, userId: resident.userId }, transaction }
                 );
             }
+            if (changedResidentFields.length > 0) {
+                if (!notificationUserIdForEvent && resident.email) {
+                    const matchingUsers = await sequelize.query(
+                        `SELECT u.id FROM users u
+                         JOIN user_roles ur ON ur.user_id = u.id
+                         JOIN roles r ON r.id = ur.role_id AND r.code = 'RESIDENT_APP' AND r.status = 'ACTIVE'
+                         WHERE u.society_id = :societyId AND lower(u.email) = lower(:email)
+                           AND u.status = 'ACTIVE'
+                           AND (ur.society_id = :societyId OR ur.society_id IS NULL)
+                         LIMIT 1`,
+                        {
+                            replacements: { societyId, email: resident.email },
+                            type: QueryTypes.SELECT,
+                            transaction
+                        }
+                    );
+                    notificationUserIdForEvent = matchingUsers[0]?.id || null;
+                }
+                if (notificationUserIdForEvent) {
+                    const changedDetails = changedResidentFields.join(", ");
+                    await sequelize.query(
+                        `INSERT INTO notifications
+                           (society_id, user_id, channel, notification_type, title, subject, message,
+                            data, reference_type, reference_id, priority, status, is_read, created_at, updated_at)
+                         VALUES
+                           (:societyId, :userId, 'IN_APP', 'OPERATIONAL', :title, :title, :message,
+                            CAST(:data AS jsonb), 'RESIDENT_PROFILE', :residentId, 'MEDIUM', 'PENDING', false, now(), now())`,
+                        {
+                            replacements: {
+                                societyId,
+                                userId: notificationUserIdForEvent,
+                                title: "Your resident profile was updated",
+                                message: `The society admin updated your ${changedDetails}.`,
+                                data: JSON.stringify({ changedFields: changedResidentFields }),
+                                residentId: resident.id
+                            },
+                            transaction
+                        }
+                    );
+                }
+            }
             return savedResident;
         });
         if (profilePhoto) removeProfilePicture(previousPhoto);
+        if (changedResidentFields.length > 0) {
+            residentDashboardEvents.publishToUser(
+                notificationUserIdForEvent,
+                "resident-updated"
+            );
+        }
         return updated;
     } catch (error) {
         removeProfilePicture(profilePhoto);
@@ -427,10 +503,34 @@ const changeResidentStatus = async (
         );
     }
 
-    await residentRepository.update(
-        resident,
-        { status }
-    );
+    const statusChanged = resident.status !== status;
+    await sequelize.transaction(async (transaction) => {
+        await residentRepository.update(resident, { status }, { transaction });
+        if (statusChanged && resident.userId) {
+            await sequelize.query(
+                `INSERT INTO notifications
+                   (society_id, user_id, channel, notification_type, title, subject, message,
+                    data, reference_type, reference_id, priority, status, is_read, created_at, updated_at)
+                 VALUES
+                   (:societyId, :userId, 'IN_APP', 'OPERATIONAL', :title, :title, :message,
+                    CAST(:data AS jsonb), 'RESIDENT_PROFILE', :residentId, 'MEDIUM', 'PENDING', false, now(), now())`,
+                {
+                    replacements: {
+                        societyId,
+                        userId: resident.userId,
+                        title: "Your resident profile was updated",
+                        message: `The society admin updated your account status to ${status.toLowerCase()}.`,
+                        data: JSON.stringify({ changedFields: ["account status"] }),
+                        residentId: resident.id
+                    },
+                    transaction
+                }
+            );
+        }
+    });
+    if (statusChanged) {
+        residentDashboardEvents.publishToUser(resident.userId, "resident-updated");
+    }
 
     return resident;
 };

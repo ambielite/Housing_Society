@@ -487,14 +487,12 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
               dimension: 18,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                color: const Color(0xFF152B46),
+                color: Colors.white,
               ),
             )
           : Icon(icon, size: 18),
       label: Text(label),
       style: FilledButton.styleFrom(
-        backgroundColor: const Color(0xFFFFD000),
-        foregroundColor: const Color(0xFF152B46),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       ),
     ),

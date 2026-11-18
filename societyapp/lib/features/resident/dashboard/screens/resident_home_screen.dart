@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/theme/app_colors.dart';
@@ -15,7 +18,15 @@ import '../data/resident_notifications_api.dart';
 import '../../visitors/data/resident_visitors_api.dart';
 import '../../visitors/screens/resident_visitors_screen.dart';
 import '../data/resident_dashboard_api.dart';
-import 'resident_profile_screen.dart';
+import '../../profile/screens/resident_profile_screen.dart';
+
+const _configuredResidentApiBaseUrl = String.fromEnvironment('API_BASE_URL');
+
+String get _residentApiBaseUrl => _configuredResidentApiBaseUrl.isNotEmpty
+    ? _configuredResidentApiBaseUrl
+    : kIsWeb
+    ? 'http://localhost:5000/api/v1'
+    : 'http://localhost:5000/api/v1';
 
 enum _ResidentSection { home, amenities, visitors, complaints, profile }
 
@@ -36,12 +47,17 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
   late Future<List<ResidentComplaint>> _complaintsFuture;
   ResidentDashboardData? _dashboardData;
   String? _updatedResidentName;
-  Timer? _dashboardRefreshTimer;
   Timer? _complaintsRefreshTimer;
   Timer? _visitorRequestsRefreshTimer;
   Timer? _deliveryNotificationsRefreshTimer;
-  Timer? _notificationsRefreshTimer;
+  Timer? _noticeExpiryTimer;
+  Timer? _residentEventsReconnectTimer;
+  http.Client? _residentEventsClient;
+  StreamSubscription<String>? _residentEventsSubscription;
+  Duration _residentEventsRetryDelay = const Duration(seconds: 2);
+  bool _hadResidentEventsConnection = false;
   bool _refreshingDashboard = false;
+  bool _dashboardRefreshQueued = false;
   bool _refreshingComplaints = false;
   bool _refreshingVisitorRequests = false;
   bool _refreshingDeliveryNotifications = false;
@@ -62,14 +78,11 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     _dashboardFuture = ResidentDashboardApi.load(widget.user.accessToken)
         .then((data) {
           _dashboardData = data;
+          _scheduleNoticeExpiry(data);
           return data;
         });
     _complaintsFuture = ResidentComplaintsApi.listComplaints(
       widget.user.accessToken,
-    );
-    _dashboardRefreshTimer = Timer.periodic(
-      const Duration(seconds: 2),
-      (_) => _refreshDashboardInBackground(),
     );
     _complaintsRefreshTimer = Timer.periodic(
       const Duration(seconds: 2),
@@ -80,6 +93,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
       unawaited(_refreshVisitorRequests());
       unawaited(_refreshDeliveryNotifications());
       unawaited(_refreshNotifications());
+      _connectResidentEvents();
     });
     _visitorRequestsRefreshTimer = Timer.periodic(
       const Duration(seconds: 2),
@@ -89,16 +103,13 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
       const Duration(seconds: 3),
       (_) => _refreshDeliveryNotifications(),
     );
-    _notificationsRefreshTimer = Timer.periodic(
-      const Duration(seconds: 5),
-      (_) => _refreshNotifications(),
-    );
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _refreshDashboardInBackground();
+      _restartResidentEvents();
+      unawaited(_refreshDashboard().catchError((_) {}));
       _refreshComplaintsInBackground();
       _refreshVisitorRequests();
       _refreshDeliveryNotifications();
@@ -108,22 +119,114 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
 
   @override
   void dispose() {
-    _dashboardRefreshTimer?.cancel();
     _complaintsRefreshTimer?.cancel();
     _visitorRequestsRefreshTimer?.cancel();
     _deliveryNotificationsRefreshTimer?.cancel();
-    _notificationsRefreshTimer?.cancel();
+    _noticeExpiryTimer?.cancel();
+    _residentEventsReconnectTimer?.cancel();
+    _residentEventsSubscription?.cancel();
+    _residentEventsClient?.close();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
+  void _restartResidentEvents() {
+    _residentEventsReconnectTimer?.cancel();
+    _residentEventsReconnectTimer = null;
+    _residentEventsSubscription?.cancel();
+    _residentEventsSubscription = null;
+    _residentEventsClient?.close();
+    _residentEventsClient = null;
+    _connectResidentEvents();
+  }
+
+  Future<void> _connectResidentEvents() async {
+    if (!mounted || _residentEventsSubscription != null) return;
+    final client = http.Client();
+    try {
+      final request = http.Request(
+        'GET',
+        Uri.parse('$_residentApiBaseUrl/resident-dashboard/events'),
+      )..headers['Authorization'] = 'Bearer ${widget.user.accessToken}';
+      final response = await client
+          .send(request)
+          .timeout(const Duration(seconds: 15));
+      if (response.statusCode != 200) {
+        client.close();
+        _scheduleResidentEventsReconnect();
+        return;
+      }
+      if (!mounted) {
+        client.close();
+        return;
+      }
+      final recoveringConnection = _hadResidentEventsConnection;
+      _hadResidentEventsConnection = true;
+      _residentEventsClient = client;
+      _residentEventsRetryDelay = const Duration(seconds: 2);
+      _residentEventsSubscription = response.stream
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())
+          .listen(
+            (line) {
+              if (!line.startsWith('data:')) return;
+              try {
+                final event = jsonDecode(line.substring(5).trim());
+                if (event is Map &&
+                    (event['type'] == 'resident-updated' ||
+                        event['type'] == 'notice-published')) {
+                  unawaited(_refreshNotifications());
+                  unawaited(_refreshDashboard().catchError((_) {}));
+                }
+              } catch (_) {
+                // Ignore malformed stream events and keep the connection open.
+              }
+            },
+            onError: (_) => _onResidentEventsDisconnected(client),
+            onDone: () => _onResidentEventsDisconnected(client),
+            cancelOnError: true,
+          );
+      if (recoveringConnection) {
+        unawaited(_refreshNotifications());
+        unawaited(_refreshDashboard().catchError((_) {}));
+      }
+    } catch (_) {
+      client.close();
+      _scheduleResidentEventsReconnect();
+    }
+  }
+
+  void _onResidentEventsDisconnected(http.Client client) {
+    if (!identical(client, _residentEventsClient)) return;
+    _residentEventsSubscription = null;
+    _residentEventsClient = null;
+    client.close();
+    _scheduleResidentEventsReconnect();
+  }
+
+  void _scheduleResidentEventsReconnect() {
+    if (!mounted || (_residentEventsReconnectTimer?.isActive ?? false)) return;
+    final delay = _residentEventsRetryDelay;
+    _residentEventsRetryDelay = Duration(
+      seconds: (_residentEventsRetryDelay.inSeconds * 2).clamp(2, 60).toInt(),
+    );
+    _residentEventsReconnectTimer = Timer(delay, () {
+      _residentEventsReconnectTimer = null;
+      _connectResidentEvents();
+    });
+  }
+
   Future<void> _refreshDashboard() async {
-    if (_refreshingDashboard) return;
+    if (_refreshingDashboard) {
+      _dashboardRefreshQueued = true;
+      return;
+    }
     _refreshingDashboard = true;
     try {
       final data = await ResidentDashboardApi.load(widget.user.accessToken);
       if (mounted) {
         final refreshedData = _mergeLocalBookings(data);
+        _scheduleNoticeExpiry(refreshedData);
         setState(() {
           _dashboardData = refreshedData;
           _dashboardFuture = Future.value(refreshedData);
@@ -131,22 +234,39 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
       }
     } finally {
       _refreshingDashboard = false;
+      if (_dashboardRefreshQueued && mounted) {
+        _dashboardRefreshQueued = false;
+        unawaited(_refreshDashboard().catchError((_) {}));
+      }
     }
   }
 
-  Future<void> _refreshDashboardInBackground() async {
-    if (!mounted ||
-        _refreshingDashboard ||
-        _selectedTab != 0 ||
-        WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed ||
-        ModalRoute.of(context)?.isCurrent == false) {
-      return;
-    }
-    try {
-      await _refreshDashboard();
-    } catch (_) {
-      // Keep showing the last successfully loaded dashboard on network errors.
-    }
+  void _scheduleNoticeExpiry(ResidentDashboardData dashboard) {
+    _noticeExpiryTimer?.cancel();
+    final now = DateTime.now();
+    final upcomingExpiries = dashboard.notices
+        .map((notice) => notice.expiresAt)
+        .whereType<DateTime>()
+        .where((expiry) => expiry.isAfter(now))
+        .toList()
+      ..sort();
+    if (upcomingExpiries.isEmpty) return;
+
+    final delay = upcomingExpiries.first.difference(now);
+    _noticeExpiryTimer = Timer(delay, () {
+      if (!mounted) return;
+      setState(() {});
+      _scheduleNoticeExpiry(dashboard);
+    });
+  }
+
+  List<ResidentNotice> _visibleNotices(ResidentDashboardData dashboard) {
+    final now = DateTime.now();
+    return dashboard.notices.where((notice) {
+      if (notice.status.toUpperCase() == 'EXPIRED') return false;
+      final endsAt = notice.expiresAt;
+      return endsAt == null || endsAt.isAfter(now);
+    }).toList(growable: false);
   }
 
   Future<void> _refreshComplaintsInBackground() async {
@@ -251,7 +371,9 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     }
   }
 
-  void _openNotifications() {
+  Future<void> _openNotifications() async {
+    await _refreshNotifications();
+    if (!mounted) return;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -351,8 +473,9 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                         onTap: () {
                           Navigator.of(sheetContext).pop();
                           unawaited(_markNotificationRead(notification));
-                          _showNotificationDetails(notification);
                         },
+                        onMarkRead: () =>
+                            unawaited(_markNotificationRead(notification)),
                       );
                     },
                   ),
@@ -367,6 +490,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
   Widget _notificationTile(
     ResidentAppNotification notification, {
     required VoidCallback onTap,
+    VoidCallback? onMarkRead,
   }) {
     final isUrgent =
         notification.priority == 'HIGH' || notification.priority == 'CRITICAL';
@@ -438,13 +562,37 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                         fontSize: 11,
                       ),
                     ),
+                    if (notification.referenceType == 'NOTICE' &&
+                        (notification.scheduledAt != null ||
+                            notification.expiresAt != null)) ...[
+                      const SizedBox(height: 7),
+                      if (notification.scheduledAt != null)
+                        Text(
+                          'Meeting: ${_formatDateTime(notification.scheduledAt!)}',
+                          style: const TextStyle(
+                            color: Colors.black,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      if (notification.expiresAt != null)
+                        Text(
+                          'Ends: ${_formatDateTime(notification.expiresAt!)}',
+                          style: const TextStyle(
+                            color: Colors.black,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                    ],
                     if (notification.createdAt != null) ...[
                       const SizedBox(height: 6),
                       Text(
-                        _relativeDate(notification.createdAt),
+                        'Received ${_formatDateTime(notification.createdAt!)}',
                         style: const TextStyle(
-                          color: Colors.black,
-                          fontSize: 9,
+                          color: Color(0xFF5B6479),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
@@ -452,11 +600,28 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                 ),
               ),
               const SizedBox(width: 5),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: Color(0xFF9AA4B4),
-                size: 19,
-              ),
+              if (onMarkRead != null)
+                IconButton(
+                  tooltip: 'Mark as read',
+                  onPressed: onMarkRead,
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 34,
+                    height: 34,
+                  ),
+                  padding: EdgeInsets.zero,
+                  style: IconButton.styleFrom(
+                    backgroundColor: const Color(0xFFE7F7EE),
+                    foregroundColor: const Color(0xFF16834A),
+                  ),
+                  icon: const Icon(Icons.check_rounded, size: 19),
+                )
+              else
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: Color(0xFF9AA4B4),
+                  size: 19,
+                ),
             ],
           ),
         ),
@@ -472,29 +637,6 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     if (notification.referenceType == 'NOTICE') return Icons.campaign_outlined;
     return Icons.notifications_active_outlined;
   }
-
-  Future<void> _showNotificationDetails(ResidentAppNotification notification) =>
-      showDialog<void>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          icon: Icon(
-            _notificationIcon(notification),
-            color:
-                notification.priority == 'HIGH' ||
-                    notification.priority == 'CRITICAL'
-                ? const Color(0xFFD65F4B)
-                : AppColors.indigo,
-          ),
-          title: Text(notification.title),
-          content: SingleChildScrollView(child: Text(notification.message)),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Close'),
-            ),
-          ],
-        ),
-      );
 
   Future<void> _dismissDeliveryNotification(
     ResidentDeliveryNotification notification,
@@ -644,11 +786,17 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                     );
                   }
                   final dashboard = snapshot.data!;
+                  final visibleNotices = _visibleNotices(dashboard);
+                  final profileUpdateNotifications = _notifications
+                      .where(
+                        (item) => item.referenceType == 'RESIDENT_PROFILE',
+                      )
+                      .toList();
                   if (_selectedTab == 4) {
                     return ResidentProfileScreen(
                       user: _updatedUser ?? widget.user,
                       dashboard: dashboard,
-                      header: _topBar(context, dashboard),
+                      header: const SizedBox.shrink(),
                       onProfileUpdated: (user) {
                         if (!mounted) return;
                         setState(() {
@@ -693,6 +841,35 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                                     children: [
                                       const SizedBox(height: 26),
                                       _greeting(),
+                                      if (profileUpdateNotifications
+                                          .isNotEmpty) ...[
+                                        const SizedBox(height: 18),
+                                        _sectionTitle(
+                                          'Profile updates',
+                                          trailing:
+                                              '${profileUpdateNotifications.length} new',
+                                        ),
+                                        const SizedBox(height: 12),
+                                        ...profileUpdateNotifications
+                                            .take(2)
+                                            .map(
+                                              (notification) => Padding(
+                                                padding: const EdgeInsets.only(
+                                                  bottom: 10,
+                                                ),
+                                                child: _notificationTile(
+                                                  notification,
+                                                  onTap: () {
+                                                    unawaited(
+                                                      _markNotificationRead(
+                                                        notification,
+                                                      ),
+                                                    );
+                                                  },
+                                                ),
+                                              ),
+                                            ),
+                                      ],
                                       const SizedBox(height: 17),
                                       _emergencyContactsCard(dashboard),
                                       if (_visitorRequests.isNotEmpty) ...[
@@ -751,16 +928,16 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                                       _sectionTitle(
                                         'Announcements',
                                         trailing:
-                                            '${dashboard.notices.length} updates',
+                                            '${visibleNotices.length} updates',
                                       ),
                                       const SizedBox(height: 13),
-                                      ...dashboard.notices.expand(
+                                      ...visibleNotices.expand(
                                         (notice) => [
                                           _noticeCard(notice),
                                           const SizedBox(height: 10),
                                         ],
                                       ),
-                                      if (dashboard.notices.isEmpty)
+                                      if (visibleNotices.isEmpty)
                                         _emptyCard(
                                           'There are no current notices.',
                                         ),
@@ -1953,7 +2130,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                     icon: const Icon(Icons.check_rounded, size: 18),
                     label: const Text('Approve'),
                     style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.indigo,
+                      backgroundColor: AppColors.navy,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(13),
@@ -1973,8 +2150,6 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                     icon: const Icon(Icons.close_rounded, size: 18),
                     label: const Text('Reject'),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFFD65A54),
-                      side: const BorderSide(color: Color(0xFFD65A54)),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(13),
                       ),
@@ -2336,7 +2511,9 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                         ),
                       ),
                       Text(
-                        _relativeDate(notice.postedAt),
+                        notice.status.toUpperCase() == 'SCHEDULED'
+                            ? 'Scheduled ${_relativeDate(notice.postedAt)}'
+                            : _relativeDate(notice.postedAt),
                         style: const TextStyle(
                           fontSize: 9,
                           color: Colors.black,
@@ -2355,6 +2532,27 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                       color: Colors.black,
                     ),
                   ),
+                  if (notice.scheduledAt != null || notice.expiresAt != null) ...[
+                    const SizedBox(height: 8),
+                    if (notice.scheduledAt != null)
+                      Text(
+                        'Meeting: ${_formatDateTime(notice.scheduledAt!)}',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.black,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    if (notice.expiresAt != null)
+                      Text(
+                        'Ends: ${_formatDateTime(notice.expiresAt!)}',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.black,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                  ],
                   const SizedBox(height: 8),
                   const Text(
                     'Tap to read',
@@ -2422,10 +2620,24 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              if (notice.postedAt != null) ...[
+              if (notice.scheduledAt != null) ...[
                 const SizedBox(height: 7),
                 Text(
-                  '${notice.postedAt!.day} ${_monthName(notice.postedAt!.month)} ${notice.postedAt!.year}',
+                  'Meeting: ${_formatDateTime(notice.scheduledAt!)}',
+                  style: const TextStyle(color: Colors.black, fontSize: 12),
+                ),
+              ],
+              if (notice.expiresAt != null) ...[
+                const SizedBox(height: 5),
+                Text(
+                  'Ends: ${_formatDateTime(notice.expiresAt!)}',
+                  style: const TextStyle(color: Colors.black, fontSize: 12),
+                ),
+              ],
+              if (notice.scheduledAt == null && notice.postedAt != null) ...[
+                const SizedBox(height: 7),
+                Text(
+                  'Posted: ${_formatDateTime(notice.postedAt!)}',
                   style: const TextStyle(color: Colors.black, fontSize: 12),
                 ),
               ],
@@ -2526,6 +2738,16 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     if (days == 1) return 'Yesterday';
     if (days < 7) return '$days days ago';
     return '${date.day} ${_monthName(date.month)}';
+  }
+
+  String _formatDateTime(DateTime value) {
+    final local = value.toLocal();
+    final hour24 = local.hour;
+    final hour12 = hour24 % 12 == 0 ? 12 : hour24 % 12;
+    final minute = local.minute.toString().padLeft(2, '0');
+    final period = hour24 < 12 ? 'AM' : 'PM';
+    return '${local.day.toString().padLeft(2, '0')} ${_monthName(local.month)} '
+        '${local.year}, $hour12:$minute $period';
   }
 
   Widget _bottomBar(BuildContext context) => Container(

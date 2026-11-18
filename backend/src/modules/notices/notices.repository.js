@@ -1,4 +1,5 @@
 const db = require('../../config/db');
+const residentDashboardEvents = require('../resident-dashboard/residentDashboardEvents');
 
 const RECIPIENTS_CTE = `
   WITH recipients AS (
@@ -14,20 +15,121 @@ const RECIPIENTS_CTE = `
         AND (valid_until IS NULL OR valid_until > now())
   )`;
 
-const queueNoticeNotifications = async (societyId, notice) => {
+const upsertNoticeNotification = async (societyId, notice, title, message, data) => {
   const result = await db.query(
-    `${RECIPIENTS_CTE}
-     INSERT INTO notifications
+    `${RECIPIENTS_CTE}, existing_notice_notifications AS (
+       SELECT notification.id, notification.user_id,
+              row_number() OVER (
+                PARTITION BY notification.user_id
+                ORDER BY notification.created_at DESC, notification.id DESC
+              ) AS row_number
+         FROM notifications notification
+         JOIN recipients ON recipients.user_id = notification.user_id
+        WHERE notification.society_id = $1
+          AND notification.reference_type = 'NOTICE'
+          AND notification.reference_id = $4::uuid
+     ), removed_duplicates AS (
+       DELETE FROM notifications notification
+        USING existing_notice_notifications existing
+        WHERE notification.id = existing.id AND existing.row_number > 1
+       RETURNING notification.id
+     ), updated AS (
+       UPDATE notifications notification
+          SET title = $2, subject = $2, message = $3, data = $5::jsonb,
+              status = 'PENDING', is_read = false, read_at = NULL,
+              created_at = now(), updated_at = now()
+         FROM existing_notice_notifications existing
+        WHERE notification.id = existing.id AND existing.row_number = 1
+       RETURNING notification.user_id
+     ), inserted AS (
+       INSERT INTO notifications
        (society_id, user_id, channel, notification_type, title, subject, message,
         data, reference_type, reference_id, priority, status, created_at, updated_at)
-     SELECT $1, recipients.user_id, 'IN_APP', 'OPERATIONAL', $2, $2, $3,
-            jsonb_build_object('noticeId', $4), 'NOTICE', $4,
-            'MEDIUM', 'PENDING', now(), now()
-     FROM recipients
-     RETURNING id`,
-    [societyId, notice.title, notice.description, notice.id],
+       SELECT $1, recipients.user_id, 'IN_APP', 'OPERATIONAL', $2, $2, $3,
+              $5::jsonb, 'NOTICE', $4::uuid, 'MEDIUM', 'PENDING', now(), now()
+         FROM recipients
+        WHERE NOT EXISTS (
+          SELECT 1 FROM existing_notice_notifications existing
+           WHERE existing.user_id = recipients.user_id
+        )
+       ON CONFLICT (society_id, user_id, reference_id)
+         WHERE reference_type = 'NOTICE' AND reference_id IS NOT NULL
+       DO UPDATE SET title = EXCLUDED.title, subject = EXCLUDED.subject,
+                     message = EXCLUDED.message, data = EXCLUDED.data,
+                     status = 'PENDING', is_read = false, read_at = NULL,
+                     created_at = now(), updated_at = now()
+       RETURNING user_id
+     )
+     SELECT ARRAY(
+       SELECT user_id FROM updated
+       UNION
+       SELECT user_id FROM inserted
+     ) AS notified_user_ids`,
+    [societyId, title, message, notice.id, JSON.stringify(data)],
   );
-  return result.rowCount || 0;
+  const userIds = result.rows[0]?.notified_user_ids || [];
+  residentDashboardEvents.publishToUsers(userIds, 'notice-published');
+  return userIds.length;
+};
+
+const queueNoticeNotifications = async (societyId, notice) => {
+  return upsertNoticeNotification(
+    societyId,
+    notice,
+    notice.title,
+    notice.description,
+    {
+      noticeId: notice.id,
+      scheduledAt: notice.scheduled_at || null,
+      expiresAt: notice.expires_at || null,
+    },
+  );
+};
+
+const queueNoticeUpdateNotifications = async (societyId, notice) => {
+  return upsertNoticeNotification(
+    societyId,
+    notice,
+    `Notice updated: ${notice.title}`,
+    notice.description,
+    {
+      noticeId: notice.id,
+      scheduledAt: notice.scheduled_at || null,
+      expiresAt: notice.expires_at || null,
+      noticeUpdated: true,
+    },
+  );
+};
+
+const queueNoticeExpiredNotifications = async (societyId, notice) => {
+  return upsertNoticeNotification(
+    societyId,
+    notice,
+    `Notice expired: ${notice.title}`,
+    `The notice "${notice.title}" has expired and is no longer available.`,
+    {
+      noticeId: notice.id,
+      expiresAt: notice.expires_at || notice.expired_at || null,
+      noticeExpired: true,
+    },
+  );
+};
+
+const deduplicateNoticeNotifications = async () => {
+  await db.query(
+    `WITH ranked AS (
+       SELECT id,
+              row_number() OVER (
+                PARTITION BY society_id, user_id, reference_id
+                ORDER BY created_at DESC, id DESC
+              ) AS row_number
+         FROM notifications
+        WHERE reference_type = 'NOTICE' AND reference_id IS NOT NULL
+     )
+     DELETE FROM notifications notification
+      USING ranked
+      WHERE notification.id = ranked.id AND ranked.row_number > 1`,
+  );
 };
 
 const list = async ({ societyId, tab, search, limit, offset }) => {
@@ -94,7 +196,9 @@ const create = async ({ societyId, createdBy, title, description, scheduledAt, e
     [societyId, createdBy, title, description, isScheduled ? scheduledAt : null, expiresAt || null, Boolean(isScheduled)],
   );
   const notice = result.rows[0];
-  if (!isScheduled) notice.queued_count = await queueNoticeNotifications(societyId, notice);
+  if (notice.status === 'PUBLISHED') {
+    notice.queued_count = await queueNoticeNotifications(societyId, notice);
+  }
   return notice;
 };
 
@@ -118,36 +222,143 @@ const publishDue = async () => {
        UPDATE notices SET status = 'PUBLISHED', posted_at = COALESCE(posted_at, scheduled_at), updated_at = now()
        WHERE status = 'SCHEDULED' AND scheduled_at <= now()
          AND (expires_at IS NULL OR expires_at > now())
-       RETURNING id, society_id, title, description
+       RETURNING id, society_id, title, description, scheduled_at, expires_at
      ), recipients AS (
-       SELECT due.id AS notice_id, due.society_id, due.title, due.description, users.id AS user_id
+       SELECT due.id AS notice_id, due.society_id, due.title, due.description,
+              due.scheduled_at, due.expires_at, users.id AS user_id
        FROM due JOIN users ON users.society_id = due.society_id AND users.status = 'ACTIVE'
        UNION
-       SELECT due.id, due.society_id, due.title, due.description, usa.user_id
+       SELECT due.id, due.society_id, due.title, due.description,
+              due.scheduled_at, due.expires_at, usa.user_id
        FROM due JOIN user_society_access usa ON usa.society_id = due.society_id
        WHERE usa.active_from <= now() AND (usa.active_until IS NULL OR usa.active_until > now())
        UNION
-       SELECT due.id, due.society_id, due.title, due.description, sa.user_id
+       SELECT due.id, due.society_id, due.title, due.description,
+              due.scheduled_at, due.expires_at, sa.user_id
        FROM due JOIN society_accesses sa ON sa.society_id = due.society_id AND sa.is_active = true
        WHERE (sa.valid_from IS NULL OR sa.valid_from <= now())
          AND (sa.valid_until IS NULL OR sa.valid_until > now())
+     ), started_notifications AS (
+       UPDATE notifications existing
+          SET title = 'Meeting started: ' || recipients.title,
+              subject = 'Meeting started: ' || recipients.title,
+              message = 'The meeting "' || recipients.title || '" has started. '
+                || 'Meeting date and start time: '
+                || to_char(recipients.scheduled_at AT TIME ZONE 'Asia/Kolkata', 'DD Mon YYYY, HH12:MI AM')
+                || CASE WHEN recipients.expires_at IS NULL THEN ''
+                     ELSE '; end time: ' || to_char(recipients.expires_at AT TIME ZONE 'Asia/Kolkata', 'DD Mon YYYY, HH12:MI AM') END,
+              data = COALESCE(existing.data, '{}'::jsonb) || jsonb_build_object(
+                'noticeId', recipients.notice_id,
+                'scheduledAt', recipients.scheduled_at,
+                'expiresAt', recipients.expires_at,
+                'meetingStarted', true
+              ),
+              status = 'PENDING', is_read = false, read_at = NULL, updated_at = now()
+         FROM recipients
+        WHERE existing.society_id = recipients.society_id
+          AND existing.user_id = recipients.user_id
+          AND existing.reference_type = 'NOTICE'
+          AND existing.reference_id = recipients.notice_id
+       RETURNING existing.user_id, existing.reference_id
      ), queued AS (
        INSERT INTO notifications
          (society_id, user_id, channel, notification_type, title, subject, message,
           data, reference_type, reference_id, priority, status, created_at, updated_at)
-       SELECT society_id, user_id, 'IN_APP', 'OPERATIONAL', title, title, description,
-              jsonb_build_object('noticeId', notice_id), 'NOTICE', notice_id,
+       SELECT society_id, user_id, 'IN_APP', 'OPERATIONAL',
+              'Meeting started: ' || title, 'Meeting started: ' || title,
+              'The meeting "' || title || '" has started. Meeting date and start time: '
+                || to_char(scheduled_at AT TIME ZONE 'Asia/Kolkata', 'DD Mon YYYY, HH12:MI AM')
+                || CASE WHEN expires_at IS NULL THEN ''
+                     ELSE '; end time: ' || to_char(expires_at AT TIME ZONE 'Asia/Kolkata', 'DD Mon YYYY, HH12:MI AM') END,
+              jsonb_build_object('noticeId', notice_id, 'scheduledAt', scheduled_at, 'expiresAt', expires_at), 'NOTICE', notice_id,
               'MEDIUM', 'PENDING', now(), now()
-       FROM recipients RETURNING id
+       FROM recipients
+       WHERE NOT EXISTS (
+         SELECT 1 FROM notifications existing
+          WHERE existing.society_id = recipients.society_id
+            AND existing.user_id = recipients.user_id
+            AND existing.reference_type = 'NOTICE'
+            AND existing.reference_id = recipients.notice_id
+       )
+       ON CONFLICT (society_id, user_id, reference_id)
+         WHERE reference_type = 'NOTICE' AND reference_id IS NOT NULL
+       DO UPDATE SET title = EXCLUDED.title, subject = EXCLUDED.subject,
+                     message = EXCLUDED.message, data = EXCLUDED.data,
+                     status = 'PENDING', is_read = false, read_at = NULL,
+                     created_at = now(), updated_at = now()
+       RETURNING user_id, reference_id
      ), expired AS (
        UPDATE notices SET status = 'EXPIRED', expired_at = COALESCE(expired_at, expires_at), updated_at = now()
        WHERE status IN ('PUBLISHED', 'SCHEDULED') AND expires_at IS NOT NULL AND expires_at <= now()
-       RETURNING id
+       RETURNING id, society_id, title, expires_at
+     ), expired_recipients AS (
+       SELECT expired.id AS notice_id, expired.society_id, expired.title, expired.expires_at,
+              users.id AS user_id
+         FROM expired JOIN users ON users.society_id = expired.society_id AND users.status = 'ACTIVE'
+       UNION
+       SELECT expired.id, expired.society_id, expired.title, expired.expires_at, usa.user_id
+         FROM expired JOIN user_society_access usa ON usa.society_id = expired.society_id
+        WHERE usa.active_from <= now() AND (usa.active_until IS NULL OR usa.active_until > now())
+       UNION
+       SELECT expired.id, expired.society_id, expired.title, expired.expires_at, sa.user_id
+         FROM expired JOIN society_accesses sa ON sa.society_id = expired.society_id AND sa.is_active = true
+        WHERE (sa.valid_from IS NULL OR sa.valid_from <= now())
+          AND (sa.valid_until IS NULL OR sa.valid_until > now())
+     ), expired_existing_notifications AS (
+       UPDATE notifications existing
+          SET title = 'Notice expired: ' || expired_recipients.title,
+              subject = 'Notice expired: ' || expired_recipients.title,
+              message = 'The notice "' || expired_recipients.title || '" has expired and is no longer available.',
+              data = jsonb_build_object('noticeId', expired_recipients.notice_id,
+                                        'expiresAt', expired_recipients.expires_at,
+                                        'noticeExpired', true),
+              status = 'PENDING', is_read = false, read_at = NULL,
+              created_at = now(), updated_at = now()
+         FROM expired_recipients
+        WHERE existing.society_id = expired_recipients.society_id
+          AND existing.user_id = expired_recipients.user_id
+          AND existing.reference_type = 'NOTICE'
+          AND existing.reference_id = expired_recipients.notice_id
+       RETURNING existing.user_id
+     ), expiration_notifications AS (
+       INSERT INTO notifications
+         (society_id, user_id, channel, notification_type, title, subject, message,
+          data, reference_type, reference_id, priority, status, created_at, updated_at)
+       SELECT society_id, user_id, 'IN_APP', 'OPERATIONAL',
+              'Notice expired: ' || title, 'Notice expired: ' || title,
+              'The notice "' || title || '" has expired and is no longer available.',
+              jsonb_build_object('noticeId', notice_id, 'expiresAt', expires_at, 'noticeExpired', true),
+              'NOTICE', notice_id, 'MEDIUM', 'PENDING', now(), now()
+         FROM expired_recipients
+        WHERE NOT EXISTS (
+          SELECT 1 FROM notifications existing
+           WHERE existing.society_id = expired_recipients.society_id
+             AND existing.user_id = expired_recipients.user_id
+             AND existing.reference_type = 'NOTICE'
+             AND existing.reference_id = expired_recipients.notice_id
+        )
+       ON CONFLICT (society_id, user_id, reference_id)
+         WHERE reference_type = 'NOTICE' AND reference_id IS NOT NULL
+       DO UPDATE SET title = EXCLUDED.title, subject = EXCLUDED.subject,
+                     message = EXCLUDED.message, data = EXCLUDED.data,
+                     status = 'PENDING', is_read = false, read_at = NULL,
+                     created_at = now(), updated_at = now()
+       RETURNING user_id
      )
      SELECT (SELECT count(*)::int FROM due) AS published_count,
             (SELECT count(*)::int FROM queued) AS queued_count,
-            (SELECT count(*)::int FROM expired) AS expired_count`,
+            (SELECT count(*)::int FROM expired) AS expired_count,
+            ARRAY(
+              SELECT user_id FROM recipients
+              UNION
+              SELECT user_id FROM expired_recipients
+              UNION
+              SELECT user_id FROM expiration_notifications
+              UNION
+              SELECT user_id FROM expired_existing_notifications
+            ) AS notified_user_ids`,
   );
+  await deduplicateNoticeNotifications();
   return result.rows[0];
 };
 
@@ -184,7 +395,7 @@ const renotify = async (societyId, id) => {
           data, reference_type, reference_id, priority, status, created_at, updated_at)
        SELECT notice.society_id, recipients.user_id, 'IN_APP', 'OPERATIONAL',
               notice.title, notice.title, notice.description,
-              jsonb_build_object('noticeId', notice.id), 'NOTICE', notice.id,
+              jsonb_build_object('noticeId', notice.id, 'scheduledAt', notice.scheduled_at, 'expiresAt', notice.expires_at), 'NOTICE', notice.id,
               'MEDIUM', 'PENDING', now(), now()
        FROM notice CROSS JOIN recipients
        WHERE recipients.user_id <> COALESCE(notice.created_by, '00000000-0000-0000-0000-000000000000'::uuid)
@@ -226,4 +437,4 @@ const findTemplate = async (societyId, id) => {
   return result.rows[0] || null;
 };
 
-module.exports = { list, findById, create, update, markRead, expire, renotify, saveTemplate, listTemplates, findTemplate, queueNoticeNotifications, publishDue };
+module.exports = { list, findById, create, update, markRead, expire, renotify, saveTemplate, listTemplates, findTemplate, queueNoticeNotifications, queueNoticeUpdateNotifications, queueNoticeExpiredNotifications, publishDue };

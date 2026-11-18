@@ -484,7 +484,7 @@ export default function UtilityMeterManagementPage() {
       {hasPermission('METER_UPDATE') && <button type="button" className="society-icon-action" title={`Edit meter ${r.meter_no}`} aria-label={`Edit meter ${r.meter_no}`} onClick={() => openModal('meter', r)}><SquarePen size={16} /></button>}
       {hasPermission('METER_UPDATE') && r.status !== 'REPLACED' && <button className="btn btn-ghost btn-sm" onClick={() => openModal('replace', r)}>Replace</button>}
       {hasPermission('METER_DELETE') && <button type="button" className="society-icon-action society-delete-action" title={`Delete meter ${r.meter_no}`} aria-label={`Delete meter ${r.meter_no}`} onClick={() => remove('meter', r)}><Trash2 size={16} /></button>}
-      {hasPermission('METER_READING_CREATE') && <button className="btn btn-ghost btn-sm" onClick={() => { setSelectedMeter(r.id); openModal('reading'); }}><span className="button-plus" aria-hidden="true">+</span> Add reading</button>}
+      {hasPermission('METER_READING_CREATE') && <button className="btn btn-ghost btn-sm" onClick={() => { setSelectedMeter(r.id); openModal('reading'); }}><Plus size={18} strokeWidth={2.4} aria-hidden="true" /> Add reading</button>}
     </div> },
   ];
   const columnsTypes = [

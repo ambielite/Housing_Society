@@ -10,7 +10,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../auth/data/auth_api.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../resident/dashboard/screens/resident_home_screen.dart';
-import 'security_profile_screen.dart';
+import '../profile/security_profile_screen.dart';
 import '../../visitor_check_in/security_register_visitor_screen.dart';
 
 part '../../visitor_check_in/security_visitors_screen.dart';
@@ -142,7 +142,8 @@ class _SecurityHome extends StatefulWidget {
   State<_SecurityHome> createState() => _SecurityHomeState();
 }
 
-class _SecurityHomeState extends State<_SecurityHome> {
+class _SecurityHomeState extends State<_SecurityHome>
+    with WidgetsBindingObserver {
   int _tab = 0;
   int _deliveryTab = 0;
   String _visitorFilter = 'ALL';
@@ -150,6 +151,11 @@ class _SecurityHomeState extends State<_SecurityHome> {
   _GuardSnapshot? _loadedSnapshot;
   Timer? _deliverySyncTimer;
   Timer? _visitorPassSyncTimer;
+  Timer? _securityEventsReconnectTimer;
+  StreamSubscription<String>? _securityEventsSubscription;
+  http.Client? _securityEventsClient;
+  Duration _securityEventsRetryDelay = const Duration(seconds: 2);
+  List<_GuardNotification> _notifications = const [];
   bool _deliverySyncRunning = false;
   bool _visitorPassSyncRunning = false;
   bool _shiftSyncRunning = false;
@@ -171,9 +177,99 @@ class _SecurityHomeState extends State<_SecurityHome> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _snapshot = _GuardApi.load(widget.user);
     _shiftClockTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       _shiftClock.value = DateTime.now();
+    });
+    _loadNotifications();
+    _connectSecurityEvents();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _restartSecurityEvents();
+  }
+
+  void _restartSecurityEvents() {
+    _securityEventsReconnectTimer?.cancel();
+    _securityEventsSubscription?.cancel();
+    _securityEventsSubscription = null;
+    _securityEventsClient?.close();
+    _securityEventsClient = null;
+    _connectSecurityEvents();
+  }
+
+  Future<void> _connectSecurityEvents() async {
+    if (!mounted || _securityEventsSubscription != null) return;
+    final client = http.Client();
+    try {
+      final request = http.Request(
+        'GET',
+        Uri.parse('$_apiBaseUrl/gates/notifications/stream'),
+      )..headers['Authorization'] = 'Bearer ${widget.user.accessToken}';
+      final response = await client
+          .send(request)
+          .timeout(const Duration(seconds: 15));
+      if (response.statusCode != 200) {
+        client.close();
+        _scheduleSecurityEventsReconnect();
+        return;
+      }
+      _securityEventsClient = client;
+      _securityEventsRetryDelay = const Duration(seconds: 2);
+      _securityEventsSubscription = response.stream
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())
+          .listen(
+            (line) {
+              if (!line.startsWith('data:')) return;
+              try {
+                final event = jsonDecode(line.substring(5).trim());
+                if (event is Map && event['type'] == 'roster-updated') {
+                  unawaited(_refreshShiftAssignments());
+                  unawaited(_loadNotifications());
+                } else if (event is Map &&
+                    event['type'] == 'profile-updated') {
+                  unawaited(_refreshGuardProfile());
+                  unawaited(_loadNotifications());
+                }
+              } catch (_) {
+                // Ignore malformed stream messages and keep the connection open.
+              }
+            },
+            onError: (_) => _onSecurityEventsDisconnected(client),
+            onDone: () => _onSecurityEventsDisconnected(client),
+            cancelOnError: true,
+          );
+      // Catch changes made while the app was backgrounded or before this
+      // event stream reconnected; ongoing updates arrive through the stream.
+      unawaited(_loadNotifications());
+      unawaited(_refreshGuardProfile());
+    } catch (_) {
+      client.close();
+      _scheduleSecurityEventsReconnect();
+    }
+  }
+
+  void _onSecurityEventsDisconnected(http.Client client) {
+    if (!identical(client, _securityEventsClient)) return;
+    _securityEventsSubscription = null;
+    _securityEventsClient = null;
+    client.close();
+    _scheduleSecurityEventsReconnect();
+  }
+
+  void _scheduleSecurityEventsReconnect() {
+    if (!mounted || (_securityEventsReconnectTimer?.isActive ?? false)) return;
+    final delay = _securityEventsRetryDelay;
+    final nextSeconds = (_securityEventsRetryDelay.inSeconds * 2)
+        .clamp(2, 60)
+        .toInt();
+    _securityEventsRetryDelay = Duration(seconds: nextSeconds);
+    _securityEventsReconnectTimer = Timer(delay, () {
+      _securityEventsReconnectTimer = null;
+      _connectSecurityEvents();
     });
   }
 
@@ -217,6 +313,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
       final assignments = await _GuardApi.loadShiftAssignments(widget.user);
       if (!mounted) return;
       snapshot.shiftAssignments = List.of(assignments);
+      snapshot.shiftLoadError = null;
       // Refresh only the shift card; keep the rest of the dashboard in place.
       _shiftRevision.value++;
       if (showResult && mounted) {
@@ -231,8 +328,10 @@ class _SecurityHomeState extends State<_SecurityHome> {
         );
       }
     } on _GuardApiException catch (error) {
+      snapshot.shiftLoadError = error.message;
       if (showResult && mounted) _showError(error.message);
     } catch (_) {
+      snapshot.shiftLoadError = 'Could not load your shift details.';
       // Keep the last successful assignment visible through transient errors.
       if (showResult && mounted) {
         _showError('Could not refresh shift details. Please try again.');
@@ -240,6 +339,43 @@ class _SecurityHomeState extends State<_SecurityHome> {
     } finally {
       _shiftSyncRunning = false;
       if (mounted) _shiftRevision.value++;
+    }
+  }
+
+  Future<void> _loadNotifications() async {
+    try {
+      final notifications = await _GuardApi.loadNotifications(widget.user);
+      if (!mounted) return;
+      final oldIds = _notifications.map((item) => item.id).join('|');
+      final newIds = notifications.map((item) => item.id).join('|');
+      if (oldIds != newIds) setState(() => _notifications = notifications);
+    } catch (_) {
+      // Notifications are supplementary; keep the dashboard usable offline.
+    }
+  }
+
+  Future<void> _refreshGuardProfile() async {
+    try {
+      final profile = await _GuardApi.loadGuardProfile(widget.user);
+      if (!mounted || _loadedSnapshot == null) return;
+      _loadedSnapshot!.guardProfile = profile;
+      setState(() {});
+    } catch (_) {
+      // Keep the last displayed profile if a refresh request fails.
+    }
+  }
+
+  Future<void> _markNotificationRead(String id) async {
+    if (!mounted) return;
+    setState(() {
+      _notifications = _notifications
+          .where((notification) => notification.id != id)
+          .toList(growable: false);
+    });
+    try {
+      await _GuardApi.markNotificationRead(widget.user, id);
+    } catch (_) {
+      // Keep the item dismissed locally for this session if the server is offline.
     }
   }
 
@@ -274,7 +410,10 @@ class _SecurityHomeState extends State<_SecurityHome> {
     _deliverySyncTimer = null;
     _visitorPassSyncTimer?.cancel();
     _visitorPassSyncTimer = null;
-    if (mounted) setState(() => _tab = 4);
+    if (mounted) {
+      setState(() => _tab = 4);
+      unawaited(_refreshShiftAssignments());
+    }
   }
 
   Future<void> _cancelAssignedShift(
@@ -305,9 +444,6 @@ class _SecurityHomeState extends State<_SecurityHome> {
             child: const Text('Keep shift'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFB42332),
-            ),
             onPressed: () {
               final value = reasonController.text.trim();
               if (value.length < 5) {
@@ -345,6 +481,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
           status: 'CANCELLED',
           cancellationReason: reason,
           cancelledAt: DateTime.now(),
+          cancelledBy: widget.user.userId,
         );
         _shiftRevision.value++;
       }
@@ -396,8 +533,12 @@ class _SecurityHomeState extends State<_SecurityHome> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _deliverySyncTimer?.cancel();
     _visitorPassSyncTimer?.cancel();
+    _securityEventsReconnectTimer?.cancel();
+    _securityEventsSubscription?.cancel();
+    _securityEventsClient?.close();
     _deliveryRevision.dispose();
     _shiftClockTimer?.cancel();
     _shiftRevision.dispose();
@@ -561,6 +702,203 @@ class _SecurityHomeState extends State<_SecurityHome> {
     );
   }
 
+  void _openNotifications() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => SafeArea(
+        top: false,
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(sheetContext).height * .78,
+          ),
+          decoration: const BoxDecoration(
+            color: Color(0xFFF7F8FC),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 11),
+              Container(
+                width: 38,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD9DEEA),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 18, 14),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Notifications',
+                            style: TextStyle(
+                              color: AppColors.ink,
+                              fontSize: 19,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          SizedBox(height: 3),
+                          Text(
+                            'Updates for your security post',
+                            style: TextStyle(color: Colors.black, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.of(sheetContext).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+              ),
+              if (_notifications.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(24, 28, 24, 36),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.notifications_none_rounded,
+                        color: Color(0xFF9AA4B4),
+                        size: 38,
+                      ),
+                      SizedBox(height: 10),
+                      Text(
+                        'You’re all caught up',
+                        style: TextStyle(
+                          color: AppColors.ink,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'New notifications will appear here.',
+                        style: TextStyle(color: Colors.black, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+                    itemCount: _notifications.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 9),
+                    itemBuilder: (context, index) {
+                      final notification = _notifications[index];
+                      return Material(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () {
+                            Navigator.of(sheetContext).pop();
+                            unawaited(_markNotificationRead(notification.id));
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  width: 38,
+                                  height: 38,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFEAF0FF),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Icon(
+                                    Icons.notifications_active_outlined,
+                                    size: 19,
+                                    color: AppColors.navy,
+                                  ),
+                                ),
+                                const SizedBox(width: 11),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        notification.title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: AppColors.ink,
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 5),
+                                      Text(
+                                        notification.message,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: Colors.black,
+                                          height: 1.4,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                      if (notification.createdAt != null) ...[
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          'Received ${_formatNotificationDateTime(notification.createdAt!)}',
+                                          style: const TextStyle(
+                                            color: Color(0xFF5B6479),
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 5),
+                                const Icon(
+                                  Icons.chevron_right_rounded,
+                                  color: Color(0xFF9AA4B4),
+                                  size: 19,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatNotificationDateTime(DateTime value) {
+    final local = value.toLocal();
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final minute = local.minute.toString().padLeft(2, '0');
+    final period = local.hour < 12 ? 'AM' : 'PM';
+    return '${local.day.toString().padLeft(2, '0')} ${months[local.month - 1]} '
+        '${local.year}, $hour:$minute $period';
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: const Color(0xFFF5F7FB),
@@ -577,70 +915,46 @@ class _SecurityHomeState extends State<_SecurityHome> {
           }
           final data = state.data!;
           _loadedSnapshot = data;
-          if (_tab == 4) {
-            return Column(
-              children: [
-                Expanded(
-                  child: SecurityProfileScreen(
-                    user: widget.user,
-                    gateNames: data.gates.map((gate) => gate.name).toList(),
-                    profilePhotoUrl: data.accountPhotoUrl,
-                    loadShiftAssignments: () =>
-                        _GuardApi.loadShiftAssignments(widget.user),
-                    onSignOut: _signOut,
-                  ),
-                ),
-                _bottomBar(),
-              ],
-            );
-          }
-          final content = switch (_tab) {
-            1 => _SecurityVisitorsScreen(owner: this, data: data),
-            2 => _SecurityGateLogScreen(owner: this, data: data),
-            3 => _SecurityDeliveriesScreen(owner: this, data: data),
-            _ => _overview(data),
-          };
           return Column(
             children: [
               Expanded(
-                child: RefreshIndicator(
-                  color: AppColors.indigo,
-                  onRefresh: _refresh,
-                  child: ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(18, 14, 18, 24),
-                    children: [
-                      Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 900),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              _header(data),
-                              const SizedBox(height: 20),
-                              if (_tab == 0) ...[
-                                _greeting(),
-                                const SizedBox(height: 18),
-                                _securitySummaryCard(data),
-                                const SizedBox(height: 14),
-                                ValueListenableBuilder<DateTime>(
-                                  valueListenable: _shiftClock,
-                                  builder: (context, now, _) =>
-                                      ValueListenableBuilder<int>(
-                                        valueListenable: _shiftRevision,
-                                        builder: (context, _, _) =>
-                                            _assignedShiftCard(data, now),
-                                      ),
-                                ),
-                                const SizedBox(height: 20),
-                              ],
-                              content,
-                            ],
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: List.generate(5, (index) {
+                    final selected = _tab == index;
+                    final page = index == 4
+                        ? ValueListenableBuilder<int>(
+                            valueListenable: _shiftRevision,
+                            builder: (context, _, _) => SecurityProfileScreen(
+                              user: widget.user,
+                              guardProfile: data.guardProfile,
+                              gateNames: data.gates
+                                  .map((gate) => gate.name)
+                                  .toList(),
+                              profilePhotoUrl: data.accountPhotoUrl,
+                              initialShiftAssignments: data.shiftAssignments,
+                              loadShiftAssignments: () =>
+                                  _GuardApi.loadShiftAssignments(widget.user),
+                              onSignOut: _signOut,
+                            ),
+                          )
+                        : _dashboardTab(data, index);
+                    return Positioned.fill(
+                      child: IgnorePointer(
+                        ignoring: !selected,
+                        child: ExcludeSemantics(
+                          excluding: !selected,
+                          child: AnimatedOpacity(
+                            key: ValueKey(index),
+                            duration: const Duration(milliseconds: 240),
+                            curve: Curves.easeInOut,
+                            opacity: selected ? 1 : 0,
+                            child: page,
                           ),
                         ),
                       ),
-                    ],
-                  ),
+                    );
+                  }),
                 ),
               ),
               _bottomBar(),
@@ -650,6 +964,55 @@ class _SecurityHomeState extends State<_SecurityHome> {
       ),
     ),
   );
+
+  Widget _dashboardTab(_GuardSnapshot data, int tab) {
+    final content = switch (tab) {
+      1 => _SecurityVisitorsScreen(owner: this, data: data),
+      2 => _SecurityGateLogScreen(owner: this, data: data),
+      3 => _SecurityDeliveriesScreen(owner: this, data: data),
+      _ => _overview(data),
+    };
+    return RefreshIndicator(
+      color: AppColors.indigo,
+      onRefresh: _refresh,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(18, 14, 18, 24),
+        children: [
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 900),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ValueListenableBuilder<int>(
+                    valueListenable: _shiftRevision,
+                    builder: (context, _, _) => _header(data),
+                  ),
+                  const SizedBox(height: 20),
+                  if (tab == 0) ...[
+                    _greeting(),
+                    const SizedBox(height: 18),
+                    ValueListenableBuilder<DateTime>(
+                      valueListenable: _shiftClock,
+                      builder: (context, now, _) => ValueListenableBuilder<int>(
+                        valueListenable: _shiftRevision,
+                        builder: (context, _, _) => _assignedShiftCard(data, now),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    _securitySummaryCard(data),
+                    const SizedBox(height: 20),
+                  ],
+                  content,
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _header(_GuardSnapshot data) => Row(
     children: [
@@ -713,8 +1076,8 @@ class _SecurityHomeState extends State<_SecurityHome> {
       ),
       _headerIcon(
         Icons.notifications_none_rounded,
-        badge: data.expectedCount > 0,
-        onTap: () => _selectTab(1),
+        badge: data.expectedCount > 0 || _notifications.isNotEmpty,
+        onTap: _openNotifications,
       ),
       const SizedBox(width: 9),
       PopupMenuButton<String>(
@@ -772,8 +1135,9 @@ class _SecurityHomeState extends State<_SecurityHome> {
   );
 
   Widget _securityAvatar(_GuardSnapshot data) {
+    final staffPhotoUrl = _optionalString(data.guardProfile?['photo_path']);
     final photoUrl = _imageUrl(
-      data.accountPhotoUrl ?? widget.user.profilePictureUrl,
+      staffPhotoUrl ?? data.accountPhotoUrl ?? widget.user.profilePictureUrl,
     );
     return CircleAvatar(
       radius: 22,
@@ -1118,24 +1482,33 @@ class _SecurityHomeState extends State<_SecurityHome> {
     });
     final assignment = active.isNotEmpty
         ? active.first
-        : cancelledToday.isNotEmpty
-        ? cancelledToday.first
         : upcomingToday.isNotEmpty
         ? upcomingToday.first
-        : endedToday.isNotEmpty
-        ? endedToday.first
         : upcomingOrActive.isNotEmpty
         ? upcomingOrActive.first
+        : cancelledToday.isNotEmpty
+        ? cancelledToday.first
+        : endedToday.isNotEmpty
+        ? endedToday.first
         : null;
 
     if (assignment == null) {
       return _shiftCardSurface(
         icon: Icons.event_available_outlined,
-        title: 'Your shift',
-        subtitle: 'No upcoming shift is assigned.',
-        status: 'No shift assigned',
+        title: data.shiftLoadError == null ? 'Your shift' : 'Shift details',
+        subtitle:
+            data.shiftLoadError ?? 'No upcoming shift is assigned.',
+        status: data.shiftLoadError == null
+            ? 'No shift assigned'
+            : 'Could not load',
         statusColor: const Color(0xFF61708A),
-        child: const SizedBox.shrink(),
+        child: data.shiftLoadError == null
+            ? const SizedBox.shrink()
+            : TextButton.icon(
+                onPressed: () => _refreshShiftAssignments(),
+                icon: const Icon(Icons.refresh_rounded, size: 17),
+                label: const Text('Try again'),
+              ),
       );
     }
 
@@ -1182,6 +1555,17 @@ class _SecurityHomeState extends State<_SecurityHome> {
             '${assignment.shiftType.replaceAll('_', ' ')}  ·  ${assignment.scheduleType.replaceAll('_', ' ')} schedule',
             style: const TextStyle(color: Colors.black, fontSize: 12),
           ),
+          if (isCancelled) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Shift cancelled ${assignment.cancelledBy == widget.user.userId ? 'by you' : 'by ${assignment.cancelledByName ?? 'admin'}'}',
+              style: const TextStyle(
+                color: Color(0xFF9B4A0D),
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
           if (isCancelled && assignment.cancellationReason != null) ...[
             const SizedBox(height: 8),
             Text(
@@ -1203,8 +1587,6 @@ class _SecurityHomeState extends State<_SecurityHome> {
                 icon: const Icon(Icons.emergency_outlined, size: 17),
                 label: const Text('Cancel shift'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFFB42332),
-                  side: const BorderSide(color: Color(0xFFE8A7AE)),
                   visualDensity: VisualDensity.compact,
                 ),
               ),
@@ -1278,7 +1660,7 @@ class _SecurityHomeState extends State<_SecurityHome> {
               constraints: const BoxConstraints.tightFor(width: 34, height: 34),
               onPressed: _shiftSyncRunning
                   ? null
-                  : () => _refreshShiftAssignments(showResult: true),
+                  : () => _refreshShiftAssignments(),
               icon: _shiftSyncRunning
                   ? const SizedBox(
                       width: 17,
@@ -1830,6 +2212,7 @@ class _GuardSnapshot {
     this.societyName,
     this.societyLogoUrl,
     this.accountPhotoUrl,
+    this.guardProfile,
     required this.gates,
     required this.profiles,
     required this.destinations,
@@ -1838,11 +2221,13 @@ class _GuardSnapshot {
     required this.deliveries,
     required this.parcels,
     required this.shiftAssignments,
+    this.shiftLoadError,
   });
 
   final String? societyName;
   final String? societyLogoUrl;
   final String? accountPhotoUrl;
+  Map<String, dynamic>? guardProfile;
   final List<_Gate> gates;
   final Map<String, _Visitor> profiles;
   final List<_GuardDestination> destinations;
@@ -1851,6 +2236,7 @@ class _GuardSnapshot {
   final List<_Delivery> deliveries;
   final List<_Parcel> parcels;
   List<SecurityShiftAssignment> shiftAssignments;
+  String? shiftLoadError;
 
   List<_GuardUnit> get units {
     final byId = <String, _GuardUnit>{};
@@ -2257,7 +2643,33 @@ class _RegisterDeliverySheetState extends State<_RegisterDeliverySheet> {
   );
 }
 
+class _GuardNotification {
+  const _GuardNotification({
+    required this.id,
+    required this.title,
+    required this.message,
+    this.createdAt,
+  });
+
+  final String id;
+  final String title;
+  final String message;
+  final DateTime? createdAt;
+
+  factory _GuardNotification.fromJson(Map<String, dynamic> json) =>
+      _GuardNotification(
+        id: '${json['id'] ?? ''}',
+        title: '${json['title'] ?? json['subject'] ?? 'Notification'}',
+        message: '${json['message'] ?? ''}',
+        createdAt: DateTime.tryParse('${json['created_at'] ?? ''}'),
+      );
+}
+
 class _GuardApi {
+  static Future<Map<String, dynamic>> loadGuardProfile(
+    AuthenticatedUser user,
+  ) => _getObject('/gates/guards/me', user.accessToken);
+
   static Future<_GuardDeliverySnapshot> loadDeliveries(
     AuthenticatedUser user,
   ) async {
@@ -2327,10 +2739,15 @@ class _GuardApi {
     final deliveries = results[3].map(_Delivery.fromJson).toList();
     final parcels = results[4].map(_Parcel.fromJson).toList();
     List<SecurityShiftAssignment> shiftAssignments;
+    String? shiftLoadError;
     try {
       shiftAssignments = await shiftAssignmentsFuture;
+    } on _GuardApiException catch (error) {
+      shiftAssignments = const [];
+      shiftLoadError = error.message;
     } catch (_) {
       shiftAssignments = const [];
+      shiftLoadError = 'Could not load your shift details.';
     }
     final passes = results
         .skip(5)
@@ -2348,6 +2765,12 @@ class _GuardApi {
     String? societyName;
     String? societyLogoUrl;
     String? accountPhotoUrl;
+    Map<String, dynamic>? guardProfile;
+    try {
+      guardProfile = await loadGuardProfile(user);
+    } catch (_) {
+      // Continue to show the signed-in account if staff details are unavailable.
+    }
     try {
       final dashboard = await _getObject(
         '/resident-dashboard',
@@ -2369,6 +2792,7 @@ class _GuardApi {
       societyName: societyName,
       societyLogoUrl: societyLogoUrl,
       accountPhotoUrl: accountPhotoUrl,
+      guardProfile: guardProfile,
       gates: gates,
       profiles: profiles,
       destinations: destinations,
@@ -2377,6 +2801,7 @@ class _GuardApi {
       deliveries: deliveries,
       parcels: parcels,
       shiftAssignments: shiftAssignments,
+      shiftLoadError: shiftLoadError,
     );
   }
 
@@ -2397,25 +2822,19 @@ class _GuardApi {
     AuthenticatedUser user,
   ) async {
     final societyId = user.societyId;
-    if (societyId == null || societyId.isEmpty) return const [];
+    if (societyId == null || societyId.isEmpty) {
+      throw const _GuardApiException(
+        'This security account is not linked to a society.',
+      );
+    }
 
-    final guards = await _get('/gates/guards', user.accessToken, {
-      'societyId': societyId,
-    });
-    final guard = guards.cast<Map<String, dynamic>?>().firstWhere(
-      (row) =>
-          row != null &&
-          (row['user_id']?.toString() == user.userId ||
-              row['userId']?.toString() == user.userId ||
-              (user.employeeCode != null &&
-                  (row['employee_code'] ?? row['employeeCode'])
-                          ?.toString()
-                          .toUpperCase() ==
-                      user.employeeCode!.toUpperCase())),
-      orElse: () => null,
-    );
-    final staffId = (guard?['staff_id'] ?? guard?['staffId'])?.toString();
-    if (staffId == null || staffId.isEmpty) return const [];
+    final guard = await _getObject('/gates/guards/me', user.accessToken);
+    final staffId = (guard['staff_id'] ?? guard['staffId'])?.toString();
+    if (staffId == null || staffId.isEmpty) {
+      throw const _GuardApiException(
+        'This login is not linked to a security staff profile. Ask your administrator to check the staff account.',
+      );
+    }
 
     final responses = await Future.wait([
       _get('/rosters/staff/${Uri.encodeComponent(staffId)}', user.accessToken),
@@ -2511,12 +2930,36 @@ class _GuardApi {
           cancelledAt: DateTime.tryParse(
             '${roster['cancelledAt'] ?? roster['cancelled_at'] ?? ''}',
           ),
+          cancelledBy: (roster['cancelledBy'] ?? roster['cancelled_by'])
+              ?.toString(),
+          cancelledByName: _optionalString(
+            roster['cancelledByName'] ?? roster['cancelled_by_name'],
+          ),
           remarks: (roster['remarks'] ?? '').toString(),
         ),
       );
     }
     assignments.sort((a, b) => a.rosterDate!.compareTo(b.rosterDate!));
     return assignments.take(5).toList(growable: false);
+  }
+
+  static Future<List<_GuardNotification>> loadNotifications(
+    AuthenticatedUser user,
+  ) async =>
+      (await _get('/gates/notifications/me', user.accessToken))
+          .map(_GuardNotification.fromJson)
+          .where((notification) => notification.id.isNotEmpty)
+          .toList(growable: false);
+
+  static Future<void> markNotificationRead(
+    AuthenticatedUser user,
+    String id,
+  ) async {
+    await patch(
+      '/gates/notifications/${Uri.encodeComponent(id)}/read',
+      const {},
+      user.accessToken,
+    );
   }
 
   static Future<List<Map<String, dynamic>>> _get(

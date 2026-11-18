@@ -7,6 +7,7 @@ import 'package:flutter/services.dart'
     show MissingPluginException, SystemUiOverlayStyle;
 
 import '../../../../app/session_manager.dart';
+import '../../../../app/theme/app_colors.dart';
 import '../../data/auth_api.dart';
 import '../widgets/auth_brand_header.dart';
 import 'forgot_password_screen.dart';
@@ -41,7 +42,9 @@ class _LoginScreenState extends State<LoginScreen> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Your session has expired. Please sign in again.'),
+            content: Text(
+              'You’ve been signed out. Please sign in again to continue.',
+            ),
             backgroundColor: Color(0xFF9D2635),
           ),
         );
@@ -440,6 +443,8 @@ class _LoginScreenState extends State<LoginScreen> {
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFFFFD000),
                 foregroundColor: const Color(0xFF152B46),
+                disabledBackgroundColor: const Color(0xFFFFD000),
+                disabledForegroundColor: const Color(0xFF152B46),
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),

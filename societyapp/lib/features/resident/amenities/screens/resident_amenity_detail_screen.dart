@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../../app/theme/app_colors.dart';
 import '../../../auth/data/auth_api.dart';
 import '../../dashboard/data/resident_dashboard_api.dart';
 import '../data/resident_amenities_api.dart';
@@ -25,10 +26,15 @@ class ResidentAmenityDetailScreen extends StatefulWidget {
 
 class _ResidentAmenityDetailScreenState
     extends State<ResidentAmenityDetailScreen> with WidgetsBindingObserver {
-  static const _amenityAccent = Color(0xFF76519A);
-  static const _amenityAccentBackground = Color(0xFFF1EAF7);
-  static const _amenityText = Color(0xFF28242B);
-  static const _amenityMuted = Color(0xFF89837E);
+  static const _amenityText = AppColors.ink;
+  static const _amenityMuted = Color(0xFF5B6479);
+  static const _soft = Color(0xFF5B6479);
+  static const _border = Color(0xFFE3E7EF);
+
+  // Cards use the same colour as the tabs, so the whole screen shares one palette.
+  Color get _amenityAccent => _tabColor(context);
+  Color get _amenityAccentBackground =>
+      _tabColor(context).withValues(alpha: .10);
 
   late Future<List<ResidentAmenitySlot>> _slotsFuture;
   Timer? _bookingStatusTimer;
@@ -39,6 +45,7 @@ class _ResidentAmenityDetailScreenState
   String? _bookingsError;
   Map<String, ResidentAmenityBooking> _bookingsBySlotId = {};
   String? _bookingError;
+  int _slotTab = 0;
 
   @override
   void initState() {
@@ -194,11 +201,22 @@ class _ResidentAmenityDetailScreenState
     }
   }
 
+  // A slot the resident has already booked.
+  bool _isBooked(ResidentAmenitySlot slot) =>
+      _bookingsBySlotId.containsKey(slot.id);
+
+  // A slot the resident can still book right now.
+  bool _isAvailable(ResidentAmenitySlot slot) =>
+      _bookingsLoaded &&
+      _bookingsError == null &&
+      !_isBooked(slot) &&
+      slot.status.toUpperCase() == 'AVAILABLE';
+
   @override
   Widget build(BuildContext context) => Scaffold(
-        backgroundColor: const Color(0xFFFAF8F6),
+        backgroundColor: AppColors.canvas,
         appBar: AppBar(
-          backgroundColor: const Color(0xFFFAF8F6),
+          backgroundColor: AppColors.canvas,
           title: Text(widget.amenity.name),
           actions: [
             IconButton(
@@ -224,11 +242,18 @@ class _ResidentAmenityDetailScreenState
                 });
               }
               if (!snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator(color: _amenityAccent));
+                return Center(child: CircularProgressIndicator(color: _amenityAccent));
               }
               final slots = snapshot.data!
                   .where((slot) => !_isBeforeToday(slot.date))
                   .toList();
+              final availableCount = slots.where(_isAvailable).length;
+              final bookedCount = slots.where(_isBooked).length;
+              final visible = switch (_slotTab) {
+                1 => slots.where(_isAvailable).toList(),
+                2 => slots.where(_isBooked).toList(),
+                _ => slots,
+              };
               return ListView(
                 padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
                 children: [
@@ -236,17 +261,11 @@ class _ResidentAmenityDetailScreenState
                   const SizedBox(height: 22),
                   Row(
                     children: [
-                      const Expanded(
-                        child: Text('Time slots', style: TextStyle(
-                          color: _amenityText,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                        )),
-                      ),
+                      const Expanded(child: _SectionTitle('Time slots')),
                       Text(
                         '${slots.length} ${slots.length == 1 ? 'slot' : 'slots'}',
                         style: const TextStyle(
-                          color: Colors.black,
+                          color: _soft,
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
                         ),
@@ -264,11 +283,34 @@ class _ResidentAmenityDetailScreenState
                   ],
                   if (slots.isEmpty)
                     _emptySlots()
-                  else
-                    ...slots.map((slot) => Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: _slotCard(slot),
-                        )),
+                  else ...[
+                    _TabStrip(
+                      labels: const ['All', 'Available', 'Booked'],
+                      counts: [slots.length, availableCount, bookedCount],
+                      selected: _slotTab,
+                      color: _tabColor(context),
+                      onChanged: (index) => setState(() => _slotTab = index),
+                    ),
+                    const SizedBox(height: 14),
+                    _TabContent(
+                      stateKey: _slotTab,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (visible.isEmpty)
+                            _filteredEmpty()
+                          else
+                            ...visible.asMap().entries.map((entry) => _FadeIn(
+                                  index: entry.key,
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(bottom: 10),
+                                    child: _slotCard(entry.value),
+                                  ),
+                                )),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               );
             },
@@ -277,38 +319,56 @@ class _ResidentAmenityDetailScreenState
       );
 
   Widget _amenitySummary() => Container(
-        padding: const EdgeInsets.all(19),
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          gradient: const LinearGradient(
-            colors: [Color(0xFF76519A), Color(0xFFA47BB5)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _border),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              const Icon(Icons.spa_rounded, color: Colors.white, size: 27),
-              const SizedBox(width: 11),
-              Expanded(child: Text(widget.amenity.name, style: const TextStyle(
-                color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800,
-              ))),
-            ]),
-            const SizedBox(height: 12),
-            Text(
-              [widget.amenity.type.replaceAll('_', ' '), if (widget.amenity.location != null) widget.amenity.location!]
-                  .where((value) => value.isNotEmpty).join(' · '),
-              style: const TextStyle(color: Color(0xFFF3EAF6), fontSize: 12),
-            ),
-            if (widget.amenity.capacity != null) ...[
-              const SizedBox(height: 6),
-              Text('Capacity ${widget.amenity.capacity}', style: const TextStyle(
-                color: Color(0xFFF3EAF6), fontSize: 12,
-              )),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(width: 4, color: _amenityAccent),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: _amenityAccentBackground,
+                            borderRadius: BorderRadius.circular(11),
+                          ),
+                          child: Icon(Icons.spa_rounded, color: _amenityAccent, size: 23),
+                        ),
+                        const SizedBox(width: 11),
+                        Expanded(child: Text(widget.amenity.name, style: const TextStyle(
+                          color: _amenityText, fontSize: 18, fontWeight: FontWeight.w700,
+                        ))),
+                      ]),
+                      const SizedBox(height: 12),
+                      Text(
+                        [widget.amenity.type.replaceAll('_', ' '), if (widget.amenity.location != null) widget.amenity.location!]
+                            .where((value) => value.isNotEmpty).join(' · '),
+                        style: const TextStyle(color: _soft, fontSize: 13),
+                      ),
+                      if (widget.amenity.capacity != null) ...[
+                        const SizedBox(height: 6),
+                        Text('Capacity ${widget.amenity.capacity}', style: const TextStyle(
+                          color: _soft, fontSize: 13,
+                        )),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
             ],
-          ],
+          ),
         ),
       );
 
@@ -316,8 +376,8 @@ class _ResidentAmenityDetailScreenState
         padding: const EdgeInsets.all(15),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(17),
-          border: Border.all(color: const Color(0xFFEEEAE6)),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _border),
         ),
         child: Row(
           children: [
@@ -326,9 +386,9 @@ class _ResidentAmenityDetailScreenState
               height: 43,
               decoration: BoxDecoration(
                 color: _amenityAccentBackground,
-                borderRadius: BorderRadius.circular(13),
+                borderRadius: BorderRadius.circular(11),
               ),
-              child: const Icon(Icons.schedule_rounded, color: _amenityAccent, size: 21),
+              child: Icon(Icons.schedule_rounded, color: _amenityAccent, size: 21),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -336,26 +396,26 @@ class _ResidentAmenityDetailScreenState
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(_dateLabel(slot.date), style: const TextStyle(
-                    color: _amenityText, fontSize: 13, fontWeight: FontWeight.w800,
+                    color: _amenityText, fontSize: 14, fontWeight: FontWeight.w700,
                   )),
                   const SizedBox(height: 4),
                   Text('${slot.startTime} – ${slot.endTime}', style: const TextStyle(
-                    color: Colors.black, fontSize: 11,
+                    color: _soft, fontSize: 12,
                   )),
                   const SizedBox(height: 4),
-                  Text('${_money(slot.price)} · Capacity ${slot.capacity}', style: const TextStyle(
-                    color: _amenityAccent, fontSize: 10, fontWeight: FontWeight.w700,
+                  Text('${_money(slot.price)} · Capacity ${slot.capacity}', style: TextStyle(
+                    color: _amenityAccent, fontSize: 11, fontWeight: FontWeight.w700,
                   )),
                 ],
               ),
             ),
             const SizedBox(width: 8),
             if (_bookingsBySlotId[slot.id]?.status.toUpperCase() == 'CONFIRMED')
-              _bookingBadge('Booking confirmed', const Color(0xFFE8F8EF), const Color(0xFF16834B))
+              _bookingBadge('Booking confirmed', const Color(0xFFE3F5EC), const Color(0xFF136B42))
             else if (_bookingsBySlotId.containsKey(slot.id))
               _bookingBadge('Booked', const Color(0xFFFFF4DF), const Color(0xFF9B6500))
             else if (_bookingsError != null)
-              _slotStateLabel('Unavailable', const Color(0xFFFFECEE), const Color(0xFF9D2635))
+              _slotStateLabel('Unavailable', const Color(0xFFFFE9EB), const Color(0xFFB4232F))
             else if (!_bookingsLoaded)
               _slotStateLabel('Checking', _amenityAccentBackground, _amenityAccent)
             else if (slot.status.toUpperCase() != 'AVAILABLE')
@@ -376,7 +436,7 @@ class _ResidentAmenityDetailScreenState
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
         decoration: BoxDecoration(
           color: background,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
         ),
         child: Text(
           label,
@@ -396,7 +456,7 @@ class _ResidentAmenityDetailScreenState
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
         decoration: BoxDecoration(
           color: background,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
         ),
         child: Text(
           label,
@@ -405,12 +465,26 @@ class _ResidentAmenityDetailScreenState
         ),
       );
 
+  Widget _filteredEmpty() => Container(
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _border),
+        ),
+        child: const Text(
+          'No time slots in this view.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: _soft, fontSize: 13),
+        ),
+      );
+
   Widget _emptySlots() => Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0xFFEEEAE6)),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _border),
         ),
         child: const Column(children: [
           Icon(Icons.event_busy_rounded, color: _amenityMuted, size: 38),
@@ -441,10 +515,10 @@ class _ResidentAmenityDetailScreenState
   Widget _errorBanner(String text) => Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: const Color(0xFFFFECEE),
-          borderRadius: BorderRadius.circular(12),
+          color: const Color(0xFFFFE9EB),
+          borderRadius: BorderRadius.circular(10),
         ),
-        child: Text(text, style: const TextStyle(color: Color(0xFF9D2635), fontSize: 12)),
+        child: Text(text, style: const TextStyle(color: Color(0xFFB4232F), fontSize: 12)),
       );
 }
 
@@ -491,7 +565,6 @@ class _BookSlotButtonState extends State<_BookSlotButton> {
         child: FilledButton(
           onPressed: _submitting ? null : _submit,
           style: FilledButton.styleFrom(
-            backgroundColor: const Color(0xFF76519A),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
@@ -508,5 +581,232 @@ class _BookSlotButtonState extends State<_BookSlotButton> {
                 )
               : const Text('Book', style: TextStyle(fontSize: 11)),
         ),
+      );
+}
+
+/// Colour used by the app's buttons, read from the theme so tabs always match.
+Color _tabColor(BuildContext context) {
+  final theme = Theme.of(context);
+  return theme.filledButtonTheme.style?.backgroundColor?.resolve(
+        const <WidgetState>{},
+      ) ??
+      theme.colorScheme.primary;
+}
+
+/// Segmented tab strip. The selected tab is filled with [color]; the fill
+/// fades in/out smoothly when the selection changes, and unselected tabs get a
+/// light tint on hover.
+class _TabStrip extends StatefulWidget {
+  const _TabStrip({
+    required this.labels,
+    required this.selected,
+    required this.onChanged,
+    required this.color,
+    this.counts,
+    this.scrollable = false,
+  });
+
+  final List<String> labels;
+  final List<int>? counts;
+  final int selected;
+  final ValueChanged<int> onChanged;
+  final Color color;
+  final bool scrollable;
+
+  @override
+  State<_TabStrip> createState() => _TabStripState();
+}
+
+class _TabStripState extends State<_TabStrip> {
+  int? _hover;
+
+  @override
+  Widget build(BuildContext context) {
+    final row = Row(
+      mainAxisSize: widget.scrollable ? MainAxisSize.min : MainAxisSize.max,
+      children: [
+        for (var i = 0; i < widget.labels.length; i++)
+          widget.scrollable ? _tab(i) : Expanded(child: _tab(i)),
+      ],
+    );
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE9ECF3),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: widget.scrollable
+          ? SingleChildScrollView(scrollDirection: Axis.horizontal, child: row)
+          : row,
+    );
+  }
+
+  Widget _tab(int i) {
+    final selected = i == widget.selected;
+    final hovered = _hover == i && !selected;
+    final color = widget.color;
+    final count = widget.counts?[i];
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = i),
+      onExit: (_) {
+        if (_hover == i) setState(() => _hover = null);
+      },
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => widget.onChanged(i),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.center,
+          margin: const EdgeInsets.symmetric(horizontal: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: selected
+                ? color
+                : hovered
+                ? color.withValues(alpha: .10)
+                : color.withValues(alpha: 0),
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.easeOutCubic,
+            style: TextStyle(
+              color: selected
+                  ? Colors.white
+                  : hovered
+                  ? color
+                  : const Color(0xFF5B6479),
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    widget.labels[i],
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (count != null) ...[
+                  const SizedBox(width: 6),
+                  Opacity(
+                    opacity: .75,
+                    child: Text(
+                      '$count',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Fades/slides tab content in and out and animates the height, so switching
+/// tabs never jumps.
+class _TabContent extends StatelessWidget {
+  const _TabContent({required this.stateKey, required this.child});
+
+  final Object stateKey;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOutCubic,
+      alignment: Alignment.topCenter,
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeIn,
+        layoutBuilder: (current, previous) => Stack(
+          alignment: Alignment.topCenter,
+          clipBehavior: Clip.none,
+          children: [
+            for (final old in previous)
+              Positioned(top: 0, left: 0, right: 0, child: old),
+            if (current != null) current,
+          ],
+        ),
+        transitionBuilder: (child, animation) => FadeTransition(
+          opacity: animation,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, .03),
+              end: Offset.zero,
+            ).animate(animation),
+            child: child,
+          ),
+        ),
+        child: KeyedSubtree(key: ValueKey<Object>(stateKey), child: child),
+      ),
+    );
+  }
+}
+
+/// Small staggered entrance for list items.
+class _FadeIn extends StatelessWidget {
+  const _FadeIn({required this.index, required this.child});
+
+  final int index;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+        tween: Tween<double>(begin: 0, end: 1),
+        duration: Duration(milliseconds: 320 + (index > 8 ? 8 : index) * 60),
+        curve: Curves.easeOutCubic,
+        builder: (context, value, child) => Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - value) * 10),
+            child: child,
+          ),
+        ),
+        child: child,
+      );
+}
+
+/// Section heading with a small accent bar.
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        children: [
+          Container(
+            width: 4,
+            height: 18,
+            decoration: BoxDecoration(
+              color: _tabColor(context),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: AppColors.ink,
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
       );
 }

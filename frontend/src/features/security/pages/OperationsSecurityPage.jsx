@@ -675,6 +675,8 @@ export default function SecurityPage() {
           Manage
         </button>
       );
+    if (tab === "rosters" && item.status?.toUpperCase() === "CANCELLED")
+      return <span className="security-roster-cancelled-label">Cancelled</span>;
     if (["rosters", "tasks", "incidents", "emergencies"].includes(tab))
       return (
         <button
@@ -719,11 +721,15 @@ export default function SecurityPage() {
         item.rosterDate?.slice(0, 10),
         titleCase(item.rosterType),
         <SecurityBadge value={item.status} />,
-        item.cancellationReason ? (
+        item.status === "CANCELLED" ? (
           <span className="security-roster-cancellation">
-            <strong>{item.cancellationReason}</strong>
+            <strong>Reason: {item.cancellationReason || "Not provided"}</strong>
             <small>
               Cancelled {item.cancelledAt ? new Date(item.cancelledAt).toLocaleString() : "time unavailable"}
+            </small>
+            <small>
+              {item.cancelledBySecurityGuard ? "Cancelled by security guard" : "Cancelled by administrator"}
+              {item.cancelledByName ? `: ${item.cancelledByName}` : ""}
             </small>
           </span>
         ) : "—",
@@ -913,6 +919,7 @@ export default function SecurityPage() {
                   className="society-add-button"
                   onClick={() => setForm("attendance")}
                 >
+                  <Plus size={16} />
                   Add attendance
                 </button>
               </>
@@ -1278,7 +1285,7 @@ export default function SecurityPage() {
             } else if (type === "tasks")
               await act(securityApi.taskAction, item.id, action, payload);
             else if (type === "rosters")
-              await act(securityApi.rosterAction, item.id, action);
+              await act(securityApi.rosterAction, item.id, action, payload);
             else
               await act(
                 type === "incidents"
@@ -1524,7 +1531,7 @@ function SecurityWorkflowDialog({
       : type === "tasks"
         ? "start"
         : type === "rosters"
-          ? "confirm"
+          ? ""
           : "acknowledge",
   );
   const [error, setError] = useState("");
@@ -1544,7 +1551,6 @@ function SecurityWorkflowDialog({
           ]
         : type === "rosters"
           ? [
-              ["confirm", "Confirm schedule"],
               ["complete", "Complete schedule"],
               ["cancel", "Cancel schedule"],
             ]
@@ -1569,6 +1575,10 @@ function SecurityWorkflowDialog({
               ];
   const submit = async (event) => {
     event.preventDefault();
+    if (!action) {
+      setError("Choose an action first.");
+      return;
+    }
     const values = Object.fromEntries(
       new FormData(event.currentTarget).entries(),
     );
@@ -1578,7 +1588,9 @@ function SecurityWorkflowDialog({
       payload = { investigationNotes: values.notes };
     if (action === "resolve") payload = { resolutionDetails: values.notes };
     if (action === "respond") payload = { responseNotes: values.notes };
-    if (["cancel", "false-alarm"].includes(action))
+    if (type === "rosters" && action === "cancel")
+      payload = { reason: values.notes };
+    else if (["cancel", "false-alarm"].includes(action))
       payload = { remarks: values.notes };
     if (action === "external-contacts")
       payload = {
@@ -1633,12 +1645,14 @@ function SecurityWorkflowDialog({
             <label className="security-field">
               Action
               <select
+                required
                 value={action}
                 onChange={(event) => {
                   setAction(event.target.value);
                   setError("");
                 }}
               >
+                <option value="" disabled>Choose an action</option>
                 {actionOptions.map(([value, label]) => (
                   <option key={value} value={value}>
                     {label}
@@ -1682,7 +1696,9 @@ function SecurityWorkflowDialog({
                     ? "Investigation notes"
                     : action === "respond"
                       ? "Response notes"
-                      : "Reason / remarks"}
+                      : type === "rosters" && action === "cancel"
+                        ? "Cancellation reason"
+                        : "Reason / remarks"}
                 <textarea
                   name="notes"
                   rows="3"
@@ -1700,7 +1716,7 @@ function SecurityWorkflowDialog({
             <button type="button" onClick={onClose}>
               Cancel
             </button>
-            <button className="society-add-button" disabled={busy}>
+            <button className="society-add-button" disabled={busy || !action}>
               {busy ? "Applying…" : "Apply action"}
             </button>
           </footer>

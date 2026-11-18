@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
+import '../../../../app/theme/app_colors.dart';
 import '../../../auth/data/auth_api.dart';
 import '../data/profile_photo_picker.dart';
 
@@ -29,6 +31,8 @@ class _ResidentEditProfileScreenState extends State<ResidentEditProfileScreen> {
   late final TextEditingController _phoneController;
   bool _saving = false;
   String? _error;
+  String? _message;
+  Timer? _messageTimer;
   Uint8List? _selectedPhotoBytes;
   String? _selectedPhotoName;
 
@@ -52,6 +56,7 @@ class _ResidentEditProfileScreenState extends State<ResidentEditProfileScreen> {
 
   @override
   void dispose() {
+    _messageTimer?.cancel();
     _firstNameController.dispose();
     _lastNameController.dispose();
     _emailController.dispose();
@@ -62,15 +67,43 @@ class _ResidentEditProfileScreenState extends State<ResidentEditProfileScreen> {
   Future<void> _save() async {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
-    setState(() {
-      _saving = true;
-      _error = null;
-    });
-
     final firstName = _firstNameController.text.trim();
     final lastName = _lastNameController.text.trim();
     final email = _emailController.text.trim();
     final phone = _phoneController.text.trim();
+    final nameParts = widget.user.name.trim().split(RegExp(r'\s+'));
+    final originalFirstName = widget.user.firstName?.trim().isNotEmpty == true
+        ? widget.user.firstName!.trim()
+        : (nameParts.isNotEmpty ? nameParts.first : '');
+    final originalLastName = widget.user.lastName?.trim().isNotEmpty == true
+        ? widget.user.lastName!.trim()
+        : (nameParts.length > 1 ? nameParts.skip(1).join(' ') : '');
+    final unchanged =
+        firstName == originalFirstName &&
+        lastName == originalLastName &&
+        email == widget.user.email.trim() &&
+        phone == (widget.user.phone ?? '').trim() &&
+        _selectedPhotoBytes == null;
+    if (unchanged) {
+      _messageTimer?.cancel();
+      setState(() {
+        _error = null;
+        _message = 'No changes made.';
+      });
+      _messageTimer = Timer(const Duration(seconds: 2), () {
+        if (mounted && _message == 'No changes made.') {
+          setState(() => _message = null);
+        }
+      });
+      return;
+    }
+    _messageTimer?.cancel();
+    setState(() {
+      _saving = true;
+      _error = null;
+      _message = null;
+    });
+
     try {
       final response = await AuthApi.updateResidentProfile(
         accessToken: widget.user.accessToken,
@@ -119,7 +152,9 @@ class _ResidentEditProfileScreenState extends State<ResidentEditProfileScreen> {
         _selectedPhotoBytes = bytes;
         _selectedPhotoName = image.name;
         _error = null;
+        _message = null;
       });
+      _messageTimer?.cancel();
     } catch (error) {
       if (mounted) {
         setState(() {
@@ -264,11 +299,15 @@ class _ResidentEditProfileScreenState extends State<ResidentEditProfileScreen> {
                             width: 27,
                             height: 27,
                             decoration: BoxDecoration(
-                              color: _gold,
+                              color: AppColors.indigo,
                               shape: BoxShape.circle,
                               border: Border.all(color: Colors.white, width: 2),
                             ),
-                            child: const Icon(Icons.camera_alt_rounded, size: 14, color: _teal),
+                            child: const Icon(
+                              Icons.camera_alt_rounded,
+                              size: 14,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ],
@@ -331,6 +370,25 @@ class _ResidentEditProfileScreenState extends State<ResidentEditProfileScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (_message != null) ...[
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE8F5EC),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFC8E6CF)),
+                        ),
+                        child: Text(
+                          _message!,
+                          style: const TextStyle(
+                            color: Color(0xFF1E5631),
+                            height: 1.35,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                     if (_error != null) ...[
                       Container(
                         padding: const EdgeInsets.all(14),
@@ -406,10 +464,8 @@ class _ResidentEditProfileScreenState extends State<ResidentEditProfileScreen> {
                     const SizedBox(height: 8),
                     SizedBox(
                       height: 56,
-                      child: FilledButton.icon(
+                      child: FilledButton(
                         style: FilledButton.styleFrom(
-                          backgroundColor: _gold,
-                          foregroundColor: _teal,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(17),
                           ),
@@ -419,16 +475,22 @@ class _ResidentEditProfileScreenState extends State<ResidentEditProfileScreen> {
                           ),
                         ),
                         onPressed: _saving ? null : _save,
-                        icon: _saving
-                            ? const SizedBox.square(
-                                dimension: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: _teal,
-                                ),
+                        child: _saving
+                            ? Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const SizedBox.square(
+                                    dimension: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  const Text('Saving...'),
+                                ],
                               )
-                            : const Icon(Icons.check_rounded),
-                        label: Text(_saving ? 'Saving...' : 'Save changes'),
+                            : const Text('Save changes'),
                       ),
                     ),
                   ],

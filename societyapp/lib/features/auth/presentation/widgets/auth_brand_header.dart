@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../app/theme/app_colors.dart';
+
 /// Shared, edge-to-edge welcome artwork used by sign-in and recovery screens.
 /// The image fades into the page canvas so it feels continuous with the form.
 class AuthBrandHeader extends StatelessWidget {
@@ -47,39 +49,35 @@ class AuthBrandHeader extends StatelessWidget {
         SafeArea(
           bottom: false,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(22, 8, 22, 12),
+            padding: const EdgeInsets.fromLTRB(22, 20, 22, 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Row(
-                  children: [
-                    if (onBack != null) ...[
-                      IconButton(
-                        onPressed: onBack,
-                        tooltip: backLabel,
-                        icon: const Icon(Icons.arrow_back_rounded),
-                        color: Colors.white,
-                      ),
-                      const SizedBox(width: 2),
-                    ],
-                    const Spacer(),
-                    const Text(
-                      'ShubhNivas',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -.3,
-                        shadows: [
-                          Shadow(color: Color(0x55000000), blurRadius: 10),
-                        ],
-                      ),
+                if (onBack != null)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: IconButton(
+                      onPressed: onBack,
+                      tooltip: backLabel,
+                      icon: const Icon(Icons.arrow_back_rounded),
+                      color: AppColors.indigo,
                     ),
-                    const Spacer(),
-                    if (onBack != null) const SizedBox(width: 48),
-                  ],
-                ),
+                  ),
                 const Spacer(),
+                const Text(
+                  'ShubhNivas',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xFFFFD000),
+                    fontSize: 30,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -.3,
+                    shadows: [
+                      Shadow(color: Color(0x990D2238), blurRadius: 10),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 300),
                   switchInCurve: Curves.easeOut,
@@ -104,7 +102,7 @@ class AuthBrandHeader extends StatelessWidget {
                       height: 1.08,
                       fontWeight: FontWeight.w700,
                       shadows: [
-                        Shadow(color: Color(0x66000000), blurRadius: 12),
+                        Shadow(color: Color(0xAA0D2238), blurRadius: 12),
                       ],
                     ),
                   ),

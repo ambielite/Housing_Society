@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 
 import accountingPeriodApi from "../api/accountingPeriod.api";
 import journalApi from "../api/journal.api";
@@ -264,7 +264,7 @@ const JournalForm = ({ journal, onClose, onSuccess }) => {
                     <div className="form-section">
                         <div className="form-section-title">
                             <h3>Journal lines</h3>
-                            <button type="button" className="btn-secondary btn-small" onClick={addLine}><span className="button-plus" aria-hidden="true">+</span> Add line</button>
+                            <button type="button" className="btn-secondary btn-small" onClick={addLine}><Plus size={18} strokeWidth={2.4} aria-hidden="true" /> Add line</button>
                         </div>
 
                         <div className="form-grid">

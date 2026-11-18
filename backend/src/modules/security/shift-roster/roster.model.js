@@ -120,7 +120,6 @@ const Roster = sequelize.define(
 
         indexes: [
             {
-                unique: true,
                 fields: [
                     "staff_id",
                     "roster_date"

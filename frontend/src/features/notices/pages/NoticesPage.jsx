@@ -20,9 +20,73 @@ const localInput = (raw) => {
   date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
   return date.toISOString().slice(0, 16);
 };
-const toIso = (raw) => raw ? new Date(raw).toISOString() : null;
+const parseDateTimeParts = (raw) => {
+  if (!raw) return { date: '', hour: '', minute: '', period: '' };
+  if (raw.includes('|')) {
+    const [date = '', hour = '', minute = '', period = ''] = raw.split('|');
+    return { date, hour, minute, period };
+  }
+  const [date = '', time = ''] = raw.split('T');
+  if (!date || !time) return { date: '', hour: '', minute: '', period: '' };
+  const [rawHour, minute = ''] = time.split(':');
+  const hour24 = Number(rawHour);
+  if (!Number.isInteger(hour24) || hour24 < 0 || hour24 > 23) return { date: '', hour: '', minute: '', period: '' };
+  return {
+    date,
+    hour: String(hour24 % 12 || 12),
+    minute,
+    period: hour24 >= 12 ? 'PM' : 'AM',
+  };
+};
+const toIso = (raw) => {
+  if (!raw) return null;
+  let localValue = raw;
+  if (raw.includes('|')) {
+    const { date, hour, minute, period } = parseDateTimeParts(raw);
+    const hourNumber = Number(hour);
+    const minuteNumber = Number(minute);
+    if (!date || !hour || !minute || !['AM', 'PM'].includes(period) || hourNumber < 1 || hourNumber > 12 || minuteNumber < 0 || minuteNumber > 59) return null;
+    const hour24 = (hourNumber % 12) + (period === 'PM' ? 12 : 0);
+    localValue = `${date}T${String(hour24).padStart(2, '0')}:${String(minuteNumber).padStart(2, '0')}`;
+  }
+  const date = new Date(localValue);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+};
 const rowsFrom = (result) => Array.isArray(result) ? result : Array.isArray(result?.rows) ? result.rows : [];
 const errorMessage = (error) => error?.response?.data?.message || error?.message || 'Could not complete that request.';
+
+function NoticeDateTimeField({ label, value, onChange }) {
+  const parts = parseDateTimeParts(value);
+  const update = (key, next) => {
+    const updated = { ...parts, [key]: next };
+    const values = [updated.date, updated.hour, updated.minute, updated.period];
+    onChange(values.every((part) => !part) ? '' : values.join('|'));
+  };
+  return (
+    <div className="notice-field">
+      <span>{label}</span>
+      <div className="notice-datetime-control">
+        <input aria-label={`${label} date`} type="date" value={parts.date} onChange={(event) => update('date', event.target.value)} />
+        <div className="notice-time-control">
+          <select aria-label={`${label} hour`} value={parts.hour} onChange={(event) => update('hour', event.target.value)}>
+            <option value="">Hour</option>
+            {Array.from({ length: 12 }, (_, index) => String(index + 1)).map((hour) => <option key={hour} value={hour}>{hour}</option>)}
+          </select>
+          <span>:</span>
+          <select aria-label={`${label} minute`} value={parts.minute} onChange={(event) => update('minute', event.target.value)}>
+            <option value="">Min</option>
+            {Array.from({ length: 60 }, (_, index) => String(index).padStart(2, '0')).map((minute) => <option key={minute} value={minute}>{minute}</option>)}
+          </select>
+          <select aria-label={`${label} AM or PM`} value={parts.period} onChange={(event) => update('period', event.target.value)}>
+            <option value="">AM/PM</option>
+            <option value="AM">AM</option>
+            <option value="PM">PM</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function NoticesPage() {
   const { hasPermission } = useAuth();
@@ -109,12 +173,18 @@ export default function NoticesPage() {
 
   const submit = async (event) => {
     event.preventDefault();
+    const scheduledAt = toIso(form.scheduledAt);
+    const expiresAt = toIso(form.expiresAt);
+    if ((form.scheduledAt && !scheduledAt) || (form.expiresAt && !expiresAt)) {
+      setError('Choose a date, hour, minute, and AM/PM for each time you enter.');
+      return;
+    }
     setBusy(true); setError(''); setMessage('');
     const body = {
       title: form.title.trim(),
       description: form.description.trim(),
-      scheduledAt: toIso(form.scheduledAt),
-      expiresAt: toIso(form.expiresAt),
+      scheduledAt,
+      expiresAt,
     };
     try {
       if (editing) await noticesApi.update(value(editing, 'id'), body);
@@ -186,7 +256,7 @@ export default function NoticesPage() {
     <section className="society-dashboard notices-page">
       <header className="society-heading notices-heading">
         <div className="notices-title-block">
-          <span className="notices-eyebrow"><Megaphone size={15} /> MANAGE SOCIETY <span className="noticeboard-breadcrumb">/ NOTICEBOARD</span></span>
+          <span className="notices-eyebrow"><span className="society-eyebrow-dot" /> MANAGE SOCIETY <span className="noticeboard-breadcrumb">/ NOTICEBOARD</span></span>
           <h1>Noticeboard</h1>
           <p>Publish society updates, meeting notices, and important reminders.</p>
         </div>
@@ -259,7 +329,7 @@ export default function NoticesPage() {
           {!editing && templates.length > 0 && <label className="notice-field notice-template-field">Use saved template <select value={form.templateId} onChange={(event) => { const next = templates.find((item) => String(item.id) === event.target.value); setForm((current) => ({ ...current, templateId: event.target.value, title: next?.title || current.title, description: next?.description || current.description })); }}><option value="">Start from scratch</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.title}</option>)}</select></label>}
           <label className="notice-field">Title <input maxLength={255} required value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} placeholder="e.g. Annual General Meeting notice" /></label>
           <label className="notice-field">Description <textarea required rows={6} value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} placeholder="Write the notice details for residents…" /></label>
-          <div className="notice-date-grid"><label className="notice-field">Schedule for (optional) <input type="datetime-local" value={form.scheduledAt} onChange={(event) => setForm((current) => ({ ...current, scheduledAt: event.target.value }))} /></label><label className="notice-field">Expires on (optional) <input type="datetime-local" value={form.expiresAt} onChange={(event) => setForm((current) => ({ ...current, expiresAt: event.target.value }))} /></label></div>
+          <div className="notice-date-grid"><NoticeDateTimeField label="Schedule for (optional)" value={form.scheduledAt} onChange={(scheduledAt) => setForm((current) => ({ ...current, scheduledAt }))} /><NoticeDateTimeField label="Expires on (optional)" value={form.expiresAt} onChange={(expiresAt) => setForm((current) => ({ ...current, expiresAt }))} /></div>
           {error && <div className="notice-form-error" role="alert">{error}</div>}
           <footer><button type="button" className="notice-cancel-button" onClick={() => setFormOpen(false)}>Cancel</button><button type="submit" className="notices-add-button" disabled={busy}>{busy ? 'Saving…' : <><Send size={15} />{editing ? 'Save changes' : form.scheduledAt ? 'Schedule notice' : 'Publish notice'}</>}</button></footer>
         </form>

@@ -39,6 +39,35 @@ const deleteGate = async (id) => {
 
 const listGuards = (query) => repository.listGuards(query);
 
+const getMyGuard = async (user) => {
+  if (!user?.societyId) {
+    throw new ApiError(404, 'No security staff profile is linked to this account');
+  }
+  const guard = await repository.findGuardByUserId(user.id, user.societyId);
+  if (!guard) {
+    throw new ApiError(404, 'No security staff profile is linked to this account');
+  }
+  return guard;
+};
+
+const listMyNotifications = async (user) => {
+  if (!user?.societyId) return [];
+  return repository.listMyNotifications(user.id, user.societyId);
+};
+
+const markMyNotificationRead = async (user, notificationId) => {
+  if (!user?.societyId) {
+    throw new ApiError(404, 'Notification not found');
+  }
+  const notification = await repository.markMyNotificationRead(
+    user.id,
+    user.societyId,
+    notificationId
+  );
+  if (!notification) throw new ApiError(404, 'Notification not found');
+  return notification;
+};
+
 const getGuard = async (id) => {
   const guard = await repository.findGuardById(id);
   if (!guard) {
@@ -157,6 +186,9 @@ module.exports = {
   updateGate,
   deleteGate,
   listGuards,
+  getMyGuard,
+  listMyNotifications,
+  markMyNotificationRead,
   getGuard,
   updateGuard,
   deleteGuard,

@@ -14,20 +14,6 @@ const findById = async (id, options = {}) => {
 };
 
 
-const findByStaffAndDate = async (
-    staffId,
-    rosterDate
-) => {
-
-    return await Roster.findOne({
-        where: {
-            staffId,
-            rosterDate
-        }
-    });
-};
-
-
 const findByStaffId = async (
     staffId
 ) => {
@@ -95,7 +81,6 @@ const remove = async (
 module.exports = {
     create,
     findById,
-    findByStaffAndDate,
     findByStaffId,
     findByDate,
     findAll,

@@ -24,6 +24,10 @@ router.use(authenticate);
 // :gateId value (same bug class as Phase 4's /vehicles/visits issue).
 
 // Security guards
+router.get('/notifications/me', controller.listMyNotifications);
+router.get('/notifications/stream', controller.streamMySecurityEvents);
+router.patch('/notifications/:notificationId/read', controller.markMyNotificationRead);
+router.get('/guards/me', controller.getMyGuard);
 router.get('/guards', authorize('SECURITY_GUARD_READ'), validate(listGuardsQuerySchema, 'query'), controller.listGuards);
 router.get('/guards/:guardId', authorize('SECURITY_GUARD_READ'), controller.getGuard);
 router.patch('/guards/:guardId', authorize('SECURITY_GUARD_UPDATE'), validate(updateGuardSchema), controller.updateGuard);

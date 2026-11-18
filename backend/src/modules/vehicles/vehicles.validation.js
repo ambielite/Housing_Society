@@ -7,12 +7,30 @@ const CREDENTIAL_TYPES = ['RFID', 'STICKER', 'QR'];
 const createVehicleSchema = Joi.object({
   societyId: Joi.string().uuid().required(),
   ownerUserId: Joi.string().uuid().allow(null),
-  unitId: Joi.string().uuid().allow(null),
-  registrationNo: Joi.string().max(20).required(),
+  unitId: Joi.string().uuid().required(),
+  registrationNo: Joi.string()
+    .trim()
+    .uppercase()
+    .replace(/[\s-]+/g, '')
+    .min(5)
+    .max(13)
+    .pattern(/^[A-Z]{2}\d{1,4}[A-Z]{1,3}\d{1,4}$/)
+    .custom((value, helpers) => {
+      const serial = value.match(/\d+$/)?.[0] || '';
+      return /^0+$/.test(serial) ? helpers.error('any.invalid') : value;
+    })
+    .required()
+    .messages({
+      'string.empty': 'Vehicle registration number is required.',
+      'string.min': 'Vehicle registration number is too short to be valid.',
+      'string.max': 'Vehicle registration number is too long to be valid.',
+      'string.pattern.base': 'Use the format MH12AB1234: state, RTO, series, then number.',
+      'any.invalid': 'The final registration number cannot be all zeros.',
+    }),
   vehicleType: Joi.string().valid(...VEHICLE_TYPES).required(),
-  make: Joi.string().max(100).allow('', null),
+  make: Joi.string().trim().min(1).max(100).required(),
   model: Joi.string().max(100).allow('', null),
-  color: Joi.string().max(50).allow('', null),
+  color: Joi.string().trim().min(1).max(50).required(),
 });
 
 const listVehiclesQuerySchema = Joi.object({
@@ -26,10 +44,10 @@ const listVehiclesQuerySchema = Joi.object({
 
 const updateVehicleSchema = Joi.object({
   ownerUserId: Joi.string().uuid().allow(null),
-  unitId: Joi.string().uuid().allow(null),
-  make: Joi.string().max(100).allow('', null),
+  unitId: Joi.string().uuid(),
+  make: Joi.string().trim().min(1).max(100),
   model: Joi.string().max(100).allow('', null),
-  color: Joi.string().max(50).allow('', null),
+  color: Joi.string().trim().min(1).max(50),
 }).min(1);
 
 const updateVehicleStatusSchema = Joi.object({

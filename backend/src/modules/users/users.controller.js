@@ -28,7 +28,7 @@ const updateProfile = asyncHandler(async (req, res) => {
   const user = await service.updateProfile(req.params.userId, {
     ...req.body,
     profilePicture: req.file || null,
-  });
+  }, req.user);
   return ApiResponse.success(res, user, 'User updated successfully');
 });
 
@@ -49,12 +49,12 @@ const updateMyProfile = asyncHandler(async (req, res) => {
 });
 
 const updateStatus = asyncHandler(async (req, res) => {
-  const user = await service.updateStatus(req.params.userId, req.body.status);
+  const user = await service.updateStatus(req.params.userId, req.body.status, req.user);
   return ApiResponse.success(res, user, 'User status updated successfully');
 });
 
 const archiveUser = asyncHandler(async (req, res) => {
-  const user = await service.archiveUser(req.params.userId);
+  const user = await service.archiveUser(req.params.userId, req.user);
   return ApiResponse.success(res, user, 'User archived successfully');
 });
 

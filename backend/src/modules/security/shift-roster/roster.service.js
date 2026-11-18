@@ -9,6 +9,7 @@ const Shift =
 
 const sequelize = require("../../../config/database");
 const Notification = require("../../notifications/notification/notification.model");
+const securityEvents = require("../../gates/securityEvents");
 
 const RosterRepository =
     require("./roster.repository");
@@ -18,9 +19,106 @@ const {
     validateUpdate
 } = require("./roster.validation");
 
+const roleLabels = {
+    SOCIETY_ADMIN: "Society Admin",
+    SUPER_ADMIN: "Super Admin",
+    PRESIDENT_SECRETARY: "President/Secretary",
+    SECURITY_HEAD: "Security Guard",
+};
+
+const actorDisplayName = (actor) => {
+    const name = [actor?.firstName, actor?.lastName]
+        .map((part) => String(part || "").trim())
+        .filter(Boolean)
+        .join(" ") || actor?.email || "Administrator";
+    const roleCode = (actor?.roles || []).find((role) => roleLabels[role]);
+    const role = roleLabels[roleCode] || "Administrator";
+    return `${name} (${role})`;
+};
+
+const notifyGuardOfRoster = async (roster, title, message, actor) => {
+    const [guardRows] = await sequelize.query(
+        `SELECT user_id FROM security_guards
+          WHERE staff_id = :staffId AND user_id IS NOT NULL
+          LIMIT 1`,
+        { replacements: { staffId: roster.staffId } }
+    );
+    const guardUserId = guardRows[0]?.user_id;
+    if (!guardUserId) return;
+
+    const actorName = actorDisplayName(actor);
+    const now = new Date();
+    await Notification.create({
+        societyId: roster.societyId,
+        userId: guardUserId,
+        channel: "IN_APP",
+        notificationType: "OPERATIONAL",
+        title: `${title} by ${actorName}`,
+        subject: `${title} by ${actorName}`,
+        message: `${message} By ${actorName}.`,
+        data: {
+            rosterId: roster.id,
+            staffId: roster.staffId,
+            shiftId: roster.shiftId,
+            rosterDate: roster.rosterDate,
+        },
+        referenceType: "STAFF_ROSTER",
+        referenceId: roster.id,
+        priority: "HIGH",
+        status: "SENT",
+        isRead: false,
+        sentAt: now,
+        deliveredAt: now,
+    });
+    securityEvents.publishRosterUpdated(guardUserId);
+};
+
+const findOverlappingRoster = async ({
+    staffId,
+    rosterDate,
+    shift,
+    excludeRosterId,
+}) => {
+    const [rows] = await sequelize.query(
+        `WITH candidate AS (
+             SELECT CAST(:rosterDate AS date) + CAST(:startTime AS time) AS starts_at,
+                    CAST(:rosterDate AS date) + CAST(:endTime AS time)
+                      + CASE WHEN :isOvernight OR CAST(:endTime AS time) <= CAST(:startTime AS time)
+                             THEN INTERVAL '1 day' ELSE INTERVAL '0 days' END AS ends_at
+         )
+         SELECT roster.id, roster.roster_date AS "rosterDate", assigned_shift.shift_name AS "shiftName"
+           FROM staff_rosters roster
+           JOIN shifts assigned_shift ON assigned_shift.id = roster.shift_id
+           CROSS JOIN candidate
+          WHERE roster.staff_id = :staffId
+            AND roster.status NOT IN ('CANCELLED', 'COMPLETED')
+            AND roster.roster_date BETWEEN CAST(:rosterDate AS date) - 1
+                                       AND CAST(:rosterDate AS date) + 1
+            AND (:excludeRosterId IS NULL OR roster.id <> :excludeRosterId)
+            AND roster.roster_date + assigned_shift.start_time < candidate.ends_at
+            AND roster.roster_date + assigned_shift.end_time
+                + CASE WHEN assigned_shift.is_overnight
+                             OR assigned_shift.end_time <= assigned_shift.start_time
+                       THEN INTERVAL '1 day' ELSE INTERVAL '0 days' END > candidate.starts_at
+          LIMIT 1`,
+        {
+            replacements: {
+                staffId,
+                rosterDate,
+                startTime: shift.startTime,
+                endTime: shift.endTime,
+                isOvernight: Boolean(shift.isOvernight),
+                excludeRosterId: excludeRosterId || null,
+            },
+        }
+    );
+    return rows[0] || null;
+};
+
 
 const createRoster = async (
-    data
+    data,
+    actor
 ) => {
 
     validateCreate(data);
@@ -82,22 +180,27 @@ const createRoster = async (
         );
     }
 
-    const existing =
-        await RosterRepository
-            .findByStaffAndDate(
-                data.staffId,
-                data.rosterDate
+    if (!['CANCELLED', 'COMPLETED'].includes(data.status)) {
+        const conflict = await findOverlappingRoster({
+            staffId: data.staffId,
+            rosterDate: data.rosterDate,
+            shift,
+        });
+        if (conflict) {
+            throw new Error(
+                `This guard already has ${conflict.shiftName} scheduled during that time.`
             );
-
-    if (existing) {
-        throw new Error(
-            "Roster already exists for this staff member on this date"
-        );
+        }
     }
 
-    return await RosterRepository.create(
-        data
+    const roster = await RosterRepository.create(data);
+    await notifyGuardOfRoster(
+        roster,
+        "New shift assigned",
+        `Your ${shift.shiftName} shift is scheduled for ${roster.rosterDate}.`,
+        actor
     );
+    return roster;
 };
 
 
@@ -120,13 +223,58 @@ const getRosterById = async (
 };
 
 
-const getAllRosters = async (
-    filters = {}
-) => {
+const attachCancellationActors = async (rosters) => {
+    const cancelledByIds = [...new Set(rosters
+        .map((roster) => roster.cancelledBy)
+        .filter(Boolean))];
+    if (!cancelledByIds.length) return rosters;
 
-    return await RosterRepository.findAll(
-        filters
+    const [actors] = await sequelize.query(
+        `SELECT roster.id AS roster_id,
+                COALESCE(NULLIF(trim(concat_ws(' ', u.first_name, u.last_name)), ''), u.email, 'Unknown user') AS name,
+                actor_role.name AS role_name,
+                EXISTS (
+                    SELECT 1
+                      FROM security_guards guard
+                     WHERE guard.user_id = u.id AND guard.staff_id = roster.staff_id
+                ) AS is_security_guard
+           FROM staff_rosters roster
+           JOIN users u ON u.id = roster.cancelled_by
+           LEFT JOIN LATERAL (
+                SELECT r.name
+                  FROM user_roles ur
+                  JOIN roles r ON r.id = ur.role_id
+                 WHERE ur.user_id = u.id
+                   AND r.status = 'ACTIVE'
+                   AND (ur.society_id = roster.society_id OR ur.society_id IS NULL)
+                 ORDER BY CASE r.code
+                              WHEN 'SOCIETY_ADMIN' THEN 1
+                              WHEN 'SUPER_ADMIN' THEN 2
+                              WHEN 'PRESIDENT_SECRETARY' THEN 3
+                              ELSE 4
+                          END,
+                          CASE WHEN ur.society_id = roster.society_id THEN 0 ELSE 1 END
+                 LIMIT 1
+           ) actor_role ON TRUE
+          WHERE roster.cancelled_by IN (:ids)`,
+        { replacements: { ids: cancelledByIds } }
     );
+    const actorByRosterId = new Map(actors.map((actor) => [String(actor.roster_id), actor]));
+    for (const roster of rosters) {
+        const actor = actorByRosterId.get(String(roster.id));
+        const displayName = actor?.name
+            ? actor.role_name && !actor.is_security_guard
+                ? `${actor.name} (${actor.role_name})`
+                : actor.name
+            : null;
+        roster.setDataValue('cancelledByName', displayName);
+        roster.setDataValue('cancelledBySecurityGuard', Boolean(actor?.is_security_guard));
+    }
+    return rosters;
+};
+
+const getAllRosters = async (filters = {}) => {
+    return attachCancellationActors(await RosterRepository.findAll(filters));
 };
 
 
@@ -145,10 +293,7 @@ const getRostersByStaff = async (
         );
     }
 
-    return await RosterRepository
-        .findByStaffId(
-            staffId
-        );
+    return attachCancellationActors(await RosterRepository.findByStaffId(staffId));
 };
 
 
@@ -165,7 +310,8 @@ const getRostersByDate = async (
 
 const updateRoster = async (
     id,
-    data
+    data,
+    actor
 ) => {
 
     validateUpdate(data);
@@ -179,6 +325,10 @@ const updateRoster = async (
         throw new Error(
             "Roster not found"
         );
+    }
+
+    if (roster.status === "CANCELLED" && data.status && data.status !== "CANCELLED") {
+        throw new Error("A cancelled schedule cannot be changed to another status");
     }
 
     if (data.staffId) {
@@ -224,10 +374,40 @@ const updateRoster = async (
         }
     }
 
-    return await RosterRepository.update(
-        roster,
-        data
+    const targetStaffId = data.staffId || roster.staffId;
+    const targetShiftId = data.shiftId || roster.shiftId;
+    const targetRosterDate = data.rosterDate || roster.rosterDate;
+    const targetStatus = data.status || roster.status;
+    const scheduleChanged = Boolean(
+        data.staffId || data.shiftId || data.rosterDate ||
+        (data.status && data.status !== roster.status)
     );
+    if (scheduleChanged && !["CANCELLED", "COMPLETED"].includes(targetStatus)) {
+        const targetShift = await Shift.findByPk(targetShiftId);
+        const conflict = await findOverlappingRoster({
+            staffId: targetStaffId,
+            rosterDate: targetRosterDate,
+            shift: targetShift,
+            excludeRosterId: roster.id,
+        });
+        if (conflict) {
+            throw new Error(
+                `This guard already has ${conflict.shiftName} scheduled during that time.`
+            );
+        }
+    }
+
+    const updatedRoster = await RosterRepository.update(roster, data);
+    if (data.staffId || data.shiftId || data.rosterDate) {
+        const assignedShift = await Shift.findByPk(updatedRoster.shiftId);
+        await notifyGuardOfRoster(
+            updatedRoster,
+            "Shift schedule updated",
+            `Your ${assignedShift?.shiftName || "shift"} schedule was updated for ${updatedRoster.rosterDate}.`,
+            actor
+        );
+    }
+    return updatedRoster;
 };
 
 
@@ -246,6 +426,13 @@ const confirmRoster = async (
         );
     }
 
+    if (roster.status === "CANCELLED") {
+        throw new Error("A cancelled schedule cannot be confirmed");
+    }
+    if (roster.status === "COMPLETED") {
+        throw new Error("This schedule is already complete");
+    }
+
     return await RosterRepository.update(
         roster,
         {
@@ -256,26 +443,69 @@ const confirmRoster = async (
 
 
 const cancelRoster = async (
-    id
+    id,
+    user,
+    reason
 ) => {
-
-    const roster =
-        await RosterRepository.findById(
-            id
-        );
-
-    if (!roster) {
-        throw new Error(
-            "Roster not found"
-        );
+    const cancellationReason = typeof reason === "string" ? reason.trim() : "";
+    if (cancellationReason.length < 5 || cancellationReason.length > 1000) {
+        throw new Error("Please enter a cancellation reason (5 to 1000 characters)");
     }
-
-    return await RosterRepository.update(
-        roster,
-        {
-            status: "CANCELLED"
+    let guardUserId;
+    const result = await sequelize.transaction(async (transaction) => {
+        const roster = await RosterRepository.findById(id, { transaction });
+        if (!roster) throw new Error("Roster not found");
+        if (["CANCELLED", "COMPLETED"].includes(roster.status)) {
+            throw new Error("This shift is already cancelled or completed");
         }
-    );
+
+        const shift = await Shift.findByPk(roster.shiftId, { transaction });
+        const cancelledAt = new Date();
+        const adminName = actorDisplayName(user);
+        await RosterRepository.update(roster, {
+            status: "CANCELLED",
+            cancellationReason,
+            cancelledAt,
+            cancelledBy: user?.id || null,
+        }, { transaction });
+
+        const [guardRows] = await sequelize.query(
+            `SELECT g.user_id
+               FROM security_guards g
+               JOIN staff s ON s.id = g.staff_id
+              WHERE g.staff_id = :staffId
+                AND s.society_id = :societyId
+              LIMIT 1`,
+            { replacements: { staffId: roster.staffId, societyId: roster.societyId }, transaction }
+        );
+        guardUserId = guardRows[0]?.user_id;
+        if (guardUserId) {
+            await Notification.create({
+                societyId: roster.societyId,
+                userId: guardUserId,
+                channel: "IN_APP",
+                notificationType: "OPERATIONAL",
+                title: `Shift cancelled by ${adminName}`,
+                subject: `Shift cancelled by ${adminName}`,
+                message: `Your ${shift?.shiftName || "assigned shift"} on ${roster.rosterDate} was cancelled by ${adminName}. Reason: ${cancellationReason}`,
+                data: {
+                    rosterId: roster.id,
+                    staffId: roster.staffId,
+                    shiftId: roster.shiftId,
+                    reason: cancellationReason,
+                    cancelledAt: cancelledAt.toISOString(),
+                },
+                referenceType: "STAFF_ROSTER",
+                referenceId: roster.id,
+                priority: "HIGH",
+                status: "SENT",
+                isRead: false,
+            }, { transaction });
+        }
+        return roster;
+    });
+    securityEvents.publishRosterUpdated(guardUserId);
+    return result;
 };
 
 
@@ -402,6 +632,13 @@ const completeRoster = async (
         throw new Error(
             "Roster not found"
         );
+    }
+
+    if (roster.status === "CANCELLED") {
+        throw new Error("A cancelled schedule cannot be marked complete");
+    }
+    if (roster.status === "COMPLETED") {
+        throw new Error("This schedule is already complete");
     }
 
     return await RosterRepository.update(

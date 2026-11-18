@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 abstract final class AppColors {
   static const ink = Color(0xFF101A35);
   static const inkSoft = Color(0xFF1D2A4A);
+  static const navy = Color(0xFF1E293B);
   static const indigo = Color(0xFF6255E8);
   static const violet = Color(0xFF8878FF);
   static const teal = Color(0xFF69D4C1);

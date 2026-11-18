@@ -67,9 +67,9 @@ class _NewComplaintScreenState extends State<NewComplaintScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        backgroundColor: const Color(0xFFF5F7FB),
+        backgroundColor: AppColors.canvas,
         appBar: AppBar(
-          backgroundColor: const Color(0xFFF5F7FB),
+          backgroundColor: AppColors.canvas,
           title: const Text('New complaint'),
         ),
         body: SafeArea(
@@ -137,7 +137,7 @@ class _NewComplaintScreenState extends State<NewComplaintScreen> {
                                 borderRadius: BorderRadius.circular(14),
                                 icon: const Icon(
                                   Icons.keyboard_arrow_down_rounded,
-                                  color: Color(0xFF76519A),
+                                  color: AppColors.indigo,
                                 ),
                                 style: const TextStyle(
                                   color: AppColors.ink,
@@ -222,7 +222,7 @@ class _NewComplaintScreenState extends State<NewComplaintScreen> {
                                 _saving ? 'Submitting…' : 'Submit complaint',
                               ),
                               style: FilledButton.styleFrom(
-                                backgroundColor: AppColors.indigo,
+                                backgroundColor: AppColors.navy,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(15),
                                 ),
@@ -241,40 +241,65 @@ class _NewComplaintScreenState extends State<NewComplaintScreen> {
       );
 
   Widget _introCard() => Container(
-        padding: const EdgeInsets.all(18),
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          gradient: const LinearGradient(
-            colors: [Color(0xFF76519A), Color(0xFFA47BB5)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE3E7EF)),
         ),
-        child: const Row(
-          children: [
-            Icon(Icons.support_agent_rounded, color: Colors.white, size: 32),
-            SizedBox(width: 13),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'We’re here to help',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                    ),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(width: 4, color: AppColors.indigo),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEEF0FF),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.support_agent_rounded,
+                          color: AppColors.indigo,
+                          size: 26,
+                        ),
+                      ),
+                      const SizedBox(width: 13),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'We’re here to help',
+                              style: TextStyle(
+                                color: AppColors.ink,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'Send your concern to the society team.',
+                              style: TextStyle(
+                                color: Color(0xFF5B6479),
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  SizedBox(height: 4),
-                  Text(
-                    'Send your concern to the society team.',
-                    style: TextStyle(color: Color(0xFFF3EAF6), fontSize: 12),
-                  ),
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       );
 
@@ -283,27 +308,27 @@ class _NewComplaintScreenState extends State<NewComplaintScreen> {
         style: const TextStyle(
           color: AppColors.ink,
           fontSize: 13,
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w700,
         ),
       );
 
   InputDecoration _decoration({required String hint, required IconData icon}) =>
       InputDecoration(
         hintText: hint,
-        prefixIcon: Icon(icon, color: Colors.black),
+        prefixIcon: Icon(icon, color: const Color(0xFF5B6479)),
         filled: true,
         fillColor: Colors.white,
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFFE1E7F0)),
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFFE3E7EF)),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFFE1E7F0)),
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFFE3E7EF)),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: AppColors.indigo, width: 1.5),
         ),
       );
@@ -327,12 +352,12 @@ class _NewComplaintScreenState extends State<NewComplaintScreen> {
   Widget _errorBanner(String message) => Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: const Color(0xFFFFECEE),
-          borderRadius: BorderRadius.circular(12),
+          color: const Color(0xFFFFE9EB),
+          borderRadius: BorderRadius.circular(10),
         ),
         child: Text(
           message,
-          style: const TextStyle(color: Color(0xFF9D2635), fontSize: 12),
+          style: const TextStyle(color: Color(0xFFB4232F), fontSize: 12),
         ),
       );
 }

@@ -9,7 +9,9 @@ Future<PickedProfilePhoto?> pickProfilePhoto({required bool useCamera}) async {
   if (useCamera) return _captureFromCamera();
 
   final input = html.FileUploadInputElement()
-    ..accept = 'image/jpeg,image/png,image/webp'
+    // Let the browser expose every image format available on the device. The
+    // selected image is decoded and normalized to JPEG below before upload.
+    ..accept = 'image/*'
     ..multiple = false;
 
   // Trigger the browser picker while still inside the user's tap gesture.
@@ -19,21 +21,52 @@ Future<PickedProfilePhoto?> pickProfilePhoto({required bool useCamera}) async {
   final file = files == null || files.isEmpty ? null : files.first;
   if (file == null) return null;
 
-  final reader = html.FileReader();
-  final loaded = reader.onLoad.first.then<void>((_) {});
-  final failed = reader.onError.first.then<void>((_) {
-    throw StateError('The browser could not read the selected image.');
-  });
-  reader.readAsArrayBuffer(file);
-  await Future.any<void>([loaded, failed]);
-  final result = reader.result;
-  if (result is! ByteBuffer) {
-    throw StateError('The browser could not read the selected image.');
+  final objectUrl = html.Url.createObjectUrl(file);
+  final image = html.ImageElement(src: objectUrl);
+  try {
+    await Future.any<void>([
+      image.onLoad.first,
+      image.onError.first.then<void>((_) {
+        throw StateError(
+          'This browser cannot open this image format. Choose another photo or convert it to JPG or PNG.',
+        );
+      }),
+    ]);
+    final sourceWidth = image.naturalWidth;
+    final sourceHeight = image.naturalHeight;
+    if (sourceWidth == 0 || sourceHeight == 0) {
+      throw StateError('The selected file is not a readable image.');
+    }
+
+    // Canvas re-encoding handles formats the browser can decode (including
+    // formats the API does not store) and always sends a valid JPEG payload.
+    const maxDimension = 1600;
+    final scale = (sourceWidth > maxDimension || sourceHeight > maxDimension)
+        ? maxDimension / (sourceWidth > sourceHeight ? sourceWidth : sourceHeight)
+        : 1.0;
+    final canvas = html.CanvasElement(
+      width: (sourceWidth * scale).round(),
+      height: (sourceHeight * scale).round(),
+    );
+    canvas.context2D.drawImageScaled(
+      image,
+      0,
+      0,
+      canvas.width!,
+      canvas.height!,
+    );
+    final dataUrl = canvas.toDataUrl('image/jpeg', .88);
+    final encodedImage = dataUrl.split(',');
+    if (encodedImage.length != 2) {
+      throw StateError('The browser could not convert the selected image.');
+    }
+    return PickedProfilePhoto(
+      bytes: base64Decode(encodedImage.last),
+      name: 'profile.jpg',
+    );
+  } finally {
+    html.Url.revokeObjectUrl(objectUrl);
   }
-  return PickedProfilePhoto(
-    bytes: result.asUint8List(),
-    name: file.name,
-  );
 }
 
 Future<PickedProfilePhoto?> _captureFromCamera() async {

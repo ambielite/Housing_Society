@@ -225,7 +225,7 @@ export default function Topbar() {
               aria-expanded={quickAddOpen}
               aria-haspopup="dialog"
             >
-              <Plus size={17} />
+              <Plus size={18} strokeWidth={2.4} aria-hidden="true" />
               <span>Add New</span>
               <ChevronDown size={15} className={quickAddOpen ? 'quick-add-chevron is-open' : 'quick-add-chevron'} />
             </button>

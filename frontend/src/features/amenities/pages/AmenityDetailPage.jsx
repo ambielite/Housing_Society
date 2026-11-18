@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { SquarePen, Trash2 } from 'lucide-react';
+import { Plus, SquarePen, Trash2 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useFetch from '../../../utils/useFetch';
@@ -128,7 +128,7 @@ export default function AmenityDetailPage() {
           <section className="card">
             <div className="section-head">
               <div><h2 className="section-title">Slots</h2><p className="muted">Bookable time windows for this amenity.</p></div>
-              {hasPermission('AMENITY_SLOT_CREATE') && <button className="btn btn-primary btn-sm" onClick={() => open({ type: 'slot' })}><span className="button-plus" aria-hidden="true">+</span> Add slot</button>}
+              {hasPermission('AMENITY_SLOT_CREATE') && <button className="btn btn-primary btn-sm" onClick={() => open({ type: 'slot' })}><Plus size={18} strokeWidth={2.4} aria-hidden="true" /> Add slot</button>}
             </div>
             <DataTable
               columns={[
@@ -157,7 +157,7 @@ export default function AmenityDetailPage() {
         <section className="card section">
           <div className="section-head">
             <div><h2 className="section-title">Dynamic pricing</h2><p className="muted">Prices can vary by member type and day type.</p></div>
-            {hasPermission('AMENITY_PRICING_RULE_CREATE') && <button className="btn btn-primary btn-sm" onClick={() => open({ type: 'rule' })}><span className="button-plus" aria-hidden="true">+</span> Add pricing rule</button>}
+            {hasPermission('AMENITY_PRICING_RULE_CREATE') && <button className="btn btn-primary btn-sm" onClick={() => open({ type: 'rule' })}><Plus size={18} strokeWidth={2.4} aria-hidden="true" /> Add pricing rule</button>}
           </div>
           <DataTable
             columns={[
@@ -185,7 +185,7 @@ export default function AmenityDetailPage() {
         <section className="card section">
           <div className="section-head">
             <div><h2 className="section-title">Blockouts</h2><p className="muted">Maintenance or event windows during which slots cannot be created or booked.</p></div>
-            {hasPermission('AMENITY_BLOCKOUT_CREATE') && <button className="btn btn-primary btn-sm" onClick={() => open({ type: 'blockout' })}><span className="button-plus" aria-hidden="true">+</span> Add blockout</button>}
+            {hasPermission('AMENITY_BLOCKOUT_CREATE') && <button className="btn btn-primary btn-sm" onClick={() => open({ type: 'blockout' })}><Plus size={18} strokeWidth={2.4} aria-hidden="true" /> Add blockout</button>}
           </div>
           <DataTable
             columns={[
