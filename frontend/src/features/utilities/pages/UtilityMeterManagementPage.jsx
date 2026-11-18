@@ -13,6 +13,7 @@ import { getErrorMessage } from '../../../lib/axios';
 import unitApi from '../../units/api/unit.api';
 import floorApi from '../../floors/api/floor.api';
 import towerApi from '../../towers/api/tower.api';
+import unitLocationLabel from '../../../utils/unitLocation';
 import * as utilityApi from '../api/utilityMeter.api';
 import {
   METER_STATUSES, READING_SOURCES, READING_STATUSES, UTILITY_TYPE_STATUSES, UTILITY_UNITS,
@@ -218,15 +219,12 @@ export default function UtilityMeterManagementPage() {
     Promise.all([unitApi.getAll(societyConfig), floorApi.getAll(societyConfig), towerApi.getAll(societyConfig)])
       .then(([unitResponse, floorResponse, towerResponse]) => {
         if (!isCurrent) return;
-        const floorsById = new Map(unwrapRows(floorResponse).map((floor) => [floor.id, floor]));
-        const towersById = new Map(unwrapRows(towerResponse).map((tower) => [tower.id, tower]));
+        const floorsById = new Map(unwrapRows(floorResponse).map((floor) => [String(floor.id), floor]));
+        const towersById = new Map(unwrapRows(towerResponse).map((tower) => [String(tower.id), tower]));
         const options = unwrapRows(unitResponse)
           .filter((unit) => unit.status !== 'INACTIVE')
           .map((unit) => {
-            const floor = floorsById.get(unit.floorId);
-            const tower = floor && towersById.get(floor.towerId);
-            const unitName = unit.unitNumber || unit.name || 'Unit';
-            return { value: unit.id, label: tower?.name ? `${unitName} — ${tower.name}` : unitName };
+            return { value: unit.id, label: unitLocationLabel(unit, floorsById, towersById) };
           });
         setUnitOptions(options);
       })

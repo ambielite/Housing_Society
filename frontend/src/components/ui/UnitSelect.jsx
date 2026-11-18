@@ -2,7 +2,7 @@ import useUnits from '../../utils/useUnits';
 import TextField from './TextField';
 import SelectField from './SelectField';
 
-const unitText = (unit) => (unit.bhk ? `${unit.unitNumber} - ${unit.bhk}` : unit.unitNumber);
+import unitLocationLabel from '../../utils/unitLocation';
 
 /**
  * Pick a unit by its number. Value is the unit's ID.
@@ -30,7 +30,7 @@ export default function UnitSelect({ id = 'unitId', label = 'Unit', value, onCha
   const options = units
     .filter((unit) => unit.status !== 'INACTIVE')
     .sort((a, b) => String(a.unitNumber).localeCompare(String(b.unitNumber), undefined, { numeric: true }))
-    .map((unit) => ({ value: unit.id, label: unitText(unit) }));
+    .map((unit) => ({ value: unit.id, label: unitLocationLabel(unit) }));
 
   return (
     <SelectField

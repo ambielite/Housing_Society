@@ -4,6 +4,7 @@ import invoiceApi from "../api/invoice.api";
 import unitApi from "../../units/api/unit.api";
 import floorApi from "../../floors/api/floor.api";
 import towerApi from "../../towers/api/tower.api";
+import unitLocationLabel from "../../../utils/unitLocation";
 
 const rowsFrom = (response) => Array.isArray(response) ? response : response?.data || response?.records || [];
 const society = () => String(localStorage.getItem("selectedSocietyId") || "").replace(/^:+/, "").trim();
@@ -30,7 +31,7 @@ export default function InvoiceForm({ onClose, onSuccess }) {
                 const societyUnits = allUnits.filter((unit) => societyFloorIds.has(unit.floorId) && unit.status !== "INACTIVE").map((unit) => {
                     const floor = floorById.get(unit.floorId);
                     const tower = floor ? towerById.get(floor.towerId) : null;
-                    return { ...unit, unitLabel: [tower?.name, unit.unitNumber ? `Unit ${unit.unitNumber}` : null, floor?.floorNumber !== undefined ? `Floor ${floor.floorNumber}` : null].filter(Boolean).join(" / ") || unit.id };
+                    return { ...unit, floor, tower, unitLabel: unitLocationLabel(unit, floorById, towerById) };
                 });
                 setUnits(societyUnits);
                 setError("");

@@ -22,6 +22,12 @@ const Resident = sequelize.define(
             field: "user_id"
         },
 
+        familyOwnerId: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            field: "family_owner_id"
+        },
+
         firstName: {
             type: DataTypes.STRING(100),
             allowNull: false,

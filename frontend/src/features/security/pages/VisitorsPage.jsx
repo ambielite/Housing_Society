@@ -16,6 +16,7 @@ import * as api from '../api/security.api';
 import { ID_TYPES, BLACKLIST_STATUSES, INVITE_STATUSES, PASS_STATUSES, OVERSTAY_STATUSES, label, deliveryTransitions } from '../components/securityOptions';
 import SecurityBadge from '../components/SecurityBadge';
 import { FormActions, GatePicker, VisitorPicker, InvitePicker, ErrorBox } from '../components/SecurityFormHelpers';
+import { isValidPhone, phoneInputProps } from '../../../utils/phone';
 
 const VISITOR_TYPES = ['GUEST', 'DELIVERY_PERSON', 'SERVICE_PROVIDER', 'STAFF', 'OTHER'];
 const DELIVERY_COMPANIES = [
@@ -52,9 +53,15 @@ function ProfileForm({ societyId, societyName, value, onSubmit, onCancel, saving
     otherDeliveryCompany: currentCompany && !listedCompany ? currentCompany : '',
   });
   const edit = Boolean(value);
+  const [phoneError, setPhoneError] = useState('');
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const submit = (e) => {
     e.preventDefault();
+    if (!isValidPhone(form.phone)) {
+      setPhoneError('Enter a valid 10-digit phone number.');
+      return;
+    }
+    setPhoneError('');
     const deliveryCompany = form.visitorType === 'DELIVERY_PERSON'
       ? form.deliveryCompany === 'Other' ? form.otherDeliveryCompany.trim() : form.deliveryCompany
       : null;
@@ -72,7 +79,7 @@ function ProfileForm({ societyId, societyName, value, onSubmit, onCancel, saving
     <ErrorBox error={error} />
     {!edit && <TextField id="profileSociety" label="Society" value={societyName || 'Selected society'} disabled />}
     <TextField id="visitorName" label="Visitor name" value={form.name} onChange={(e) => set('name', e.target.value)} required />
-    <TextField id="visitorPhone" label="Phone" value={form.phone} onChange={(e) => set('phone', e.target.value)} />
+    <TextField id="visitorPhone" label="Phone (optional)" value={form.phone} onChange={(e) => { set('phone', e.target.value.replace(/\D/g, '').slice(0, 10)); setPhoneError(''); }} {...phoneInputProps} error={phoneError} />
     <SelectField id="visitorType" label="Visitor type" options={VISITOR_TYPES.map((v) => ({ value: v, label: label(v) }))} value={form.visitorType} onChange={(e) => { set('visitorType', e.target.value); if (e.target.value !== 'DELIVERY_PERSON') { set('deliveryCompany', ''); set('otherDeliveryCompany', ''); } }} required />
     {form.visitorType === 'DELIVERY_PERSON' && <>
       <SelectField id="deliveryCompany" label="Delivery company" placeholder="Select company" options={DELIVERY_COMPANIES.map((company) => ({ value: company, label: company }))} value={form.deliveryCompany} onChange={(e) => set('deliveryCompany', e.target.value)} required />

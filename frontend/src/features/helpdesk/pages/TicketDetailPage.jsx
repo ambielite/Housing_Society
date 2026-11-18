@@ -9,6 +9,7 @@ import * as vaultApi from '../../document-vault/api/documentVault.api';
 import unitApi from '../../units/api/unit.api';
 import floorApi from '../../floors/api/floor.api';
 import towerApi from '../../towers/api/tower.api';
+import unitLocationLabel from '../../../utils/unitLocation';
 import PageContainer from '../../../components/layout/PageContainer';
 import Alert from '../../../components/ui/Alert';
 import Modal from '../../../components/ui/Modal';
@@ -83,13 +84,10 @@ export default function TicketDetailPage() {
         const units = rowsFrom(unitResult.value, 'units');
         const floors = rowsFrom(floorResult.value, 'floors');
         const towers = rowsFrom(towerResult.value, 'towers');
-        const floorsById = new Map(floors.map(floor => [floor.id, floor]));
-        const towersById = new Map(towers.map(tower => [tower.id, tower]));
+        const floorsById = new Map(floors.map(floor => [String(floor.id), floor]));
+        const towersById = new Map(towers.map(tower => [String(tower.id), tower]));
         setUnitNames(new Map(units.map(unit => {
-          const floor = floorsById.get(unit.floorId || unit.floor_id);
-          const tower = towersById.get(floor?.towerId || floor?.tower_id);
-          const unitName = unit.unitNumber || unit.unit_number || unit.name || 'Unit';
-          return [String(unit.id), `${unitName}${tower?.name ? ` - ${tower.name}` : ''}`];
+          return [String(unit.id), unitLocationLabel(unit, floorsById, towersById)];
         })));
       } else {
         setUnitNames(new Map());

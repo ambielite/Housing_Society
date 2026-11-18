@@ -1,6 +1,30 @@
 const express = require("express");
+const multer = require("multer");
+const path = require("path");
+const ApiError = require("../../../common/ApiError");
 
 const router = express.Router();
+
+const allowedDocuments = new Map([
+    ["application/pdf", new Set([".pdf"])],
+    ["image/jpeg", new Set([".jpg", ".jpeg"])],
+    ["image/png", new Set([".png"])]
+]);
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+    fileFilter: (req, file, callback) => {
+        const extension = path.extname(file.originalname).toLowerCase();
+        if (!allowedDocuments.get(file.mimetype)?.has(extension)) {
+            return callback(new ApiError(400, "Document must be a PDF, JPG, or PNG file."));
+        }
+        callback(null, true);
+    }
+});
+const parseDocumentFile = (req, res, next) => upload.single("file")(req, res, (error) => {
+    if (error instanceof multer.MulterError) return next(new ApiError(400, error.message));
+    next(error);
+});
 
 const controller = require("./residentKyc.controller");
 
@@ -14,12 +38,19 @@ const {
 // Create KYC document
 router.post(
     "/",
+    parseDocumentFile,
     validateCreateKyc,
     controller.createDocument
 );
 
 
 // Get document by ID
+router.get(
+    "/:id/file",
+    validateId,
+    controller.downloadDocument
+);
+
 router.get(
     "/:id",
     validateId,

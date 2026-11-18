@@ -35,6 +35,13 @@ const createResident = async (data, profilePicture, assignedBy) => {
         throw new Error("Society not found");
     }
 
+    if (data.role === "FAMILY_MEMBER") {
+        const familyOwner = await residentRepository.findEligibleFamilyOwner(data.familyOwnerId, data.societyId);
+        if (!familyOwner) throw new Error("Select an active primary owner or co-owner in this society as the family member's owner");
+    } else {
+        data.familyOwnerId = null;
+    }
+
     let residentAccount = null;
     if (data.userId) {
         const residentAccounts = await residentRepository.listResidentRoleUsers({
@@ -267,6 +274,16 @@ const updateResident = async (
         throw new Error(errors.join(", "));
     }
 
+    const nextRole = data.role || resident.role;
+    const nextFamilyOwnerId = data.familyOwnerId !== undefined ? data.familyOwnerId : resident.familyOwnerId;
+    if (nextRole === "FAMILY_MEMBER") {
+        const familyOwner = await residentRepository.findEligibleFamilyOwner(nextFamilyOwnerId, societyId, resident.id);
+        if (!familyOwner) throw new Error("Select an active primary owner or co-owner in this society as the family member's owner");
+        data.familyOwnerId = nextFamilyOwnerId;
+    } else {
+        data.familyOwnerId = null;
+    }
+
     // Do not allow society transfer from this module
     if (data.societyId) {
         delete data.societyId;
@@ -361,6 +378,7 @@ const updateResident = async (
         ["emergencyContactMobile", "emergency contact phone"],
         ["emergencyContactRelation", "emergency contact relationship"],
         ["role", "resident type"],
+        ["familyOwnerId", "family owner"],
         ["status", "account status"],
         ["directoryPhoneVisible", "directory visibility"],
         ["personalFields", "additional profile details"],

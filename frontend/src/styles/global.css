@@ -424,7 +424,7 @@ a.cell-title:hover { color: var(--action); }
 .auth-page--login {
   min-height: 100vh;
   min-height: 100dvh;
-  grid-template-columns: minmax(0, 1.08fr) minmax(520px, .92fr);
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr);
   position: relative;
   overflow: hidden;
   background: #eaf1ff url('../assets/ambi-elite-login-background.png') center / cover no-repeat;
@@ -460,8 +460,8 @@ a.cell-title:hover { color: var(--action); }
 .login-features span:first-child { border-left: 0; }
 .login-features span:last-child { border-right: 0; }
 .login-features b { font-size: 23px; line-height: 1; }
-.auth-page--login .auth-panel { z-index: 1; padding: clamp(24px, 4vw, 64px); }
-.auth-page--login .auth-card--login { max-width: 625px; padding: clamp(32px, 4vw, 58px); border: 1px solid rgba(255,255,255,.82); border-radius: 34px; background: rgba(255,255,255,.94); box-shadow: 0 26px 70px rgba(20,53,104,.18); backdrop-filter: blur(12px); }
+.auth-page--login .auth-panel { z-index: 1; padding: clamp(20px, 3vw, 48px); }
+.auth-page--login .auth-card--login { max-width: 560px; padding: clamp(28px, 3.5vw, 48px); border: 1px solid rgba(255,255,255,.82); border-radius: 34px; background: rgba(255,255,255,.94); box-shadow: 0 26px 70px rgba(20,53,104,.18); backdrop-filter: blur(12px); }
 .auth-card--login .login-security-icon { display: grid; place-items: center; width: 76px; height: 76px; margin: 0 auto 14px; border-radius: 50%; background: #e2edff; color: #0e397a; }
 .auth-card--login .login-security-icon svg { width: 42px; height: 42px; }
 .auth-page--login .auth-card--login h1, .auth-page--login .auth-card--login > .auth-subtitle { text-align: center; }
@@ -521,10 +521,49 @@ a.cell-title:hover { color: var(--action); }
 }
 
 @media (max-width: 1100px) and (min-width: 769px) {
-  .auth-page--login { grid-template-columns: minmax(0, 1fr) minmax(470px, .95fr); }
+  .auth-page--login { grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr); }
   .auth-page--login .auth-aside { padding: 38px; }
   .login-features span { font-size: 11px; }
-  .auth-page--login .auth-panel { padding: 28px; }
+  .auth-page--login .auth-panel { padding: 20px; }
+}
+
+@media (max-height: 820px) and (min-width: 769px) {
+  .auth-page--login .auth-panel { padding-block: 14px; }
+  .auth-page--login .auth-card--login { padding: 24px 34px; border-radius: 26px; }
+  .auth-card--login .login-security-icon { width: 56px; height: 56px; margin-bottom: 8px; }
+  .auth-card--login .login-security-icon svg { width: 32px; height: 32px; }
+  .auth-page--login .auth-card--login h1 { font-size: 30px; }
+  .auth-page--login .auth-card--login > .auth-subtitle { margin-bottom: 20px; font-size: 14px; }
+  .auth-card--login .field { margin-bottom: 14px; }
+  .auth-card--login .field > label { margin-bottom: 5px; font-size: 14px; }
+  .auth-card--login .input { min-height: 48px; }
+  .login-form-options { margin-bottom: 16px; }
+  .auth-card--login .btn-block { min-height: 50px; }
+  .login-secure-note { margin: 14px 0 10px; }
+  .login-copyright { padding: 9px 12px; }
+}
+
+@media (max-height: 820px) {
+  .auth-page:not(.auth-page--login) .auth-panel { padding-block: 14px; }
+  .auth-page:not(.auth-page--login) .auth-card--recovery { padding-block: 12px; }
+  .auth-page--login .auth-card--recovery { padding: 16px 28px; border-radius: 24px; }
+  .auth-card--recovery .recovery-mark { width: 48px; height: 48px; margin-bottom: 12px; }
+  .auth-card--recovery h1 { font-size: 23px; }
+  .auth-card--recovery .auth-subtitle { margin-bottom: 14px; }
+  .auth-card--recovery .field { margin-bottom: 12px; }
+  .auth-card--recovery .btn { min-height: 48px; }
+  .auth-card--recovery .auth-links { margin-top: 12px; }
+  .auth-page--login .auth-card--recovery .login-security-icon { width: 46px; height: 46px; margin-bottom: 6px; }
+  .auth-page--login .auth-card--recovery .login-security-icon svg { width: 28px; height: 28px; }
+  .auth-page--login .auth-card--recovery h1 { margin-bottom: 4px; font-size: 25px; }
+  .auth-page--login .auth-card--recovery > .auth-subtitle { margin-bottom: 12px; font-size: 13px; }
+  .auth-page--login .auth-card--recovery .field { margin-bottom: 8px; }
+  .auth-page--login .auth-card--recovery .field > label { margin-bottom: 3px; font-size: 13px; }
+  .auth-page--login .auth-card--recovery .input { min-height: 42px; }
+  .auth-page--login .auth-card--recovery form > .alert { margin-bottom: 10px; padding: 9px 12px; font-size: 12px; }
+  .auth-page--login .auth-card--recovery .btn-block { min-height: 46px; }
+  .auth-page--login .auth-card--recovery .login-secure-note { margin: 10px 0 8px; }
+  .auth-page--login .auth-card--recovery .login-copyright { padding: 8px 10px; }
 }
 
 @media (max-width: 768px) {

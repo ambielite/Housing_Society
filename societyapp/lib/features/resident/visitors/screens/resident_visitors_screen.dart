@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../auth/data/auth_api.dart';
@@ -418,6 +419,17 @@ class _PreApproveVisitorDialogState extends State<_PreApproveVisitorDialog> {
               controller: _phone,
               decoration: const InputDecoration(labelText: 'Phone (optional)'),
               keyboardType: TextInputType.phone,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(10),
+              ],
+              validator: (value) {
+                final phone = value?.trim() ?? '';
+                if (phone.isNotEmpty && !RegExp(r'^\d{10}$').hasMatch(phone)) {
+                  return 'Enter a valid 10-digit phone number.';
+                }
+                return null;
+              },
             ),
             TextFormField(
               controller: _purpose,
