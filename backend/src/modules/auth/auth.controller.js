@@ -10,8 +10,17 @@ const register = asyncHandler(async (req, res) => {
 });
 
 const login = asyncHandler(async (req, res) => {
-  const result = await authService.login(req.body, buildMeta(req));
-  return ApiResponse.success(res, result, 'Login successful');
+  try {
+    const result = await authService.login(req.body, buildMeta(req));
+    return ApiResponse.success(res, result, 'Login successful');
+  } finally {
+    // The selfie is request-only data. Drop the body reference on success and
+    // every auth failure so it cannot linger on the request object.
+    if (req.body && typeof req.body === 'object') {
+      delete req.body.selfieData;
+      delete req.body.selfieMimeType;
+    }
+  }
 });
 
 const refresh = asyncHandler(async (req, res) => {

@@ -9,6 +9,7 @@ import 'package:flutter/services.dart'
 import '../../../../app/session_manager.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../data/auth_api.dart';
+import '../../data/selfie_file_cleanup.dart';
 import '../widgets/auth_brand_header.dart';
 import 'forgot_password_screen.dart';
 import '../../../security_guard/dashboard/screens/security_dashboard_screen.dart';
@@ -32,7 +33,10 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _securityLogin = false;
   bool _obscurePassword = true;
   bool _submitting = false;
+  bool _verifyingFace = false;
+  bool _faceGuidance = false;
   String? _error;
+  String? _successMessage;
 
   @override
   void initState() {
@@ -57,6 +61,7 @@ class _LoginScreenState extends State<LoginScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _securityCodeController.dispose();
+    _securitySelfieBytes?.fillRange(0, _securitySelfieBytes!.length, 0);
     super.dispose();
   }
 
@@ -64,15 +69,22 @@ class _LoginScreenState extends State<LoginScreen> {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
     if (_securityLogin && _securitySelfieBytes == null) {
-      setState(() => _error = 'Take a selfie before signing in as a guard.');
+      setState(() {
+        _error = 'Take a selfie before signing in as a guard.';
+        _faceGuidance = true;
+      });
       return;
     }
 
     setState(() {
       _submitting = true;
+      _verifyingFace = _securityLogin;
       _error = null;
+      _successMessage = null;
+      _faceGuidance = false;
     });
 
+    final selfieForThisAttempt = _securitySelfieBytes;
     try {
       final user = await AuthApi.login(
         email: _emailController.text.trim(),
@@ -80,10 +92,18 @@ class _LoginScreenState extends State<LoginScreen> {
         securityCode: _securityLogin
             ? _securityCodeController.text.trim()
             : null,
-        selfieBytes: _securitySelfieBytes,
+        selfieBytes: selfieForThisAttempt,
         selfieMimeType: _securitySelfieMimeType,
       );
       if (!mounted) return;
+      if (_securityLogin) {
+        setState(() {
+          _verifyingFace = false;
+          _successMessage = 'Face verified. Signing you in…';
+        });
+        await Future<void>.delayed(const Duration(seconds: 1));
+        if (!mounted) return;
+      }
       SessionManager.sessionStarted();
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
@@ -91,9 +111,49 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
     } on AuthException catch (error) {
-      if (mounted) setState(() => _error = error.message);
+      if (mounted) {
+        final lowerMessage = error.message.toLowerCase();
+        final isMismatch = lowerMessage.contains('face not matched');
+        final isUnclearFace = lowerMessage.contains('no clear face');
+        final isProfilePhotoIssue = lowerMessage.contains('profile photo');
+        final faceGuidance = _securityLogin &&
+            (isMismatch || isUnclearFace || isProfilePhotoIssue);
+        final shouldRetake = _securityLogin && (isMismatch || isUnclearFace);
+        setState(() {
+          _verifyingFace = false;
+          _successMessage = null;
+          _faceGuidance = faceGuidance;
+          if (isMismatch) {
+            _error =
+                'Selfie didn’t match. Try again or ask your Society Admin to upload a clear photo.';
+          } else if (isUnclearFace) {
+            _error =
+                'Face not clear. Please retake your selfie.';
+          } else if (lowerMessage.contains('profile photo cannot be used')) {
+            _error =
+                'Selfie couldn’t be verified. Try again or ask your Society Admin to upload a clear photo.';
+          } else if (lowerMessage.contains('profile photo')) {
+            _error =
+                'Selfie couldn’t be verified. Ask your Society Admin to upload a clear photo.';
+          } else {
+            _error = error.message;
+          }
+          if (shouldRetake) {
+            _securitySelfieBytes = null;
+            _securitySelfieMimeType = null;
+          }
+        });
+      }
     } finally {
-      if (mounted) setState(() => _submitting = false);
+      selfieForThisAttempt?.fillRange(0, selfieForThisAttempt.length, 0);
+      if (mounted) {
+        setState(() {
+          _submitting = false;
+          _verifyingFace = false;
+          _securitySelfieBytes = null;
+          _securitySelfieMimeType = null;
+        });
+      }
     }
   }
 
@@ -102,7 +162,11 @@ class _LoginScreenState extends State<LoginScreen> {
       final cameras = await availableCameras();
       if (!mounted) return;
       if (cameras.isEmpty) {
-        setState(() => _error = 'No camera was found on this device.');
+        setState(() {
+          _error = 'No camera was found on this device.';
+          _successMessage = null;
+          _faceGuidance = false;
+        });
         return;
       }
       final camera = cameras.firstWhere(
@@ -116,33 +180,61 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       if (selfie == null || !mounted) return;
 
-      final bytes = await selfie.readAsBytes();
+      late final Uint8List bytes;
+      try {
+        bytes = await selfie.readAsBytes();
+      } finally {
+        try {
+          await deleteTemporarySelfie(selfie.path);
+        } catch (_) {
+          // Camera implementations may already remove their temporary file.
+        }
+      }
       final mimeType = selfie.mimeType ?? 'image/jpeg';
       if (bytes.isEmpty ||
           !const {'image/jpeg', 'image/png'}.contains(mimeType)) {
         setState(
-          () => _error = 'The camera returned an unsupported image. Please take the selfie again.',
+          () {
+            _error = 'The camera returned an unsupported image. Please take the selfie again.';
+            _successMessage = null;
+            _faceGuidance = false;
+          },
         );
         return;
       }
       setState(() {
+        _securitySelfieBytes?.fillRange(0, _securitySelfieBytes!.length, 0);
         _securitySelfieBytes = bytes;
         _securitySelfieMimeType = mimeType;
         _error = null;
+        _successMessage = null;
+        _faceGuidance = false;
       });
     } on CameraException catch (error) {
       if (mounted) {
-        setState(() => _error = _cameraAccessMessage(error));
+        setState(() {
+          _error = _cameraAccessMessage(error);
+          _successMessage = null;
+          _faceGuidance = false;
+        });
       }
     } on MissingPluginException {
       if (mounted) {
         setState(
-          () => _error = 'Camera support did not load. Stop the app, run flutter pub get, then launch it again.',
+          () {
+            _error = 'Camera support did not load. Stop the app, run flutter pub get, then launch it again.';
+            _successMessage = null;
+            _faceGuidance = false;
+          },
         );
       }
     } catch (error) {
       if (mounted) {
-        setState(() => _error = 'Could not start the camera: $error');
+        setState(() {
+          _error = 'Could not start the camera: $error';
+          _successMessage = null;
+          _faceGuidance = false;
+        });
       }
     }
   }
@@ -403,31 +495,107 @@ class _LoginScreenState extends State<LoginScreen> {
                   )
                 : const SizedBox(width: double.infinity),
           ),
+          if (_verifyingFace) ...[
+            const SizedBox(height: 14),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(13),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEEF6FC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFD3E7F3)),
+              ),
+              child: const Row(
+                children: [
+                  _FaceScanIndicator(),
+                  SizedBox(width: 11),
+                  Expanded(
+                    child: Text(
+                      'Checking that your selfie matches your profile photo…',
+                      style: TextStyle(
+                        color: Color(0xFF355B72),
+                        fontWeight: FontWeight.w600,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (_successMessage != null) ...[
+            const SizedBox(height: 18),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(13),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEAF8F0),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFC9EBD7)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.check_circle_outline_rounded,
+                    size: 20,
+                    color: Color(0xFF21834A),
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      _successMessage!,
+                      style: const TextStyle(
+                        color: Color(0xFF176B3A),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           if (_error != null) ...[
             const SizedBox(height: 18),
             Container(
               padding: const EdgeInsets.all(13),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFF0F0),
+                color: _faceGuidance
+                    ? const Color(0xFFEEF6FC)
+                    : const Color(0xFFFFF0F0),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFFFD0D0)),
+                border: Border.all(
+                  color: _faceGuidance
+                      ? const Color(0xFFD3E7F3)
+                      : const Color(0xFFFFD0D0),
+                ),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(
-                    Icons.error_outline_rounded,
+                  Icon(
+                    _faceGuidance
+                        ? Icons.info_outline_rounded
+                        : Icons.error_outline_rounded,
                     size: 19,
-                    color: Color(0xFFC53D4B),
+                    color: _faceGuidance
+                        ? const Color(0xFF3482AC)
+                        : const Color(0xFFC53D4B),
                   ),
                   const SizedBox(width: 9),
                   Expanded(
-                    child: Text(
-                      _error!,
-                      style: const TextStyle(
-                        color: Color(0xFF9D2635),
-                        height: 1.35,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _error!,
+                          style: TextStyle(
+                            color: _faceGuidance
+                                ? const Color(0xFF355B72)
+                                : const Color(0xFF9D2635),
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -608,11 +776,14 @@ class _LoginScreenState extends State<LoginScreen> {
     if (_securityLogin == security || _submitting) return;
     FocusScope.of(context).unfocus();
     setState(() {
+      _securitySelfieBytes?.fillRange(0, _securitySelfieBytes!.length, 0);
       _securityLogin = security;
       _securityCodeController.clear();
       _securitySelfieBytes = null;
       _securitySelfieMimeType = null;
       _error = null;
+      _successMessage = null;
+      _faceGuidance = false;
     });
   }
 
@@ -649,6 +820,72 @@ class _LoginScreenState extends State<LoginScreen> {
     focusedErrorBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(14),
       borderSide: const BorderSide(color: Color(0xFFC53D4B), width: 1.5),
+    ),
+  );
+}
+
+class _FaceScanIndicator extends StatefulWidget {
+  const _FaceScanIndicator();
+
+  @override
+  State<_FaceScanIndicator> createState() => _FaceScanIndicatorState();
+}
+
+class _FaceScanIndicatorState extends State<_FaceScanIndicator>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _scanController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _scanController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 30,
+    height: 30,
+    decoration: BoxDecoration(
+      color: const Color(0xFFE2F0F8),
+      shape: BoxShape.circle,
+      border: Border.all(color: const Color(0xFFB8D7E8)),
+    ),
+    child: AnimatedBuilder(
+      animation: _scanController,
+      builder: (context, child) => Stack(
+        clipBehavior: Clip.hardEdge,
+        children: [
+          const Center(
+            child: Icon(
+              Icons.man_2_outlined,
+              size: 19,
+              color: Color(0xFF3482AC),
+            ),
+          ),
+          Positioned(
+            left: 5,
+            right: 5,
+            top: 4 + (_scanController.value * 19),
+            child: Container(
+              height: 2,
+              decoration: BoxDecoration(
+                color: const Color(0xFF2A91C6),
+                borderRadius: BorderRadius.circular(2),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x802A91C6),
+                    blurRadius: 4,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     ),
   );
 }
@@ -695,26 +932,34 @@ class _GuardSelfieCameraDialogState extends State<_GuardSelfieCameraDialog> {
 
   void _initializeCamera() {
     final previous = _controller;
-    if (previous != null) unawaited(previous.dispose());
+    _controller = null;
+    _initializationError = null;
+    _captureError = null;
+    _initialization = _openCamera(previous);
+  }
+
+  Future<void> _openCamera(CameraController? previous) async {
+    if (previous != null) await previous.dispose();
+    if (!mounted) return;
 
     final controller = CameraController(
       widget.camera,
-      ResolutionPreset.medium,
+      ResolutionPreset.low,
       enableAudio: false,
     );
     _controller = controller;
-    _initializationError = null;
-    _captureError = null;
-    _initialization = controller
-        .initialize()
-        .then<void>((_) {
-          if (mounted && identical(_controller, controller)) setState(() {});
-        })
-        .catchError((Object error) {
-          if (mounted && identical(_controller, controller)) {
-            setState(() => _initializationError = error);
-          }
+    try {
+      await controller.initialize();
+      if (mounted && identical(_controller, controller)) setState(() {});
+    } catch (error) {
+      await controller.dispose();
+      if (mounted && identical(_controller, controller)) {
+        setState(() {
+          _controller = null;
+          _initializationError = error;
         });
+      }
+    }
   }
 
   Future<void> _takePicture() async {
@@ -727,11 +972,10 @@ class _GuardSelfieCameraDialogState extends State<_GuardSelfieCameraDialog> {
     try {
       final picture = await controller.takePicture();
       if (mounted) Navigator.of(context).pop(picture);
-    } on CameraException catch (error) {
+    } on CameraException {
       if (mounted) {
         setState(
-          () => _captureError =
-              error.description ?? 'Could not capture the selfie. Try again.',
+          () => _captureError = 'Could not take the selfie. Please try again.',
         );
       }
     } catch (_) {
@@ -840,20 +1084,23 @@ class _GuardSelfieCameraDialogState extends State<_GuardSelfieCameraDialog> {
   }
 
   Widget _cameraErrorContent(Object error) {
-    final message =
-        error is CameraException &&
-            (error.code.toLowerCase().contains('denied') ||
-                error.code.toLowerCase().contains('permission'))
-        ? 'Camera access is blocked. Allow camera access for this site in Chrome settings, then try again.'
-        : error is CameraException && error.description != null
-        ? error.description!
-        : 'Could not start the camera. Use HTTPS or localhost and check that a camera is available.';
+    final isPermissionError = error is CameraException &&
+        (error.code.toLowerCase().contains('denied') ||
+            error.code.toLowerCase().contains('permission'));
+    final message = isPermissionError
+        ? 'Allow camera access in your phone settings, then try again.'
+        : 'The camera could not start. Tap Try again. If it continues, check camera access in your phone settings.';
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         const Icon(Icons.videocam_off_outlined, size: 34),
         const SizedBox(height: 10),
-        Text(message, textAlign: TextAlign.center),
+        Text(
+          message,
+          textAlign: TextAlign.center,
+          maxLines: 4,
+          overflow: TextOverflow.ellipsis,
+        ),
       ],
     );
   }

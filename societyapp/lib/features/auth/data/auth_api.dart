@@ -106,7 +106,9 @@ class AuthApi {
                     },
             }),
           )
-          .timeout(const Duration(seconds: 20));
+          // Guard login also performs server-side face recognition. The first
+          // request may need to load the models before processing both images.
+          .timeout(const Duration(seconds: 90));
       final body = response.body.isEmpty
           ? <String, dynamic>{}
           : jsonDecode(response.body) as Map<String, dynamic>;

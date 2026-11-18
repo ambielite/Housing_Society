@@ -10,6 +10,10 @@ const usersRepository = require('../users/users.repository');
 const rbacRepository = require('../rbac/rbac.repository');
 const emailProvider = require('../notifications/providers/email.provider');
 const Notification = require('../notifications/notification/notification.model');
+const {
+  FaceVerificationError,
+  verifySecurityGuardFace,
+} = require('./securityFaceVerification');
 
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
 const hashPasswordResetOtp = (userId, otp) => crypto
@@ -21,14 +25,18 @@ const generateAccessToken = (user) =>
 const generateRandomToken = () => crypto.randomBytes(48).toString('hex');
 const hasValidSecuritySelfie = (mimeType, encodedImage) => {
   const image = Buffer.from(encodedImage, 'base64');
-  if (image.length < 16 || image.length > 1_500_000) return false;
-  if (mimeType === 'image/jpeg') {
-    return image[0] === 0xff && image[1] === 0xd8 && image[2] === 0xff;
+  try {
+    if (image.length < 16 || image.length > 1_500_000) return false;
+    if (mimeType === 'image/jpeg') {
+      return image[0] === 0xff && image[1] === 0xd8 && image[2] === 0xff;
+    }
+    if (mimeType === 'image/png') {
+      return image.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+    }
+    return false;
+  } finally {
+    image.fill(0);
   }
-  if (mimeType === 'image/png') {
-    return image.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
-  }
-  return false;
 };
 
 const notifyAdminsOfResidentPasswordUpdate = async (userId, action) => {
@@ -153,17 +161,20 @@ const login = async ({ email, password, securityCode, selfieData, selfieMimeType
     }
 
     const guardResult = await db.query(
-      `SELECT u.*, s.employee_code AS guard_employee_code
+      `SELECT u.*,
+              s.employee_code AS guard_employee_code,
+              COALESCE(NULLIF(s.photo_path, ''), NULLIF(u.profile_picture_url, '')) AS profile_picture_url
        FROM security_guards sg
        JOIN staff s ON s.id = sg.staff_id
        JOIN users u ON u.id = sg.user_id
        WHERE upper(s.employee_code) = upper($1)
+         AND u.id = $2
          AND s.staff_type = 'SECURITY_GUARD'
          AND s.status = 'ACTIVE'
          AND sg.status = 'ACTIVE'
          AND u.status = 'ACTIVE'
        LIMIT 1`,
-      [securityCode.trim()]
+      [securityCode.trim(), user.id]
     );
     if (!guardResult.rowCount) {
       await authRepository.createLoginHistory({
@@ -185,7 +196,29 @@ const login = async ({ email, password, securityCode, selfieData, selfieMimeType
       });
       throw new ApiError(400, 'Take a valid selfie before signing in as a guard.');
     }
-    authenticatedUser = guardResult.rows[0];
+    const guardUser = guardResult.rows[0];
+    const selfieBytes = Buffer.from(selfieData, 'base64');
+    selfieData = undefined;
+    try {
+      await verifySecurityGuardFace({
+        selfieBytes,
+        selfieMimeType,
+        profilePictureUrl: guardUser.profile_picture_url,
+      });
+    } catch (error) {
+      if (!(error instanceof FaceVerificationError)) throw error;
+      await authRepository.createLoginHistory({
+        userId: guardUser.id,
+        ipAddress: meta.ipAddress,
+        userAgent: meta.deviceInfo,
+        success: false,
+        failureReason: error.code,
+      });
+      throw new ApiError(error.statusCode, error.message);
+    } finally {
+      selfieBytes.fill(0);
+    }
+    authenticatedUser = guardUser;
   } else if (securityHeadRole.rowCount) {
     await authRepository.createLoginHistory({
       userId: user.id,
