@@ -11,6 +11,8 @@ import * as userApi from '../api/user.api';
 import PageContainer from '../../../components/layout/PageContainer';
 import DataTable from '../../../components/tables/DataTable';
 import UserStatusBadge, { STATUS_OPTIONS } from '../components/UserStatusBadge';
+import Modal from '../../../components/ui/Modal';
+import UserForm from '../components/UserForm';
 
 const PAGE_SIZE = 10;
 
@@ -50,6 +52,9 @@ export default function UserListPage() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
+  const [showNewUser, setShowNewUser] = useState(false);
+  const [creatingUser, setCreatingUser] = useState(false);
+  const [createError, setCreateError] = useState('');
   const debouncedSearch = useDebounce(search.trim());
 
   const { data, loading, error, reload } = useFetch(
@@ -64,6 +69,20 @@ export default function UserListPage() {
     setSearch('');
     setStatus('');
     setPage(1);
+  };
+
+  const createUser = async (payload) => {
+    setCreatingUser(true);
+    setCreateError('');
+    try {
+      await userApi.createUser(payload);
+      setShowNewUser(false);
+      await reload();
+    } catch (error) {
+      setCreateError(getErrorMessage(error));
+    } finally {
+      setCreatingUser(false);
+    }
   };
 
   const columns = [
@@ -96,9 +115,9 @@ export default function UserListPage() {
   ];
 
   const newUserButton = canCreate && (
-    <Link to="/users/new" className="btn btn-primary">
+    <button type="button" onClick={() => { setCreateError(''); setShowNewUser(true); }} className="btn btn-primary">
       <Plus size={16} /> New user
-    </Link>
+    </button>
   );
 
   return (
@@ -161,6 +180,9 @@ export default function UserListPage() {
         pagination={data ? { ...data.pagination, onPageChange: setPage } : null}
       />
       </section>
+      {showNewUser && <Modal className="user-create-dialog" title="New user" onClose={() => !creatingUser && setShowNewUser(false)} busy={creatingUser}>
+        <UserForm mode="create" initialValues={{}} societyId={societyId} onSubmit={createUser} submitting={creatingUser} submitError={createError} onCancel={() => setShowNewUser(false)} />
+      </Modal>}
     </PageContainer>
   );
 }

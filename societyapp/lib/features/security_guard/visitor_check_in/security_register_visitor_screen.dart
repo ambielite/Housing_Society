@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:housing_society_app/app/theme/app_colors.dart';
+import 'package:housing_society_app/core/widgets/styled_dropdown_field.dart';
 
 class SecurityVisitorDestination {
   const SecurityVisitorDestination({
@@ -113,27 +114,11 @@ class _SecurityRegisterVisitorScreenState
     FormFieldValidator<T>? validator,
     String? hint,
   }) =>
-      DropdownButtonFormField<T>(
+      StyledDropdownField<T>(
         value: value,
-        isExpanded: true,
-        menuMaxHeight: 320,
         decoration: _decoration(label, icon),
-        hint: hint == null
-            ? null
-            : Text(hint, maxLines: 1, overflow: TextOverflow.ellipsis),
+        hint: hint,
         validator: validator,
-        selectedItemBuilder: (context) => items
-            .map(
-              (item) => Align(
-                alignment: Alignment.centerLeft,
-                child: DefaultTextStyle.merge(
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  child: item.child,
-                ),
-              ),
-            )
-            .toList(),
         items: items,
         onChanged: _saving ? null : onChanged,
       );

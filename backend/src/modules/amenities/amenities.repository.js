@@ -95,19 +95,47 @@ const createSlot = async ({ amenityId, slotDate, startTime, endTime, capacity, p
 };
 
 const createSlotSeries = async ({ amenityId, dates, startTime, endTime, capacity, price }) => {
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [amenityId]);
+    const conflict = await client.query(
+      `SELECT slot_date::text AS slot_date
+         FROM amenity_slots
+        WHERE amenity_id = $1
+          AND slot_date = ANY($2::date[])
+          AND status <> 'CANCELLED'
+          AND start_time < $4::time
+          AND end_time > $3::time
+        ORDER BY slot_date
+        LIMIT 1`,
+      [amenityId, dates, startTime, endTime]
+    );
+    if (conflict.rowCount) {
+      await client.query('ROLLBACK');
+      return { conflictDate: conflict.rows[0].slot_date };
+    }
+
   const values = [];
   const rows = dates.map((date, index) => {
     const offset = index * 6;
     values.push(amenityId, date, startTime, endTime, capacity, price);
     return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, COALESCE($${offset + 6}, 0))`;
   });
-  const result = await db.query(
+  const result = await client.query(
     `INSERT INTO amenity_slots (amenity_id, slot_date, start_time, end_time, capacity, price)
      VALUES ${rows.join(', ')}
      RETURNING *`,
     values
   );
-  return result.rows;
+    await client.query('COMMIT');
+    return { rows: result.rows };
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 const findSlotById = async (id) => {
@@ -121,7 +149,7 @@ const findSlotByIdForUpdate = async (client, id) => {
   return result.rows[0] || null;
 };
 
-const listSlots = async ({ amenityId, slotDate, status }) => {
+const listSlots = async ({ amenityId, slotDate, dateFrom, dateTo, status }) => {
   const conditions = [];
   const params = [];
   let idx = 1;
@@ -133,6 +161,14 @@ const listSlots = async ({ amenityId, slotDate, status }) => {
   if (slotDate) {
     conditions.push(`slot_date = $${idx++}`);
     params.push(slotDate);
+  }
+  if (dateFrom) {
+    conditions.push(`slot_date >= $${idx++}`);
+    params.push(dateFrom);
+  }
+  if (dateTo) {
+    conditions.push(`slot_date <= $${idx++}`);
+    params.push(dateTo);
   }
   if (status) {
     conditions.push(`status = $${idx++}`);
@@ -160,7 +196,33 @@ const listSlots = async ({ amenityId, slotDate, status }) => {
 };
 
 const updateSlot = async (id, { startTime, endTime, capacity, price, status }) => {
-  const result = await db.query(
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+    const current = await client.query('SELECT * FROM amenity_slots WHERE id = $1 FOR UPDATE', [id]);
+    if (!current.rowCount) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+    const slot = current.rows[0];
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [slot.amenity_id]);
+    const nextStart = startTime || slot.start_time;
+    const nextEnd = endTime || slot.end_time;
+    const nextStatus = status || slot.status;
+    if (nextStatus !== 'CANCELLED') {
+      const conflict = await client.query(
+        `SELECT 1 FROM amenity_slots
+          WHERE amenity_id = $1 AND slot_date = $2 AND id <> $3
+            AND status <> 'CANCELLED' AND start_time < $5::time AND end_time > $4::time
+          LIMIT 1`,
+        [slot.amenity_id, slot.slot_date, id, nextStart, nextEnd]
+      );
+      if (conflict.rowCount) {
+        await client.query('ROLLBACK');
+        return { conflict: true };
+      }
+    }
+    const result = await client.query(
     `UPDATE amenity_slots SET
        start_time  = COALESCE($2, start_time),
        end_time    = COALESCE($3, end_time),
@@ -172,7 +234,14 @@ const updateSlot = async (id, { startTime, endTime, capacity, price, status }) =
      RETURNING *`,
     [id, startTime, endTime, capacity, price, status]
   );
-  return result.rows[0] || null;
+    await client.query('COMMIT');
+    return result.rows[0] || null;
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 const updateSlotStatusInTx = async (client, id, status) => {

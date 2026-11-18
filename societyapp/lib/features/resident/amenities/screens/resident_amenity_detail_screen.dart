@@ -12,11 +12,13 @@ class ResidentAmenityDetailScreen extends StatefulWidget {
     required this.user,
     required this.amenity,
     this.onBookingCreated,
+    this.onClose,
   });
 
   final AuthenticatedUser user;
   final ResidentAmenity amenity;
   final ValueChanged<ResidentUpcomingBooking>? onBookingCreated;
+  final VoidCallback? onClose;
 
   @override
   State<ResidentAmenityDetailScreen> createState() =>
@@ -199,6 +201,13 @@ class _ResidentAmenityDetailScreenState
         backgroundColor: const Color(0xFFFAF8F6),
         appBar: AppBar(
           backgroundColor: const Color(0xFFFAF8F6),
+          leading: widget.onClose == null
+              ? null
+              : IconButton(
+                  tooltip: 'Back to amenities',
+                  onPressed: widget.onClose,
+                  icon: const Icon(Icons.arrow_back_rounded),
+                ),
           title: Text(widget.amenity.name),
           actions: [
             IconButton(

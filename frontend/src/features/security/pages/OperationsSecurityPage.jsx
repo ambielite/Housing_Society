@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import useAuth from "../../../app/providers/useAuth";
 import {
   Activity,
@@ -378,6 +378,7 @@ const display = (value) =>
 
 export default function SecurityPage() {
   const { section } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [tab, setTab] = useState(section || "overview");
   const [data, setData] = useState({});
@@ -472,6 +473,11 @@ export default function SecurityPage() {
   useEffect(() => {
     setTab(section || "overview");
   }, [section]);
+
+  const selectTab = (key) => {
+    setSearch("");
+    navigate(key === "overview" ? "/security-operations" : `/security-operations/${key}`);
+  };
   useEffect(() => {
     if (!form && !editRecord && !workflow) return undefined;
     const previousOverflow = document.body.style.overflow;
@@ -803,8 +809,7 @@ export default function SecurityPage() {
             key={key}
             className={tab === key ? "active" : ""}
             onClick={() => {
-              setTab(key);
-              setSearch("");
+              selectTab(key);
             }}
           >
             <Icon size={16} />
@@ -816,7 +821,7 @@ export default function SecurityPage() {
         <>
           <div className="society-stats">
             {stats.map(([label, count, Icon, targetTab, color]) => (
-              <button type="button" className={`society-stat-card security-summary-card security-summary-${color}`} key={label} onClick={() => setTab(targetTab)}>
+              <button type="button" className={`society-stat-card security-summary-card security-summary-${color}`} key={label} onClick={() => selectTab(targetTab)}>
                 <span className={`society-stat-icon society-stat-icon-${color}`}>
                   <Icon size={19} />
                 </span>
@@ -838,7 +843,7 @@ export default function SecurityPage() {
               <button
                 className={`society-stat-card assets-quick-card security-quick-card security-quick-card-${color}`}
                 key={key}
-                onClick={() => setTab(route)}
+                onClick={() => selectTab(route)}
               >
                 <span className="society-stat-icon security-quick-icon"><Icon size={19} /></span>
                 <div>

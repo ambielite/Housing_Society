@@ -128,7 +128,7 @@ export default function DocumentVaultPage() {
 
   const actions = (
     <>
-      {hasPermission('DOCUMENT_FOLDER_CREATE') && <button className="btn btn-secondary" onClick={() => { setFormError(''); setShowFolder(true); }}><Plus size={16} /> New folder</button>}
+      {hasPermission('DOCUMENT_FOLDER_CREATE') && <button className="btn btn-primary" onClick={() => { setFormError(''); setShowFolder(true); }}><Plus size={16} /> New folder</button>}
       {hasPermission('DOCUMENT_CREATE') && <button className="btn btn-primary" onClick={() => { setFormError(''); setShowUpload(true); }}><span className="button-plus" aria-hidden="true">+</span> Upload document</button>}
     </>
   );
@@ -196,9 +196,9 @@ export default function DocumentVaultPage() {
         <DataTable columns={columns} rows={documentList} loading={docs.loading} error={docs.error ? getErrorMessage(docs.error) : ''} onRetry={docs.reload} emptyTitle={activeFilters ? 'No documents match these filters' : 'No documents yet'} emptyMessage={activeFilters ? 'Adjust your search or filters, or clear filters to see all documents.' : 'Upload a document to start building your society’s document library.'}  />
       </section>
 
-      {showFolder && <Modal title="Create folder" onClose={() => !saving && setShowFolder(false)} busy={saving}><FolderForm folders={folderList} societyId={societyId} onSubmit={createFolder} onCancel={() => setShowFolder(false)} saving={saving} error={formError} /></Modal>}
-      {editingFolder && <Modal title="Edit folder" onClose={() => !saving && setEditingFolder(null)} busy={saving}><FolderForm initial={editingFolder} societyId={societyId} onSubmit={saveFolder} onCancel={() => setEditingFolder(null)} saving={saving} error={formError} /></Modal>}
-      {showUpload && <Modal title="Upload document" onClose={() => !saving && setShowUpload(false)} busy={saving}><UploadDocumentForm folders={folderList} societyId={societyId} onSubmit={upload} onCancel={() => setShowUpload(false)} saving={saving} error={formError} /></Modal>}
+      {showFolder && <Modal className="document-vault-dialog" title="Create folder" onClose={() => !saving && setShowFolder(false)} busy={saving}><FolderForm folders={folderList} societyId={societyId} onSubmit={createFolder} onCancel={() => setShowFolder(false)} saving={saving} error={formError} /></Modal>}
+      {editingFolder && <Modal className="document-vault-dialog" title="Edit folder" onClose={() => !saving && setEditingFolder(null)} busy={saving}><FolderForm initial={editingFolder} societyId={societyId} onSubmit={saveFolder} onCancel={() => setEditingFolder(null)} saving={saving} error={formError} /></Modal>}
+      {showUpload && <Modal className="document-vault-dialog" title="Upload document" onClose={() => !saving && setShowUpload(false)} busy={saving}><UploadDocumentForm folders={folderList} societyId={societyId} onSubmit={upload} onCancel={() => setShowUpload(false)} saving={saving} error={formError} /></Modal>}
       {deletingFolder && <ConfirmDialog open={Boolean(deletingFolder)} danger title="Delete folder" message={`Delete "${deletingFolder.name}"? Folders containing documents or sub-folders cannot be deleted.`} confirmLabel="Delete folder" busy={saving} onCancel={() => setDeletingFolder(null)} onConfirm={removeFolder} />}
     </PageContainer>
   );

@@ -12,5 +12,9 @@ export const changePassword = ({ currentPassword, newPassword }) =>
 export const forgotPassword = (email) => api.post('/auth/forgot-password', { email }).then(unwrap);
 export const resetPassword = ({ token, newPassword }) =>
   api.post('/auth/reset-password', { token, newPassword }).then(unwrap);
+export const requestAdminPasswordResetOtp = (email) =>
+  api.post('/auth/admin-forgot-password', { email }).then(unwrap);
+export const resetAdminPasswordWithOtp = (payload) =>
+  api.post('/auth/admin-reset-password', payload).then(unwrap);
 // Self-signup creates a user with no roles. Not used by any screen yet.
 export const register = (payload) => api.post('/auth/register', payload).then(unwrap);

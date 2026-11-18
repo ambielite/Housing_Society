@@ -3,9 +3,9 @@ import { Link } from 'react-router-dom';
 import { isValidEmail, passwordError } from '../../../utils/validators';
 import TextField from '../../../components/ui/TextField';
 import Alert from '../../../components/ui/Alert';
+import { isValidPhone, phoneInputProps } from '../../../utils/phone';
 
 const EMPTY = { firstName: '', lastName: '', email: '', phone: '', password: '', status: 'ACTIVE' };
-const PHONE_PATTERN = /^[0-9+\-\s()]{6,20}$/;
 const imageUrl = (value) => {
   if (!value) return '';
   if (/^https?:\/\//i.test(value)) return value;
@@ -17,12 +17,13 @@ const imageUrl = (value) => {
  * mode="create": all fields, sends the full payload.
  * mode="edit":   account contact details; sends only fields that changed.
  */
-export default function UserForm({ mode, initialValues, societyId, onSubmit, submitting, submitError, cancelTo }) {
+export default function UserForm({ mode, initialValues, societyId, onSubmit, submitting, submitError, cancelTo, onCancel }) {
   const isEdit = mode === 'edit';
   const [values, setValues] = useState({ ...EMPTY, ...initialValues });
   const [profilePicture, setProfilePicture] = useState(null);
   const [picturePreview, setPicturePreview] = useState(() => imageUrl(initialValues.profilePictureUrl));
   const [errors, setErrors] = useState({});
+  const [phoneTouched, setPhoneTouched] = useState(false);
   const [note, setNote] = useState('');
 
   useEffect(() => {
@@ -37,6 +38,7 @@ export default function UserForm({ mode, initialValues, societyId, onSubmit, sub
 
   const onChange = (event) => {
     setNote('');
+    if (event.target.name === 'phone') setPhoneTouched(true);
     setValues((v) => ({ ...v, [event.target.name]: event.target.value }));
   };
 
@@ -45,7 +47,7 @@ export default function UserForm({ mode, initialValues, societyId, onSubmit, sub
     if (!values.firstName.trim()) next.firstName = 'Enter a first name.';
     else if (values.firstName.trim().length > 100) next.firstName = 'Use 100 characters or fewer.';
     if (values.lastName.trim().length > 100) next.lastName = 'Use 100 characters or fewer.';
-    if (values.phone.trim() && !PHONE_PATTERN.test(values.phone.trim())) next.phone = 'Enter a valid phone number.';
+    if (!isValidPhone(values.phone)) next.phone = 'Enter exactly 10 digits.';
     if (!values.email.trim()) next.email = 'Enter an email address.';
     else if (!isValidEmail(values.email)) next.email = 'Enter a valid email address.';
     if (!isEdit) {
@@ -97,6 +99,7 @@ export default function UserForm({ mode, initialValues, societyId, onSubmit, sub
 
   return (
     <form className="card form-wide" onSubmit={handleSubmit} noValidate>
+      {onCancel && <p className="user-create-intro">Create an account for someone who needs to sign in.</p>}
       {submitError && <Alert>{submitError}</Alert>}
       {note && <Alert variant="success">{note}</Alert>}
 
@@ -138,7 +141,7 @@ export default function UserForm({ mode, initialValues, societyId, onSubmit, sub
           error={errors.email}
           hint={isEdit ? 'Changing this email also changes the resident login email.' : undefined}
         />
-        <TextField id="phone" name="phone" type="tel" label="Phone" value={values.phone} onChange={onChange} error={errors.phone} />
+        <div className="field"><TextField id="phone" name="phone" type="tel" label="Phone" value={values.phone} onChange={onChange} error={errors.phone} {...phoneInputProps} />{phoneTouched && values.phone.trim() && !isValidPhone(values.phone) && <small className="phone-guidance">Mobile number must be 10 digits.</small>}</div>
         {!isEdit && (
           <>
             <TextField
@@ -170,9 +173,7 @@ export default function UserForm({ mode, initialValues, societyId, onSubmit, sub
         <button type="submit" className="btn btn-primary" disabled={submitting}>
           {submitting ? 'Saving...' : isEdit ? 'Save changes' : 'Create user'}
         </button>
-        <Link to={cancelTo} className="btn btn-secondary">
-          Cancel
-        </Link>
+        {onCancel ? <button type="button" className="btn btn-secondary" onClick={onCancel} disabled={submitting}>Cancel</button> : <Link to={cancelTo} className="btn btn-secondary">Cancel</Link>}
       </div>
     </form>
   );

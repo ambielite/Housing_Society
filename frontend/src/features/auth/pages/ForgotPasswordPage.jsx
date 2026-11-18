@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as authApi from '../api/auth.api';
 import { getErrorMessage } from '../../../lib/axios';
-import { isValidEmail } from '../../../utils/validators';
+import { isValidEmail, passwordError } from '../../../utils/validators';
 import AuthCard from '../components/AuthCard';
 import TextField from '../../../components/ui/TextField';
 import Alert from '../../../components/ui/Alert';
@@ -10,22 +10,26 @@ import Alert from '../../../components/ui/Alert';
 export default function ForgotPasswordPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
+  const [otp, setOtp] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
-  const [fieldError, setFieldError] = useState('');
-  const [result, setResult] = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [requested, setRequested] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const onSubmit = async (event) => {
+  const onRequestOtp = async (event) => {
     event.preventDefault();
     setError('');
     if (!isValidEmail(email)) {
-      setFieldError('Enter a valid email address.');
+      setFieldErrors({ email: 'Enter a valid email address.' });
       return;
     }
-    setFieldError('');
+    setFieldErrors({});
     setSubmitting(true);
     try {
-      setResult(await authApi.forgotPassword(email.trim()));
+      await authApi.requestAdminPasswordResetOtp(email.trim());
+      setRequested(true);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -33,55 +37,50 @@ export default function ForgotPasswordPage() {
     }
   };
 
+  const onResetPassword = async (event) => {
+    event.preventDefault();
+    setError('');
+    const next = {};
+    if (!/^\d{6}$/.test(otp)) next.otp = 'Enter the 6-digit code sent to your email.';
+    const pwError = passwordError(newPassword);
+    if (pwError) next.newPassword = pwError;
+    if (confirmPassword !== newPassword) next.confirmPassword = 'The passwords do not match.';
+    setFieldErrors(next);
+    if (Object.keys(next).length) return;
+    setSubmitting(true);
+    try {
+      await authApi.resetAdminPasswordWithOtp({ email: email.trim(), otp, newPassword });
+      navigate('/login', { replace: true, state: { notice: 'Password reset. Sign in with your new password.' } });
+    } catch (err) {
+      setError(getErrorMessage(err));
+      setSubmitting(false);
+    }
+  };
+
   return (
-    <AuthCard className="auth-card--recovery" title="Reset your password" subtitle="Enter your account email and we'll generate a reset token." leading={(
-      <div className="recovery-mark" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none">
-          <path d="M4.5 7.5A2.5 2.5 0 0 1 7 5h10a2.5 2.5 0 0 1 2.5 2.5v9A2.5 2.5 0 0 1 17 19H7a2.5 2.5 0 0 1-2.5-2.5v-9Z" />
-          <path d="m5.5 7 6.5 5 6.5-5" />
-          <path d="M17.5 3.5v4m-2-2h4" />
-        </svg>
-      </div>
-    )}>
-      {result ? (
-        <>
-          <div className="recovery-result">
-          <Alert variant="success">{result.message}</Alert>
-          {/* The backend only returns devResetToken outside production (no email provider yet). */}
-          {result.devResetToken && (
-            <div className="dev-box">
-              <p>Development only: email isn't connected yet, so use this token directly.</p>
-              <button
-                type="button"
-                className="btn btn-primary btn-block"
-                onClick={() => navigate(`/reset-password?token=${result.devResetToken}`)}
-              >
-                Continue to reset password
-              </button>
-            </div>
-          )}
-          </div>
-        </>
-      ) : (
-        <form onSubmit={onSubmit} noValidate>
-          {error && <Alert>{error}</Alert>}
-          <TextField
-            id="email"
-            type="email"
-            label="Email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            error={fieldError}
-          />
+    <AuthCard variant="login" title={requested ? 'Choose a new password' : 'Forgot Password?'} subtitle={requested ? 'Enter the verification code sent to your admin email, then set a new password.' : 'Enter your admin account email to receive a password reset code.'}>
+      {error && <Alert>{error}</Alert>}
+      {!requested ? (
+        <form onSubmit={onRequestOtp} noValidate>
+          <TextField id="email" type="email" label="Email Address" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} error={fieldErrors.email} />
           <button type="submit" className="btn btn-primary btn-block" disabled={submitting}>
-            {submitting ? 'Sending...' : 'Send reset token'}
+            {submitting ? 'Sending...' : 'Send verification code'}
+          </button>
+        </form>
+      ) : (
+        <form onSubmit={onResetPassword} noValidate>
+          <Alert variant="success">If this email belongs to an admin account, a verification code will be sent.</Alert>
+          <TextField id="otp" label="6-digit verification code" inputMode="numeric" autoComplete="one-time-code" value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} error={fieldErrors.otp} />
+          <TextField id="newPassword" type="password" label="New password" autoComplete="new-password" hint="8 to 128 characters." value={newPassword} onChange={(e) => setNewPassword(e.target.value)} error={fieldErrors.newPassword} />
+          <TextField id="confirmPassword" type="password" label="Confirm new password" autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} error={fieldErrors.confirmPassword} />
+          <button type="submit" className="btn btn-primary btn-block" disabled={submitting}>
+            {submitting ? 'Saving...' : 'Reset password'}
           </button>
         </form>
       )}
-      <p className="auth-links">
-        <Link to="/login">Back to sign in</Link>
-      </p>
+      <p className="auth-links"><Link to="/login">Back to sign in</Link></p>
+      <div className="login-secure-note"><span aria-hidden="true">♧</span> Secure &amp; Trusted</div>
+      <div className="login-copyright">Ambi Elite Housing Society © {new Date().getFullYear()}</div>
     </AuthCard>
   );
 }

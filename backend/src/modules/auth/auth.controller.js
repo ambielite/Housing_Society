@@ -59,6 +59,16 @@ const resetResidentPasswordWithOtp = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, null, 'Password reset successfully');
 });
 
+const requestAdminPasswordResetOtp = asyncHandler(async (req, res) => {
+  const result = await authService.requestAdminPasswordResetOtp(req.body.email);
+  return ApiResponse.success(res, result, 'Request processed');
+});
+
+const resetAdminPasswordWithOtp = asyncHandler(async (req, res) => {
+  await authService.resetAdminPasswordWithOtp(req.body);
+  return ApiResponse.success(res, null, 'Password reset successfully');
+});
+
 module.exports = {
   register,
   login,
@@ -71,4 +81,6 @@ module.exports = {
   resetPassword,
   requestResidentPasswordResetOtp,
   resetResidentPasswordWithOtp,
+  requestAdminPasswordResetOtp,
+  resetAdminPasswordWithOtp,
 };

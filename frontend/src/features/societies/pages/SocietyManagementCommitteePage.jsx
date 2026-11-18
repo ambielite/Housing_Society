@@ -3,6 +3,7 @@ import { Building2, CalendarDays, Camera, Edit2, ImagePlus, Mail, Phone, Plus, R
 import { legacyApi } from "../../../lib/axios";
 import useAuth from "../../../app/providers/useAuth";
 import "./society-management-committee.css";
+import { PHONE_PATTERN, phoneInputProps } from "../../../utils/phone";
 
 const ROLES = ["CHAIRPERSON", "VICE_CHAIRPERSON", "SECRETARY", "JOINT_SECRETARY", "TREASURER", "COMMITTEE_MEMBER", "OTHER"];
 const EMPTY = { memberName: "", designation: "COMMITTEE_MEMBER", unitNumber: "", phone: "", email: "", termStart: "", termEnd: "", notes: "", isActive: true };
@@ -32,6 +33,7 @@ export default function SocietyManagementCommitteePage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(EMPTY);
+  const [phoneTouched, setPhoneTouched] = useState(false);
   const [profilePicture, setProfilePicture] = useState(null);
   const [picturePreview, setPicturePreview] = useState("");
 
@@ -70,7 +72,7 @@ export default function SocietyManagementCommitteePage() {
 
   const openCreate = () => { setEditing(null); setForm({ ...EMPTY }); setProfilePicture(null); setError(""); setFormOpen(true); };
   const openEdit = (member) => { setEditing(member); setForm({ ...EMPTY, ...member, termStart: member.termStart?.slice(0, 10) || "", termEnd: member.termEnd?.slice(0, 10) || "" }); setProfilePicture(null); setError(""); setFormOpen(true); };
-  const updateField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const updateField = (key, value) => { if (key === "phone") setPhoneTouched(true); setForm((current) => ({ ...current, [key]: value })); };
   const selectPicture = (event) => {
     const file = event.target.files?.[0] || null;
     if (!file) return;
@@ -83,7 +85,9 @@ export default function SocietyManagementCommitteePage() {
     setError(""); setProfilePicture(file);
   };
   const submit = async (event) => {
-    event.preventDefault(); setSaving(true); setError(""); setMessage("");
+    event.preventDefault(); setError(""); setMessage("");
+    if (!PHONE_PATTERN.test(String(form.phone || "").trim())) { setError("Phone number must contain exactly 10 digits."); return; }
+    setSaving(true);
     const payload = new FormData();
     ["memberName", "designation", "unitNumber", "phone", "email", "termStart", "termEnd", "notes", "isActive"].forEach((key) => {
       const value = form[key];
@@ -130,7 +134,7 @@ export default function SocietyManagementCommitteePage() {
       <label>Full Name<input required maxLength={140} value={form.memberName} onChange={(event) => updateField("memberName", event.target.value)} placeholder="e.g. Ananya Deshmukh" /></label>
       <label>Committee role<select required value={form.designation} onChange={(event) => updateField("designation", event.target.value)}>{ROLES.map((role) => <option key={role} value={role}>{pretty(role)}</option>)}</select></label>
       <label>Unit number <span>Optional</span><input maxLength={40} value={form.unitNumber || ""} onChange={(event) => updateField("unitNumber", event.target.value)} placeholder="e.g. B-204" /></label>
-      <label>Phone number<input required type="tel" maxLength={30} value={form.phone} onChange={(event) => updateField("phone", event.target.value)} placeholder="e.g. +91 98765 43210" /></label>
+      <label>Phone number<input required type="tel" {...phoneInputProps} value={form.phone} onChange={(event) => updateField("phone", event.target.value)} placeholder="10 digit mobile number" />{phoneTouched && form.phone.trim() && !PHONE_PATTERN.test(form.phone.trim()) && <small className="phone-guidance">Mobile number must be 10 digits.</small>}</label>
       <label>Email address <span>Optional</span><input type="email" maxLength={255} value={form.email || ""} onChange={(event) => updateField("email", event.target.value)} placeholder="name@example.com" /></label>
       <label>Term starts <span>Optional</span><input type="date" value={form.termStart || ""} onChange={(event) => updateField("termStart", event.target.value)} /></label>
       <label>Term ends <span>Optional</span><input type="date" min={form.termStart || undefined} value={form.termEnd || ""} onChange={(event) => updateField("termEnd", event.target.value)} /></label>

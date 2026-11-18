@@ -241,6 +241,7 @@ select.input { appearance: auto; }
 textarea.input { resize: vertical; }
 .input-toggle { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: none; border: 0; padding: 4px 8px; color: var(--action); font-weight: 600; font-size: 12px; }
 .field-hint { margin-top: 6px; color: var(--muted); font-size: 12px; }
+.phone-guidance { display: block; margin-top: 4px; color: #dc2626; font-size: 11px; font-weight: 500; }
 .field-error { margin-top: 6px; color: var(--danger); font-size: 12px; }
 .form-narrow { max-width: 460px; }
 .form-wide { max-width: 760px; }
@@ -402,6 +403,77 @@ a.cell-title:hover { color: var(--action); }
 .auth-subtitle { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
 .auth-links { margin-top: 20px; font-size: 13px; }
 .auth-links a { color: var(--action); }
+
+/* Admin sign-in page based on the Ambi Elite login artwork. */
+.auth-page--login {
+  min-height: 100vh;
+  min-height: 100dvh;
+  grid-template-columns: minmax(0, 1.08fr) minmax(520px, .92fr);
+  position: relative;
+  overflow: hidden;
+  background: #eaf1ff url('../assets/ambi-elite-login-background.png') center / cover no-repeat;
+  color: #102d58;
+}
+.auth-page--login::before {
+  content: '';
+  position: absolute;
+  inset: 0 43% 0 0;
+  background: linear-gradient(90deg, rgba(4, 38, 83, .86) 0%, rgba(4, 46, 97, .68) 65%, rgba(7, 59, 119, .08) 100%);
+  pointer-events: none;
+}
+.auth-page--login .auth-aside {
+  z-index: 1;
+  min-height: 100vh;
+  min-height: 100dvh;
+  justify-content: space-between;
+  padding: clamp(34px, 5vw, 76px);
+  background: transparent;
+  color: #fff;
+}
+.login-brand { display: flex; align-items: center; gap: 13px; width: fit-content; }
+.login-brand-mark { display: grid; place-items: center; width: 50px; height: 50px; border: 2px solid #e4a32a; border-radius: 15px 15px 15px 4px; color: #fff; font-size: 35px; font-weight: 700; line-height: 1; }
+.login-brand strong { display: block; font-size: 27px; line-height: 1.05; letter-spacing: -.04em; }
+.login-brand small { display: block; margin-top: 5px; font-size: 11px; letter-spacing: .2em; }
+.login-hero-copy { margin-top: auto; margin-bottom: 36px; }
+.login-hero-copy h2 { margin: 0 0 20px; color: #fff; font-size: clamp(32px, 3.2vw, 48px); line-height: 1.12; letter-spacing: -.035em; }
+.login-hero-copy h2 span { color: #7db7ff; }
+.login-hero-copy p { color: rgba(255,255,255,.9); font-size: 19px; line-height: 1.6; }
+.login-hero-copy i { display: block; width: 64px; height: 4px; margin-top: 20px; border-radius: 4px; background: #3c9bff; }
+.login-features { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); max-width: 650px; }
+.login-features span { min-height: 74px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; border-right: 1px solid rgba(255,255,255,.48); color: #fff; text-align: center; font-size: 13px; line-height: 1.35; }
+.login-features span:first-child { border-left: 0; }
+.login-features span:last-child { border-right: 0; }
+.login-features b { font-size: 23px; line-height: 1; }
+.auth-page--login .auth-panel { z-index: 1; padding: clamp(24px, 4vw, 64px); }
+.auth-page--login .auth-card--login { max-width: 625px; padding: clamp(32px, 4vw, 58px); border: 1px solid rgba(255,255,255,.82); border-radius: 34px; background: rgba(255,255,255,.94); box-shadow: 0 26px 70px rgba(20,53,104,.18); backdrop-filter: blur(12px); }
+.auth-card--login .login-security-icon { display: grid; place-items: center; width: 76px; height: 76px; margin: 0 auto 14px; border-radius: 50%; background: #e2edff; color: #0e397a; }
+.auth-card--login .login-security-icon svg { width: 42px; height: 42px; }
+.auth-page--login .auth-card--login h1, .auth-page--login .auth-card--login > .auth-subtitle { text-align: center; }
+.auth-page--login .auth-card--login h1 { margin: 0 0 8px; color: #102d58; font-size: 36px; font-weight: 750; letter-spacing: -.04em; }
+.auth-page--login .auth-card--login > .auth-subtitle { margin-bottom: 34px; color: #586a88; font-size: 16px; }
+.auth-card--login .field { margin-bottom: 22px; }
+.auth-card--login .field > label { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; color: #142e56; font-size: 15px; font-weight: 700; }
+.auth-card--login .field > label::before { content: '✉'; color: #294b78; font-size: 17px; }
+.auth-card--login .field:nth-of-type(2) > label::before { content: '▣'; }
+.auth-card--login .input-wrap { position: relative; }
+.auth-card--login .input { min-height: 56px; padding: 0 18px; border: 1px solid #d5deec; border-radius: 13px; background: rgba(255,255,255,.88); color: #1c3358; font-size: 16px; box-shadow: inset 0 1px 2px rgba(20,44,82,.025); }
+.auth-card--login .input::placeholder { color: #71809c; opacity: 1; }
+.auth-card--login .input:focus { border-color: #5286e7; box-shadow: 0 0 0 3px rgba(62,118,226,.13); outline: none; }
+.auth-card--login .input[type='password'], .auth-card--login .input-wrap:has(.input-toggle) .input { padding-right: 82px; }
+.auth-card--login .input-toggle { right: 14px; color: #315177; font-size: 0; }
+.auth-card--login .input-toggle::after { content: 'Show'; font-size: 13px; }
+.auth-card--login .input-toggle[aria-label='Hide password']::after { content: 'Hide'; }
+.login-form-options { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: -2px 0 24px; color: #1e3559; font-size: 14px; font-weight: 600; }
+.login-form-options > a { color: #1263eb; }
+.remember-me { display: inline-flex; align-items: center; gap: 9px; cursor: pointer; }
+.remember-me input { width: 21px; height: 21px; accent-color: #255ed0; }
+.auth-card--login .btn-block { min-height: 61px; display: flex; align-items: center; justify-content: center; gap: 10px; border: 0; border-radius: 13px; background: linear-gradient(105deg, #2156c5, #4037ef); color: #fff; font-size: 18px; font-weight: 700; box-shadow: 0 12px 22px rgba(47,77,185,.19); }
+.auth-card--login .btn-block:hover:not(:disabled) { filter: brightness(1.05); transform: translateY(-1px); }
+.login-secure-note { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 24px 0 17px; color: #536789; font-size: 14px; }
+.login-secure-note::before, .login-secure-note::after { content: ''; height: 1px; flex: 1; background: #dbe3ef; }
+.login-secure-note span { color: #1263eb; font-size: 19px; }
+.login-copyright { padding: 13px 16px; border-radius: 12px; background: #f0f4fc; color: #687b9d; text-align: center; font-size: 13px; }
+.auth-card--login form > .alert { margin-bottom: 18px; }
 .dev-box { margin-top: 8px; padding: 14px; border-radius: 8px; background: var(--warning-bg); color: var(--warning-text); }
 .dev-box p { margin-bottom: 10px; font-size: 13px; }
 .auth-card--recovery { position: relative; isolation: isolate; animation: recovery-rise 520ms cubic-bezier(.2,.75,.25,1) both; }
@@ -432,6 +504,13 @@ a.cell-title:hover { color: var(--action); }
   .dashboard-cards { grid-template-columns: repeat(2, 1fr); }
 }
 
+@media (max-width: 1100px) and (min-width: 769px) {
+  .auth-page--login { grid-template-columns: minmax(0, 1fr) minmax(470px, .95fr); }
+  .auth-page--login .auth-aside { padding: 38px; }
+  .login-features span { font-size: 11px; }
+  .auth-page--login .auth-panel { padding: 28px; }
+}
+
 @media (max-width: 768px) {
   .sidebar { transform: translateX(-100%); transition: transform 0.2s ease; }
   .sidebar.open { transform: none; }
@@ -450,8 +529,19 @@ a.cell-title:hover { color: var(--action); }
   .dashboard-grid { grid-template-columns: 1fr; }
   .auth-page { grid-template-columns: 1fr; }
   .auth-aside { display: none; }
+  .auth-page--login { display: block; min-height: 100vh; min-height: 100dvh; background-position: 34% center; }
+  .auth-page--login::before { inset: 0; background: linear-gradient(110deg, rgba(6,43,92,.48), rgba(218,232,255,.48)); }
+  .auth-page--login .auth-panel { position: relative; min-height: 100vh; min-height: 100dvh; padding: 24px 16px; }
+  .auth-page--login .auth-card--login { max-width: 560px; padding: 32px 25px; border-radius: 25px; }
+  .auth-page--login .auth-card--login h1 { font-size: 30px; }
   .details { grid-template-columns: 1fr; gap: 2px; }
   .details dd { margin-bottom: 10px; }
+}
+
+@media (max-width: 420px) {
+  .auth-page--login .auth-card--login { padding: 27px 20px; }
+  .auth-card--login .field { margin-bottom: 18px; }
+  .login-form-options { font-size: 12px; }
 }
 
 @media (max-width: 700px) {
