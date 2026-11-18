@@ -70,7 +70,11 @@ const createSlot = async (payload) => {
     }
   }
 
-  return repository.createSlotSeries({ ...payload, dates });
+  const result = await repository.createSlotSeries({ ...payload, dates });
+  if (result.conflictDate) {
+    throw new ApiError(409, `This amenity already has a slot that overlaps the selected time on ${result.conflictDate}.`);
+  }
+  return result.rows;
 };
 
 const listSlots = (query) => repository.listSlots(query);
@@ -88,7 +92,11 @@ const updateSlot = async (id, payload) => {
   if (!slot) {
     throw new ApiError(404, 'Amenity slot not found');
   }
-  return repository.updateSlot(id, payload);
+  const updated = await repository.updateSlot(id, payload);
+  if (updated?.conflict) {
+    throw new ApiError(409, 'This amenity already has a slot that overlaps the selected time on this date.');
+  }
+  return updated;
 };
 
 const deleteSlot = async (id) => {

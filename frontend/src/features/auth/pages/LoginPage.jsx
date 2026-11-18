@@ -7,7 +7,7 @@ export default function LoginPage() {
   const notice = useLocation().state?.notice;
 
   return (
-    <AuthCard title="Sign in" subtitle="Use the email and password your society administrator gave you.">
+    <AuthCard variant="login" title="SIGN IN" subtitle="Sign in to access your society dashboard">
       {notice && <Alert variant="success">{notice}</Alert>}
       <LoginForm />
     </AuthCard>

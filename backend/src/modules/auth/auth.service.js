@@ -340,6 +340,47 @@ const resetResidentPasswordWithOtp = async ({ email, otp, newPassword }) => {
   await notifyAdminsOfResidentPasswordUpdate(user.id, 'reset');
 };
 
+const requestAdminPasswordResetOtp = async (email) => {
+  const user = await authRepository.findAdminByEmail(email.trim().toLowerCase());
+  const genericMessage = 'If this email belongs to an admin account, a verification code will be sent.';
+  if (!user || await authRepository.hasRecentPasswordResetRequest(user.id)) return { message: genericMessage };
+
+  const otp = String(crypto.randomInt(100000, 1000000));
+  const tokenHash = hashPasswordResetOtp(user.id, otp);
+  const expiresAt = new Date(Date.now() + parseDuration('10m'));
+  await authRepository.revokeActivePasswordResetTokens(user.id);
+  await authRepository.createPasswordResetToken({ userId: user.id, tokenHash, expiresAt });
+  try {
+    await emailProvider.sendEmail({
+      email: user.email,
+      userId: user.id,
+      subject: 'Your Housing Society admin password reset code',
+      title: 'Password reset code',
+      message: `Your admin password reset verification code is ${otp}. It expires in 10 minutes and can only be used once. If you did not request this code, ignore this email.`,
+    });
+  } catch (error) {
+    await authRepository.revokeActivePasswordResetTokens(user.id);
+    console.error('Admin password reset email delivery failed:', error.message);
+    throw new ApiError(503, 'We could not send the verification code. Please try again later.');
+  }
+  return { message: genericMessage };
+};
+
+const resetAdminPasswordWithOtp = async ({ email, otp, newPassword }) => {
+  const user = await authRepository.findAdminByEmail(email.trim().toLowerCase());
+  if (!user) throw new ApiError(400, 'The code is invalid or has expired. Request a new code and try again.');
+  const tokenHash = hashPasswordResetOtp(user.id, otp);
+  const record = await authRepository.findPasswordResetToken(tokenHash);
+  if (!record || record.user_id !== user.id || record.used_at || new Date(record.expires_at) < new Date() || record.attempts >= 5) {
+    if (!record) await authRepository.incrementActivePasswordResetAttempts(user.id);
+    throw new ApiError(400, 'The code is invalid or has expired. Request a new code and try again.');
+  }
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+  if (!await authRepository.completePasswordReset({ tokenId: record.id, userId: user.id, passwordHash })) {
+    throw new ApiError(400, 'The code is invalid or has expired. Request a new code and try again.');
+  }
+};
+
 // Keep the existing web/admin reset token API compatible. The resident app
 // uses the dedicated OTP endpoints above.
 const forgotPassword = async (email) => {
@@ -387,4 +428,6 @@ module.exports = {
   resetPassword,
   requestResidentPasswordResetOtp,
   resetResidentPasswordWithOtp,
+  requestAdminPasswordResetOtp,
+  resetAdminPasswordWithOtp,
 };

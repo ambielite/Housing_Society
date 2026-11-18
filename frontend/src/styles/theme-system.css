@@ -76,10 +76,12 @@ input:focus, select:focus, textarea:focus, .input:focus, .society-search:focus-w
 }
 .sidebar, .topbar { background: var(--topbar-bg); border-color: var(--topbar-border); }
 .sidebar { background: var(--sidebar-bg); }
-.nav-item { color: var(--sidebar-text); }
-.nav-item:hover { background: var(--sidebar-hover); color: var(--sidebar-text); }
-.nav-item.active { background: var(--sidebar-active); color: #fff; }
-.logout-button:hover { background: var(--sidebar-hover); color: var(--sidebar-text); }
+.nav-item, .sidebar-subnav-item { color: var(--sidebar-text); transition: background-color .18s ease, color .18s ease; }
+.nav-item:not(.active):hover, .sidebar-subnav-item:not(.active):hover,
+.sidebar-submenu-toggle:hover, .logout-button:hover { background: var(--sidebar-hover); color: #fff; }
+.nav-item.active, .sidebar-subnav-item.active,
+.nav-item.active:hover, .sidebar-subnav-item.active:hover { background: var(--sidebar-active); color: #fff; }
+.logout-button:hover { background: var(--sidebar-hover); color: #fff; }
 .logo-mark { background: var(--action); }
 .main-wrapper, .main-content, .society-dashboard, .assets-page { background: var(--bg-primary); color: var(--text-primary); }
 
@@ -890,6 +892,7 @@ body .assets-page .assets-stats:not(.assets-quick-stats) > .society-stat-card:ho
 .amenities-page .amenities-data-panel .society-count { flex: 0 0 auto; color: var(--text-muted); font-size: 12px; }
 .amenities-page .amenities-toolbar { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; padding: 12px 20px; border-bottom: 1px solid var(--border-color); }
 .amenities-page .amenities-toolbar .input { min-height: 38px; width: auto; min-width: 170px; }
+.amenities-page .amenities-toolbar .amenity-slot-date-filter { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: 11px; font-weight: 600; }
 .amenities-page .amenity-table .table-card { overflow: hidden; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .amenities-page .amenity-table .table-wrap { overflow-x: auto; }
 .amenities-page .amenity-table .table-card thead th { background: var(--surface-2); }
@@ -1114,6 +1117,34 @@ body .society-dashboard .society-table td { text-align: center; }
 body .society-dashboard .society-table .society-row-actions { justify-content: center; }
 
 /* Document Vault library workspace */
+body .dialog.document-vault-dialog { width: min(650px, calc(100% - 32px)); padding: 23px; border-radius: 16px; }
+body .document-vault-dialog .dialog-head { margin-bottom: 12px; padding-bottom: 14px; border-bottom: 1px solid var(--card-border); }
+body .document-vault-dialog .dialog-head h2 { color: var(--text-primary); font-size: 19px; font-weight: 700; letter-spacing: -.02em; }
+body .document-vault-form > .field,
+body .document-vault-form .field { min-width: 0; margin: 0; color: var(--text-secondary); font-size: 10px; font-weight: 700; }
+body .document-vault-form .field .input { width: 100%; min-height: 39px; box-sizing: border-box; margin-top: 6px; padding: 9px 10px; border-radius: 8px; color: var(--text-primary); font-size: 12px; font-weight: 450; }
+body .document-vault-form .field input[type="file"].input { padding: 8px; }
+body .document-vault-form .field-hint { color: var(--text-muted); font-size: 10px; font-weight: 450; }
+body .document-vault-form .required { color: var(--danger); }
+body .document-vault-form .form-actions .btn { min-height: 37px; padding: 0 14px; border-radius: 8px; font-size: 11px; font-weight: 700; }
+body .document-upload-form { gap: 16px; }
+body .document-upload-intro { margin: -4px 0 0; color: var(--text-muted); font-size: 12px; line-height: 1.5; }
+body .document-upload-section { display: grid; gap: 13px; padding-top: 15px; border-top: 1px solid var(--card-border); }
+body .document-upload-section-title { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+body .document-upload-section-title h3 { margin: 0; color: var(--text-primary); font-size: 13px; font-weight: 700; }
+body .document-upload-section-title span { color: var(--text-muted); font-size: 10px; }
+body .document-upload-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
+body .document-upload-wide { grid-column: 1 / -1; }
+body .document-upload-file .input { padding: 8px; }
+body .document-upload-selected { margin: -6px 0 0; overflow-wrap: anywhere; color: var(--text-muted); font-size: 11px; }
+body .document-upload-actions { justify-content: flex-end; padding-top: 14px; border-top: 1px solid var(--card-border); }
+@media (max-width: 560px) {
+  body .document-upload-grid { grid-template-columns: 1fr; }
+  body .document-upload-wide { grid-column: auto; }
+  body .document-upload-section-title { align-items: flex-start; flex-direction: column; gap: 4px; }
+  body .document-upload-actions { flex-direction: column-reverse; }
+  body .document-upload-actions > button { width: 100%; }
+}
 body .page.document-vault-page > .page-header,
 body .page.user-module-page > .page-header,
 body .page.roles-module-page > .page-header { margin-bottom: 22px; }
@@ -1276,6 +1307,19 @@ body .role-directory-table .role-status-badge,
 body .role-directory-table .role-type-badge { white-space: nowrap; }
 body .role-form-page .form-narrow,
 body .user-form-page .form-wide { border: 1px solid var(--card-border); border-radius: 16px; box-shadow: var(--shadow); }
+body .dialog.user-create-dialog { width: min(760px, calc(100% - 32px)); max-height: min(90vh, 900px); overflow: auto; padding: 0; border-radius: 14px; background: #f9fafb; }
+body .dialog.user-create-dialog .dialog-head { margin: 0; padding: 22px 26px 18px; border-bottom: 1px solid #e5e7eb; background: #fff; }
+body .dialog.user-create-dialog .dialog-head h2 { color: #111827; font-size: 20px; font-weight: 650; line-height: 1.3; }
+body .dialog.user-create-dialog .form-wide { max-width: none; padding: 22px 26px; border: 0; border-radius: 0; background: #f9fafb; box-shadow: none; }
+body .dialog.user-create-dialog .form-grid { gap: 14px 18px; }
+body .dialog.user-create-dialog .form-actions { justify-content: flex-end; gap: 10px; margin: 18px -26px -22px; padding: 16px 26px; border-top: 1px solid #e5e7eb; background: #fff; }
+body .dialog.user-create-dialog .form-actions .btn { min-height: 38px; padding: 0 16px; font-size: 13px; font-weight: 600; }
+body .dialog.user-create-dialog .user-create-intro { margin: 0 0 16px; color: #6b7280; font-size: 13px; line-height: 1.45; }
+@media (max-width: 640px) {
+  body .dialog.user-create-dialog .form-wide { padding: 18px; }
+  body .dialog.user-create-dialog .form-actions { margin: 18px -18px -18px; padding: 14px 18px; }
+  body .dialog.user-create-dialog .form-grid { grid-template-columns: 1fr; }
+}
 
 @media (max-width: 760px) {
   body .document-vault-overview,

@@ -36,6 +36,7 @@ class _ResidentAmenitiesScreenState extends State<ResidentAmenitiesScreen> {
   bool _initialLoading = true;
   bool _refreshing = false;
   int _typeTab = 0;
+  ResidentAmenity? _selectedAmenity;
 
   @override
   void initState() {
@@ -97,7 +98,18 @@ class _ResidentAmenitiesScreenState extends State<ResidentAmenitiesScreen> {
       .join(' ');
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) {
+    final selectedAmenity = _selectedAmenity;
+    if (selectedAmenity != null) {
+      return ResidentAmenityDetailScreen(
+        user: widget.user,
+        amenity: selectedAmenity,
+        onBookingCreated: widget.onBookingCreated,
+        onClose: () => setState(() => _selectedAmenity = null),
+      );
+    }
+
+    return Scaffold(
         backgroundColor: AppColors.canvas,
         appBar: AppBar(
           backgroundColor: AppColors.canvas,
@@ -137,6 +149,7 @@ class _ResidentAmenitiesScreenState extends State<ResidentAmenitiesScreen> {
           ),
         ),
       );
+  }
 
   Widget _list() {
     final types = _types;
@@ -252,13 +265,7 @@ class _ResidentAmenitiesScreenState extends State<ResidentAmenitiesScreen> {
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: () => Navigator.of(context).push<void>(MaterialPageRoute<void>(
-            builder: (_) => ResidentAmenityDetailScreen(
-              user: widget.user,
-              amenity: amenity,
-              onBookingCreated: widget.onBookingCreated,
-            ),
-          )),
+          onTap: () => setState(() => _selectedAmenity = amenity),
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(

@@ -29,7 +29,8 @@ export default function SlotListPage() {
   const { societyId } = useSociety();
   const [searchParams] = useSearchParams();
   const [amenityFilter, setAmenityFilter] = useState(searchParams.get('amenityId') || '');
-  const [dateFilter, setDateFilter] = useState(searchParams.get('slotDate') || '');
+  const [dateFrom, setDateFrom] = useState(searchParams.get('dateFrom') || '');
+  const [dateTo, setDateTo] = useState(searchParams.get('dateTo') || '');
   const [status, setStatus] = useState('');
   const [dialog, setDialog] = useState(null);
   const [deleting, setDeleting] = useState(null);
@@ -39,8 +40,8 @@ export default function SlotListPage() {
 
   const amenities = useFetch(() => (societyId ? api.listAmenities({ societyId }) : Promise.resolve(null)), [societyId]);
   const slots = useFetch(
-    () => (societyId ? api.listSlots({ amenityId: amenityFilter, slotDate: dateFilter, status }) : Promise.resolve(null)),
-    [societyId, amenityFilter, dateFilter, status]
+    () => (societyId ? api.listSlots({ amenityId: amenityFilter, dateFrom, dateTo, status }) : Promise.resolve(null)),
+    [societyId, amenityFilter, dateFrom, dateTo, status]
   );
 
   useEffect(() => {
@@ -98,12 +99,13 @@ export default function SlotListPage() {
           <option value="">All amenities</option>
           {options.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
         </select>
-        <input className="input toolbar-select" type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} aria-label="Filter by date" />
+        <label className="amenity-slot-date-filter"><span>From</span><input className="input toolbar-select" type="date" value={dateFrom} max={dateTo || undefined} onChange={(e) => setDateFrom(e.target.value)} aria-label="Filter slots from date" /></label>
+        <label className="amenity-slot-date-filter"><span>To</span><input className="input toolbar-select" type="date" value={dateTo} min={dateFrom || undefined} onChange={(e) => setDateTo(e.target.value)} aria-label="Filter slots to date" /></label>
         <select className="input toolbar-select" value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter by status">
           <option value="">All statuses</option>
           {SLOT_STATUSES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
         </select>
-        {(amenityFilter || dateFilter || status) && <button className="btn btn-secondary" onClick={() => { setAmenityFilter(''); setDateFilter(''); setStatus(''); }}>Clear filters</button>}
+        {(amenityFilter || dateFrom || dateTo || status) && <button className="btn btn-secondary" onClick={() => { setAmenityFilter(''); setDateFrom(''); setDateTo(''); setStatus(''); }}>Clear filters</button>}
       </div>
       <div className="amenity-table"><DataTable
         columns={[
@@ -128,7 +130,7 @@ export default function SlotListPage() {
         onRetry={() => { slots.reload(); amenities.reload(); }}
         emptyTitle="No slots found"
         emptyMessage="Create slots from here or from an amenity's detail page."
-        emptyAction={(amenityFilter || dateFilter || status) ? <button className="btn btn-secondary" onClick={() => { setAmenityFilter(''); setDateFilter(''); setStatus(''); }}>Clear filters</button> : null}
+        emptyAction={(amenityFilter || dateFrom || dateTo || status) ? <button className="btn btn-secondary" onClick={() => { setAmenityFilter(''); setDateFrom(''); setDateTo(''); setStatus(''); }}>Clear filters</button> : null}
       /></div>
       </section>
       {dialog && <Modal title={dialog.type === 'edit' ? 'Edit slot' : 'New slot'} onClose={() => !saving && setDialog(null)} busy={saving}>

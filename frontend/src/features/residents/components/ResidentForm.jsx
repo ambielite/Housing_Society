@@ -8,6 +8,7 @@ import unitApi from "../../units/api/unit.api";
 import ownerUnitApi from "../api/ownerUnit.api";
 import residentApi from "../api/resident.api";
 import occupancyApi from "../api/occupancy.api";
+import { PHONE_PATTERN, phoneInputProps } from "../../../utils/phone";
 
 const RESIDENT_ROLES = [
     ["PRIMARY_OWNER", "Primary owner"],
@@ -61,6 +62,7 @@ const profileImageUrl = (url) => !url || /^https?:\/\//i.test(url) ? url : `${ne
 
 const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
     const [values, setValues] = useState(() => initialValues(resident));
+    const [touchedPhones, setTouchedPhones] = useState({});
     const [societies, setSocieties] = useState([]);
     const [residentRoleUsers, setResidentRoleUsers] = useState([]);
     const [accountMode, setAccountMode] = useState("existing");
@@ -178,6 +180,7 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
 
     const update = (event) => {
         const { name, value, type, checked } = event.target;
+        if (["mobile", "alternateMobile", "emergencyContactMobile"].includes(name)) setTouchedPhones((current) => ({ ...current, [name]: true }));
         setValues((current) => ({
             ...current,
             [name]: type === "checkbox" ? checked : value,
@@ -238,6 +241,15 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
     const submit = async (event) => {
         event.preventDefault();
         setError("");
+
+        if (!PHONE_PATTERN.test(values.mobile.trim())) {
+            setError("Mobile number must contain exactly 10 digits.");
+            return;
+        }
+        if ([values.alternateMobile, values.emergencyContactMobile].some((phone) => phone.trim() && !PHONE_PATTERN.test(phone.trim()))) {
+            setError("Optional phone numbers must contain exactly 10 digits.");
+            return;
+        }
 
         const submittedName = normalizeName([
             values.firstName,
@@ -429,8 +441,8 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
                     <section className="form-section">
                         <header className="form-section-title"><h3>Contact details</h3><span>Used for resident communication</span></header>
                         <div className="form-grid">
-                            <div className="form-group"><label htmlFor="resident-mobile">Mobile number<span className="required">*</span></label><input id="resident-mobile" name="mobile" type="tel" value={values.mobile} onChange={update} maxLength={20} autoComplete="tel" required /></div>
-                            <div className="form-group"><label htmlFor="resident-alternate-mobile">Alternate mobile</label><input id="resident-alternate-mobile" name="alternateMobile" type="tel" value={values.alternateMobile} onChange={update} maxLength={20} /></div>
+                            <div className="form-group"><label htmlFor="resident-mobile">Mobile number<span className="required">*</span></label><input id="resident-mobile" name="mobile" type="tel" value={values.mobile} onChange={update} {...phoneInputProps} autoComplete="tel" required />{touchedPhones.mobile && values.mobile.trim() && !PHONE_PATTERN.test(values.mobile.trim()) && <small className="phone-guidance">Mobile number must be 10 digits.</small>}</div>
+                            <div className="form-group"><label htmlFor="resident-alternate-mobile">Alternate mobile</label><input id="resident-alternate-mobile" name="alternateMobile" type="tel" value={values.alternateMobile} onChange={update} {...phoneInputProps} />{touchedPhones.alternateMobile && values.alternateMobile.trim() && !PHONE_PATTERN.test(values.alternateMobile.trim()) && <small className="phone-guidance">Mobile number must be 10 digits.</small>}</div>
                             <div className="form-group form-group-full"><label htmlFor="resident-email">Email{!resident && accountMode === "new" && <span className="required">*</span>}</label><input id="resident-email" name="email" type="email" value={values.email} onChange={update} maxLength={255} autoComplete="email" required={!resident && accountMode === "new"} /></div>
                         </div>
                     </section>
@@ -439,7 +451,7 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
                         <header className="form-section-title"><h3>Emergency contact</h3><span>Optional contact for urgent situations</span></header>
                         <div className="form-grid">
                             <div className="form-group"><label htmlFor="resident-emergency-name">Contact name</label><input id="resident-emergency-name" name="emergencyContactName" value={values.emergencyContactName} onChange={update} maxLength={255} /></div>
-                            <div className="form-group"><label htmlFor="resident-emergency-mobile">Contact mobile</label><input id="resident-emergency-mobile" name="emergencyContactMobile" type="tel" value={values.emergencyContactMobile} onChange={update} maxLength={20} /></div>
+                            <div className="form-group"><label htmlFor="resident-emergency-mobile">Contact mobile</label><input id="resident-emergency-mobile" name="emergencyContactMobile" type="tel" value={values.emergencyContactMobile} onChange={update} {...phoneInputProps} />{touchedPhones.emergencyContactMobile && values.emergencyContactMobile.trim() && !PHONE_PATTERN.test(values.emergencyContactMobile.trim()) && <small className="phone-guidance">Mobile number must be 10 digits.</small>}</div>
                             <div className="form-group"><label htmlFor="resident-emergency-relation">Relationship</label><input id="resident-emergency-relation" name="emergencyContactRelation" value={values.emergencyContactRelation} onChange={update} maxLength={100} placeholder="e.g. Spouse" /></div>
                             <div className="form-group form-group-full"><label htmlFor="resident-remarks">Notes</label><textarea id="resident-remarks" name="remarks" value={values.remarks} onChange={update} rows="3" placeholder="Optional notes" /></div>
                         </div>

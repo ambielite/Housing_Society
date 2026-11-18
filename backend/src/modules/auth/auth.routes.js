@@ -27,5 +27,7 @@ router.post('/forgot-password', authLimiter, validate(forgotPasswordSchema), con
 router.post('/reset-password', authLimiter, validate(resetPasswordSchema), controller.resetPassword);
 router.post('/resident-forgot-password', authLimiter, validate(forgotPasswordSchema), controller.requestResidentPasswordResetOtp);
 router.post('/resident-reset-password', authLimiter, validate(residentOtpResetPasswordSchema), controller.resetResidentPasswordWithOtp);
+router.post('/admin-forgot-password', authLimiter, validate(forgotPasswordSchema), controller.requestAdminPasswordResetOtp);
+router.post('/admin-reset-password', authLimiter, validate(residentOtpResetPasswordSchema), controller.resetAdminPasswordWithOtp);
 
 module.exports = router;

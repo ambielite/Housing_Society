@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { CalendarDays, Check, ChevronRight, CircleAlert, FileText, MessageSquare, RefreshCw, Search, Shield, Users, X } from "lucide-react";
 import communityApi from "../api/community.api";
 import CommunityDashboard from "./CommunityDashboard";
@@ -103,6 +103,7 @@ const workflowActionsFor = (key, row) => {
 
 export default function CommunityPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { section = "dashboard" } = useParams();
   const [tab, setTab] = useState(section === "overview" ? "dashboard" : section); const [data, setData] = useState({}); const [loading, setLoading] = useState(false);
   const [error, setError] = useState(""); const [notice, setNotice] = useState(""); const [search, setSearch] = useState(""); const [dialog, setDialog] = useState(null);
@@ -113,6 +114,10 @@ export default function CommunityPage() {
   const [votingManage, setVotingManage] = useState(null);
   const [lookups, setLookups] = useState({ societies: [], residents: [] });
   useEffect(() => setTab(section === "overview" ? "dashboard" : section), [section]);
+  const selectTab = (key) => {
+    setSearch(""); setError(""); setNotice("");
+    navigate(key === "dashboard" ? "/community" : `/community/${key}`);
+  };
   useEffect(() => {
     const societyId = selectedSocietyId();
     Promise.allSettled([communityApi.get("/societies"), communityApi.get("/residents", societyId ? { params: { societyId } } : undefined)]).then(([societiesResult, residentsResult]) => {
@@ -214,9 +219,9 @@ export default function CommunityPage() {
     } finally { setBusy(false); }
   };
   return <main className="society-dashboard assets-page community-page"><header className="society-heading"><div><div className="society-eyebrow">SOCIETY OPERATIONS <ChevronRight size={12}/> COMMUNITY</div><h1>Community & governance</h1><p>Bring resident groups, conversations, events and society decisions into one workspace.</p></div><button className="society-add-button" onClick={load}><RefreshCw size={16}/> Refresh</button></header>
-    <nav className="security-tabs assets-tabs" aria-label="Community sections">{sections.map(([key, label, Icon]) => <button key={key} className={tab === key ? "active" : ""} onClick={() => { setTab(key); setSearch(""); setError(""); setNotice(""); }}><Icon size={16}/>{label}</button>)}</nav>
+    <nav className="security-tabs assets-tabs" aria-label="Community sections">{sections.map(([key, label, Icon]) => <button key={key} className={tab === key ? "active" : ""} onClick={() => selectTab(key)}><Icon size={16}/>{label}</button>)}</nav>
     {(error || notice) && <div className={error ? "society-error" : "society-list-panel"}>{error || notice}</div>}
-    {tab === "dashboard" && <CommunityDashboard data={data} loading={loading} onNavigate={setTab} onCreate={(key) => openCreate(key)} />}
+    {tab === "dashboard" && <CommunityDashboard data={data} loading={loading} onNavigate={selectTab} onCreate={(key) => openCreate(key)} />}
     {tab !== "dashboard" && <div className="society-toolbar"><label className="society-search"><Search size={17}/><input aria-label="Search community records" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search records"/></label><span className="society-count">{loading ? "Loading" : `${recordCount} ${recordCount === 1 ? "record" : "records"}`}</span></div>}
     {tab === "voting" && <aside className="community-compliance-note" role="note"><span className="community-compliance-icon"><CircleAlert size={18}/></span><div><strong>Voting setup is available; opening a ballot is approval-gated</strong><p>You can prepare draft voting records and governance rules. Opening a ballot, issuing ballots, accepting votes, and tallying require formally approved eligibility, quorum, ballot secrecy, and audit requirements.</p></div></aside>}
     {tab !== "overview" && activeKeys.map((key) => configs[key] && resourceTab(key))}

@@ -3238,6 +3238,7 @@ class _StyledDropdownFieldState<T> extends State<_StyledDropdownField<T>> {
             const SizedBox(height: 6),
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 6),
+              constraints: const BoxConstraints(maxHeight: 240),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(14),
@@ -3250,16 +3251,21 @@ class _StyledDropdownFieldState<T> extends State<_StyledDropdownField<T>> {
                   ),
                 ],
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
                   for (var index = 0; index < widget.items.length; index++) ...[
                     if (index > 0)
                       const Divider(height: 1, indent: 12, endIndent: 12),
-                    SizedBox(
-                      height: 48,
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 50),
                       child: Material(
-                        color: Colors.transparent,
+                        color: widget.items[index].value == field.value
+                            ? const Color(0xFFF2F0FF)
+                            : Colors.white,
                         child: InkWell(
                           borderRadius: BorderRadius.circular(12),
                           onTap: () {
@@ -3268,35 +3274,41 @@ class _StyledDropdownFieldState<T> extends State<_StyledDropdownField<T>> {
                             setState(() => _expanded = false);
                             widget.onChanged(selected);
                           },
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                              ),
-                              child: DefaultTextStyle.merge(
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color:
-                                      widget.items[index].value == field.value
-                                      ? const Color(0xFF76519A)
-                                      : AppColors.ink,
-                                  fontSize: 14,
-                                  fontWeight:
-                                      widget.items[index].value == field.value
-                                      ? FontWeight.w700
-                                      : FontWeight.w500,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: DefaultTextStyle.merge(
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: widget.items[index].value == field.value
+                                          ? const Color(0xFF76519A)
+                                          : AppColors.ink,
+                                      fontSize: 14,
+                                      fontWeight: widget.items[index].value == field.value
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                    ),
+                                    child: widget.items[index].child,
+                                  ),
                                 ),
-                                child: widget.items[index].child,
-                              ),
+                                if (widget.items[index].value == field.value) ...[
+                                  const SizedBox(width: 8),
+                                  const Icon(Icons.check_rounded,
+                                      size: 18, color: Color(0xFF76519A)),
+                                ],
+                              ],
                             ),
                           ),
                         ),
                       ),
                     ),
                   ],
-                ],
+                    ],
+                  ),
+                ),
               ),
             ),
           ],

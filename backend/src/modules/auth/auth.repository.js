@@ -90,6 +90,21 @@ const findResidentByEmail = async (email) => {
   return result.rows[0] || null;
 };
 
+const findAdminByEmail = async (email) => {
+  const result = await db.query(
+    `SELECT u.* FROM users u
+     JOIN user_roles ur ON ur.user_id = u.id
+     JOIN roles r ON r.id = ur.role_id
+     WHERE lower(u.email) = lower($1) AND u.status = 'ACTIVE'
+       AND r.status = 'ACTIVE'
+       AND r.code IN ('SUPER_ADMIN', 'SOCIETY_ADMIN', 'PRESIDENT_SECRETARY')
+       AND (ur.society_id IS NULL OR ur.society_id = u.society_id)
+     LIMIT 1`,
+    [String(email).trim()]
+  );
+  return result.rows[0] || null;
+};
+
 const findResidentPasswordNotificationRecipients = async (userId) => {
   const result = await db.query(
     `SELECT DISTINCT res.society_id,
@@ -189,6 +204,7 @@ module.exports = {
   listLoginHistory,
   createPasswordResetToken,
   findResidentByEmail,
+  findAdminByEmail,
   findResidentPasswordNotificationRecipients,
   revokeActivePasswordResetTokens,
   hasRecentPasswordResetRequest,
