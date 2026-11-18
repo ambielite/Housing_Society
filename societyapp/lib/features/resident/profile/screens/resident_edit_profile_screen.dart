@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../auth/data/auth_api.dart';
@@ -452,14 +453,21 @@ class _ResidentEditProfileScreenState extends State<ResidentEditProfileScreen> {
                     TextFormField(
                       controller: _phoneController,
                       keyboardType: TextInputType.phone,
-                      maxLength: 20,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(10),
+                      ],
                       decoration: _decoration(
                         'Phone number',
                         Icons.call_outlined,
                       ),
-                      validator: (value) => (value?.trim().length ?? 0) > 20
-                          ? 'Phone number must be 20 characters or fewer'
-                          : null,
+                      validator: (value) {
+                        final phone = value?.trim() ?? '';
+                        if (phone.isNotEmpty && !RegExp(r'^\d{10}$').hasMatch(phone)) {
+                          return 'Enter a valid 10-digit phone number.';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 8),
                     SizedBox(

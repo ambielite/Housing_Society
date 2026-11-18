@@ -8,7 +8,9 @@ import unitApi from "../../units/api/unit.api";
 import ownerUnitApi from "../api/ownerUnit.api";
 import residentApi from "../api/resident.api";
 import occupancyApi from "../api/occupancy.api";
+import residentKycApi from "../api/residentKyc.api";
 import { PHONE_PATTERN, phoneInputProps } from "../../../utils/phone";
+import unitLocationLabel from "../../../utils/unitLocation";
 
 const RESIDENT_ROLES = [
     ["PRIMARY_OWNER", "Primary owner"],
@@ -52,6 +54,7 @@ const initialValues = (resident) => ({
     emergencyContactMobile: resident?.emergencyContactMobile || "",
     emergencyContactRelation: resident?.emergencyContactRelation || "",
     role: resident?.role || "",
+    familyOwnerId: resident?.familyOwnerId || "",
     status: resident?.status || "PENDING",
     directoryPhoneVisible: Boolean(resident?.directoryPhoneVisible),
     remarks: resident?.remarks || ""
@@ -70,6 +73,7 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
     const [showAccountPassword, setShowAccountPassword] = useState(false);
     const [towers, setTowers] = useState([]);
     const [towerFloors, setTowerFloors] = useState([]);
+    const [allFloors, setAllFloors] = useState([]);
     const [units, setUnits] = useState([]);
     const [loadingSocieties, setLoadingSocieties] = useState(true);
     const [loadingUnits, setLoadingUnits] = useState(false);
@@ -81,6 +85,20 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
     const [createdResidentId, setCreatedResidentId] = useState("");
     const [profilePicture, setProfilePicture] = useState(null);
     const [picturePreview, setPicturePreview] = useState(profileImageUrl(resident?.profilePhoto));
+    const [kycFiles, setKycFiles] = useState({});
+    const [uploadedKycFiles, setUploadedKycFiles] = useState({});
+
+    const requiredKycTypes = values.role === "TENANT"
+        ? ["AADHAAR", "PAN", "POLICE_VERIFICATION"]
+        : ["PRIMARY_OWNER", "CO_OWNER", "FAMILY_MEMBER"].includes(values.role)
+            ? ["AADHAAR", "PAN"]
+            : [];
+    const eligibleFamilyOwners = residents.filter((item) =>
+        item.id !== resident?.id &&
+        item.societyId === values.societyId &&
+        ["PRIMARY_OWNER", "CO_OWNER"].includes(item.role) &&
+        item.status === "ACTIVE"
+    );
 
     useEffect(() => {
         if (!profilePicture) return;
@@ -117,6 +135,7 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
         setUnits([]);
         setTowers([]);
         setTowerFloors([]);
+        setAllFloors([]);
         if (!values.societyId) {
             setLoadingUnits(false);
             setLoadingTowers(false);
@@ -128,12 +147,14 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
         const societyConfig = { headers: { "x-society-id": values.societyId } };
         Promise.all([
             unitApi.getAll(societyConfig),
-            towerApi.getBySociety(values.societyId, societyConfig)
+            towerApi.getBySociety(values.societyId, societyConfig),
+            floorApi.getAll(societyConfig)
         ])
-            .then(([unitResponse, towerResponse]) => {
+            .then(([unitResponse, towerResponse, floorResponse]) => {
                 if (!isMounted) return;
                 setUnits(unitRowsFrom(unitResponse));
                 setTowers(rowsFrom(towerResponse));
+                setAllFloors(rowsFrom(floorResponse));
             })
             .catch((err) => {
                 if (isMounted) setError(err.response?.data?.message || "Could not load towers and units for this society.");
@@ -174,6 +195,8 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
     }, [values.towerId, values.societyId]);
 
     const towerFloorIds = new Set(towerFloors.map((floor) => floor.id));
+    const floorsById = new Map([...allFloors, ...towerFloors].map((floor) => [String(floor.id), floor]));
+    const towersById = new Map(towers.map((tower) => [String(tower.id), tower]));
     const visibleUnits = values.towerId
         ? units.filter((unit) => towerFloorIds.has(unit.floorId))
         : units;
@@ -184,10 +207,15 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
         setValues((current) => ({
             ...current,
             [name]: type === "checkbox" ? checked : value,
-            ...(name === "societyId" ? { towerId: "", unitId: "", userId: "" } : {}),
+            ...(name === "societyId" ? { towerId: "", unitId: "", userId: "", familyOwnerId: "" } : {}),
             ...(name === "towerId" ? { unitId: "" } : {}),
-            ...(name === "role" && !["PRIMARY_OWNER", "CO_OWNER", "TENANT"].includes(value) ? { unitId: "" } : {})
+            ...(name === "role" && !["PRIMARY_OWNER", "CO_OWNER", "TENANT"].includes(value) ? { unitId: "" } : {}),
+            ...(name === "role" && value !== "FAMILY_MEMBER" ? { familyOwnerId: "" } : {})
         }));
+        if (name === "role") {
+            setKycFiles({});
+            setUploadedKycFiles({});
+        }
     };
 
     useEffect(() => {
@@ -271,8 +299,19 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
             return;
         }
 
+        if (values.role === "FAMILY_MEMBER" && !values.familyOwnerId) {
+            setError("Select the owner this family member belongs to.");
+            return;
+        }
+
+        if (!resident && requiredKycTypes.some((type) => !kycFiles[type])) {
+            setError("Upload all required resident documents for the selected role.");
+            return;
+        }
+
         const payload = {
             ...values,
+            familyOwnerId: values.familyOwnerId || null,
             firstName: values.firstName.trim(),
             middleName: values.middleName.trim() || null,
             lastName: values.lastName.trim(),
@@ -309,6 +348,21 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
                     residentId = createdResident.id;
                     setCreatedResidentId(residentId);
                 }
+                for (const documentType of requiredKycTypes) {
+                    if (uploadedKycFiles[documentType]) continue;
+                    await residentKycApi.upload({
+                        societyId: values.societyId,
+                        stakeholderId: residentId,
+                        documentType,
+                        documentName: documentType === "AADHAAR"
+                            ? "Aadhaar card"
+                            : documentType === "PAN"
+                                ? "PAN card"
+                                : "Police verification document",
+                        file: kycFiles[documentType]
+                    }, societyConfig);
+                    setUploadedKycFiles((current) => ({ ...current, [documentType]: true }));
+                }
                 if (values.unitId) {
                     const effectiveFrom = new Date().toISOString().slice(0, 10);
                     if (values.role === "TENANT") {
@@ -337,7 +391,7 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
         } catch (err) {
             const message = err.response?.data?.message || "Could not save resident. Please try again.";
             setError(residentId
-                ? `Resident was created, but the unit assignment failed: ${message} You can retry the assignment or clear the unit selection and save.`
+                ? `Resident was created, but a document upload or unit assignment did not finish: ${message} You can retry saving to continue.`
                 : message);
         } finally {
             setSaving(false);
@@ -417,7 +471,7 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
                                                 ? values.towerId ? "No units in this tower" : "No units in this society"
                                                 : "No unit / not assigned"}
                                     </option>
-                                    {visibleUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.unitNumber || unit.name || unit.id}</option>)}
+                                    {visibleUnits.map((unit) => <option key={unit.id} value={unit.id}>{unitLocationLabel(unit, floorsById, towersById)}</option>)}
                                 </select>
                                 {values.unitId && <small className="field-hint">Selected unit: {visibleUnits.find((unit) => unit.id === values.unitId)?.unitNumber || "Unit"}{values.towerId ? ` · Tower: ${towers.find((tower) => tower.id === values.towerId)?.name || "Tower"}` : ""}</small>}
                                 <small className="field-hint">Optional. Choose a resident role to assign the selected unit; unit assignments are supported for owners and tenants. Saving an assignment marks the unit Occupied.</small>
@@ -433,8 +487,41 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
                                     <div><input id="resident-profile-picture" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (file && file.size > 5 * 1024 * 1024) { setError("Profile picture must be 5 MB or smaller."); event.target.value = ""; return; } setError(""); setProfilePicture(file || null); }} /><small className="field-hint">JPG, PNG, or WEBP · Up to 5 MB</small></div>
                                 </div>
                             </div>
-                            <div className="form-group"><label htmlFor="resident-role">Resident role<span className="required">*</span></label><select id="resident-role" name="role" value={values.role} onChange={update} required><option value="">Select a role</option>{RESIDENT_ROLES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
+                            <div className="form-group"><label htmlFor="resident-role">Resident role<span className="required">*</span></label><select id="resident-role" name="role" value={values.role} onChange={update} required disabled={Boolean(createdResidentId)}><option value="">Select a role</option>{RESIDENT_ROLES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
+                            {values.role === "FAMILY_MEMBER" && <div className="form-group"><label htmlFor="resident-family-owner">Family member of<span className="required">*</span></label><select id="resident-family-owner" name="familyOwnerId" value={values.familyOwnerId} onChange={update} required disabled={Boolean(createdResidentId) || eligibleFamilyOwners.length === 0}><option value="">{eligibleFamilyOwners.length ? "Select an active owner" : "No active owners found in this society"}</option>{eligibleFamilyOwners.map((owner) => <option key={owner.id} value={owner.id}>{owner.displayName || [owner.firstName, owner.middleName, owner.lastName].filter(Boolean).join(" ")} ({owner.role === "CO_OWNER" ? "Co-owner" : "Primary owner"})</option>)}</select><small className="field-hint">Select the active primary owner or co-owner this resident belongs to.</small></div>}
                             <div className="form-group"><label htmlFor="resident-status">Status</label><select id="resident-status" name="status" value={values.status} onChange={update}>{RESIDENT_STATUSES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
+                            {!resident && requiredKycTypes.length > 0 && <div key={values.role} className="form-group form-group-full resident-kyc-upload-fields">
+                                <h4>Required documents</h4>
+                                <p>Upload clear copies as PDF, JPG, or PNG files (up to 10 MB each).</p>
+                                {requiredKycTypes.map((documentType) => {
+                                    const label = documentType === "AADHAAR"
+                                        ? "Aadhaar card"
+                                        : documentType === "PAN"
+                                            ? "PAN card"
+                                            : "Police verification document";
+                                    return <div className="form-group" key={documentType}>
+                                        <label htmlFor={`resident-document-${documentType}`}>{label}<span className="required">*</span></label>
+                                        <input
+                                            id={`resident-document-${documentType}`}
+                                            type="file"
+                                            accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"
+                                            required
+                                            onChange={(event) => {
+                                                const file = event.target.files?.[0];
+                                                if (file && file.size > 10 * 1024 * 1024) {
+                                                    setError(`${label} must be 10 MB or smaller.`);
+                                                    event.target.value = "";
+                                                    return;
+                                                }
+                                                setError("");
+                                                setKycFiles((current) => ({ ...current, [documentType]: file || null }));
+                                                setUploadedKycFiles((current) => ({ ...current, [documentType]: false }));
+                                            }}
+                                        />
+                                        {kycFiles[documentType] && <small className="field-hint">Selected: {kycFiles[documentType].name}</small>}
+                                    </div>;
+                                })}
+                            </div>}
                         </div>
                     </section>
 

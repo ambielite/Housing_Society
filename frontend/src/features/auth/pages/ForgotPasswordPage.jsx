@@ -58,7 +58,7 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <AuthCard variant="login" title={requested ? 'Choose a new password' : 'Forgot Password?'} subtitle={requested ? 'Enter the verification code sent to your admin email, then set a new password.' : 'Enter your admin account email to receive a password reset code.'}>
+    <AuthCard variant="login" className={requested ? 'auth-card--recovery' : ''} title={requested ? 'Choose a new password' : 'Forgot Password?'} subtitle={requested ? 'Enter the verification code sent to your admin email, then set a new password.' : 'Enter your admin account email to receive a password reset code.'}>
       {error && <Alert>{error}</Alert>}
       {!requested ? (
         <form onSubmit={onRequestOtp} noValidate>
@@ -80,7 +80,7 @@ export default function ForgotPasswordPage() {
       )}
       <p className="auth-links"><Link to="/login">Back to sign in</Link></p>
       <div className="login-secure-note"><span aria-hidden="true">♧</span> Secure &amp; Trusted</div>
-      <div className="login-copyright">Ambi Elite Housing Society © {new Date().getFullYear()}</div>
+      <div className="login-copyright">Powered By <a href="https://ambielite.in/" target="_blank" rel="noopener noreferrer">Ambi Elite Pvt Ltd</a></div>
     </AuthCard>
   );
 }

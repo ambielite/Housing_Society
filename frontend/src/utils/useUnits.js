@@ -1,6 +1,8 @@
 import { legacyApi as api } from '../lib/axios';
 import useSociety from '../app/store/useSociety';
 import useFetch from './useFetch';
+import floorApi from '../features/floors/api/floor.api';
+import towerApi from '../features/towers/api/tower.api';
 
 /**
  * Loads the units list (GET /units, owned by the societies/units module).
@@ -22,20 +24,35 @@ const normalizeUnit = (unit) => ({
   id: unit.id,
   unitNumber: unit.unitNumber ?? unit.unit_number ?? '',
   bhk: unit.bhk ?? null,
+  floorId: unit.floorId ?? unit.floor_id ?? null,
+  towerId: unit.towerId ?? unit.tower_id ?? null,
   societyId: unit.societyId ?? unit.society_id ?? null,
   status: unit.status ?? null,
 });
+
+const relatedRows = (response, key) => {
+  const value = response?.data ?? response;
+  if (Array.isArray(value)) return value;
+  return value?.[key] || [];
+};
 
 let cache = null; // { societyId, promise }
 
 const loadUnits = (societyId) => {
   if (!cache || cache.societyId !== societyId) {
-    const promise = api.get('/units').then((response) =>
-      toList(response.data)
+    const promise = Promise.all([api.get('/units'), floorApi.getAll().catch(() => []), towerApi.getAll().catch(() => [])]).then(([response, floorResponse, towerResponse]) => {
+      const floorsById = new Map(relatedRows(floorResponse, 'floors').map((floor) => [String(floor.id), floor]));
+      const towersById = new Map(relatedRows(towerResponse, 'towers').map((tower) => [String(tower.id), tower]));
+      return toList(response.data)
         .map(normalizeUnit)
+        .map((unit) => {
+          const floor = floorsById.get(String(unit.floorId ?? unit.floor_id));
+          const tower = floor && towersById.get(String(floor.towerId ?? floor.tower_id));
+          return { ...unit, floor, tower };
+        })
         // Keep this society's units. Units with no society recorded can't be told apart, so they stay.
-        .filter((unit) => !societyId || !unit.societyId || unit.societyId === societyId)
-    );
+        .filter((unit) => !societyId || !unit.societyId || unit.societyId === societyId);
+    });
     cache = { societyId, promise };
     promise.catch(() => {
       cache = null; // let the next attempt try again

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Activity, Archive, Bell, Boxes, CalendarClock, ClipboardList, FileText, Gauge, Layers3, Package, SquarePen, Plus, QrCode, RefreshCw, Search, ShieldCheck, Tag, Trash2, Truck, Wrench, X } from "lucide-react";
 import { legacyApi as axiosClient } from "../../../lib/axios";
 import assetsApi from "../api/assets.api";
+import unitLocationLabel from "../../../utils/unitLocation";
 
 const rows = (value) => {
     let result = Array.isArray(value) ? value : value?.data || value?.records || value?.items || value?.vendors || [];
@@ -220,7 +221,9 @@ export default function AssetsPage() {
 
     const choiceList = (kind) => {
         if (kind === "select") return [];
-        const sources = { asset: assets.map((item) => ({ id: item.id, label: `${item.assetCode} · ${item.assetName}` })), category: (data.categories || []).map((item) => ({ id: item.id, label: item.categoryName })), vendor: vendors.map((item) => ({ id: item.id, label: `${item.companyName || item.legalName || item.legal_name || item.tradeName || item.trade_name || "Unnamed supplier"}${item.vendorCode ? ` · ${item.vendorCode}` : ""}` })), inventory: inventory.map((item) => ({ id: item.id, label: `${item.itemCode} · ${item.itemName}` })), amc: (data.amcs || []).map((item) => ({ id: item.id, label: `${item.amcNumber} · ${assetName(item.assetId)}` })), schedule: (data.schedules || []).map((item) => ({ id: item.id, label: `${item.scheduleCode} · ${item.maintenanceTitle}` })), tower: lookup.towers.map((item) => ({ id: item.id, label: item.name })), floor: lookup.floors.map((item) => ({ id: item.id, label: item.name || `Floor ${item.floorNumber}` })), unit: lookup.units.map((item) => ({ id: item.id, label: item.unitNumber || item.name })) };
+        const floorsById = new Map(lookup.floors.map((floor) => [String(floor.id), floor]));
+        const towersById = new Map(lookup.towers.map((tower) => [String(tower.id), tower]));
+        const sources = { asset: assets.map((item) => ({ id: item.id, label: `${item.assetCode} · ${item.assetName}` })), category: (data.categories || []).map((item) => ({ id: item.id, label: item.categoryName })), vendor: vendors.map((item) => ({ id: item.id, label: `${item.companyName || item.legalName || item.legal_name || item.tradeName || item.trade_name || "Unnamed supplier"}${item.vendorCode ? ` · ${item.vendorCode}` : ""}` })), inventory: inventory.map((item) => ({ id: item.id, label: `${item.itemCode} · ${item.itemName}` })), amc: (data.amcs || []).map((item) => ({ id: item.id, label: `${item.amcNumber} · ${assetName(item.assetId)}` })), schedule: (data.schedules || []).map((item) => ({ id: item.id, label: `${item.scheduleCode} · ${item.maintenanceTitle}` })), tower: lookup.towers.map((item) => ({ id: item.id, label: item.name })), floor: lookup.floors.map((item) => ({ id: item.id, label: item.name || `Floor ${item.floorNumber}` })), unit: lookup.units.map((item) => ({ id: item.id, label: unitLocationLabel(item, floorsById, towersById) })) };
         return sources[kind] || [];
     };
     const sectionAdd = { assets: "asset", inventory: "inventory", maintenance: "maintenance", contracts: "amc", schedules: "schedule", documents: "document", categories: "category" }[active];

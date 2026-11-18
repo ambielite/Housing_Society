@@ -4,7 +4,10 @@ import { X } from "lucide-react";
 import moveOutApi from "../api/moveOut.api";
 import societyApi from "../../societies/api/society.api";
 import unitApi from "../../units/api/unit.api";
+import floorApi from "../../floors/api/floor.api";
+import towerApi from "../../towers/api/tower.api";
 import residentApi from "../../residents/api/resident.api";
+import unitLocationLabel from "../../../utils/unitLocation";
 
 const rowsFrom = (response) => {
     const rows = Array.isArray(response) ? response : response?.data || response?.records || [];
@@ -27,6 +30,8 @@ const MoveOutForm = ({ moveOut, onClose, onSuccess }) => {
     const [values, setValues] = useState(() => initialValues(moveOut));
     const [societies, setSocieties] = useState([]);
     const [units, setUnits] = useState([]);
+    const [floors, setFloors] = useState([]);
+    const [towers, setTowers] = useState([]);
     const [residents, setResidents] = useState([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -37,10 +42,12 @@ const MoveOutForm = ({ moveOut, onClose, onSuccess }) => {
 
         const loadOptions = async () => {
             try {
-                const [societyResponse, unitResponse, residentResponse] = await Promise.all([
+                const [societyResponse, unitResponse, residentResponse, floorResponse, towerResponse] = await Promise.all([
                     societyApi.getAll(),
                     unitApi.getAll(),
-                    residentApi.getAll()
+                    residentApi.getAll(),
+                    floorApi.getAll(),
+                    towerApi.getAll()
                 ]);
 
                 if (!isMounted) return;
@@ -48,6 +55,8 @@ const MoveOutForm = ({ moveOut, onClose, onSuccess }) => {
                 setSocieties(rowsFrom(societyResponse));
                 setUnits(rowsFrom(unitResponse));
                 setResidents(rowsFrom(residentResponse));
+                setFloors(rowsFrom(floorResponse));
+                setTowers(rowsFrom(towerResponse));
             } catch (err) {
                 if (isMounted) {
                     setError(err.response?.data?.message || "Could not load move-out form options.");
@@ -105,6 +114,8 @@ const MoveOutForm = ({ moveOut, onClose, onSuccess }) => {
         }
     };
 
+    const floorsById = new Map(floors.map((floor) => [String(floor.id), floor]));
+    const towersById = new Map(towers.map((tower) => [String(tower.id), tower]));
     return (
         <section className="society-form-modal" role="dialog" aria-modal="true" aria-labelledby="moveout-form-title">
             <header className="society-form-header">
@@ -139,7 +150,7 @@ const MoveOutForm = ({ moveOut, onClose, onSuccess }) => {
                                 <select id="moveout-unit" name="unitId" value={values.unitId} onChange={updateField} required disabled={loading || units.length === 0}>
                                     <option value="">{loading ? "Loading units…" : "Select a unit"}</option>
                                     {units.map((unit) => (
-                                        <option key={unit.id} value={unit.id}>{unit.unitNumber || unit.name || unit.id}</option>
+                                        <option key={unit.id} value={unit.id}>{unitLocationLabel(unit, floorsById, towersById)}</option>
                                     ))}
                                 </select>
                             </div>

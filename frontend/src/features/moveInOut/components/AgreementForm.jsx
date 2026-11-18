@@ -4,8 +4,11 @@ import { X } from "lucide-react";
 import agreementApi from "../api/agreement.api";
 import societyApi from "../../societies/api/society.api";
 import unitApi from "../../units/api/unit.api";
+import floorApi from "../../floors/api/floor.api";
+import towerApi from "../../towers/api/tower.api";
 import residentApi from "../../residents/api/resident.api";
 import { openMoveInDocument } from "../utils/openMoveInDocument";
+import unitLocationLabel from "../../../utils/unitLocation";
 
 const rowsFrom = (response) => {
     const rows = Array.isArray(response) ? response : response?.data || response?.records || [];
@@ -33,6 +36,8 @@ const AgreementForm = ({ agreement, onClose, onSuccess }) => {
     const [values, setValues] = useState(() => initialValues(agreement));
     const [societies, setSocieties] = useState([]);
     const [units, setUnits] = useState([]);
+    const [floors, setFloors] = useState([]);
+    const [towers, setTowers] = useState([]);
     const [residents, setResidents] = useState([]);
     const [documents, setDocuments] = useState({ agreementDocument: null, signedAgreementCopy: null });
     const [loading, setLoading] = useState(true);
@@ -44,10 +49,12 @@ const AgreementForm = ({ agreement, onClose, onSuccess }) => {
 
         const loadOptions = async () => {
             try {
-                const [societyResponse, unitResponse, residentResponse] = await Promise.all([
+                const [societyResponse, unitResponse, residentResponse, floorResponse, towerResponse] = await Promise.all([
                     societyApi.getAll(),
                     unitApi.getAll(),
-                    residentApi.getAll()
+                    residentApi.getAll(),
+                    floorApi.getAll(),
+                    towerApi.getAll()
                 ]);
 
                 if (!isMounted) return;
@@ -55,6 +62,8 @@ const AgreementForm = ({ agreement, onClose, onSuccess }) => {
                 setSocieties(rowsFrom(societyResponse));
                 setUnits(rowsFrom(unitResponse));
                 setResidents(rowsFrom(residentResponse));
+                setFloors(rowsFrom(floorResponse));
+                setTowers(rowsFrom(towerResponse));
             } catch (err) {
                 if (isMounted) {
                     setError(err.response?.data?.message || "Could not load agreement form options.");
@@ -133,6 +142,8 @@ const AgreementForm = ({ agreement, onClose, onSuccess }) => {
         }
     };
 
+    const floorsById = new Map(floors.map((floor) => [String(floor.id), floor]));
+    const towersById = new Map(towers.map((tower) => [String(tower.id), tower]));
     return (
         <section className="society-form-modal" role="dialog" aria-modal="true" aria-labelledby="agreement-form-title">
             <header className="society-form-header">
@@ -167,7 +178,7 @@ const AgreementForm = ({ agreement, onClose, onSuccess }) => {
                                 <select id="agreement-unit" name="unitId" value={values.unitId} onChange={updateField} required disabled={loading || units.length === 0}>
                                     <option value="">{loading ? "Loading units…" : "Select a unit"}</option>
                                     {units.map((unit) => (
-                                        <option key={unit.id} value={unit.id}>{unit.unitNumber || unit.name || unit.id}</option>
+                                        <option key={unit.id} value={unit.id}>{unitLocationLabel(unit, floorsById, towersById)}</option>
                                     ))}
                                 </select>
                             </div>

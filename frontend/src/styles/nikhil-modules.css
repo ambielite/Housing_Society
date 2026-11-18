@@ -1128,6 +1128,18 @@ font-size: 12px;
 .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .form-grid > *, .form-group { min-width: 0; }
 .society-form-modal .modal-close-btn { flex: 0 0 34px; }
+.resident-kyc-upload-fields { grid-column: 1 / -1; gap: 10px; padding: 14px; border: 1px solid var(--border-color, #dfe3ed); border-radius: 9px; background: var(--surface-2, #f8fafc); }
+.resident-kyc-upload-fields h4 { color: var(--text-primary, #1f2937); font-size: 14px; }
+.resident-kyc-upload-fields > p { margin: -5px 0 2px; color: var(--muted, #667085); font-size: 12px; }
+.resident-kyc-upload-fields .form-group { gap: 5px; }
+.resident-kyc-upload-fields input[type="file"] { padding: 8px; background: var(--surface, #fff); }
+.resident-documents-section > p { margin: 0; color: var(--text-secondary, #667085); font-size: 13px; }
+.resident-documents-section ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.resident-documents-section li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--border-color, #e5e7eb); border-radius: 9px; background: var(--surface, #fff); }
+.resident-documents-section li > span { display: grid; min-width: 0; gap: 3px; }
+.resident-documents-section li strong { color: var(--text-primary, #1f2937); font-size: 13px; }
+.resident-documents-section li small { color: var(--muted, #667085); font-size: 11px; overflow-wrap: anywhere; }
+.resident-documents-section li button { flex: 0 0 auto; }
 
 /* Move-in/out status controls follow the society workspace style. */
 .form-group .form-checkbox-label { display: flex; flex-direction: row; align-items: center; gap: 9px; margin: 0; font-weight: 500; line-height: 1.45; }

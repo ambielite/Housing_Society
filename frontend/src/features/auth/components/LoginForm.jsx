@@ -69,7 +69,7 @@ export default function LoginForm() {
         {submitting ? 'Signing in...' : <><span aria-hidden="true">↪</span> Sign In</>}
       </button>
       <div className="login-secure-note"><span aria-hidden="true">♧</span> Secure &amp; Trusted</div>
-      <div className="login-copyright">Ambi Elite Housing Society © {new Date().getFullYear()}</div>
+      <div className="login-copyright">Powered By <a href="https://ambielite.in/" target="_blank" rel="noopener noreferrer">Ambi Elite Pvt Ltd</a></div>
     </form>
   );
 }

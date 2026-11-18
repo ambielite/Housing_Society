@@ -8,6 +8,7 @@ import * as api from '../api/amenities.api';
 import unitApi from '../../units/api/unit.api';
 import floorApi from '../../floors/api/floor.api';
 import towerApi from '../../towers/api/tower.api';
+import unitLocationLabel from '../../../utils/unitLocation';
 
 const rowsFrom = (response, key) => {
   const rows = Array.isArray(response) ? response : response?.data || response?.[key] || [];
@@ -44,15 +45,12 @@ export default function BookingForm({ userId, societyId, amenities, onSubmit, on
       .then(([unitResponse, floorResponse, towerResponse]) => {
         if (!active) return;
         const units = rowsFrom(unitResponse, 'units');
-        const floorsById = new Map(rowsFrom(floorResponse, 'floors').map((floor) => [floor.id, floor]));
-        const towersById = new Map(rowsFrom(towerResponse, 'towers').map((tower) => [tower.id, tower]));
+        const floorsById = new Map(rowsFrom(floorResponse, 'floors').map((floor) => [String(floor.id), floor]));
+        const towersById = new Map(rowsFrom(towerResponse, 'towers').map((tower) => [String(tower.id), tower]));
         setUnitOptions(units
           .filter((unit) => unit.status !== 'INACTIVE')
           .map((unit) => {
-            const floor = floorsById.get(unit.floorId || unit.floor_id);
-            const tower = towersById.get(floor?.towerId || floor?.tower_id);
-            const unitName = unit.unitNumber || unit.unit_number || unit.name || 'Unit';
-            return { value: unit.id, label: `${unitName}${tower?.name ? ` - ${tower.name}` : ''}` };
+            return { value: unit.id, label: unitLocationLabel(unit, floorsById, towersById) };
           })
           .sort((left, right) => left.label.localeCompare(right.label, undefined, { numeric: true })));
       })

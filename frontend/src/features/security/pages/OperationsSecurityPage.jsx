@@ -17,7 +17,8 @@ import {
 } from "lucide-react";
 import securityApi from "../api/security.legacy.api";
 import SecurityBadge from "../components/SecurityBadge";
-import unitApi from "../../units/api/unit.api";
+import useUnits from "../../../utils/useUnits";
+import unitLocationLabel from "../../../utils/unitLocation";
 import { recordToSections, RecordDetailsModal } from "../../../components/ui/Modal";
 import GateVisitorAccessPage from "./SecurityPage";
 
@@ -1209,7 +1210,11 @@ export default function SecurityPage() {
                       ) : (
                         <input
                           name={name}
-                          type={name === "email" && form === "staff" ? "email" : type}
+                          type={name === "mobileNumber" || name === "phone" ? "tel" : name === "email" && form === "staff" ? "email" : type}
+                          inputMode={name === "mobileNumber" || name === "phone" ? "numeric" : undefined}
+                          maxLength={name === "mobileNumber" || name === "phone" ? 10 : undefined}
+                          pattern={name === "mobileNumber" || name === "phone" ? "[0-9]{10}" : undefined}
+                          title={name === "mobileNumber" || name === "phone" ? "Enter a valid 10-digit phone number." : undefined}
                           required={
                             ![
                               "lastName",
@@ -1309,6 +1314,7 @@ export default function SecurityPage() {
 }
 
 function RecordEditModal({ record, tab, staff = [], shifts = [], onClose, onSave }) {
+  const { units } = useUnits();
   const fieldToken = (key) => String(key).replace(/[^a-z0-9]/gi, "").toLowerCase();
   const rosterCanonicalKey = (key) => ({
     staffid: "staffId",
@@ -1351,6 +1357,11 @@ function RecordEditModal({ record, tab, staff = [], shifts = [], onClose, onSave
         value === "" ? null : value,
       ]),
     );
+    const phoneEntry = Object.entries(payload).find(([key]) => ["mobileNumber", "mobile_number", "phone"].includes(key));
+    if (phoneEntry && phoneEntry[1] && !/^\d{10}$/.test(String(phoneEntry[1]).trim())) {
+      setError("Enter a valid 10-digit mobile number.");
+      return;
+    }
     if (tab === "rosters") {
       const normalizedPayload = {};
       Object.entries(payload).forEach(([key, value]) => {
@@ -1429,7 +1440,7 @@ function RecordEditModal({ record, tab, staff = [], shifts = [], onClose, onSave
                   >
                     {units.map((unit) => (
                       <option key={unit.id} value={unit.id}>
-                        {unit.unitNumber || unit.name || unit.id}
+                        {unitLocationLabel(unit)}
                       </option>
                     ))}
                   </select>
@@ -1732,18 +1743,14 @@ function SecurityWorkflowDialog({
 }
 
 function MaidUnitMapping({ staffId, active }) {
-  const [units, setUnits] = useState([]);
+  const { units } = useUnits();
   const [assignments, setAssignments] = useState([]);
   const [unitId, setUnitId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   const loadMappings = async () => {
-    const [unitResponse, assignmentResponse] = await Promise.all([
-      unitApi.getAll(),
-      securityApi.getStaffAssignments(staffId),
-    ]);
-    setUnits(rowsFrom(unitResponse));
+    const assignmentResponse = await securityApi.getStaffAssignments(staffId);
     setAssignments(rowsFrom(assignmentResponse));
   };
 
@@ -1782,7 +1789,7 @@ function MaidUnitMapping({ staffId, active }) {
           <option value="">Select a unit</option>
           {units.filter((unit) => !assignments.some((assignment) => String(assignment.unitId) === String(unit.id) && assignment.status === "ACTIVE")).map((unit) => (
             <option key={unit.id} value={unit.id}>
-              {unit.unitNumber || unit.name || unit.id}
+              {unitLocationLabel(unit)}
             </option>
           ))}
         </select>
@@ -1797,7 +1804,7 @@ function MaidUnitMapping({ staffId, active }) {
           const unit = units.find((item) => String(item.id) === String(assignment.unitId));
           return (
             <div className="maid-unit-mapping-row" key={assignment.id}>
-              <strong>{unit?.unitNumber || unit?.name || "Unit"}</strong>
+              <strong>{unit ? unitLocationLabel(unit) : "Unit"}</strong>
               <span>{titleCase(assignment.status || "ACTIVE")}</span>
               <small>Since {assignment.startDate || "—"}</small>
             </div>

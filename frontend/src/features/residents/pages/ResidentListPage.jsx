@@ -24,6 +24,7 @@ import unitApi from "../../units/api/unit.api";
 import floorApi from "../../floors/api/floor.api";
 import towerApi from "../../towers/api/tower.api";
 import ResidentForm from "../components/ResidentForm";
+import residentKycApi from "../api/residentKyc.api";
 import { RecordDetailsModal } from "../../../components/ui/Modal";
 
 
@@ -75,6 +76,52 @@ const ResidentListPage = () => {
     const [editingResident, setEditingResident] =
         useState(null);
     const [viewingResident, setViewingResident] = useState(null);
+    const [residentDocuments, setResidentDocuments] = useState([]);
+    const [loadingResidentDocuments, setLoadingResidentDocuments] = useState(false);
+    const [residentDocumentsError, setResidentDocumentsError] = useState("");
+
+    useEffect(() => {
+        if (!viewingResident?.id) {
+            setResidentDocuments([]);
+            setResidentDocumentsError("");
+            return undefined;
+        }
+        let cancelled = false;
+        setLoadingResidentDocuments(true);
+        setResidentDocumentsError("");
+        residentKycApi.getByResident(viewingResident.id)
+            .then((response) => {
+                if (!cancelled) setResidentDocuments(rowsFrom(response));
+            })
+            .catch((err) => {
+                if (!cancelled) setResidentDocumentsError(err.response?.data?.message || "Could not load resident documents.");
+            })
+            .finally(() => {
+                if (!cancelled) setLoadingResidentDocuments(false);
+            });
+        return () => { cancelled = true; };
+    }, [viewingResident?.id]);
+
+    const openResidentDocument = async (kycDocument) => {
+        const previewTab = window.open("about:blank", "_blank");
+        try {
+            const blob = await residentKycApi.getFile(kycDocument.id);
+            const objectUrl = URL.createObjectURL(blob);
+            if (previewTab) {
+                previewTab.location = objectUrl;
+                previewTab.document.title = kycDocument.documentName || kycDocument.fileName || "Resident document";
+            } else {
+                const link = globalThis.document.createElement("a");
+                link.href = objectUrl;
+                link.download = kycDocument.fileName || kycDocument.documentName || "resident-document";
+                link.click();
+            }
+            window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+        } catch (err) {
+            previewTab?.close();
+            setResidentDocumentsError(err.response?.data?.message || "Could not open this resident document.");
+        }
+    };
 
     useEffect(() => {
         if (searchParams.get("new") !== "1") return;
@@ -340,6 +387,13 @@ const ResidentListPage = () => {
             (resident) =>
                 resident.status === "PENDING"
         ).length;
+
+    const linkedFamilyMembers = viewingResident
+        ? residents.filter((item) => item.role === "FAMILY_MEMBER" && String(item.familyOwnerId) === String(viewingResident.id))
+        : [];
+    const linkedFamilyOwner = viewingResident?.role === "FAMILY_MEMBER"
+        ? residents.find((item) => String(item.id) === String(viewingResident.familyOwnerId))
+        : null;
 
 
     return (
@@ -902,9 +956,25 @@ const ResidentListPage = () => {
 
             {viewingResident && <RecordDetailsModal title={viewingResident.displayName || [viewingResident.firstName, viewingResident.middleName, viewingResident.lastName].filter(Boolean).join(" ") || "Resident details"} subtitle="Resident profile and contact information" icon={UserRound} image={profileImageUrl(viewingResident.profilePhoto)} onClose={() => setViewingResident(null)} sections={[
                 { title: "Personal information", fields: [["First name", viewingResident.firstName], ["Middle name", viewingResident.middleName], ["Last name", viewingResident.lastName], ["Date of birth", viewingResident.dateOfBirth], ["Gender", viewingResident.gender], ["Role", viewingResident.role], ["Status", viewingResident.status]] },
+                ...(linkedFamilyOwner ? [{ title: "Family relationship", fields: [["Owner", linkedFamilyOwner.displayName || [linkedFamilyOwner.firstName, linkedFamilyOwner.middleName, linkedFamilyOwner.lastName].filter(Boolean).join(" ")], ["Owner role", linkedFamilyOwner.role === "CO_OWNER" ? "Co-owner" : "Primary owner"]] }] : []),
+                ...(linkedFamilyMembers.length ? [{ title: "Family members", fields: linkedFamilyMembers.flatMap((member, index) => {
+                    const memberName = member.displayName || [member.firstName, member.middleName, member.lastName].filter(Boolean).join(" ");
+                    return [[`Family member ${index + 1}`, memberName], [`Contact ${index + 1}`, member.mobile || member.email || "No contact details"]];
+                }) }] : []),
                 { title: "Contact", fields: [["Email", viewingResident.email], ["Mobile", viewingResident.mobile], ["Alternate mobile", viewingResident.alternateMobile], ["Address", viewingResident.address]] },
                 { title: "Home and emergency contact", fields: [["Units", (residentUnits[viewingResident.id] || []).map((assignment) => `${assignment.towerName ? `${assignment.towerName} · ` : ""}Unit ${assignment.unitNumber || "—"}`).join(", ") || null], ["Emergency contact", viewingResident.emergencyContactName], ["Emergency phone", viewingResident.emergencyContactMobile], ["Resident ID", viewingResident.id]] }
-            ]} />}
+            ]}>
+                <section className="record-details-section resident-documents-section">
+                    <h3>Uploaded documents</h3>
+                    {loadingResidentDocuments ? <p>Loading documents…</p>
+                        : residentDocumentsError ? <p role="alert">{residentDocumentsError}</p>
+                            : residentDocuments.length === 0 ? <p>No documents uploaded for this resident.</p>
+                                : <ul>{residentDocuments.map((document) => <li key={document.id}>
+                                    <span><strong>{document.documentName || document.documentType}</strong><small>{document.fileName || "File not attached"}{document.verificationStatus ? ` · ${document.verificationStatus.replaceAll("_", " ")}` : ""}</small></span>
+                                    {document.fileName && <button type="button" className="btn btn-secondary btn-sm" onClick={() => openResidentDocument(document)}>View</button>}
+                                </li>)}</ul>}
+                </section>
+            </RecordDetailsModal>}
 
         </section>
 

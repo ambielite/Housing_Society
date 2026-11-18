@@ -16,6 +16,8 @@ import {
   X,
 } from "lucide-react";
 import securityApi from "../api/security-operations.api";
+import useUnits from "../../../utils/useUnits";
+import unitLocationLabel from "../../../utils/unitLocation";
 
 const rowsFrom = (response) => {
   let rows = Array.isArray(response)
@@ -1096,7 +1098,11 @@ export default function SecurityPage() {
                       ) : (
                         <input
                           name={name}
-                          type={type}
+                          type={name === "mobileNumber" || name === "phone" ? "tel" : type}
+                          inputMode={name === "mobileNumber" || name === "phone" ? "numeric" : undefined}
+                          maxLength={name === "mobileNumber" || name === "phone" ? 10 : undefined}
+                          pattern={name === "mobileNumber" || name === "phone" ? "[0-9]{10}" : undefined}
+                          title={name === "mobileNumber" || name === "phone" ? "Enter a valid 10-digit phone number." : undefined}
                           required={
                             ![
                               "lastName",
@@ -1217,6 +1223,7 @@ export default function SecurityPage() {
 }
 
 function RecordEditModal({ record, tab, onClose, onSave }) {
+  const { units } = useUnits();
   const normalizeDate = (value) => {
     if (!value || value === "Invalid date") return "";
     const date = String(value).match(/^\d{4}-\d{2}-\d{2}/)?.[0];
@@ -1246,6 +1253,11 @@ function RecordEditModal({ record, tab, onClose, onSave }) {
         value === "" ? null : value,
       ]),
     );
+    const phoneEntry = Object.entries(payload).find(([key]) => ["mobileNumber", "mobile_number", "phone"].includes(key));
+    if (phoneEntry && phoneEntry[1] && !/^\d{10}$/.test(String(phoneEntry[1]).trim())) {
+      setError("Enter a valid 10-digit mobile number.");
+      return;
+    }
     if (tab === "staff" && !payload.joiningDate) {
       setError("Enter a valid joining date before saving staff details.");
       return;
@@ -1302,7 +1314,7 @@ function RecordEditModal({ record, tab, onClose, onSave }) {
                   >
                     {units.map((unit) => (
                       <option key={unit.id} value={unit.id}>
-                        {unit.unitNumber || unit.name || unit.id}
+                        {unitLocationLabel(unit)}
                       </option>
                     ))}
                   </select>

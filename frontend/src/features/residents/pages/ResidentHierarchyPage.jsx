@@ -107,8 +107,15 @@ const ResidentHierarchyPage = () => {
         const tower = floor && towerById.get(String(floor.towerId || floor.tower_id));
         const unitName = unit.unitNumber || unit.name || unit.id;
         const floorName = floor?.name || (floor?.floorNumber != null ? `Floor ${floor.floorNumber}` : null);
-        return [unitName, tower?.name, floorName].filter(Boolean).join(" · ");
+        return [tower?.name, floorName, `Unit ${unitName}`].filter(Boolean).join(" / ");
     };
+
+    const viewingFamilyMembers = viewingResident
+        ? residents.filter((item) => item.role === "FAMILY_MEMBER" && String(item.familyOwnerId) === String(viewingResident.id))
+        : [];
+    const viewingFamilyOwner = viewingResident?.role === "FAMILY_MEMBER"
+        ? residents.find((item) => String(item.id) === String(viewingResident.familyOwnerId))
+        : null;
 
     const openCreate = () => {
         setEditingId(null);
@@ -369,6 +376,8 @@ const ResidentHierarchyPage = () => {
                 onClose={() => setViewingResident(null)}
                 sections={[
                     { title: "Personal information", fields: [["First name", viewingResident.firstName], ["Middle name", viewingResident.middleName], ["Last name", viewingResident.lastName], ["Date of birth", viewingResident.dateOfBirth], ["Role", viewingResident.role], ["Status", viewingResident.status]] },
+                    ...(viewingFamilyOwner ? [{ title: "Family relationship", fields: [["Owner", viewingFamilyOwner.displayName || [viewingFamilyOwner.firstName, viewingFamilyOwner.middleName, viewingFamilyOwner.lastName].filter(Boolean).join(" ")], ["Owner role", viewingFamilyOwner.role === "CO_OWNER" ? "Co-owner" : "Primary owner"]] }] : []),
+                    ...(viewingFamilyMembers.length ? [{ title: "Family members", fields: viewingFamilyMembers.flatMap((member, index) => [[`Family member ${index + 1}`, member.displayName || [member.firstName, member.middleName, member.lastName].filter(Boolean).join(" ")], [`Contact ${index + 1}`, member.mobile || member.email || "No contact details"]]) }] : []),
                     { title: "Contact", fields: [["Email", viewingResident.email], ["Mobile", viewingResident.mobile], ["Alternate mobile", viewingResident.alternateMobile], ["Emergency contact", viewingResident.emergencyContactName], ["Emergency phone", viewingResident.emergencyContactMobile]] },
                     ...viewingResident.ownerships.map((ownership, index) => {
                         const unit = units.find((item) => item.id === ownership.unitId);

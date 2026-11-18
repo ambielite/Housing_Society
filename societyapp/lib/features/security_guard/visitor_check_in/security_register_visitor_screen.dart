@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:housing_society_app/app/theme/app_colors.dart';
 import 'package:housing_society_app/core/widgets/styled_dropdown_field.dart';
 
@@ -234,9 +235,20 @@ class _SecurityRegisterVisitorScreenState
                         ),
                       ),
                       const SizedBox(height: 12),
-                      TextField(
+                      TextFormField(
                         controller: _phone,
                         keyboardType: TextInputType.phone,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(10),
+                        ],
+                        validator: (value) {
+                          final phone = value?.trim() ?? '';
+                          if (phone.isNotEmpty && !RegExp(r'^\d{10}$').hasMatch(phone)) {
+                            return 'Enter a valid 10-digit phone number.';
+                          }
+                          return null;
+                        },
                         decoration: _decoration(
                           'Phone (optional)',
                           Icons.phone_outlined,
