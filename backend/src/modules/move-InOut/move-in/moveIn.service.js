@@ -1,5 +1,6 @@
 const repository = require("./moveIn.repository");
 const accessAssignmentService = require("../access/accessAssignment.service");
+const ApiError = require("../../../common/ApiError");
 
 const documentFields = ["leaseDocument", "registryDocument", "policeVerificationDocument"];
 
@@ -10,7 +11,16 @@ const uploadedDocumentPaths = (moveInId, files = {}) => Object.fromEntries(
 
 const asPlainRecord = (record) => record?.toJSON ? record.toJSON() : record;
 
+const assertNoDuplicateMoveIn = async ({ societyId, residentId, unitId }, excludeId = null) => {
+    const records = await repository.findByResidentAndUnit(societyId, residentId, unitId);
+    const duplicate = records.find((record) => record.id !== excludeId && !["REJECTED", "CANCELLED"].includes(record.status));
+    if (duplicate) {
+        throw new ApiError(409, "This resident already has a move-in request or completed move-in for this unit.");
+    }
+};
+
 const createMoveIn = async (data, files) => {
+    await assertNoDuplicateMoveIn(data);
     const moveIn = await repository.create({
         societyId: data.societyId,
         unitId: data.unitId,
@@ -45,7 +55,15 @@ const getMoveInDocument = async (id, documentType) => {
 };
 
 const updateMoveIn = async (id, data, files) => {
+    const current = await repository.findById(id);
+    if (!current) return null;
     const update = { ...data };
+
+    await assertNoDuplicateMoveIn({
+        societyId: update.societyId || current.societyId,
+        residentId: update.residentId || current.residentId,
+        unitId: update.unitId || current.unitId
+    }, id);
 
     // The edit form submits an empty string when no agreement is selected.
     // agreementId is a nullable UUID column, so persist it as NULL instead.

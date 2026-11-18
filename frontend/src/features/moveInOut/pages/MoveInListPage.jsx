@@ -333,7 +333,7 @@ const MoveInListPage = () => {
                     { title: "Documents", fields: [["Lease / agreement", viewingMoveIn.leaseDocument ? "Uploaded" : null], ["Registry document", viewingMoveIn.registryDocument ? "Uploaded" : null], ["Police verification", viewingMoveIn.policeVerificationDocument ? "Uploaded" : null]] }
                 ]} />;
             })()}
-            {showForm && <div className="society-modal-layer" onMouseDown={(event) => { if (event.target === event.currentTarget) closeForm(); }}><MoveInForm key={editingMoveIn?.id || "new-move-in"} moveIn={editingMoveIn} onClose={closeForm} onSuccess={async () => { closeForm(); await loadData(); }} /></div>}
+            {showForm && <div className="society-modal-layer" onMouseDown={(event) => { if (event.target === event.currentTarget) closeForm(); }}><MoveInForm key={editingMoveIn?.id || "new-move-in"} moveIn={editingMoveIn} moveIns={moveIns} onClose={closeForm} onSuccess={async () => { closeForm(); await loadData(); }} /></div>}
         </section>
     );
 };

@@ -26,7 +26,7 @@ const initialValues = (moveOut = null) => ({
     remarks: moveOut?.remarks || ""
 });
 
-const MoveOutForm = ({ moveOut, onClose, onSuccess }) => {
+const MoveOutForm = ({ moveOut, moveOuts = [], onClose, onSuccess }) => {
     const [values, setValues] = useState(() => initialValues(moveOut));
     const [societies, setSocieties] = useState([]);
     const [units, setUnits] = useState([]);
@@ -84,6 +84,18 @@ const MoveOutForm = ({ moveOut, onClose, onSuccess }) => {
 
         if (!values.societyId || !values.unitId || !values.residentId || !values.requestedMoveOutDate) {
             setError("Society, unit, resident and requested move-out date are required.");
+            return;
+        }
+
+        const duplicate = moveOuts.find((record) =>
+            record.id !== moveOut?.id &&
+            String(record.societyId) === String(values.societyId) &&
+            String(record.unitId) === String(values.unitId) &&
+            String(record.residentId) === String(values.residentId) &&
+            !["REJECTED", "CANCELLED"].includes(record.status)
+        );
+        if (duplicate) {
+            setError("This resident already has a move-out request or completed move-out for this unit.");
             return;
         }
 
@@ -160,7 +172,7 @@ const MoveOutForm = ({ moveOut, onClose, onSuccess }) => {
                                 <select id="moveout-resident" name="residentId" value={values.residentId} onChange={updateField} required disabled={loading || residents.length === 0}>
                                     <option value="">{loading ? "Loading residents…" : "Select a resident"}</option>
                                     {residents.map((resident) => (
-                                        <option key={resident.id} value={resident.id}>{resident.displayName || `${resident.firstName || ""} ${resident.lastName || ""}`.trim() || resident.name || resident.id}</option>
+                                        <option key={resident.id} value={resident.id} disabled={moveOuts.some((record) => record.id !== moveOut?.id && String(record.societyId) === String(values.societyId) && String(record.unitId) === String(values.unitId) && String(record.residentId) === String(resident.id) && !["REJECTED", "CANCELLED"].includes(record.status))}>{resident.displayName || `${resident.firstName || ""} ${resident.lastName || ""}`.trim() || resident.name || resident.id}{moveOuts.some((record) => record.id !== moveOut?.id && String(record.societyId) === String(values.societyId) && String(record.unitId) === String(values.unitId) && String(record.residentId) === String(resident.id) && !["REJECTED", "CANCELLED"].includes(record.status)) ? " (already moved out)" : ""}</option>
                                     ))}
                                 </select>
                             </div>

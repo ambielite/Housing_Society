@@ -26,7 +26,7 @@ const initialValues = (moveIn = null) => ({
     remarks: moveIn?.remarks || ""
 });
 
-const MoveInForm = ({ moveIn, onClose, onSuccess }) => {
+const MoveInForm = ({ moveIn, moveIns = [], onClose, onSuccess }) => {
     const [values, setValues] = useState(() => initialValues(moveIn));
     const [societies, setSocieties] = useState([]);
     const [units, setUnits] = useState([]);
@@ -93,6 +93,18 @@ const MoveInForm = ({ moveIn, onClose, onSuccess }) => {
 
         if (!values.societyId || !values.unitId || !values.residentId || !values.requestedMoveInDate) {
             setError("Society, unit, resident and requested move-in date are required.");
+            return;
+        }
+
+        const duplicate = moveIns.find((record) =>
+            record.id !== moveIn?.id &&
+            String(record.societyId) === String(values.societyId) &&
+            String(record.unitId) === String(values.unitId) &&
+            String(record.residentId) === String(values.residentId) &&
+            !["REJECTED", "CANCELLED"].includes(record.status)
+        );
+        if (duplicate) {
+            setError("This resident already has a move-in request or completed move-in for this unit.");
             return;
         }
 
@@ -170,7 +182,7 @@ const MoveInForm = ({ moveIn, onClose, onSuccess }) => {
                                 <select id="movein-resident" name="residentId" value={values.residentId} onChange={updateField} required disabled={loading || residents.length === 0}>
                                     <option value="">{loading ? "Loading residents…" : "Select a resident"}</option>
                                     {residents.map((resident) => (
-                                        <option key={resident.id} value={resident.id}>{resident.displayName || `${resident.firstName || ""} ${resident.lastName || ""}`.trim() || resident.name || resident.id}</option>
+                                        <option key={resident.id} value={resident.id} disabled={moveIns.some((record) => record.id !== moveIn?.id && String(record.societyId) === String(values.societyId) && String(record.unitId) === String(values.unitId) && String(record.residentId) === String(resident.id) && !["REJECTED", "CANCELLED"].includes(record.status))}>{resident.displayName || `${resident.firstName || ""} ${resident.lastName || ""}`.trim() || resident.name || resident.id}{moveIns.some((record) => record.id !== moveIn?.id && String(record.societyId) === String(values.societyId) && String(record.unitId) === String(values.unitId) && String(record.residentId) === String(resident.id) && !["REJECTED", "CANCELLED"].includes(record.status)) ? " (already moved in)" : ""}</option>
                                     ))}
                                 </select>
                             </div>

@@ -308,7 +308,7 @@ const MoveOutListPage = () => {
                 ]} />;
             })()}
 
-            {showForm && <div className="society-modal-layer" onMouseDown={(event) => { if (event.target === event.currentTarget) closeForm(); }}><MoveOutForm key={editingMoveOut?.id || "new-move-out"} moveOut={editingMoveOut} onClose={closeForm} onSuccess={async () => { closeForm(); await loadData(); }} /></div>}
+            {showForm && <div className="society-modal-layer" onMouseDown={(event) => { if (event.target === event.currentTarget) closeForm(); }}><MoveOutForm key={editingMoveOut?.id || "new-move-out"} moveOut={editingMoveOut} moveOuts={moveOuts} onClose={closeForm} onSuccess={async () => { closeForm(); await loadData(); }} /></div>}
         </section>
     );
 };
