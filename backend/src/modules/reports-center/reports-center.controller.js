@@ -146,20 +146,9 @@ const societyBranding = async (societyId) => {
 
 // Compact, consistent PDF layout used by every report export. The API may
 // return several overlapping breakdowns; when a canonical `rows` list exists,
-// show that list and the report's summary only.
+// show that list only.
 const compactPdfData = (data, maxRecords = 5000) => {
-  const summary = [];
   const sections = [];
-  const ignoredSummary = new Set(['society', 'period', 'rows', 'generatedAt', 'responseTimeDefinition', 'utilizationNote']);
-  const visitSummary = (value, prefix = '') => {
-    if (!value || typeof value !== 'object' || value instanceof Date || Array.isArray(value)) return;
-    Object.entries(value).forEach(([key, child]) => {
-      if ((!prefix && ignoredSummary.has(key)) || pdfIsId(key)) return;
-      const label = readableLabel(prefix ? `${prefix} / ${key}` : key);
-      if (child && typeof child === 'object' && !Array.isArray(child) && !(child instanceof Date)) visitSummary(child, label);
-      else if (!Array.isArray(child) && child !== undefined && !pdfIsUuid(child)) summary.push({ label, value: pdfCell(child) });
-    });
-  };
   const makeFields = (record) => {
     const fields = [];
     const walk = (value, prefix = '') => {
@@ -179,7 +168,6 @@ const compactPdfData = (data, maxRecords = 5000) => {
     return fields;
   };
 
-  visitSummary(data);
   if (Array.isArray(data?.rows)) {
     sections.push({ title: 'Report records', total: data.rows.length, records: data.rows.slice(0, maxRecords) });
   } else {
@@ -192,16 +180,58 @@ const compactPdfData = (data, maxRecords = 5000) => {
     };
     collectArrays(data);
   }
-  return { summary, sections: sections.map((section) => ({
+  return { sections: sections.map((section) => ({
     ...section,
     records: section.records.map(makeFields).filter((fields) => fields.length),
   })) };
 };
 
+const reportDescriptions = {
+  dashboard: 'A snapshot of key society operations, including vehicles, visitors, helpdesk activity, vendors and utilities.',
+  'legacy-executive': 'A high-level view of society activity and performance for the selected period.',
+  'finance-dashboard': 'An overview of society income, expenses, collections and outstanding dues.',
+  'bank-balance': 'Bank account balances and transactions recorded for the selected period.',
+  collection: 'Maintenance and other payments collected from residents during the selected period.',
+  arrears: 'Resident balances that remain unpaid, including overdue amounts.',
+  'income-expense': 'Income received and expenses recorded by the society during the selected period.',
+  'society-operations': 'An overview of residents, vehicles, occupancy and day-to-day society activity.',
+  occupancy: 'Occupied and vacant homes in the society.',
+  residents: 'Resident and household details recorded for the society.',
+  'society-vehicles': 'Vehicles registered in the society, including their type, registration and linked flat.',
+  parking: 'Parking space availability, usage and allocation for the society.',
+  vehicles: 'Vehicles registered in the society, including their type, registration and linked flat.',
+  visitors: 'Visitor passes created during the selected period, with visitor, gate and pass validity details.',
+  'legacy-visitors': 'An overview of visitor activity and visitor profile totals for the society.',
+  'gate-activity': 'Entry and exit activity recorded at society gates during the selected period.',
+  'gate-summary': 'An overview of gate activity, including entries and exits by gate.',
+  'staff-summary': 'Security and support staff counts and current work status.',
+  'patrol-summary': 'Security patrol rounds and recorded checkpoints for the selected period.',
+  overstay: 'Visitor passes that remained inside beyond the expected visit duration.',
+  deliveries: 'Packages and courier deliveries received for society flats, including handover status.',
+  tickets: 'Helpdesk requests raised by residents, including category, priority and current status.',
+  'sla-breaches': 'Helpdesk requests that missed their expected response or resolution deadlines.',
+  'approvals-dashboard': 'An overview of requests waiting for approval and their current progress.',
+  'approval-details': 'Approval requests, decisions and related payment details.',
+  'approval-status': 'Approval requests grouped by their current status.',
+  'approval-sla': 'Approval requests that met or missed their expected processing deadlines.',
+  'approval-payments': 'Payments linked to approved requests, including amounts and payment status.',
+  'category-trends': 'Helpdesk request volumes grouped by category and month.',
+  'vendor-outstanding': 'Vendor invoices, payments received and amounts still due.',
+  'vendor-contracts': 'Vendor agreements, their values and upcoming expiry dates.',
+  'vendor-spend': 'Purchase order and invoice spending grouped by vendor.',
+  'vendor-sla-performance': 'Vendor-assigned helpdesk requests, completed work and missed deadlines.',
+  'quotation-comparison': 'Vendor quotations and their prices and evaluation scores for the selected request.',
+  'procurement-summary': 'Purchase requests, quotations, purchase orders and vendor bills for the selected period.',
+  'purchase-orders': 'Purchase orders, delivery dates, costs and goods received from vendors.',
+  'vendor-bills': 'Vendor invoices, related purchase orders, due dates and payment status.',
+  'amenity-utilization': 'Amenity capacity and booking usage during the selected period.',
+  'amenity-bookings': 'Amenity reservations, including the flat, date, time and booking status.',
+  'utility-bills': 'Utility meter readings, consumption and bills during the selected period.',
+};
+
 const sendCompactPdf = (res, name, data, period, society) => {
-  const { summary, sections } = compactPdfData(data);
+  const { sections } = compactPdfData(data);
   const reportTitle = readableLabel(name);
-  const recordCount = sections.reduce((total, section) => total + section.records.length, 0);
   const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 36, bufferPages: true });
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="${name}-${new Date().toISOString().slice(0, 10)}.pdf"`);
@@ -228,6 +258,12 @@ const sendCompactPdf = (res, name, data, period, society) => {
     doc.restore();
     doc.y = 119;
     doc.x = doc.page.margins.left;
+    const description = reportDescriptions[name] || `Detailed records for ${reportTitle.toLowerCase()} in this society.`;
+    doc.fillColor('#46566f').font('Helvetica').fontSize(9).text(description, 38, doc.y, {
+      width: doc.page.width - 76,
+      lineGap: 2,
+    });
+    doc.y += 12;
   };
   drawHeader();
 
@@ -326,10 +362,6 @@ const sendCompactPdf = (res, name, data, period, society) => {
     }
   };
 
-  if (summary.length) {
-    sectionTitle('Summary');
-    drawGrid(summary, 3, 42, 9);
-  }
   sections.forEach((section) => {
     sectionTitle(section.title, `${section.total} total`);
     if (section.records.length) drawRecordTable(section.records);
@@ -339,7 +371,7 @@ const sendCompactPdf = (res, name, data, period, society) => {
       doc.y += 18;
     }
   });
-  if (!summary.length && !recordCount) {
+  if (!sections.length || sections.every((section) => !section.records.length)) {
     doc.fillColor('#64748b').font('Helvetica').fontSize(10).text('No report data is available for the selected filters.', 38, doc.y);
   }
 
