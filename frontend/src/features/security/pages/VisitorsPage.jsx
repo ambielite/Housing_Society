@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { LogIn, LogOut, Plus } from 'lucide-react';
+import { LogIn, LogOut, Plus, SquarePen } from 'lucide-react';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
 import useFetch from '../../../utils/useFetch';
@@ -167,7 +167,7 @@ export default function VisitorsPage({ societyId, societyName, currentUser, gate
     { key: 'blacklist', header: 'Status', render: (p) => <SecurityBadge value={p.blacklist_status} /> },
     { key: 'actions', header: 'Actions', render: (p) => <div className="row-actions">
       {hasPermission('VISITOR_PROFILE_READ') && <button className="btn btn-secondary btn-sm" onClick={() => { setSelected(p); setDialog('profile-detail'); }}>View</button>}
-      {hasPermission('VISITOR_PROFILE_UPDATE') && <button className="btn btn-secondary btn-sm" onClick={() => { setSelected(p); setDialog('profile-edit'); }}>Edit</button>}
+      {hasPermission('VISITOR_PROFILE_UPDATE') && <button type="button" className="security-table-icon-action" aria-label="Edit visitor profile" title="Edit" onClick={() => { setSelected(p); setDialog('profile-edit'); }}><SquarePen size={18} aria-hidden="true" /></button>}
       {hasPermission('VISITOR_PROFILE_UPDATE') && <button className="btn btn-danger btn-sm" onClick={() => run(() => api.setBlacklistStatus(p.id, p.blacklist_status === 'BLACKLISTED' ? 'NONE' : 'BLACKLISTED'), p.blacklist_status === 'BLACKLISTED' ? 'Visitor removed from blacklist.' : 'Visitor blacklisted.')}>{p.blacklist_status === 'BLACKLISTED' ? 'Unblacklist' : 'Blacklist'}</button>}
     </div> },
   ];

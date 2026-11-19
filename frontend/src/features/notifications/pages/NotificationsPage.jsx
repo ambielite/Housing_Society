@@ -83,6 +83,15 @@ export default function NotificationsPage() {
     const notifications = useMemo(() => {
         const grouped = new Map();
         for (const item of data.notifications || []) {
+            if (item.referenceType === "NOTICE" && item.referenceId) {
+                // Notice events are stored once for each recipient. The inbox
+                // should show one row for the notice event, regardless of audience size.
+                const key = `notice:${item.referenceId}:${item.channel}:${item.notificationType}`;
+                const current = grouped.get(key);
+                if (current) current.recipientNotifications.push(item);
+                else grouped.set(key, { ...item, sharedEvent: true, recipientNotifications: [item] });
+                continue;
+            }
             if (item.referenceType !== "RESIDENT_PASSWORD") {
                 grouped.set(item.id, { ...item, recipientNotifications: [item] });
                 continue;
@@ -109,7 +118,9 @@ export default function NotificationsPage() {
                     ? "FAILED"
                     : statuses.some((value) => ["PENDING", "PROCESSING"].includes(value))
                         ? "PENDING"
-                        : "SENT";
+                        : statuses.every((value) => value === "CANCELLED")
+                            ? "CANCELLED"
+                            : "SENT";
             return { ...item, status, isRead: recipients.every((recipient) => recipient.isRead) };
         });
     }, [data.notifications]);
@@ -220,15 +231,20 @@ export default function NotificationsPage() {
         finally { setBusy(false); }
     };
 
-    const notificationActions = (item) => <div className="society-row-actions">
+    const notificationActions = (item) => {
+        const recipients = item.recipientNotifications || [item];
+        const forEachRecipient = (operation) => Promise.all(recipients.map(operation));
+        return <div className="society-row-actions">
         <button className="notification-row-action" disabled={busy} onClick={() => act(() => Promise.all((item.recipientNotifications || [item]).map((recipient) => item.isRead ? notificationsApi.markUnread(recipient.id) : notificationsApi.markRead(recipient.id))), item.isRead ? "Marked unread for admins." : "Marked read for admins.")}>{item.isRead ? "Mark unread" : "Mark read"}</button>
-        {item.status === "PENDING" && <button className="notification-row-action" disabled={busy} onClick={() => act(() => notificationsApi.sendNotification(item.id), "Notification dispatched to the selected channel.")}>Send now</button>}
-        {item.status === "SENT" && <button className="notification-row-action" disabled={busy} onClick={() => act(() => notificationsApi.markDelivered(item.id), "Delivery recorded.")}>Mark delivered</button>}
-        {item.status === "FAILED" && <button className="notification-row-action" disabled={busy} onClick={() => act(() => notificationsApi.updateNotification(item.id, { status: "PENDING", errorMessage: null }), "Notification queued for retry.")}>Retry</button>}
-        {item.status === "FAILED" && <button className="notification-row-action" disabled={busy} onClick={() => act(() => notificationsApi.markFailed(item.id, item.errorMessage || "Retry failed"), "Failure recorded.")}>Record retry failure</button>}
-        {item.status !== "DELIVERED" && item.status !== "CANCELLED" && <button className="notification-row-action" disabled={busy} onClick={() => act(() => notificationsApi.cancelNotification(item.id), "Notification cancelled.")}>Cancel</button>}
+        {item.status === "PENDING" && <button className="notification-row-action" disabled={busy} onClick={() => act(() => forEachRecipient((recipient) => notificationsApi.sendNotification(recipient.id)), "Notification dispatched to the selected channel.")}>Send now</button>}
+        {item.status === "SENT" && <button className="notification-row-action" disabled={busy} onClick={() => act(() => forEachRecipient((recipient) => notificationsApi.markDelivered(recipient.id)), "Delivery recorded.")}>Mark delivered</button>}
+        {item.status === "FAILED" && <button className="notification-row-action" disabled={busy} onClick={() => act(() => forEachRecipient((recipient) => notificationsApi.updateNotification(recipient.id, { status: "PENDING", errorMessage: null })), "Notification queued for retry.")}>Retry</button>}
+        {item.status === "FAILED" && <button className="notification-row-action" disabled={busy} onClick={() => act(() => forEachRecipient((recipient) => notificationsApi.markFailed(recipient.id, recipient.errorMessage || "Retry failed")), "Failure recorded.")}>Record retry failure</button>}
+        {item.status !== "DELIVERED" && item.status !== "CANCELLED" && <button className="notification-row-action" disabled={busy} onClick={() => act(() => forEachRecipient((recipient) => notificationsApi.cancelNotification(recipient.id)), "Notification cancelled.")}>Cancel</button>}
         {!["SENT", "DELIVERED"].includes(item.status) && <button className="notification-icon-action danger" title="Delete notification" aria-label="Delete notification" disabled={busy} onClick={() => window.confirm("Delete this notification?") && act(() => notificationsApi.deleteNotification(item.id), "Notification deleted.")}><Trash2 size={15}/></button>}
     </div>;
+
+    };
 
     const templateActions = (item) => <div className="society-row-actions">
         <button className="notification-row-action" disabled={busy} onClick={() => openForm("template", item)}>Edit</button>

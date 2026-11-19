@@ -66,7 +66,7 @@ export default function DataTable({
           <thead>
             <tr>
               {columns.map((col) => (
-                <th key={col.key} scope="col">
+                  <th key={col.key} scope="col" className={col.key === 'actions' ? 'society-actions-heading' : undefined}>
                   {col.header}
                 </th>
               ))}

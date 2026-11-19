@@ -1386,3 +1386,61 @@ body :is(
   line-height: 1.2;
   white-space: nowrap;
 }
+
+/* Keep purchasing, vendor, amenity, and helpdesk data tables aligned with the
+   Assets and Inventory table geometry while retaining each module's columns. */
+body :is(.purchase-orders-page, .vendor-module-page, .amenities-page, .helpdesk-page, .utility-meter-page) .table-card {
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+body :is(.purchase-orders-page, .vendor-module-page, .amenities-page, .helpdesk-page, .utility-meter-page) .table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+body :is(.purchase-orders-page, .vendor-module-page, .amenities-page, .helpdesk-page, .utility-meter-page) .table {
+  width: 100%;
+  min-width: 1100px;
+  table-layout: auto;
+  border-collapse: collapse;
+  text-align: left;
+}
+body :is(.purchase-orders-page, .vendor-module-page, .amenities-page, .helpdesk-page, .utility-meter-page) .table th,
+body :is(.purchase-orders-page, .vendor-module-page, .amenities-page, .helpdesk-page, .utility-meter-page) .table td {
+  min-width: 110px;
+}
+body :is(.purchase-orders-page, .vendor-module-page, .amenities-page, .helpdesk-page, .utility-meter-page) .table th:first-child,
+body :is(.purchase-orders-page, .vendor-module-page, .amenities-page, .helpdesk-page, .utility-meter-page) .table td:first-child {
+  min-width: 170px;
+}
+body :is(.purchase-orders-page, .vendor-module-page, .amenities-page, .helpdesk-page, .utility-meter-page) .table th {
+  padding: 11px 16px;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: .055em;
+}
+body :is(.purchase-orders-page, .vendor-module-page, .amenities-page, .helpdesk-page, .utility-meter-page) .table th.society-actions-heading {
+  text-align: center;
+}
+body :is(.purchase-orders-page, .vendor-module-page, .amenities-page, .helpdesk-page, .utility-meter-page) .table td {
+  padding: 13px 16px;
+  border-top: 1px solid var(--row-divider);
+  border-bottom: 0;
+  font-size: 12px;
+  line-height: normal;
+  vertical-align: middle;
+}
+body :is(.purchase-orders-page, .vendor-module-page, .amenities-page, .helpdesk-page, .utility-meter-page) .table td:last-child {
+  min-width: 120px;
+  white-space: normal;
+}
+body :is(.purchase-orders-page, .vendor-module-page, .amenities-page, .helpdesk-page, .utility-meter-page) :is(.table, .society-table) th,
+body :is(.purchase-orders-page, .vendor-module-page, .amenities-page, .helpdesk-page, .utility-meter-page) :is(.table, .society-table) td {
+  text-align: center;
+}
+body :is(.purchase-orders-page, .vendor-module-page, .amenities-page, .helpdesk-page, .utility-meter-page) :is(.row-actions, .society-row-actions, .um-row-actions) {
+  justify-content: center;
+}

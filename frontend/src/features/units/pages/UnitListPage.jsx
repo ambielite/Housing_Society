@@ -85,10 +85,11 @@ const UnitListPage = () => {
         const query = search.trim().toLowerCase();
         return units.filter((unit) => {
             const floor = floors.find((item) => item.id === unit.floorId);
+            const tower = towers.find((item) => item.id === floor?.towerId);
             const floorName = floor?.name || (floor ? `Floor ${floor.floorNumber}` : "");
-            return !query || `${unit.unitNumber} ${unit.bhk || ""} ${unit.propertyType} ${unit.status} ${floorName}`.toLowerCase().includes(query);
+            return !query || `${unit.unitNumber} ${unit.bhk || ""} ${unit.propertyType} ${unit.status} ${tower?.name || ""} ${floorName}`.toLowerCase().includes(query);
         });
-    }, [floors, search, units]);
+    }, [floors, search, towers, units]);
 
     const saveComplete = async () => { closeForm(); await reload(); };
     const deactivate = async (unit) => {
@@ -108,14 +109,15 @@ const UnitListPage = () => {
             </div>
             {!loading && floors.length === 0 && <div className="society-error">Create a floor before adding units.</div>}
             <section className="society-list-panel">
-                <div className="society-list-heading"><div><h2>Your units</h2><p>Review unit configuration, floor, and occupancy status.</p></div><span className="society-count">{filtered.length} {filtered.length === 1 ? "unit" : "units"}</span></div>
-                <div className="society-toolbar"><label className="society-search"><Search size={17} /><input aria-label="Search units" placeholder="Search unit, floor, or status..." value={search} onChange={(event) => setSearch(event.target.value)} /></label><button className="society-refresh-button" onClick={reload} disabled={loading}><RefreshCw size={16} className={loading ? "society-spinning" : ""} /> Refresh</button></div>
+                <div className="society-list-heading"><div><h2>Your units</h2><p>Review each unit’s tower, floor, configuration, and occupancy status.</p></div><span className="society-count">{filtered.length} {filtered.length === 1 ? "unit" : "units"}</span></div>
+                <div className="society-toolbar"><label className="society-search"><Search size={17} /><input aria-label="Search units" placeholder="Search unit, tower, floor, or status..." value={search} onChange={(event) => setSearch(event.target.value)} /></label><button className="society-refresh-button" onClick={reload} disabled={loading}><RefreshCw size={16} className={loading ? "society-spinning" : ""} /> Refresh</button></div>
                 {loading ? <div className="society-loading"><span className="society-loader" />Loading units...</div> : filtered.length === 0 ? <div className="society-empty"><span className="society-empty-icon"><Home size={24} /></span><h3>{search ? "No matching units" : "No units yet"}</h3><p>{search ? "Try another search." : "Add units to your floors to complete the property directory."}</p></div> : (
-                    <div className="society-table-wrap"><table className="society-table"><thead><tr><th>Unit</th><th>Floor</th><th>Type / layout</th><th>Area</th><th>Status</th><th className="society-actions-heading">Actions</th></tr></thead><tbody>
+                    <div className="society-table-wrap"><table className="society-table"><thead><tr><th>Unit</th><th>Tower</th><th>Floor</th><th>Type / layout</th><th>Area</th><th>Status</th><th className="society-actions-heading">Actions</th></tr></thead><tbody>
                         {filtered.map((unit) => {
                             const floor = floors.find((item) => item.id === unit.floorId);
+                            const tower = towers.find((item) => item.id === floor?.towerId);
                             const statusClass = String(unit.status || "VACANT").toLowerCase().replaceAll("_", "-");
-                            return <tr key={unit.id}><td><div className="society-name-cell"><span className="society-avatar"><Home size={19} /></span><span><button type="button" className="record-details-trigger" onClick={() => setViewingUnit(unit)}>{unit.unitNumber}</button><small>{unit.bhk || "Configuration not set"}</small></span></div></td><td>{floor?.name || (floor ? `Floor ${floor.floorNumber}` : "Floor")}</td><td>{unit.propertyType || "RESIDENTIAL"}</td><td><span className="society-tax-label">Carpet:-</span> {unit.carpetArea ?? "—"}<br /><span className="society-tax-label">Built-up:-</span> {unit.builtUpArea ?? "—"}</td><td><span className={`badge badge-${statusClass}`}>{(unit.status || "VACANT").replaceAll("_", " ")}</span></td><td><div className="society-row-actions"><button className="society-icon-action" title="Edit unit" aria-label={`Edit unit ${unit.unitNumber}`} onClick={() => { setEditingUnit(unit); setShowForm(true); }}><SquarePen size={16} /></button>{unit.status !== "INACTIVE" && <button className="society-icon-action society-delete-action" title="Deactivate unit" aria-label={`Deactivate unit ${unit.unitNumber}`} onClick={() => deactivate(unit)}><Trash2 size={16} /></button>}</div></td></tr>;
+                            return <tr key={unit.id}><td><div className="society-name-cell"><span className="society-avatar"><Home size={19} /></span><span><button type="button" className="record-details-trigger" onClick={() => setViewingUnit(unit)}>{unit.unitNumber}</button><small>{unit.bhk || "Configuration not set"}</small></span></div></td><td>{tower?.name || "Tower"}</td><td>{floor?.name || (floor ? `Floor ${floor.floorNumber}` : "Floor")}</td><td>{unit.propertyType || "RESIDENTIAL"}</td><td><span className="society-tax-label">Carpet:-</span> {unit.carpetArea ?? "—"}<br /><span className="society-tax-label">Built-up:-</span> {unit.builtUpArea ?? "—"}</td><td><span className={`badge badge-${statusClass}`}>{(unit.status || "VACANT").replaceAll("_", " ")}</span></td><td><div className="society-row-actions"><button className="society-icon-action" title="Edit unit" aria-label={`Edit unit ${unit.unitNumber}`} onClick={() => { setEditingUnit(unit); setShowForm(true); }}><SquarePen size={16} /></button>{unit.status !== "INACTIVE" && <button className="society-icon-action society-delete-action" title="Deactivate unit" aria-label={`Deactivate unit ${unit.unitNumber}`} onClick={() => deactivate(unit)}><Trash2 size={16} /></button>}</div></td></tr>;
                         })}
                     </tbody></table></div>
                 )}

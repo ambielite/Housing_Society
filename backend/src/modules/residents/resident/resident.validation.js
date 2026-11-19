@@ -36,6 +36,12 @@ const validateCreateResident = (data) => {
         errors.push("Invalid familyOwnerId");
     }
 
+    if (["PRIMARY_OWNER", "CO_OWNER", "TENANT"].includes(data.role) && !data.unitId) {
+        errors.push("unitId is required for owners and tenants");
+    } else if (data.unitId && !validateUUID(data.unitId)) {
+        errors.push("Invalid unitId");
+    }
+
     if (!data.userId && (!data.accountPassword || String(data.accountPassword).length < 8 || String(data.accountPassword).length > 128)) {
         errors.push("Set an initial login password between 8 and 128 characters, or select an existing Resident account");
     }

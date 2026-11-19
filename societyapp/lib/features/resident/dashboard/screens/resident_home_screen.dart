@@ -810,7 +810,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                   return Column(
                     children: [
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
+                        padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
                         child: _topBar(context, dashboard),
                       ),
                       Expanded(
@@ -833,13 +833,13 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                                 SliverPadding(
                                   padding: const EdgeInsets.fromLTRB(
                                     20,
-                                    14,
+                                    4,
                                     20,
                                     28,
                                   ),
                                   sliver: SliverList.list(
                                     children: [
-                                      const SizedBox(height: 26),
+                                      const SizedBox(height: 8),
                                       _greeting(),
                                       if (profileUpdateNotifications
                                           .isNotEmpty) ...[
@@ -972,26 +972,16 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           borderRadius: BorderRadius.circular(15),
           border: Border.all(color: const Color(0xFFE8ECF3)),
         ),
-        child: dashboard.societyLogoUrl == null
-            ? const Icon(
-                Icons.apartment_rounded,
-                color: AppColors.indigo,
-                size: 24,
-              )
-            : ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: Image.network(
-                  dashboard.societyLogoUrl!,
-                  width: 44,
-                  height: 44,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => const Icon(
-                    Icons.apartment_rounded,
-                    color: AppColors.indigo,
-                    size: 24,
-                  ),
-                ),
-              ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: Image.asset(
+            'assets/images/logo1.png',
+            width: 44,
+            height: 44,
+            fit: BoxFit.contain,
+            semanticLabel: 'ShubNivas logo',
+          ),
+        ),
       ),
       const SizedBox(width: 11),
       Expanded(
@@ -999,7 +989,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              dashboard.societyName ?? 'Society',
+              'ShubNivas',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(

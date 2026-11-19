@@ -5,9 +5,7 @@ import societyApi from "../../societies/api/society.api";
 import towerApi from "../../towers/api/tower.api";
 import floorApi from "../../floors/api/floor.api";
 import unitApi from "../../units/api/unit.api";
-import ownerUnitApi from "../api/ownerUnit.api";
 import residentApi from "../api/resident.api";
-import occupancyApi from "../api/occupancy.api";
 import residentKycApi from "../api/residentKyc.api";
 import { PHONE_PATTERN, phoneInputProps } from "../../../utils/phone";
 import unitLocationLabel from "../../../utils/unitLocation";
@@ -197,9 +195,9 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
     const towerFloorIds = new Set(towerFloors.map((floor) => floor.id));
     const floorsById = new Map([...allFloors, ...towerFloors].map((floor) => [String(floor.id), floor]));
     const towersById = new Map(towers.map((tower) => [String(tower.id), tower]));
-    const visibleUnits = values.towerId
+    const visibleUnits = (values.towerId
         ? units.filter((unit) => towerFloorIds.has(unit.floorId))
-        : units;
+        : units).filter((unit) => unit.status === "VACANT");
 
     const update = (event) => {
         const { name, value, type, checked } = event.target;
@@ -304,6 +302,11 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
             return;
         }
 
+        if (["PRIMARY_OWNER", "CO_OWNER", "TENANT"].includes(values.role) && !values.unitId) {
+            setError("Select a vacant unit before creating this resident.");
+            return;
+        }
+
         if (!resident && requiredKycTypes.some((type) => !kycFiles[type])) {
             setError("Upload all required resident documents for the selected role.");
             return;
@@ -363,35 +366,13 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
                     }, societyConfig);
                     setUploadedKycFiles((current) => ({ ...current, [documentType]: true }));
                 }
-                if (values.unitId) {
-                    const effectiveFrom = new Date().toISOString().slice(0, 10);
-                    if (values.role === "TENANT") {
-                        await occupancyApi.create({
-                            societyId: values.societyId,
-                            unitId: values.unitId,
-                            residentId,
-                            occupancyType: "TENANT",
-                            startDate: effectiveFrom
-                        }, societyConfig);
-                    } else {
-                        await ownerUnitApi.create({
-                            societyId: values.societyId,
-                            ownerId: residentId,
-                            unitId: values.unitId,
-                            ownershipType: values.role,
-                            ownershipPercentage: null,
-                            effectiveFrom,
-                            status: "ACTIVE"
-                        }, societyConfig);
-                    }
-                }
                 setCreatedResidentId("");
             }
             await onSuccess();
         } catch (err) {
             const message = err.response?.data?.message || "Could not save resident. Please try again.";
             setError(residentId
-                ? `Resident was created, but a document upload or unit assignment did not finish: ${message} You can retry saving to continue.`
+                ? `Resident and unit assignment were saved, but a document upload did not finish: ${message} You can retry saving to continue.`
                 : message);
         } finally {
             setSaving(false);
@@ -462,8 +443,8 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
                                 <small className="field-hint">Optional. Selecting a tower filters the unit list below.</small>
                             </div>}
                             {!resident && <div className="form-group form-group-full">
-                                <label htmlFor="resident-unit">Unit (optional)</label>
-                                <select id="resident-unit" name="unitId" value={values.unitId} onChange={update} disabled={!values.societyId || loadingUnits || loadingTowerFloors || (Boolean(values.role) && !["PRIMARY_OWNER", "CO_OWNER", "TENANT"].includes(values.role))}>
+                                <label htmlFor="resident-unit">Unit{["PRIMARY_OWNER", "CO_OWNER", "TENANT"].includes(values.role) && <span className="required">*</span>}</label>
+                                <select id="resident-unit" name="unitId" value={values.unitId} onChange={update} required={["PRIMARY_OWNER", "CO_OWNER", "TENANT"].includes(values.role)} disabled={Boolean(createdResidentId) || !values.societyId || loadingUnits || loadingTowerFloors || (Boolean(values.role) && !["PRIMARY_OWNER", "CO_OWNER", "TENANT"].includes(values.role))}>
                                     <option value="">
                                         {loadingUnits || loadingTowerFloors
                                             ? "Loading units…"
@@ -474,7 +455,7 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
                                     {visibleUnits.map((unit) => <option key={unit.id} value={unit.id}>{unitLocationLabel(unit, floorsById, towersById)}</option>)}
                                 </select>
                                 {values.unitId && <small className="field-hint">Selected unit: {visibleUnits.find((unit) => unit.id === values.unitId)?.unitNumber || "Unit"}{values.towerId ? ` · Tower: ${towers.find((tower) => tower.id === values.towerId)?.name || "Tower"}` : ""}</small>}
-                                <small className="field-hint">Optional. Choose a resident role to assign the selected unit; unit assignments are supported for owners and tenants. Saving an assignment marks the unit Occupied.</small>
+                                <small className="field-hint">Owners and tenants must be assigned a vacant unit. The resident and unit assignment are saved together.</small>
                             </div>}
                             <div className="form-group"><label htmlFor="resident-first-name">First name<span className="required">*</span></label><input id="resident-first-name" name="firstName" value={values.firstName} onChange={update} maxLength={100} autoComplete="given-name" required /></div>
                             <div className="form-group"><label htmlFor="resident-middle-name">Middle name</label><input id="resident-middle-name" name="middleName" value={values.middleName} onChange={update} maxLength={100} /></div>
