@@ -1024,26 +1024,16 @@ class _SecurityHomeState extends State<_SecurityHome>
           borderRadius: BorderRadius.circular(15),
           border: Border.all(color: const Color(0xFFE8ECF3)),
         ),
-        child: data.societyLogoUrl == null
-            ? const Icon(
-                Icons.apartment_rounded,
-                color: AppColors.indigo,
-                size: 24,
-              )
-            : ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: Image.network(
-                  data.societyLogoUrl!,
-                  width: 44,
-                  height: 44,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => const Icon(
-                    Icons.apartment_rounded,
-                    color: AppColors.indigo,
-                    size: 24,
-                  ),
-                ),
-              ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: Image.asset(
+            'assets/images/logo1.png',
+            width: 44,
+            height: 44,
+            fit: BoxFit.contain,
+            semanticLabel: 'ShubNivas logo',
+          ),
+        ),
       ),
       const SizedBox(width: 11),
       Expanded(
@@ -1051,7 +1041,7 @@ class _SecurityHomeState extends State<_SecurityHome>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              data.societyName ?? 'Housing Society',
+              'ShubNivas',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(

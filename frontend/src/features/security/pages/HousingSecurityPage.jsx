@@ -12,6 +12,8 @@ import {
   Search,
   Shield,
   Siren,
+  SquarePen,
+  Trash2,
   Users,
   X,
 } from "lucide-react";
@@ -997,15 +999,22 @@ export default function SecurityPage() {
                           {actionsFor(item)}
                           {tab !== "audit" && (
                             <button
+                              type="button"
+                              className="security-table-icon-action"
+                              aria-label={`Edit ${tabs.find(([key]) => key === tab)?.[1].toLowerCase()} record`}
+                              title="Edit"
                               onClick={() => setEditRecord({ item, tab })}
                             >
-                              Edit
+                              <SquarePen size={18} aria-hidden="true" />
                             </button>
                           )}
                           {(tab !== "audit" ||
                             resourceFor === "security-audits") && (
                             <button
-                              className="society-delete-action"
+                              type="button"
+                              className="security-table-icon-action is-delete"
+                              aria-label={`Delete ${tabs.find(([key]) => key === tab)?.[1].toLowerCase()} record`}
+                              title="Delete"
                               onClick={() =>
                                 window.confirm(
                                   `Delete this ${tabs.find(([key]) => key === tab)?.[1].toLowerCase()} record?`,
@@ -1022,7 +1031,7 @@ export default function SecurityPage() {
                                 )
                               }
                             >
-                              Delete
+                              <Trash2 size={18} aria-hidden="true" />
                             </button>
                           )}
                         </div>

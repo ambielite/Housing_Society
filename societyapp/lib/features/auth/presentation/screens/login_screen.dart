@@ -5,6 +5,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
     show MissingPluginException, SystemUiOverlayStyle;
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/session_manager.dart';
 import '../../../../app/theme/app_colors.dart';
@@ -372,31 +373,31 @@ class _LoginScreenState extends State<LoginScreen> {
             alignment: Alignment.topCenter,
             child: _securityLogin
                 ? const SizedBox(width: double.infinity)
-                : Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: _submitting
-                          ? null
-                          : () => Navigator.of(context).push<void>(
-                              MaterialPageRoute<void>(
-                                builder: (_) => const ForgotPasswordScreen(),
+                : Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: _submitting
+                            ? null
+                            : () => Navigator.of(context).push<void>(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => const ForgotPasswordScreen(),
+                                ),
                               ),
-                            ),
-                      style: TextButton.styleFrom(
-                        foregroundColor: const Color(0xFF102A43),
-                        minimumSize: Size.zero,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 2,
-                          vertical: 3,
+                        style: TextButton.styleFrom(
+                          foregroundColor: const Color(0xFF102A43),
+                          minimumSize: Size.zero,
+                          padding: const EdgeInsets.symmetric(horizontal: 2),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.compact,
+                          textStyle: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        visualDensity: VisualDensity.compact,
-                        textStyle: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
+                        child: const Text('Forgot password?'),
                       ),
-                      child: const Text('Forgot password?'),
                     ),
                   ),
           ),
@@ -662,6 +663,29 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 4),
+          InkWell(
+            borderRadius: BorderRadius.circular(4),
+            onTap: () async {
+              await launchUrl(
+                Uri.parse('https://ambielite.in/'),
+                mode: LaunchMode.externalApplication,
+              );
+            },
+            child: const Padding(
+              padding: EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+              child: Text(
+                'Powered by Ambi Elite Pvt Ltd',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Color(0xFF2786C5),
+                  fontSize: 10,
+                  letterSpacing: .25,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
           ),
           SizedBox(height: compact ? 0 : 10),
           if (fillAvailableHeight && compact && !_securityLogin)

@@ -18,7 +18,7 @@ const notificationsApi = {
     cancelNotification: (id) => unwrap(axiosClient.post(`/notifications/${id}/cancel`)),
     deleteNotification: (id) => unwrap(axiosClient.delete(`/notifications/${id}`)),
 
-    getTemplates: () => unwrap(axiosClient.get("/notification-templates")),
+    getTemplates: (filters = {}) => unwrap(axiosClient.get("/notification-templates", params(filters))),
     createTemplate: (data) => unwrap(axiosClient.post("/notification-templates", data)),
     updateTemplate: (id, data) => unwrap(axiosClient.put(`/notification-templates/${id}`, data)),
     activateTemplate: (id) => unwrap(axiosClient.post(`/notification-templates/${id}/activate`)),

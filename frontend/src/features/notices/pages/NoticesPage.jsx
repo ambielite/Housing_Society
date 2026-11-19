@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BellRing, CalendarClock, Check, ChevronDown, CircleAlert, Clock3, Eye, FileText, Megaphone, Plus, Printer, RefreshCw, Search, Send, X } from 'lucide-react';
 import noticesApi from '../api/notices.api';
+import notificationsApi from '../../notifications/api/notifications.api';
 import useAuth from '../../../app/providers/useAuth';
 import './noticeboard.css';
 
@@ -52,7 +53,12 @@ const toIso = (raw) => {
   const date = new Date(localValue);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 };
-const rowsFrom = (result) => Array.isArray(result) ? result : Array.isArray(result?.rows) ? result.rows : [];
+const rowsFrom = (result) => {
+  const payload = result?.data ?? result;
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.rows)) return payload.rows;
+  return [];
+};
 const errorMessage = (error) => error?.response?.data?.message || error?.message || 'Could not complete that request.';
 
 function NoticeDateTimeField({ label, value, onChange }) {
@@ -100,6 +106,7 @@ export default function NoticesPage() {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [templates, setTemplates] = useState([]);
+  const [notificationTemplates, setNotificationTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -133,7 +140,10 @@ export default function NoticesPage() {
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
-    noticesApi.templates().then((result) => setTemplates(rowsFrom(result))).catch(() => setTemplates([]));
+    Promise.allSettled([noticesApi.templates(), notificationsApi.getTemplates({ status: 'ACTIVE' })]).then(([noticeResult, notificationResult]) => {
+      setTemplates(noticeResult.status === 'fulfilled' ? rowsFrom(noticeResult.value) : []);
+      setNotificationTemplates(notificationResult.status === 'fulfilled' ? rowsFrom(notificationResult.value).filter((item) => item.status === 'ACTIVE') : []);
+    });
   }, []);
   useEffect(() => {
     if (!formOpen && !viewing) return undefined;
@@ -150,6 +160,20 @@ export default function NoticesPage() {
   const start = total ? (page - 1) * limit + 1 : 0;
   const end = Math.min(page * limit, total);
   const selectedTab = useMemo(() => TABS.find((item) => item.key === tab), [tab]);
+  const availableTemplates = useMemo(() => [
+    ...templates.map((template) => ({
+      id: `notice:${template.id}`,
+      label: `${template.title} · Notice template`,
+      title: template.title,
+      description: template.description,
+    })),
+    ...notificationTemplates.map((template) => ({
+      id: `notification:${template.id}`,
+      label: `${template.templateName} · ${template.channel}`,
+      title: template.title || template.templateName,
+      description: template.messageTemplate,
+    })),
+  ], [templates, notificationTemplates]);
 
   const openCreate = () => {
     setEditing(null);
@@ -188,7 +212,7 @@ export default function NoticesPage() {
     };
     try {
       if (editing) await noticesApi.update(value(editing, 'id'), body);
-      else if (form.templateId) await noticesApi.createFromTemplate(form.templateId, body);
+      else if (form.templateId.startsWith('notice:')) await noticesApi.createFromTemplate(form.templateId.slice('notice:'.length), body);
       else await noticesApi.create(body);
       setFormOpen(false); setEditing(null); setForm({ ...EMPTY_FORM });
       setMessage(editing ? 'Notice updated.' : 'Notice published or scheduled.');
@@ -326,7 +350,7 @@ export default function NoticesPage() {
       {formOpen && <div className="notice-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setFormOpen(false); }}><section className="notice-modal" role="dialog" aria-modal="true" aria-labelledby="notice-form-title">
         <header><div><span className="notices-eyebrow"><Megaphone size={14} /> NOTICEBOARD</span><h2 id="notice-form-title">{editing ? 'Edit notice' : 'Add new Notice / MoM'}</h2><p>Share an update with members of the active society.</p></div><button type="button" className="notice-close-button" onClick={() => setFormOpen(false)} aria-label="Close"><X size={18} /></button></header>
         <form onSubmit={submit}>
-          {!editing && templates.length > 0 && <label className="notice-field notice-template-field">Use saved template <select value={form.templateId} onChange={(event) => { const next = templates.find((item) => String(item.id) === event.target.value); setForm((current) => ({ ...current, templateId: event.target.value, title: next?.title || current.title, description: next?.description || current.description })); }}><option value="">Start from scratch</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.title}</option>)}</select></label>}
+          {!editing && availableTemplates.length > 0 && <label className="notice-field notice-template-field">Use saved template <select value={form.templateId} onChange={(event) => { const next = availableTemplates.find((item) => item.id === event.target.value); setForm((current) => ({ ...current, templateId: event.target.value, title: next?.title || current.title, description: next?.description || current.description })); }}><option value="">Start from scratch</option>{availableTemplates.map((template) => <option key={template.id} value={template.id}>{template.label}</option>)}</select></label>}
           <label className="notice-field">Title <input maxLength={255} required value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} placeholder="e.g. Annual General Meeting notice" /></label>
           <label className="notice-field">Description <textarea required rows={6} value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} placeholder="Write the notice details for residents…" /></label>
           <div className="notice-date-grid"><NoticeDateTimeField label="Schedule for (optional)" value={form.scheduledAt} onChange={(scheduledAt) => setForm((current) => ({ ...current, scheduledAt }))} /><NoticeDateTimeField label="Expires on (optional)" value={form.expiresAt} onChange={(expiresAt) => setForm((current) => ({ ...current, expiresAt }))} /></div>

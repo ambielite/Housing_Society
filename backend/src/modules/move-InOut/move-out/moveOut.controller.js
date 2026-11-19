@@ -12,7 +12,7 @@ const createMoveOut = async (req, res) => {
             data: moveOut
         });
     } catch (error) {
-        return res.status(500).json({
+        return res.status(error.statusCode || 500).json({
             success: false,
             message: error.message
         });
@@ -80,7 +80,7 @@ const updateMoveOut = async (req, res) => {
             data: moveOut
         });
     } catch (error) {
-        return res.status(400).json({
+        return res.status(error.statusCode || 400).json({
             success: false,
             message: error.message
         });

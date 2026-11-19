@@ -10,6 +10,9 @@ const bcrypt = require("bcryptjs");
 const { QueryTypes } = require("sequelize");
 const { saveProfilePicture, removeProfilePicture } = require("../../users/profilePicture.storage");
 const residentDashboardEvents = require("../../resident-dashboard/residentDashboardEvents");
+const Unit = require("../../societies/unit/unit.model");
+const OwnerUnit = require("../owner-unit/ownerUnit.model");
+const Occupancy = require("../../move-InOut/occupancy/occupancy.model");
 
 
 // ============================================================
@@ -99,6 +102,31 @@ const createResident = async (data, profilePicture, assignedBy) => {
     let resident;
     try {
         resident = await sequelize.transaction(async (transaction) => {
+            const requiresUnit = ["PRIMARY_OWNER", "CO_OWNER", "TENANT"].includes(data.role);
+            let assignedUnit = null;
+            if (requiresUnit) {
+                assignedUnit = await Unit.findByPk(data.unitId, {
+                    transaction,
+                    lock: transaction.LOCK.UPDATE
+                });
+                if (!assignedUnit || assignedUnit.status !== "VACANT") {
+                    throw new Error("Selected unit is already assigned or unavailable. Choose a vacant unit.");
+                }
+                const activeOwnership = await OwnerUnit.findOne({
+                    where: { unitId: data.unitId, status: "ACTIVE" },
+                    transaction,
+                    lock: transaction.LOCK.UPDATE
+                });
+                const currentOccupancy = await Occupancy.findOne({
+                    where: { unitId: data.unitId, isCurrent: true },
+                    transaction,
+                    lock: transaction.LOCK.UPDATE
+                });
+                if (activeOwnership || currentOccupancy) {
+                    throw new Error("Selected unit is already assigned. Choose a vacant unit.");
+                }
+            }
+
             let userId = data.userId;
             let residentRoleId = residentAccount?.resident_role_id;
 
@@ -146,6 +174,31 @@ const createResident = async (data, profilePicture, assignedBy) => {
                 { ...residentData, userId, ...(profilePhoto ? { profilePhoto } : {}) },
                 { transaction }
             );
+
+            if (requiresUnit) {
+                const effectiveFrom = new Date().toISOString().slice(0, 10);
+                if (data.role === "TENANT") {
+                    await Occupancy.create({
+                        societyId: data.societyId,
+                        unitId: data.unitId,
+                        residentId: created.id,
+                        occupancyType: "TENANT",
+                        startDate: effectiveFrom,
+                        billingStartDate: effectiveFrom,
+                        isCurrent: true
+                    }, { transaction });
+                } else {
+                    await OwnerUnit.create({
+                        societyId: data.societyId,
+                        ownerId: created.id,
+                        unitId: data.unitId,
+                        ownershipType: data.role,
+                        effectiveFrom,
+                        status: "ACTIVE"
+                    }, { transaction });
+                }
+                await assignedUnit.update({ status: "OCCUPIED" }, { transaction });
+            }
 
             // Ensure the Resident app role is attached to this account and
             // scoped to the resident's society, in the same DB transaction.

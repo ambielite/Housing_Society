@@ -3,8 +3,18 @@ const AccessAssignment = require("../access/accessAssignment.model");
 const LifecycleAudit = require("../lifecycle-audit/lifecycleAudit.model");
 const BillingResponsibility = require("../billing-responsibility/billingResponsibility.model");
 const Resident = require("../../residents/resident/resident.model");
+const ApiError = require("../../../common/ApiError");
+
+const assertNoDuplicateMoveOut = async ({ societyId, residentId, unitId }, excludeId = null) => {
+    const records = await repository.findByResidentAndUnit(societyId, residentId, unitId);
+    const duplicate = records.find((record) => record.id !== excludeId && !["REJECTED", "CANCELLED"].includes(record.status));
+    if (duplicate) {
+        throw new ApiError(409, "This resident already has a move-out request or completed move-out for this unit.");
+    }
+};
 
 const createMoveOut = async (data) => {
+    await assertNoDuplicateMoveOut(data);
     const effectiveMoveOutDate = data.effectiveMoveOutDate || data.requestedMoveOutDate;
     return await repository.create({
         societyId: data.societyId,
@@ -29,6 +39,13 @@ const getMoveOut = async (id) => {
 };
 
 const updateMoveOut = async (id, data) => {
+    const current = await repository.findById(id);
+    if (!current) return null;
+    await assertNoDuplicateMoveOut({
+        societyId: data.societyId || current.societyId,
+        residentId: data.residentId || current.residentId,
+        unitId: data.unitId || current.unitId
+    }, id);
     return await repository.update(id, data);
 };
 

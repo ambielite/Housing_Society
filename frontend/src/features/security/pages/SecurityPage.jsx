@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, SquarePen, Trash2 } from 'lucide-react';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
 import useUnits from '../../../utils/useUnits';
@@ -262,9 +262,9 @@ function GatesPanel({ societyId, societyName, gates, guards, cards, userNames, v
     { key: 'type', header: 'Type', render: (g) => label(g.gate_type) },
     { key: 'status', header: 'Status', render: (g) => <SecurityBadge value={g.status} /> },
     { key: 'actions', header: 'Actions', render: (g) => <div className="row-actions">
-      {hasPermission('GATE_UPDATE') && <button className="btn btn-secondary btn-sm" onClick={() => { setSelected(g); setDialog('edit-gate'); }}>Edit</button>}
+      {hasPermission('GATE_UPDATE') && <button type="button" className="security-table-icon-action" aria-label={`Edit ${g.name} gate`} title="Edit" onClick={() => { setSelected(g); setDialog('edit-gate'); }}><SquarePen size={18} aria-hidden="true" /></button>}
       {hasPermission('GATE_DEVICE_READ') && <button className="btn btn-secondary btn-sm" onClick={() => showGateDevices(g)}>Devices</button>}
-      {hasPermission('GATE_DELETE') && <button className="btn btn-danger btn-sm" onClick={() => onDeleteGate(g.id)}>Delete</button>}
+      {hasPermission('GATE_DELETE') && <button type="button" className="security-table-icon-action is-delete" aria-label={`Delete ${g.name} gate`} title="Delete" onClick={() => onDeleteGate(g.id)}><Trash2 size={18} aria-hidden="true" /></button>}
     </div> },
   ];
 
@@ -321,7 +321,7 @@ function GatesPanel({ societyId, societyName, gates, guards, cards, userNames, v
         { key: 'status', header: 'Status', render: (d) => <SecurityBadge value={d.status} /> },
         { key: 'ip', header: 'IP', render: (d) => d.ip_address || '-' },
         { key: 'actions', header: 'Actions', render: (d) => <div className="row-actions">
-          {hasPermission('GATE_DEVICE_UPDATE') && <button className="btn btn-secondary btn-sm" onClick={() => { setSelected(d); setDeviceDialog('edit'); }}>Edit</button>}
+          {hasPermission('GATE_DEVICE_UPDATE') && <button type="button" className="security-table-icon-action" aria-label={`Edit ${label(d.device_type)} device`} title="Edit" onClick={() => { setSelected(d); setDeviceDialog('edit'); }}><SquarePen size={18} aria-hidden="true" /></button>}
           {hasPermission('DEVICE_EVENT_READ') && <button className="btn btn-secondary btn-sm" onClick={() => openDeviceEvents(d)}>Events</button>}
           {hasPermission('DEVICE_EVENT_CREATE') && <button className="btn btn-secondary btn-sm" onClick={() => { setSelected(d); setDeviceDialog('event'); }}>Record event</button>}
           {hasPermission('GATE_DEVICE_READ') && <button className="btn btn-secondary btn-sm" onClick={async () => { try { setSelected(await api.getGateDevice(d.id)); setDeviceDialog('detail'); } catch (e) { setFormError(getErrorMessage(e)); } }}>View</button>}
