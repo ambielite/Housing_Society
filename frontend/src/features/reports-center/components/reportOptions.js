@@ -1,7 +1,7 @@
 export const REPORT_GROUPS = [
   {
     key: 'dashboard', label: 'Overview', permission: 'REPORT_DASHBOARD_READ', reports: [
-      { key: 'dashboard', label: 'Executive dashboard', title: 'Executive dashboard', description: 'A current snapshot of vehicles, parking, security, workflow, vendors, amenities and utilities.', permission: 'REPORT_DASHBOARD_READ', exportable: false, dates: false },
+      { key: 'dashboard', label: 'Executive dashboard', title: 'Executive dashboard', permission: 'REPORT_DASHBOARD_READ', exportable: false, dates: false },
       { key: 'legacy-executive', label: 'Society executive dashboard', title: 'Society executive dashboard', description: 'Executive metrics from the society reports service.', permission: 'REPORT_DASHBOARD_READ', legacy: true, exportable: false, dates: true },
     ],
   },

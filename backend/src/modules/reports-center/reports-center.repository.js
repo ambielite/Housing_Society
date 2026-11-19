@@ -621,10 +621,11 @@ const amenityWeekday = (s, f, t) =>
 const amenityBookingRows = (s, f, t, limit) =>
   many(
     `SELECT b.booking_no, a.name AS amenity, to_char(sl.slot_date, 'YYYY-MM-DD') AS slot_date,
-            sl.start_time, sl.end_time, b.unit_id, b.guests_count, b.amount::float8 AS amount,
+            sl.start_time, sl.end_time, u.unit_number, b.guests_count, b.amount::float8 AS amount,
             b.status, b.created_at
      FROM amenity_bookings b JOIN amenity_slots sl ON sl.id = b.amenity_slot_id
      JOIN amenities a ON a.id = sl.amenity_id
+     LEFT JOIN units u ON u.id = b.unit_id
      WHERE a.society_id = $1 AND ${D('sl.slot_date')} ORDER BY sl.slot_date DESC, sl.start_time LIMIT $4::int`,
     [...rng(s, f, t), limit]
   );
