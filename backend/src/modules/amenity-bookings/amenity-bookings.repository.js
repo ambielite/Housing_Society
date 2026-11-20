@@ -12,6 +12,34 @@ const findById = async (id) => {
   return result.rows[0] || null;
 };
 
+const syncPaidAmenityInvoices = async () => {
+  await query(
+    `UPDATE amenity_bookings booking
+        SET status = 'CONFIRMED',
+            payment_id = COALESCE(
+              booking.payment_id,
+              (SELECT payment.id
+                 FROM payments payment
+                WHERE payment.invoice_id = invoice.id
+                  AND payment.society_id = invoice.society_id
+                  AND payment.unit_id = invoice.unit_id
+                  AND payment.status IN ('SUCCESS', 'VERIFIED')
+                ORDER BY payment.verified_at DESC NULLS LAST, payment.created_at DESC
+                LIMIT 1)
+            ),
+            updated_at = now()
+       FROM invoices invoice, amenity_slots slot, amenities amenity
+      WHERE booking.status = 'PENDING_PAYMENT'
+        AND invoice.idempotency_key = 'amenity-invoice-' || booking.id::text
+        AND invoice.status = 'PAID'
+        AND invoice.total_amount = booking.amount
+        AND invoice.unit_id = booking.unit_id
+        AND booking.amenity_slot_id = slot.id
+        AND slot.amenity_id = amenity.id
+        AND invoice.society_id = amenity.society_id`
+  );
+};
+
 const findByIdForUpdate = async (client, id) => {
   const result = await client.query('SELECT * FROM amenity_bookings WHERE id = $1 FOR UPDATE', [id]);
   return result.rows[0] || null;
@@ -171,6 +199,7 @@ module.exports = {
   getClient,
   findByBookingNo,
   findById,
+  syncPaidAmenityInvoices,
   findByIdForUpdate,
   listEligiblePayments,
   listBookingFinancePayments,

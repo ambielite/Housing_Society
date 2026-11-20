@@ -2,6 +2,7 @@
 const noticesService = require('../notices/notices.service');
 const { resolveResidentUnits } = require('../resident-context/residentUnitContext.service');
 const ApiError = require('../../common/ApiError');
+const amenityBookingsService = require('../amenity-bookings/amenity-bookings.service');
 
 const listResidentNotifications = async (user) => {
   if (!user.societyId) return [];
@@ -62,21 +63,20 @@ const getDashboard = async (user) => {
     [user.id],
   );
 
-  let maintenance = null;
+  let maintenance = [];
   let upcomingBookings = [];
   if (resident) {
+    await amenityBookingsService.syncPaidBookings();
     const invoiceResult = await query(
       `SELECT i.invoice_number, i.billing_period,
               to_char(i.due_date, 'YYYY-MM-DD') AS due_date,
-              i.outstanding_amount, i.status, i.description
+              i.total_amount AS outstanding_amount, i.status, i.description
          FROM invoices i
-        WHERE i.unit_id = $1 AND i.society_id = $2 AND i.outstanding_amount > 0
-          AND i.status IN ('ISSUED', 'PARTIALLY_PAID', 'OVERDUE')
-        ORDER BY i.due_date ASC
-        LIMIT 1`,
+        WHERE i.unit_id = $1 AND i.society_id = $2 AND i.status = 'ISSUED'
+        ORDER BY i.due_date DESC, i.created_at DESC`,
       [unit?.unit_id || null, societyId],
     );
-    maintenance = invoiceResult.rows[0] || null;
+    maintenance = invoiceResult.rows;
 
     const bookingResult = await query(
       `SELECT a.name AS amenity_name, b.status,
@@ -86,9 +86,7 @@ const getDashboard = async (user) => {
            JOIN amenity_slots sl ON sl.id = b.amenity_slot_id
            JOIN amenities a ON a.id = sl.amenity_id
           WHERE a.society_id = $1 AND b.booked_by = $2
-            AND (b.status = 'CONFIRMED'
-              OR (b.status = 'PENDING_PAYMENT'
-                  AND b.created_at >= now() - interval '5 minutes'))
+            AND b.status IN ('CONFIRMED', 'PENDING_PAYMENT')
             AND (sl.slot_date > CURRENT_DATE
               OR (sl.slot_date = CURRENT_DATE AND sl.start_time > LOCALTIME))
           ORDER BY sl.slot_date ASC, sl.start_time ASC`,

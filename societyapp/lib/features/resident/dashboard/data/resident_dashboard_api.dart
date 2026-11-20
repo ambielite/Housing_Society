@@ -100,7 +100,6 @@ class ResidentDashboardData {
       maintenance: maintenanceRows
           .whereType<Map<String, dynamic>>()
           .map(ResidentMaintenance.fromJson)
-          .where((invoice) => invoice.amount > 0)
           .toList(),
       upcomingBookings: (bookingRows ?? (legacyBooking == null ? [] : [legacyBooking]))
           .whereType<Map<String, dynamic>>()

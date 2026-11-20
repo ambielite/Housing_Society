@@ -1789,7 +1789,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
   Widget _maintenanceCard(ResidentDashboardData dashboard) {
     final invoices = dashboard.maintenance;
     if (invoices.isEmpty) {
-      return _emptyCard('No outstanding maintenance invoice.');
+      return _emptyCard('No maintenance records.');
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16),

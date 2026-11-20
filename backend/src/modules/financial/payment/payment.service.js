@@ -843,6 +843,38 @@ const completePayment = async (
             transaction
         );
 
+        // Amenity reservations become confirmed only after their complete
+        // invoice has been paid. Keep this update in the same transaction as
+        // the invoice and payment posting so all clients observe one result.
+        if (
+            invoice.status === "PAID" &&
+            invoice.invoiceNumber?.startsWith("AMN-") &&
+            invoice.billingPeriod?.startsWith("AMENITY-")
+        ) {
+            await sequelize.query(
+                `UPDATE amenity_bookings booking
+                    SET status = 'CONFIRMED', payment_id = :paymentId, updated_at = now()
+                   FROM amenity_slots slot
+                   JOIN amenities amenity ON amenity.id = slot.amenity_id
+                  WHERE booking.amenity_slot_id = slot.id
+                    AND booking.booking_no = :bookingNo
+                    AND booking.unit_id = :unitId
+                    AND booking.amount = :totalAmount
+                    AND amenity.society_id = :societyId
+                    AND booking.status = 'PENDING_PAYMENT'`,
+                {
+                    replacements: {
+                        paymentId: payment.id,
+                        bookingNo: invoice.invoiceNumber.slice(4),
+                        unitId: invoice.unitId,
+                        totalAmount: invoice.totalAmount,
+                        societyId: invoice.societyId,
+                    },
+                    transaction,
+                }
+            );
+        }
+
         if (invoice.billingId) {
             const billing = await Billing.findByPk(invoice.billingId, {
                 transaction,
