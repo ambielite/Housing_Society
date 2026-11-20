@@ -111,7 +111,10 @@ const updateProfile = async (id, payload, actor = null) => {
     removeProfilePicture(profilePictureUrl);
     throw error;
   }
-  if (profilePictureUrl && user.profile_picture_url) {
+  if (
+    profilePictureUrl && user.profile_picture_url &&
+    !await repository.isProfilePictureInUse(user.profile_picture_url)
+  ) {
     removeProfilePicture(user.profile_picture_url);
   }
   if (actor && await repository.isSecurityGuardUser(id)) {
@@ -147,7 +150,19 @@ const updateStatus = async (id, status, actor = null) => {
   return sanitize(updated);
 };
 
-const archiveUser = async (id, actor = null) => updateStatus(id, 'ARCHIVED', actor);
+const deleteUser = async (id) => {
+  try {
+    const deleted = await repository.deleteInactiveUser(id);
+    if (!deleted) throw new ApiError(404, 'User not found');
+    return { id: deleted.id, email: deleted.email, first_name: deleted.first_name, last_name: deleted.last_name, deleted: true };
+  } catch (error) {
+    if (error.statusCode) throw error;
+    if (error.code === '23503') {
+      throw new ApiError(409, 'This user is linked to resident, staff, or other records and cannot be permanently deleted until those links are removed.');
+    }
+    throw error;
+  }
+};
 
 const forceLogout = async (id) => {
   const user = await repository.findById(id);
@@ -166,6 +181,17 @@ const getLoginHistory = async (id) => {
   return authRepository.listLoginHistory(id);
 };
 
+const getGuardLoginHistory = async (staffId) => {
+  const guard = await repository.findSecurityGuardHistoryIdentity(staffId);
+  if (!guard) {
+    throw new ApiError(404, 'Security guard not found');
+  }
+  return authRepository.listGuardLoginHistory({
+    staffId: guard.staff_id,
+    userId: guard.user_id,
+  });
+};
+
 module.exports = {
   listUsers,
   listAccessibleSocieties,
@@ -173,7 +199,8 @@ module.exports = {
   createUser,
   updateProfile,
   updateStatus,
-  archiveUser,
+  deleteUser,
   forceLogout,
   getLoginHistory,
+  getGuardLoginHistory,
 };

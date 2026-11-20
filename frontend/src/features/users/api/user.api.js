@@ -41,6 +41,6 @@ export const updateUser = (id, payload) => {
   }).then(unwrap);
 };
 export const updateStatus = (id, status) => api.patch(`/users/${id}/status`, { status }).then(unwrap);
-export const archiveUser = (id) => api.delete(`/users/${id}`).then(unwrap);
+export const deleteUser = (id) => api.delete(`/users/${id}`).then(unwrap);
 export const forceLogout = (id) => api.post(`/users/${id}/force-logout`).then(unwrap);
 export const getLoginHistory = (id) => api.get(`/users/${id}/login-history`).then(unwrap);

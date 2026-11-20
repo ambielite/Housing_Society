@@ -53,9 +53,9 @@ const updateStatus = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, user, 'User status updated successfully');
 });
 
-const archiveUser = asyncHandler(async (req, res) => {
-  const user = await service.archiveUser(req.params.userId, req.user);
-  return ApiResponse.success(res, user, 'User archived successfully');
+const deleteUser = asyncHandler(async (req, res) => {
+  const user = await service.deleteUser(req.params.userId);
+  return ApiResponse.success(res, user, 'User deleted successfully');
 });
 
 const forceLogout = asyncHandler(async (req, res) => {
@@ -65,6 +65,11 @@ const forceLogout = asyncHandler(async (req, res) => {
 
 const getLoginHistory = asyncHandler(async (req, res) => {
   const history = await service.getLoginHistory(req.params.userId);
+  return ApiResponse.success(res, history);
+});
+
+const getGuardLoginHistory = asyncHandler(async (req, res) => {
+  const history = await service.getGuardLoginHistory(req.params.staffId);
   return ApiResponse.success(res, history);
 });
 
@@ -83,8 +88,9 @@ module.exports = {
   updateProfile,
   updateMyProfile,
   updateStatus,
-  archiveUser,
+  deleteUser,
   forceLogout,
   getLoginHistory,
+  getGuardLoginHistory,
   listMySocieties,
 };

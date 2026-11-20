@@ -1126,9 +1126,9 @@ class _SecurityHomeState extends State<_SecurityHome>
 
   Widget _securityAvatar(_GuardSnapshot data) {
     final staffPhotoUrl = _optionalString(data.guardProfile?['photo_path']);
-    final photoUrl = _imageUrl(
-      staffPhotoUrl ?? data.accountPhotoUrl ?? widget.user.profilePictureUrl,
-    );
+    // A shared SECURITY_HEAD login may be linked to several guards. Only use
+    // this employee's staff photo; a shared account photo can belong to another guard.
+    final photoUrl = _imageUrl(staffPhotoUrl);
     return CircleAvatar(
       radius: 22,
       backgroundColor: const Color(0xFFEAE8FF),

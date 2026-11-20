@@ -46,11 +46,12 @@ router.post('/', authorize('USER_CREATE'), parseProfilePicture, validate(createU
 
 router.get('/me/societies', controller.listMySocieties);
 router.patch('/me/profile', parseProfilePicture, validate(updateProfileSchema), controller.updateMyProfile);
+router.get('/guards/:staffId/login-history', authorize('USER_READ'), controller.getGuardLoginHistory);
 
 router.get('/:userId', authorize('USER_READ'), controller.getUser);
 router.patch('/:userId', authorize('USER_UPDATE'), parseProfilePicture, validate(updateProfileSchema), controller.updateProfile);
 router.patch('/:userId/status', authorize('USER_UPDATE'), validate(updateStatusSchema), controller.updateStatus);
-router.delete('/:userId', authorize('USER_DELETE'), controller.archiveUser);
+router.delete('/:userId', authorize('USER_DELETE'), controller.deleteUser);
 
 router.post('/:userId/force-logout', authorize('USER_FORCE_LOGOUT'), controller.forceLogout);
 router.get('/:userId/login-history', authorize('USER_READ'), controller.getLoginHistory);

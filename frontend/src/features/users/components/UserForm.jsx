@@ -17,7 +17,7 @@ const imageUrl = (value) => {
  * mode="create": all fields, sends the full payload.
  * mode="edit":   account contact details; sends only fields that changed.
  */
-export default function UserForm({ mode, initialValues, societyId, onSubmit, submitting, submitError, cancelTo, onCancel }) {
+export default function UserForm({ mode, initialValues, societyId, onSubmit, submitting, submitError, cancelTo, onCancel, readOnlyEmail = false }) {
   const isEdit = mode === 'edit';
   const [values, setValues] = useState({ ...EMPTY, ...initialValues });
   const [profilePicture, setProfilePicture] = useState(null);
@@ -73,8 +73,10 @@ export default function UserForm({ mode, initialValues, societyId, onSubmit, sub
       Object.keys(trimmed).forEach((key) => {
         if (trimmed[key] !== (initialValues[key] || '')) changes[key] = trimmed[key];
       });
-      const email = values.email.trim().toLowerCase();
-      if (email !== (initialValues.email || '').trim().toLowerCase()) changes.email = email;
+      if (!readOnlyEmail) {
+        const email = values.email.trim().toLowerCase();
+        if (email !== (initialValues.email || '').trim().toLowerCase()) changes.email = email;
+      }
       if (Object.keys(changes).length === 0 && !profilePicture) {
         setNote("You haven't changed anything yet.");
         return;
@@ -139,7 +141,8 @@ export default function UserForm({ mode, initialValues, societyId, onSubmit, sub
           value={values.email}
           onChange={onChange}
           error={errors.email}
-          hint={isEdit ? 'Changing this email also changes the resident login email.' : undefined}
+          readOnly={readOnlyEmail}
+          hint={readOnlyEmail ? 'This email and password are shared for security sign-in. The employee code identifies each guard.' : isEdit ? 'Changing this email also changes the resident login email.' : undefined}
         />
         <div className="field"><TextField id="phone" name="phone" type="tel" label="Phone" value={values.phone} onChange={onChange} error={errors.phone} {...phoneInputProps} />{phoneTouched && values.phone.trim() && !isValidPhone(values.phone) && <small className="phone-guidance">Mobile number must be 10 digits.</small>}</div>
         {!isEdit && (

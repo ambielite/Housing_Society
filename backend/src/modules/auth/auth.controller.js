@@ -39,7 +39,11 @@ const logoutAll = asyncHandler(async (req, res) => {
 });
 
 const me = asyncHandler(async (req, res) => {
-  const profile = await authService.getProfile(req.user.id, req.user.societyId);
+  const profile = await authService.getProfile(
+    req.user.id,
+    req.user.societyId,
+    req.user.guardEmployeeCode,
+  );
   return ApiResponse.success(res, profile);
 });
 

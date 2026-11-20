@@ -114,7 +114,7 @@ const listGuards = async ({ societyId, agencyVendorId, status }) => {
   return result.rows;
 };
 
-const findGuardByUserId = async (userId, societyId) => {
+const findGuardByUserId = async (userId, societyId, employeeCode) => {
   const result = await db.query(
     `SELECT sg.*, st.id AS staff_id, st.employee_code,
             st.first_name, st.last_name, st.mobile_number, st.email,
@@ -128,9 +128,10 @@ const findGuardByUserId = async (userId, societyId) => {
        LEFT JOIN users u ON u.id = sg.user_id
       WHERE sg.user_id = $1
         AND st.society_id = $2
+        AND upper(st.employee_code) = upper($3)
         AND st.staff_type = 'SECURITY_GUARD'
       LIMIT 1`,
-    [userId, societyId]
+    [userId, societyId, employeeCode]
   );
   return result.rows[0] || null;
 };

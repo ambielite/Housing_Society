@@ -15,6 +15,34 @@ const findById = async (id) => {
   return result.rows[0] || null;
 };
 
+const findSecurityGuardHistoryIdentity = async (staffId) => {
+  const result = await db.query(
+    `SELECT staff_member.id AS staff_id, staff_member.employee_code, guard.user_id
+       FROM staff staff_member
+       JOIN security_guards guard ON guard.staff_id = staff_member.id
+      WHERE staff_member.id = $1
+        AND staff_member.staff_type = 'SECURITY_GUARD'
+      LIMIT 1`,
+    [staffId]
+  );
+  return result.rows[0] || null;
+};
+
+const isProfilePictureInUse = async (profilePictureUrl) => {
+  if (!profilePictureUrl) return false;
+  const result = await db.query(
+    `SELECT EXISTS (
+       SELECT 1 FROM users WHERE profile_picture_url = $1
+       UNION ALL
+       SELECT 1 FROM staff WHERE photo_path = $1
+       UNION ALL
+       SELECT 1 FROM residents WHERE profile_photo = $1
+     ) AS in_use`,
+    [profilePictureUrl]
+  );
+  return Boolean(result.rows[0]?.in_use);
+};
+
 const findNamesByIds = async (ids) => {
   if (!ids.length) return [];
   const result = await db.query(
@@ -171,20 +199,29 @@ const updateProfile = async (id, { email, firstName, lastName, phone, societyId,
       }
 
       const guardResult = await client.query(
-        `UPDATE staff staff_member SET
+        `WITH linked_guards AS (
+           SELECT staff_member.id, staff_member.society_id
+             FROM staff staff_member
+             JOIN security_guards guard ON guard.staff_id = staff_member.id
+            WHERE guard.user_id = $1
+              AND staff_member.staff_type = 'SECURITY_GUARD'
+         ), sole_guard AS (
+           SELECT id, society_id
+             FROM linked_guards
+            WHERE (SELECT COUNT(*) FROM linked_guards) = 1
+         )
+         UPDATE staff staff_member SET
            first_name = $2,
            last_name = $3,
            email = $4,
            mobile_number = CASE WHEN $5::text IS NULL OR $5::text = '' THEN staff_member.mobile_number ELSE $5::text END,
            photo_path = COALESCE($6, staff_member.photo_path),
            updated_at = now()
-         FROM security_guards guard
-        WHERE guard.staff_id = staff_member.id
-          AND guard.user_id = $1
-          AND staff_member.staff_type = 'SECURITY_GUARD'
+          FROM sole_guard
+         WHERE sole_guard.id = staff_member.id
         RETURNING staff_member.id, staff_member.society_id`,
         [id, updated.first_name, updated.last_name, updated.email, updated.phone, updated.profile_picture_url]
-      );
+        );
       if (guardResult.rowCount && actorLabel) {
         const details = changedFields.length ? ` Updated: ${changedFields.join(', ')}.` : '';
         await client.query(
@@ -319,6 +356,42 @@ const updateStatus = async (id, status, { actorLabel, changedFields = [], reside
   }
 };
 
+const deleteInactiveUser = async (id) => {
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+    const current = await client.query(
+      'SELECT id, status FROM users WHERE id = $1 FOR UPDATE',
+      [id]
+    );
+    if (!current.rowCount) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+    if (String(current.rows[0].status).toUpperCase() === 'ACTIVE') {
+      const error = new Error('Cannot delete an active user. Deactivate the account first.');
+      error.statusCode = 409;
+      throw error;
+    }
+    const deleted = await client.query(
+      'DELETE FROM users WHERE id = $1 RETURNING id, email, first_name, last_name',
+      [id]
+    );
+    await client.query('COMMIT');
+    return deleted.rows[0] || null;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    if (error.code === '23503') {
+      const blocked = new Error('This user is linked to resident, staff, or other records and cannot be permanently deleted until those links are removed.');
+      blocked.statusCode = 409;
+      throw blocked;
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 const updatePassword = async (id, passwordHash) => {
   await db.query(`UPDATE users SET password_hash = $2, updated_at = now() WHERE id = $1`, [id, passwordHash]);
 };
@@ -333,60 +406,91 @@ const listUsers = async ({ societyId, status, search, limit, offset }) => {
   let idx = 1;
 
   if (societyId) {
-    conditions.push(`(
-      users.society_id = $${idx}
-      OR EXISTS (
-        SELECT 1 FROM user_society_access usa
-        WHERE usa.user_id = users.id
-          AND usa.society_id = $${idx}
-          AND usa.active_from <= now()
-          AND (usa.active_until IS NULL OR usa.active_until > now())
-      )
-    )`);
+    conditions.push(`directory_rows.society_id = $${idx}`);
     params.push(societyId);
     idx += 1;
   }
   if (status) {
-    conditions.push(`status = $${idx++}`);
+    conditions.push(`directory_rows.status = $${idx++}`);
     params.push(status);
   }
   if (search) {
-    conditions.push(`(email ILIKE $${idx} OR first_name ILIKE $${idx} OR last_name ILIKE $${idx} OR phone ILIKE $${idx})`);
+    conditions.push(`(directory_rows.email ILIKE $${idx} OR directory_rows.first_name ILIKE $${idx} OR directory_rows.last_name ILIKE $${idx} OR directory_rows.phone ILIKE $${idx} OR directory_rows.employee_code ILIKE $${idx})`);
     params.push(`%${search}%`);
     idx += 1;
   }
 
   const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-
-  const roleSocietyParam = idx + 2;
-  const dataResult = await db.query(
-    `SELECT ${PUBLIC_COLUMNS},
-       COALESCE(NULLIF(security_profile.photo_path, ''), NULLIF(users.profile_picture_url, '')) AS profile_picture_url,
-       ARRAY(
-         SELECT r.name
-         FROM user_roles ur
-         JOIN roles r ON r.id = ur.role_id
-         WHERE ur.user_id = users.id
-           AND (ur.society_id IS NULL OR ur.society_id = COALESCE($${roleSocietyParam}::uuid, users.society_id))
-         ORDER BY r.name
-       ) AS roles
-     FROM users
-     LEFT JOIN LATERAL (
-       SELECT staff_member.photo_path
+  const directoryCte = `WITH directory_rows AS (
+    SELECT users.id, users.society_id, users.email, users.phone,
+           users.first_name, users.last_name, users.status,
+           users.last_login_at, users.created_at, users.updated_at,
+           NULLIF(users.profile_picture_url, '') AS profile_picture_url,
+           ARRAY(
+             SELECT r.name
+               FROM user_roles ur
+               JOIN roles r ON r.id = ur.role_id
+              WHERE ur.user_id = users.id
+                AND (ur.society_id IS NULL OR ur.society_id = users.society_id)
+              ORDER BY r.name
+           ) AS roles,
+           'USER'::text AS record_type,
+           NULL::text AS employee_code,
+           NULL::uuid AS staff_id,
+           users.id AS login_user_id
+      FROM users
+     WHERE NOT EXISTS (
+       SELECT 1
          FROM security_guards guard
          JOIN staff staff_member ON staff_member.id = guard.staff_id
         WHERE guard.user_id = users.id
           AND staff_member.staff_type = 'SECURITY_GUARD'
-        ORDER BY staff_member.updated_at DESC
-        LIMIT 1
-     ) security_profile ON true
-     ${whereClause}
-     ORDER BY created_at DESC
-     LIMIT $${idx} OFFSET $${idx + 1}`,
-    [...params, limit, offset, societyId || null]
+     )
+
+    UNION ALL
+
+    SELECT staff_member.id, staff_member.society_id,
+           COALESCE(NULLIF(staff_member.email, ''), account.email) AS email,
+           staff_member.mobile_number AS phone,
+           staff_member.first_name, staff_member.last_name,
+           staff_member.status::text AS status,
+           account.last_login_at, staff_member.created_at, staff_member.updated_at,
+           NULLIF(staff_member.photo_path, '') AS profile_picture_url,
+           ARRAY(
+             SELECT role.name
+               FROM user_roles assigned_role
+               JOIN roles role ON role.id = assigned_role.role_id
+              WHERE assigned_role.user_id = guard.user_id
+                AND (assigned_role.society_id IS NULL OR assigned_role.society_id = staff_member.society_id)
+              ORDER BY role.name
+           ) AS roles,
+           'SECURITY_GUARD'::text AS record_type,
+           staff_member.employee_code,
+           staff_member.id AS staff_id,
+           guard.user_id AS login_user_id
+      FROM security_guards guard
+      JOIN staff staff_member ON staff_member.id = guard.staff_id
+      JOIN users account ON account.id = guard.user_id
+     WHERE staff_member.staff_type = 'SECURITY_GUARD'
+  )`;
+
+  const dataResult = await db.query(
+    `${directoryCte}
+     SELECT directory_rows.*
+       FROM directory_rows
+       ${whereClause}
+      ORDER BY created_at DESC, first_name, last_name
+      LIMIT $${idx} OFFSET $${idx + 1}`,
+    [...params, limit, offset]
   );
 
-  const countResult = await db.query(`SELECT COUNT(*)::int AS total FROM users ${whereClause}`, params);
+  const countResult = await db.query(
+    `${directoryCte}
+     SELECT COUNT(*)::int AS total
+       FROM directory_rows
+       ${whereClause}`,
+    params
+  );
 
   return { rows: dataResult.rows, total: countResult.rows[0].total };
 };
@@ -394,6 +498,8 @@ const listUsers = async ({ societyId, status, search, limit, offset }) => {
 module.exports = {
   findByEmail,
   findById,
+  findSecurityGuardHistoryIdentity,
+  isProfilePictureInUse,
   findNamesByIds,
   listAccessibleSocieties,
   hasSocietyAccess,
@@ -402,6 +508,7 @@ module.exports = {
   isSecurityGuardUser,
   isResidentUser,
   updateStatus,
+  deleteInactiveUser,
   updatePassword,
   updateLastLogin,
   listUsers,

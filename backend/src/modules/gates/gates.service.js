@@ -40,10 +40,14 @@ const deleteGate = async (id) => {
 const listGuards = (query) => repository.listGuards(query);
 
 const getMyGuard = async (user) => {
-  if (!user?.societyId) {
+  if (!user?.societyId || !user?.guardEmployeeCode) {
     throw new ApiError(404, 'No security staff profile is linked to this account');
   }
-  const guard = await repository.findGuardByUserId(user.id, user.societyId);
+  const guard = await repository.findGuardByUserId(
+    user.id,
+    user.societyId,
+    user.guardEmployeeCode,
+  );
   if (!guard) {
     throw new ApiError(404, 'No security staff profile is linked to this account');
   }

@@ -203,12 +203,14 @@ export default function AppRoutes() {
             {/* Users */}
             <Route element={<ProtectedRoute permission="USER_READ" />}>
               <Route path="/users" element={<UserListPage />} />
+              <Route path="/users/guards/:staffId" element={<UserDetailPage />} />
               <Route path="/users/:userId" element={<UserDetailPage />} />
             </Route>
             <Route element={<ProtectedRoute permission="USER_CREATE" />}>
               <Route path="/users/new" element={<UserFormPage />} />
             </Route>
             <Route element={<ProtectedRoute permission="USER_UPDATE" />}>
+              <Route path="/users/guards/:staffId/edit" element={<UserFormPage />} />
               <Route path="/users/:userId/edit" element={<UserFormPage />} />
             </Route>
             {/* Roles */}

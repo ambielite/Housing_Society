@@ -5,6 +5,7 @@ const asyncHandler = require('./asyncHandler');
 const usersRepository = require('../modules/users/users.repository');
 const rbacRepository = require('../modules/rbac/rbac.repository');
 const vendorsRepository = require('../modules/vendors/vendors.repository');
+const db = require('../config/db');
 
 /**
  * Verifies the JWT access token, loads the user from PostgreSQL (never
@@ -34,6 +35,27 @@ const authenticate = asyncHandler(async (req, res, next) => {
   }
   if (user.status !== 'ACTIVE') {
     throw new ApiError(403, 'User account is not active');
+  }
+
+  let guardEmployeeCode = null;
+  if (payload.guardEmployeeCode) {
+    const guardResult = await db.query(
+      `SELECT s.employee_code
+         FROM security_guards sg
+         JOIN staff s ON s.id = sg.staff_id
+        WHERE sg.user_id = $1
+          AND s.society_id = $2
+          AND upper(s.employee_code) = upper($3)
+          AND s.staff_type = 'SECURITY_GUARD'
+          AND s.status = 'ACTIVE'
+          AND sg.status = 'ACTIVE'
+        LIMIT 1`,
+      [user.id, user.society_id, payload.guardEmployeeCode]
+    );
+    if (!guardResult.rowCount) {
+      throw new ApiError(403, 'This security staff profile is no longer active');
+    }
+    guardEmployeeCode = guardResult.rows[0].employee_code;
   }
 
   const headerSocietyId = req.headers['x-society-id'] || null;
@@ -97,6 +119,9 @@ const authenticate = asyncHandler(async (req, res, next) => {
     lastName: user.last_name,
     status: user.status,
     societyId,
+    // Guard access tokens carry the employee code verified at sign-in. The
+    // user ID alone is not enough because several guards can share a login.
+    guardEmployeeCode,
     vendorId,
     vendorIds,
     roles: roleCodes,

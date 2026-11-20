@@ -33,26 +33,28 @@ const revokeAllUserRefreshTokens = async (userId) => {
 
 // --- login_history ---------------------------------------------------------
 
-const createLoginHistory = async ({ userId, ipAddress, userAgent, success, failureReason }) => {
+const createLoginHistory = async ({ userId, ipAddress, userAgent, success, failureReason, staffId, employeeCode }) => {
   const result = await db.query(
-    `INSERT INTO login_history (user_id, ip_address, user_agent, success, failure_reason)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO login_history
+       (user_id, ip_address, user_agent, success, failure_reason, staff_id, employee_code)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *`,
-    [userId, ipAddress || null, userAgent || null, success, failureReason || null]
+    [userId, ipAddress || null, userAgent || null, success, failureReason || null, staffId || null, employeeCode || null]
   );
   return result.rows[0];
 };
 
-const closeOpenLoginHistory = async (userId) => {
+const closeOpenLoginHistory = async (userId, employeeCode = null) => {
   await db.query(
     `UPDATE login_history SET logout_at = now()
      WHERE id = (
        SELECT id FROM login_history
        WHERE user_id = $1 AND success = true AND logout_at IS NULL
+         AND ($2::text IS NULL OR upper(employee_code) = upper($2))
        ORDER BY login_at DESC
        LIMIT 1
      )`,
-    [userId]
+    [userId, employeeCode]
   );
 };
 
@@ -60,6 +62,19 @@ const listLoginHistory = async (userId) => {
   const result = await db.query(
     'SELECT * FROM login_history WHERE user_id = $1 ORDER BY login_at DESC LIMIT 50',
     [userId]
+  );
+  return result.rows;
+};
+
+const listGuardLoginHistory = async ({ staffId, userId }) => {
+  const result = await db.query(
+    `SELECT login_history.*
+       FROM login_history
+      WHERE login_history.user_id = $2
+        AND login_history.staff_id = $1
+      ORDER BY login_history.login_at DESC
+      LIMIT 50`,
+    [staffId, userId]
   );
   return result.rows;
 };
@@ -202,6 +217,7 @@ module.exports = {
   createLoginHistory,
   closeOpenLoginHistory,
   listLoginHistory,
+  listGuardLoginHistory,
   createPasswordResetToken,
   findResidentByEmail,
   findAdminByEmail,

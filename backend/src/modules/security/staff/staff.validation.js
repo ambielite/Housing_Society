@@ -1,5 +1,9 @@
 const validateCreateStaff = (data) => {
 
+    if (data.staffType === "SECURITY_GUARD" && !data.userId) {
+        return "Select a Security Head account for this security guard.";
+    }
+
     const requiredFields = [
         "societyId",
         "employeeCode",

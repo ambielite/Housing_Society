@@ -153,10 +153,9 @@ class _SecurityProfileScreenState extends State<SecurityProfileScreen> {
   }
 
   String? get _photoUrl {
-    final path = (widget.guardProfile?['photo_path']?.toString() ??
-            widget.profilePhotoUrl ??
-            widget.user.profilePictureUrl)
-        ?.trim();
+    // The login account may be shared by multiple guards. Show only the
+    // profile photo stored on this guard's staff record.
+    final path = widget.guardProfile?['photo_path']?.toString().trim();
     if (path == null || path.isEmpty) return null;
     final parsed = Uri.tryParse(path);
     if (parsed == null) return null;
@@ -536,26 +535,13 @@ class _SecurityProfileScreenState extends State<SecurityProfileScreen> {
         _group('Contact', [
           ('Email', _staffValue('email', user.email)),
           ('Phone', _staffValue('mobile_number', user.phone)),
+          ('Date of birth', _staffValue('date_of_birth', null)),
         ]),
         const SizedBox(height: 14),
         _group('Assignment', [
           ('Role', 'Security Head'),
           ('Employee code', _staffValue('employee_code', user.employeeCode)),
           ('Assigned gates', gates),
-        ]),
-        const SizedBox(height: 14),
-        _group('Staff details', [
-          ('Date of birth', _staffValue('date_of_birth', null)),
-          ('Joining date', _staffValue('joining_date', null)),
-          ('Designation', _staffValue('designation', null)),
-          ('Department', _staffValue('department', null)),
-          ('Emergency contact', _staffValue('emergency_contact_name', null)),
-          (
-            'Emergency contact number',
-            _staffValue('emergency_contact_number', null),
-          ),
-          ('Address', _staffValue('address', null)),
-          ('Notes', _staffValue('remarks', null)),
         ]),
       ],
     );

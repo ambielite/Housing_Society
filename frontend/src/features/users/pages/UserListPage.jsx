@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, ShieldCheck, UserRound, UsersRound } from 'lucide-react';
+import { Plus, ShieldCheck, Trash2, UserRound, UsersRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
@@ -8,11 +8,13 @@ import useDebounce from '../../../utils/useDebounce';
 import { fullName, formatDateTime, formatDate } from '../../../utils/format';
 import { getErrorMessage } from '../../../lib/axios';
 import * as userApi from '../api/user.api';
+import securityApi from '../../security/api/security-operations.api';
 import PageContainer from '../../../components/layout/PageContainer';
 import DataTable from '../../../components/tables/DataTable';
 import UserStatusBadge, { STATUS_OPTIONS } from '../components/UserStatusBadge';
 import Modal from '../../../components/ui/Modal';
 import UserForm from '../components/UserForm';
+import Alert from '../../../components/ui/Alert';
 
 const PAGE_SIZE = 10;
 
@@ -47,7 +49,7 @@ function UserTableAvatar({ user }) {
 }
 
 export default function UserListPage() {
-  const { hasPermission } = useAuth();
+  const { hasPermission, user: currentUser } = useAuth();
   const { societyId } = useSociety();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
@@ -55,6 +57,8 @@ export default function UserListPage() {
   const [showNewUser, setShowNewUser] = useState(false);
   const [creatingUser, setCreatingUser] = useState(false);
   const [createError, setCreateError] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [deletingUserId, setDeletingUserId] = useState('');
   const debouncedSearch = useDebounce(search.trim());
 
   const { data, loading, error, reload } = useFetch(
@@ -85,6 +89,32 @@ export default function UserListPage() {
     }
   };
 
+  const deleteUser = async (user) => {
+    if (String(user.status).toUpperCase() === 'ACTIVE') {
+      setDeleteError(user.record_type === 'SECURITY_GUARD'
+        ? 'Cannot delete active staff. Deactivate the guard first.'
+        : 'Cannot delete active user. Deactivate the account first.');
+      return;
+    }
+    const name = fullName(user);
+    const recordType = user.record_type === 'SECURITY_GUARD' ? 'guard staff record' : 'user account';
+    if (!window.confirm(`Permanently delete ${name}'s ${recordType}? This removes the record from the database and cannot be undone.`)) return;
+    setDeleteError('');
+    setDeletingUserId(user.id);
+    try {
+      if (user.record_type === 'SECURITY_GUARD') {
+        await securityApi.deleteStaff(user.staff_id);
+      } else {
+        await userApi.deleteUser(user.id);
+      }
+      await reload();
+    } catch (error) {
+      setDeleteError(getErrorMessage(error));
+    } finally {
+      setDeletingUserId('');
+    }
+  };
+
   const columns = [
     {
       key: 'name',
@@ -93,14 +123,15 @@ export default function UserListPage() {
         <div className="user-directory-name-cell">
           <UserTableAvatar user={user} />
           <span className="user-directory-name-copy">
-            <Link to={`/users/${user.id}`} className="cell-title">
-              {fullName(user)}
-            </Link>
+            {user.record_type === 'SECURITY_GUARD'
+              ? <Link to={`/users/guards/${user.staff_id}`} className="cell-title">{fullName(user)}</Link>
+              : <Link to={`/users/${user.id}`} className="cell-title">{fullName(user)}</Link>}
             <span className="cell-sub">{user.email}</span>
           </span>
         </div>
       ),
     },
+    { key: 'employee_code', header: 'Employee code', render: (user) => user.employee_code || '—' },
     { key: 'phone', header: 'Phone', render: (user) => user.phone || '-' },
     {
       key: 'roles',
@@ -112,6 +143,24 @@ export default function UserListPage() {
     { key: 'status', header: 'Status', render: (user) => <UserStatusBadge status={user.status} /> },
     { key: 'last_login_at', header: 'Last sign-in', render: (user) => formatDateTime(user.last_login_at, 'Never') },
     { key: 'created_at', header: 'Added', render: (user) => formatDate(user.created_at) },
+    ...(hasPermission('USER_DELETE') ? [{
+      key: 'actions',
+      header: 'Actions',
+      render: (user) => (user.record_type === 'SECURITY_GUARD' || user.id !== currentUser?.id)
+        ? (
+          <button
+            type="button"
+            className="society-icon-action society-delete-action"
+            title={user.record_type === 'SECURITY_GUARD' ? 'Delete inactive staff' : 'Delete inactive user'}
+            aria-label={`Delete ${user.record_type === 'SECURITY_GUARD' ? 'inactive staff member' : 'inactive user'} ${fullName(user)}`}
+            disabled={deletingUserId === user.id}
+            onClick={() => deleteUser(user)}
+          >
+            <Trash2 size={16} />
+          </button>
+        )
+        : <span className="muted">—</span>,
+    }] : []),
   ];
 
   const newUserButton = canCreate && (
@@ -158,6 +207,8 @@ export default function UserListPage() {
           ))}
         </select>
       </div>
+
+      {deleteError && <Alert>{deleteError}</Alert>}
 
       <DataTable
         tableClassName="user-directory-table"

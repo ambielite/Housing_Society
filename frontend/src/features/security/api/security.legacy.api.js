@@ -6,6 +6,21 @@ const societyParams = () => {
 };
 
 const securityApi = {
+    getUsers: async () => {
+        const users = [];
+        let page = 1;
+        let totalPages = 1;
+        do {
+            const response = await apiClient.get("/users", {
+                params: { ...(societyParams().params || {}), page, limit: 100 },
+            });
+            const result = response.data?.data || {};
+            users.push(...(Array.isArray(result.users) ? result.users : []));
+            totalPages = result.pagination?.totalPages || 1;
+            page += 1;
+        } while (page <= totalPages);
+        return users;
+    },
     // Gates are mounted on the versioned API, unlike these legacy security endpoints.
     getGates: async () => (await apiClient.get("/gates", societyParams())).data,
     updateResource: async (resource, id, data) => (await axiosClient.put(`/${resource}/${id}`, data, data instanceof FormData ? { headers: { "Content-Type": "multipart/form-data" } } : undefined)).data,

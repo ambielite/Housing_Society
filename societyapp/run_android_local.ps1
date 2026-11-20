@@ -2,6 +2,19 @@ param([switch]$PrepareOnly)
 
 $ErrorActionPreference = 'Stop'
 
+# VS Code tasks started with -NoProfile may not define HOME. ADB then tries to
+# create its configuration directory at `\.android`, which fails on Windows
+# and prevents the USB reverse-port mapping from being installed.
+if ([string]::IsNullOrWhiteSpace($env:ANDROID_USER_HOME)) {
+    if ([string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
+        throw 'USERPROFILE is not set, so ADB cannot locate its configuration directory.'
+    }
+    $env:ANDROID_USER_HOME = Join-Path $env:USERPROFILE '.android'
+}
+if (-not (Test-Path -LiteralPath $env:ANDROID_USER_HOME)) {
+    New-Item -ItemType Directory -Path $env:ANDROID_USER_HOME -Force | Out-Null
+}
+
 $adb = Join-Path $env:LOCALAPPDATA 'Android\Sdk\platform-tools\adb.exe'
 if (-not (Test-Path -LiteralPath $adb)) {
     throw "ADB was not found at $adb. Install Android platform-tools or update this script path."

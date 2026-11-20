@@ -21,7 +21,10 @@ const hashPasswordResetOtp = (userId, otp) => crypto
   .update(`${userId}:${otp}`)
   .digest('hex');
 const generateAccessToken = (user) =>
-  jwt.sign({ sub: user.id }, env.jwt.accessSecret, { expiresIn: env.jwt.accessExpiresIn });
+  jwt.sign({
+    sub: user.id,
+    ...(user.guard_employee_code ? { guardEmployeeCode: user.guard_employee_code } : {}),
+  }, env.jwt.accessSecret, { expiresIn: env.jwt.accessExpiresIn });
 const generateRandomToken = () => crypto.randomBytes(48).toString('hex');
 const hasValidSecuritySelfie = (mimeType, encodedImage) => {
   const image = Buffer.from(encodedImage, 'base64');
@@ -99,7 +102,12 @@ const issueTokens = async (user, meta = {}) => {
     userId: user.id,
     tokenHash,
     expiresAt,
-    deviceInfo: meta.deviceInfo,
+    deviceInfo: user.guard_employee_code
+      ? JSON.stringify({
+        userAgent: String(meta.deviceInfo || '').slice(0, 140) || null,
+        guardEmployeeCode: user.guard_employee_code,
+      })
+      : meta.deviceInfo,
     ipAddress: meta.ipAddress,
   });
 
@@ -113,6 +121,28 @@ const login = async ({ email, password, securityCode, selfieData, selfieMimeType
     throw new ApiError(401, 'Invalid email or password');
   }
 
+  const submittedGuardCode = securityCode === undefined ? null : String(securityCode).trim();
+  let guardHistoryIdentity = { staffId: null, employeeCode: submittedGuardCode };
+  if (submittedGuardCode) {
+    const guardIdentity = await db.query(
+      `SELECT staff_member.id AS staff_id, staff_member.employee_code
+         FROM security_guards guard
+         JOIN staff staff_member ON staff_member.id = guard.staff_id
+        WHERE guard.user_id = $1
+          AND staff_member.society_id = $2
+          AND staff_member.staff_type = 'SECURITY_GUARD'
+          AND upper(staff_member.employee_code) = upper($3)
+        LIMIT 1`,
+      [user.id, user.society_id, submittedGuardCode]
+    );
+    if (guardIdentity.rowCount) {
+      guardHistoryIdentity = {
+        staffId: guardIdentity.rows[0].staff_id,
+        employeeCode: guardIdentity.rows[0].employee_code,
+      };
+    }
+  }
+
   const passwordMatches = await bcrypt.compare(password, user.password_hash);
   if (!passwordMatches) {
     await authRepository.createLoginHistory({
@@ -121,6 +151,7 @@ const login = async ({ email, password, securityCode, selfieData, selfieMimeType
       userAgent: meta.deviceInfo,
       success: false,
       failureReason: 'INVALID_PASSWORD',
+      ...guardHistoryIdentity,
     });
     throw new ApiError(401, 'Invalid email or password');
   }
@@ -132,6 +163,7 @@ const login = async ({ email, password, securityCode, selfieData, selfieMimeType
       userAgent: meta.deviceInfo,
       success: false,
       failureReason: `ACCOUNT_${user.status}`,
+      ...guardHistoryIdentity,
     });
     throw new ApiError(403, 'This account is not active');
   }
@@ -156,6 +188,7 @@ const login = async ({ email, password, securityCode, selfieData, selfieMimeType
         userAgent: meta.deviceInfo,
         success: false,
         failureReason: 'NOT_SECURITY_ACCOUNT',
+        ...guardHistoryIdentity,
       });
       throw new ApiError(401, 'Invalid security login credentials or employee code');
     }
@@ -163,11 +196,16 @@ const login = async ({ email, password, securityCode, selfieData, selfieMimeType
     const guardResult = await db.query(
       `SELECT u.*,
               s.employee_code AS guard_employee_code,
-              COALESCE(NULLIF(s.photo_path, ''), NULLIF(u.profile_picture_url, '')) AS profile_picture_url
+              s.first_name AS guard_first_name,
+              s.last_name AS guard_last_name,
+              s.mobile_number AS guard_phone,
+              NULLIF(s.photo_path, '') AS guard_profile_picture_url,
+              s.id AS guard_staff_id
        FROM security_guards sg
        JOIN staff s ON s.id = sg.staff_id
        JOIN users u ON u.id = sg.user_id
        WHERE upper(s.employee_code) = upper($1)
+         AND sg.user_id = $3
          AND s.society_id = $2
          AND s.staff_type = 'SECURITY_GUARD'
          AND s.status = 'ACTIVE'
@@ -176,7 +214,7 @@ const login = async ({ email, password, securityCode, selfieData, selfieMimeType
        LIMIT 1`,
       // Shared guard credentials authenticate the security login account;
       // the employee code selects the specific guard and profile photo.
-      [securityCode.trim(), user.society_id]
+      [securityCode.trim(), user.society_id, user.id]
     );
     if (!guardResult.rowCount) {
       await authRepository.createLoginHistory({
@@ -185,9 +223,11 @@ const login = async ({ email, password, securityCode, selfieData, selfieMimeType
         userAgent: meta.deviceInfo,
         success: false,
         failureReason: 'INVALID_SECURITY_CODE',
+        ...guardHistoryIdentity,
       });
       throw new ApiError(401, 'Invalid security login credentials or employee code');
     }
+    const guardUser = guardResult.rows[0];
     if (!hasValidSecuritySelfie(selfieMimeType, selfieData)) {
       await authRepository.createLoginHistory({
         userId: user.id,
@@ -195,17 +235,18 @@ const login = async ({ email, password, securityCode, selfieData, selfieMimeType
         userAgent: meta.deviceInfo,
         success: false,
         failureReason: 'INVALID_SECURITY_SELFIE',
+        staffId: guardUser.guard_staff_id,
+        employeeCode: guardUser.guard_employee_code,
       });
       throw new ApiError(400, 'Take a valid selfie before signing in as a guard.');
     }
-    const guardUser = guardResult.rows[0];
     const selfieBytes = Buffer.from(selfieData, 'base64');
     selfieData = undefined;
     try {
       await verifySecurityGuardFace({
         selfieBytes,
         selfieMimeType,
-        profilePictureUrl: guardUser.profile_picture_url,
+        profilePictureUrl: guardUser.guard_profile_picture_url,
       });
     } catch (error) {
       if (!(error instanceof FaceVerificationError)) throw error;
@@ -215,12 +256,23 @@ const login = async ({ email, password, securityCode, selfieData, selfieMimeType
         userAgent: meta.deviceInfo,
         success: false,
         failureReason: error.code,
+        staffId: guardUser.guard_staff_id,
+        employeeCode: guardUser.guard_employee_code,
       });
       throw new ApiError(error.statusCode, error.message);
     } finally {
       selfieBytes.fill(0);
     }
-    authenticatedUser = guardUser;
+    // Keep shared login credentials, but return the individual guard's staff
+    // profile so one guard never inherits another guard's name, phone, or photo.
+    authenticatedUser = {
+      ...guardUser,
+      first_name: guardUser.guard_first_name,
+      last_name: guardUser.guard_last_name,
+      phone: guardUser.guard_phone,
+      profile_picture_url: guardUser.guard_profile_picture_url,
+      guard_staff_id: guardUser.guard_staff_id,
+    };
   } else if (securityHeadRole.rowCount) {
     await authRepository.createLoginHistory({
       userId: user.id,
@@ -228,6 +280,7 @@ const login = async ({ email, password, securityCode, selfieData, selfieMimeType
       userAgent: meta.deviceInfo,
       success: false,
       failureReason: 'SECURITY_EMPLOYEE_CODE_REQUIRED',
+      ...guardHistoryIdentity,
     });
     throw new ApiError(
       403,
@@ -242,6 +295,8 @@ const login = async ({ email, password, securityCode, selfieData, selfieMimeType
     ipAddress: meta.ipAddress,
     userAgent: meta.deviceInfo,
     success: true,
+    staffId: authenticatedUser.guard_staff_id,
+    employeeCode: authenticatedUser.guard_employee_code,
   });
 
   const [roles, permissions] = await Promise.all([
@@ -267,14 +322,46 @@ const refresh = async ({ refreshToken }) => {
     throw new ApiError(401, 'Refresh token is invalid or has expired');
   }
 
-  const user = await usersRepository.findById(existing.user_id);
+  let user = await usersRepository.findById(existing.user_id);
   if (!user || user.status !== 'ACTIVE') {
     throw new ApiError(401, 'User account is not active');
   }
 
+  // Preserve the employee-specific identity across token rotation. Older
+  // refresh records contain a plain user-agent string and remain compatible.
+  let refreshContext = {};
+  try {
+    refreshContext = JSON.parse(existing.device_info || '{}');
+  } catch (_) {
+    refreshContext = {};
+  }
+  if (refreshContext.guardEmployeeCode) {
+    const guardResult = await db.query(
+      `SELECT s.employee_code AS guard_employee_code
+         FROM security_guards sg
+         JOIN staff s ON s.id = sg.staff_id
+        WHERE sg.user_id = $1
+          AND s.society_id = $2
+          AND upper(s.employee_code) = upper($3)
+          AND s.staff_type = 'SECURITY_GUARD'
+          AND s.status = 'ACTIVE'
+          AND sg.status = 'ACTIVE'
+        LIMIT 1`,
+      [user.id, user.society_id, refreshContext.guardEmployeeCode]
+    );
+    if (!guardResult.rowCount) {
+      throw new ApiError(401, 'This security staff profile is no longer active.');
+    }
+    user = { ...user, guard_employee_code: guardResult.rows[0].guard_employee_code };
+  }
+
   // Rotation: revoke the used token, then issue a brand new pair.
   await authRepository.revokeRefreshToken(tokenHash);
-  return issueTokens(user);
+  return issueTokens(user, {
+    deviceInfo: refreshContext.guardEmployeeCode
+      ? refreshContext.userAgent
+      : existing.device_info,
+  });
 };
 
 const logout = async ({ refreshToken }) => {
@@ -282,7 +369,13 @@ const logout = async ({ refreshToken }) => {
   const existing = await authRepository.findRefreshToken(tokenHash);
   await authRepository.revokeRefreshToken(tokenHash);
   if (existing) {
-    await authRepository.closeOpenLoginHistory(existing.user_id);
+    let refreshContext = {};
+    try {
+      refreshContext = JSON.parse(existing.device_info || '{}');
+    } catch (_) {
+      refreshContext = {};
+    }
+    await authRepository.closeOpenLoginHistory(existing.user_id, refreshContext.guardEmployeeCode || null);
   }
 };
 
@@ -291,10 +384,31 @@ const logoutAll = async (userId) => {
   await authRepository.closeOpenLoginHistory(userId);
 };
 
-const getProfile = async (userId, societyId) => {
+const getProfile = async (userId, societyId, guardEmployeeCode = null) => {
   const user = await usersRepository.findById(userId);
   if (!user) {
     throw new ApiError(404, 'User not found');
+  }
+  if (guardEmployeeCode) {
+    const guardResult = await db.query(
+      `SELECT s.employee_code AS guard_employee_code,
+              s.first_name, s.last_name, s.mobile_number AS phone,
+              NULLIF(s.photo_path, '') AS profile_picture_url
+         FROM security_guards sg
+         JOIN staff s ON s.id = sg.staff_id
+        WHERE sg.user_id = $1
+          AND s.society_id = $2
+          AND upper(s.employee_code) = upper($3)
+          AND s.staff_type = 'SECURITY_GUARD'
+          AND s.status = 'ACTIVE'
+          AND sg.status = 'ACTIVE'
+        LIMIT 1`,
+      [userId, societyId, guardEmployeeCode]
+    );
+    if (!guardResult.rowCount) {
+      throw new ApiError(404, 'No active security staff profile is linked to this account');
+    }
+    Object.assign(user, guardResult.rows[0]);
   }
   const [roles, permissions] = await Promise.all([
     rbacRepository.getUserRoles(user.id, societyId),

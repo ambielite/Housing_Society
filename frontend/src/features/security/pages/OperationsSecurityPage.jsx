@@ -186,26 +186,19 @@ const configs = {
     fields: [
       ["employeeCode", "Employee code"],
       ["profilePicture", "Profile picture", "file"],
-      ["firstName", "First name"],
-      ["lastName", "Last name"],
-      ["mobileNumber", "Mobile number"],
-      ["email", "Email"],
-      ["joiningDate", "Joining date", "date"],
       [
         "staffType",
         "Staff type",
         "select",
-        [
-          "SECURITY_GUARD",
-          "SECURITY_SUPERVISOR",
-          "MAID",
-          "MAINTENANCE",
-          "ELECTRICIAN",
-          "PLUMBER",
-          "GARDENER",
-          "OTHER",
-        ],
+        ["SECURITY_GUARD", "SECURITY_SUPERVISOR", "MAID", "MAINTENANCE", "ELECTRICIAN", "PLUMBER", "GARDENER", "OTHER"],
       ],
+      ["userId", "Security Head account", "securityHead"],
+      ["firstName", "First name"],
+      ["lastName", "Last name"],
+      ["mobileNumber", "Mobile number"],
+      ["email", "Email"],
+      ["address", "Address"],
+      ["joiningDate", "Joining date", "date"],
     ],
   },
   shift: {
@@ -390,6 +383,13 @@ export default function SecurityPage() {
   const [formError, setFormError] = useState("");
   const [search, setSearch] = useState("");
   const [form, setForm] = useState("");
+  const [selectedStaffType, setSelectedStaffType] = useState("SECURITY_GUARD");
+  const [securityHeadAccounts, setSecurityHeadAccounts] = useState([]);
+  const [selectedSecurityHeadId, setSelectedSecurityHeadId] = useState("");
+  const [manualGuardDetails, setManualGuardDetails] = useState(false);
+  const [guardIdentity, setGuardIdentity] = useState({ firstName: "", lastName: "", mobileNumber: "" });
+  const [securityHeadAccountsLoading, setSecurityHeadAccountsLoading] = useState(false);
+  const [securityHeadAccountsError, setSecurityHeadAccountsError] = useState("");
   const [busy, setBusy] = useState(false);
   const [editRecord, setEditRecord] = useState(null);
   const [viewingStaff, setViewingStaff] = useState(null);
@@ -451,6 +451,38 @@ export default function SecurityPage() {
   useEffect(() => {
     loadData();
   }, []);
+  useEffect(() => {
+    if (form !== "staff") return undefined;
+    let active = true;
+    setSelectedStaffType("SECURITY_GUARD");
+    setSelectedSecurityHeadId("");
+    setManualGuardDetails(false);
+    setGuardIdentity({ firstName: "", lastName: "", mobileNumber: "" });
+    setSecurityHeadAccountsLoading(true);
+    setSecurityHeadAccountsError("");
+    securityApi.getUsers()
+      .then((users) => {
+        if (!active) return;
+        const normalizeRole = (role) => String(typeof role === "object" ? role?.code || role?.name || "" : role)
+          .replace(/[^a-z0-9]/gi, "")
+          .toUpperCase();
+        const accountsByLoginId = new Map();
+        (users || []).forEach((account) => {
+          const loginId = account.login_user_id || account.loginUserId || account.id;
+          const hasSecurityHeadRole = (account.roles || []).some(
+            (role) => normalizeRole(role) === "SECURITYHEAD",
+          );
+          if (account.status !== "ACTIVE" || !hasSecurityHeadRole || !loginId) return;
+          accountsByLoginId.set(String(loginId), { ...account, id: loginId });
+        });
+        setSecurityHeadAccounts([...accountsByLoginId.values()]);
+      })
+      .catch((err) => {
+        if (active) setSecurityHeadAccountsError(err.response?.data?.message || "Could not load Security Head accounts.");
+      })
+      .finally(() => { if (active) setSecurityHeadAccountsLoading(false); });
+    return () => { active = false; };
+  }, [form]);
   useEffect(() => {
     if (tab !== "rosters") return undefined;
     let active = true;
@@ -565,6 +597,14 @@ export default function SecurityPage() {
     const payload = form === "staff" && profilePicture?.size
       ? formData
       : Object.fromEntries(formData.entries());
+    if (form === "staff" && selectedStaffType === "SECURITY_GUARD") {
+      if (!selectedSecurityHeadId) {
+        setFormError("Choose a Security Head login account for this guard.");
+        return;
+      }
+      if (payload instanceof FormData) payload.set("userId", selectedSecurityHeadId);
+      else payload.userId = selectedSecurityHeadId;
+    }
     if (form === "shift") {
       const startTime = toApiTime(payload.startTime);
       const endTime = toApiTime(payload.endTime);
@@ -1116,21 +1156,20 @@ export default function SecurityPage() {
                               className="security-table-icon-action is-delete"
                               aria-label={`Delete ${tabs.find(([key]) => key === tab)?.[1].toLowerCase()} record`}
                               title="Delete"
-                              onClick={() =>
-                                window.confirm(
-                                  `Delete this ${tabs.find(([key]) => key === tab)?.[1].toLowerCase()} record?`,
-                                ) &&
-                                act(
-                                  resourceFor === "staff"
-                                    ? securityApi.deleteStaff
-                                    : (id) =>
-                                        securityApi.deleteResource(
-                                          resourceFor,
-                                          id,
-                                        ),
-                                  item.id,
-                                )
-                              }
+                              onClick={() => {
+                                if (resourceFor === "staff" && item.status === "ACTIVE") {
+                                  setError("Cannot delete active staff.");
+                                  return;
+                                }
+                                if (window.confirm(`Delete this ${tabs.find(([key]) => key === tab)?.[1].toLowerCase()} record?`)) {
+                                  act(
+                                    resourceFor === "staff"
+                                      ? securityApi.deleteStaff
+                                      : (id) => securityApi.deleteResource(resourceFor, id),
+                                    item.id,
+                                  );
+                                }
+                              }}
                             >
                               <Trash2 size={18} aria-hidden="true" />
                             </button>
@@ -1156,7 +1195,7 @@ export default function SecurityPage() {
             <header className="security-modal-header">
               <div>
                 <h2>{configs[form]?.title}</h2>
-                <p>{form === "staff" ? "Security Guard staff are added to User Management with an active Security Head account. You can suspend or reactivate this account from its user profile." : form === "shift" ? "Choose the hour, minute, and AM/PM for each shift time." : "Enter the record details below."}</p>
+                <p>{form === "staff" ? "Choose an active Security Head login. Each guard keeps a unique employee code and profile." : form === "shift" ? "Choose the hour, minute, and AM/PM for each shift time." : "Enter the record details below."}</p>
               </div>
               <button aria-label="Close" onClick={() => setForm("")}>
                 <X size={18} />
@@ -1165,11 +1204,70 @@ export default function SecurityPage() {
             <form onSubmit={save}>
               <div className="security-form-grid">
                 {(configs[form]?.fields || []).map(
-                  ([name, label, type = "text", options]) => (
+                  ([name, label, type = "text", options]) => {
+                    if (form === "staff" && name === "userId" && selectedStaffType !== "SECURITY_GUARD") return null;
+                    if (form === "staff" && name === "email" && selectedStaffType === "SECURITY_GUARD" && !manualGuardDetails) return null;
+                    return (
                     <label key={name}>
                       {label}
-                      {type === "select" ? (
-                        <select name={name} required={name !== "shiftType"}>
+                      {type === "securityHead" ? (
+                        <>
+                          <select
+                            value={manualGuardDetails ? "__new_guard__" : selectedSecurityHeadId}
+                            required
+                            disabled={securityHeadAccountsLoading || securityHeadAccounts.length === 0}
+                            onChange={(event) => {
+                              const value = event.target.value;
+                              if (value === "__new_guard__") {
+                                setManualGuardDetails(true);
+                                setSelectedSecurityHeadId("");
+                                setGuardIdentity({ firstName: "", lastName: "", mobileNumber: "" });
+                                return;
+                              }
+                              setManualGuardDetails(false);
+                              setSelectedSecurityHeadId(value);
+                              const account = securityHeadAccounts.find((item) => String(item.id) === value);
+                              setGuardIdentity({
+                                firstName: account?.first_name || account?.firstName || "",
+                                lastName: account?.last_name || account?.lastName || "",
+                                mobileNumber: account?.phone || account?.mobile_number || account?.mobileNumber || "",
+                              });
+                            }}
+                          >
+                            <option value="">{securityHeadAccountsLoading ? "Loading accounts…" : "Select a Security Head account"}</option>
+                            {securityHeadAccounts.map((account) => (
+                              <option key={account.id} value={account.id}>
+                                {[account.first_name, account.last_name].filter(Boolean).join(" ")} · {account.email}
+                              </option>
+                            ))}
+                            <option value="__new_guard__">Add a new Security Guard</option>
+                          </select>
+                          {manualGuardDetails && (
+                            <>
+                              <small>Enter this guard’s staff details, then choose the shared login account.</small>
+                              <select
+                                value={selectedSecurityHeadId}
+                                required
+                                onChange={(event) => setSelectedSecurityHeadId(event.target.value)}
+                              >
+                                <option value="">Select Security Head login</option>
+                                {securityHeadAccounts.map((account) => (
+                                  <option key={account.id} value={account.id}>
+                                    {[account.first_name, account.last_name].filter(Boolean).join(" ")} · {account.email}
+                                  </option>
+                                ))}
+                              </select>
+                            </>
+                          )}
+                          {!manualGuardDetails && <small>{securityHeadAccountsError || (securityHeadAccounts.length === 0 && !securityHeadAccountsLoading ? "Create a user and assign the Security Head role first." : "Selecting an account fills in the name and phone automatically.")}</small>}
+                        </>
+                      ) : type === "select" ? (
+                        <select
+                          name={name}
+                          required={name !== "shiftType"}
+                          value={form === "staff" && name === "staffType" ? selectedStaffType : undefined}
+                          onChange={form === "staff" && name === "staffType" ? (event) => setSelectedStaffType(event.target.value) : undefined}
+                        >
                           <option value="">Select {label.toLowerCase()}</option>
                           {options.map((option) => (
                             <option key={option} value={option}>
@@ -1224,8 +1322,11 @@ export default function SecurityPage() {
                           maxLength={name === "mobileNumber" || name === "phone" ? 10 : undefined}
                           pattern={name === "mobileNumber" || name === "phone" ? "[0-9]{10}" : undefined}
                           title={name === "mobileNumber" || name === "phone" ? "Enter a valid 10-digit phone number." : undefined}
+                          value={form === "staff" && selectedStaffType === "SECURITY_GUARD" && ["firstName", "lastName", "mobileNumber"].includes(name) ? guardIdentity[name] : undefined}
+                          readOnly={form === "staff" && selectedStaffType === "SECURITY_GUARD" && !manualGuardDetails && !!selectedSecurityHeadId && !!guardIdentity[name] && ["firstName", "lastName", "mobileNumber"].includes(name)}
+                          onChange={form === "staff" && selectedStaffType === "SECURITY_GUARD" && ["firstName", "lastName", "mobileNumber"].includes(name) ? (event) => setGuardIdentity((current) => ({ ...current, [name]: event.target.value })) : undefined}
                           required={
-                            ![
+                            (form === "staff" && name === "email" && selectedStaffType === "SECURITY_GUARD" && manualGuardDetails) || ![
                               "lastName",
                               "profilePicture",
                               "email",
@@ -1242,12 +1343,14 @@ export default function SecurityPage() {
                               "workingMinutes",
                               "overtimeMinutes",
                               "remarks",
+                              "address",
                             ].includes(name)
                           }
                         />
                       )}
                     </label>
-                  ),
+                    );
+                  },
                 )}
               </div>
               <footer className="security-modal-footer">
@@ -1341,6 +1444,7 @@ function RecordEditModal({ record, tab, staff = [], shifts = [], onClose, onSave
     Object.entries(record).filter(
       ([key, value]) =>
         !["id", "createdAt", "updatedAt", "deletedAt", ...(tab === "staff" ? ["photoPath"] : [])].includes(key) &&
+        !(tab === "staff" && ["designation", "department", "emergencyContactName", "emergencyContactNumber", "address", "remarks"].includes(key)) &&
         !(tab === "rosters" && ["societyid", "assignedby", "status"].includes(fieldToken(key))) &&
         (value == null ||
           ["string", "number", "boolean"].includes(typeof value)),
@@ -1491,6 +1595,19 @@ function RecordEditModal({ record, tab, staff = [], shifts = [], onClose, onSave
                 ) : tab === "shifts" && key === "status" ? (
                   <select
                     value={value ?? "ACTIVE"}
+                    onChange={(event) =>
+                      setValues((current) => ({
+                        ...current,
+                        [key]: event.target.value,
+                      }))
+                    }
+                  >
+                    <option value="ACTIVE">Active</option>
+                    <option value="INACTIVE">Inactive</option>
+                  </select>
+                ) : tab === "staff" && key === "status" ? (
+                  <select
+                    value={String(value || "ACTIVE").toUpperCase() === "ACTIVE" ? "ACTIVE" : "INACTIVE"}
                     onChange={(event) =>
                       setValues((current) => ({
                         ...current,

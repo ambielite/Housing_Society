@@ -1,5 +1,6 @@
 const bcrypt = require("bcryptjs");
 const crypto = require("node:crypto");
+const { Op } = require("sequelize");
 const StaffRepository =
     require("./staff.repository");
 const Staff = require("./staff.model");
@@ -14,13 +15,74 @@ const {
 } = require("./staff.validation");
 const { saveProfilePicture, removeProfilePicture } = require("../../users/profilePicture.storage");
 
-const ensureSecurityHeadAccount = async (staff, transaction) => {
+const assertStaffEmailAvailable = async ({ email, societyId, staffType, excludeId }) => {
+    if (staffType !== "SECURITY_GUARD") {
+        return assertUniqueEmail({
+            model: Staff,
+            email,
+            where: { societyId },
+            excludeId,
+            message: "A staff member with this email already exists in this society."
+        });
+    }
+
+    // Multiple guard profiles may share one User Management login. Employee
+    // code distinguishes each guard, so only block reuse by non-guard staff.
+    const conflictingStaff = await Staff.findOne({
+        where: {
+            societyId,
+            staffType: { [Op.ne]: "SECURITY_GUARD" },
+            email: { [Op.iLike]: String(email || "").trim().toLowerCase() },
+            ...(excludeId ? { id: { [Op.ne]: excludeId } } : {}),
+        },
+        attributes: ["id"],
+    });
+    if (conflictingStaff) {
+        const error = new Error("This email is already used by another staff member in this society.");
+        error.status = 409;
+        throw error;
+    }
+};
+
+const ensureSecurityHeadAccount = async (staff, transaction, selectedUserId = null) => {
     let userId = null;
+
+    if (selectedUserId) {
+        const [selectedUsers] = await sequelize.query(
+            `SELECT u.id, u.email
+               FROM users u
+               JOIN user_roles ur ON ur.user_id = u.id
+               JOIN roles r ON r.id = ur.role_id AND r.code = 'SECURITY_HEAD'
+              WHERE u.id = :userId
+                AND u.status = 'ACTIVE'
+                AND (ur.society_id IS NULL OR ur.society_id = :societyId)
+                AND (
+                  u.society_id = :societyId
+                  OR EXISTS (
+                    SELECT 1 FROM user_society_access usa
+                     WHERE usa.user_id = u.id
+                       AND usa.society_id = :societyId
+                       AND usa.active_from <= now()
+                       AND (usa.active_until IS NULL OR usa.active_until > now())
+                  )
+                )
+              LIMIT 1`,
+            { replacements: { userId: selectedUserId, societyId: staff.societyId }, transaction }
+        );
+        if (!selectedUsers.length) {
+            throw new Error("Select an active Security Head account from this society.");
+        }
+        userId = selectedUsers[0].id;
+        if (!staff.email && selectedUsers[0].email) {
+            await staff.update({ email: selectedUsers[0].email }, { transaction });
+        }
+    }
+
     const [linkedUsers] = await sequelize.query(
         "SELECT user_id FROM security_guards WHERE staff_id = :staffId AND user_id IS NOT NULL LIMIT 1",
         { replacements: { staffId: staff.id }, transaction }
     );
-    userId = linkedUsers[0]?.user_id || null;
+    userId = userId || linkedUsers[0]?.user_id || null;
 
     if (staff.email) {
         const [users] = await sequelize.query(
@@ -134,7 +196,7 @@ const normalizeDateOnly = (value, field, fallback = null, required = false) => {
     return null;
 };
 
-const syncSecurityGuard = async (staff, transaction) => {
+const syncSecurityGuard = async (staff, transaction, selectedUserId = null) => {
     if (staff.staffType !== "SECURITY_GUARD") {
         await sequelize.query(
             "DELETE FROM security_guards WHERE staff_id = :staffId",
@@ -143,7 +205,7 @@ const syncSecurityGuard = async (staff, transaction) => {
         return;
     }
 
-    const userId = await ensureSecurityHeadAccount(staff, transaction);
+    const userId = await ensureSecurityHeadAccount(staff, transaction, selectedUserId);
     const guardStatus = staff.status === "ACTIVE"
         ? "ACTIVE"
         : staff.status === "INACTIVE"
@@ -168,28 +230,17 @@ const syncSecurityGuard = async (staff, transaction) => {
             transaction,
         }
     );
+    // Keep the shared login account separate from every individual guard profile.
+    // The staff row owns the employee's name, contact details and photo.
     await sequelize.query(
         `UPDATE users SET
-           first_name = :firstName,
-           last_name = :lastName,
-           email = COALESCE(NULLIF(:email, ''), email),
-           phone = :phone,
-           profile_picture_url = COALESCE(:photoPath, profile_picture_url),
-           status = CASE WHEN :userStatus = 'ACTIVE' THEN 'ACTIVE' ELSE 'SUSPENDED' END,
+           status = CASE WHEN EXISTS (
+             SELECT 1 FROM security_guards
+              WHERE user_id = :userId AND status = 'ACTIVE'
+           ) THEN 'ACTIVE' ELSE 'SUSPENDED' END,
            updated_at = now()
          WHERE id = :userId`,
-        {
-            replacements: {
-                userId,
-                firstName: staff.firstName,
-                lastName: staff.lastName || null,
-                email: staff.email || null,
-                phone: staff.mobileNumber || null,
-                photoPath: staff.photoPath || null,
-                userStatus: staff.status,
-            },
-            transaction,
-        }
+        { replacements: { userId }, transaction }
     );
 };
 
@@ -248,6 +299,10 @@ const createStaff = async (data, profilePicture) => {
         throw new Error(staffTypeError);
     }
 
+    if (data.staffType === "SECURITY_GUARD" && !data.userId) {
+        throw new Error("Select a Security Head account for this security guard.");
+    }
+
     const existingStaff =
         await StaffRepository.findByEmployeeCode(
             data.societyId,
@@ -260,16 +315,17 @@ const createStaff = async (data, profilePicture) => {
         );
     }
 
-    await assertUniqueEmail({ model: Staff, email: data.email, where: { societyId: data.societyId }, message: "A staff member with this email already exists in this society." });
+    await assertStaffEmailAvailable({ email: data.email, societyId: data.societyId, staffType: data.staffType });
 
     const photoPath = profilePicture ? saveProfilePicture(profilePicture) : null;
     try {
         return await sequelize.transaction(async (transaction) => {
+            const { userId: selectedUserId, ...staffFields } = data;
             const staff = await StaffRepository.create(
-                { ...data, ...(photoPath ? { photoPath } : {}) },
+                { ...staffFields, ...(photoPath ? { photoPath } : {}) },
                 { transaction }
             );
-            await syncSecurityGuard(staff, transaction);
+            await syncSecurityGuard(staff, transaction, selectedUserId);
             return staff;
         });
     } catch (error) {
@@ -293,8 +349,9 @@ const getStaffById = async (id) => {
 
 
 const getAllStaff = async (filters = {}) => {
-
-    return await StaffRepository.findAll(filters);
+    // The login account can be shared by many guards. Never use its account
+    // photo as a fallback here; each staff row owns its own profile picture.
+    return StaffRepository.findAll(filters);
 };
 
 
@@ -334,7 +391,12 @@ const updateStaff = async (id, data, profilePicture, actor) => {
 
     if (data.email !== undefined) {
         if (data.email) data.email = data.email.trim().toLowerCase();
-        await assertUniqueEmail({ model: Staff, email: data.email, where: { societyId: staff.societyId }, excludeId: id, message: "A staff member with this email already exists in this society." });
+        await assertStaffEmailAvailable({
+            email: data.email,
+            societyId: staff.societyId,
+            staffType: data.staffType || staff.staffType,
+            excludeId: id,
+        });
     }
 
     if (data.staffType) {
@@ -421,6 +483,10 @@ const deleteStaff = async (id) => {
 
     if (!staff) {
         throw new Error("Staff not found");
+    }
+
+    if (String(staff.status).toUpperCase() === "ACTIVE") {
+        throw new Error("Cannot delete active staff.");
     }
 
     await StaffRepository.remove(staff);

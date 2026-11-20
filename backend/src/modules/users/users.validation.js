@@ -28,7 +28,7 @@ const listUsersQuerySchema = Joi.object({
   page: Joi.number().integer().min(1),
   limit: Joi.number().integer().min(1).max(100),
   societyId: Joi.string().uuid(),
-  status: Joi.string().valid('ACTIVE', 'SUSPENDED', 'ARCHIVED', 'PENDING'),
+  status: Joi.string().valid('ACTIVE', 'INACTIVE', 'ON_LEAVE', 'TERMINATED', 'SUSPENDED', 'ARCHIVED', 'PENDING'),
   search: Joi.string().max(150),
 });
 

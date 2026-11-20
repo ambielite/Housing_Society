@@ -8,25 +8,30 @@ import PageContainer from '../../../components/layout/PageContainer';
 import { FullPageLoader } from '../../../components/ui/Spinner';
 import UserForm from '../components/UserForm';
 import useAuth from '../../../app/providers/useAuth';
+import securityApi from '../../security/api/security-operations.api';
 
 /** One page for two routes: /users/new (create) and /users/:userId/edit (edit). */
 export default function UserFormPage() {
-  const { userId } = useParams();
-  const isEdit = Boolean(userId);
+  const { userId, staffId } = useParams();
+  const isGuardEdit = Boolean(staffId);
+  const isEdit = Boolean(userId || staffId);
   const navigate = useNavigate();
   const { societyId } = useSociety();
   const { user, refreshProfile } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
 
-  const existing = useFetch(() => (isEdit ? userApi.getUser(userId) : Promise.resolve(null)), [userId]);
+  const existing = useFetch(() => (isEdit && !isGuardEdit ? userApi.getUser(userId) : Promise.resolve(null)), [userId, isGuardEdit]);
+  const guardProfile = useFetch(() => (isGuardEdit ? securityApi.getStaffById(staffId) : Promise.resolve(null)), [staffId]);
 
-  if (isEdit && existing.loading && !existing.data) return <FullPageLoader />;
-  if (isEdit && existing.error && !existing.data) {
+  if (isEdit && (isGuardEdit ? guardProfile.loading : existing.loading) && !(isGuardEdit ? guardProfile.data : existing.data)) return <FullPageLoader />;
+  const loadError = isGuardEdit ? guardProfile.error : existing.error;
+  const loadedRecord = isGuardEdit ? guardProfile.data : existing.data;
+  if (isEdit && loadError && !loadedRecord) {
     return (
       <div className="empty-state">
         <h1>Couldn't load this user</h1>
-        <p>{getErrorMessage(existing.error)}</p>
+        <p>{getErrorMessage(loadError)}</p>
         <p>
           <Link to="/users">Back to users</Link>
         </p>
@@ -38,7 +43,15 @@ export default function UserFormPage() {
     setSubmitting(true);
     setSubmitError('');
     try {
-      if (isEdit) {
+      if (isGuardEdit) {
+        const staffPayload = { ...payload };
+        if (Object.hasOwn(staffPayload, 'phone')) {
+          staffPayload.mobileNumber = staffPayload.phone;
+          delete staffPayload.phone;
+        }
+        await securityApi.updateStaff(staffId, staffPayload);
+        navigate('/users', { state: { notice: 'User profile updated.' } });
+      } else if (isEdit) {
         const updatedUser = await userApi.updateUser(userId, payload);
         if (String(user?.id) === String(updatedUser.id)) {
           await refreshProfile().catch(() => {});
@@ -54,7 +67,15 @@ export default function UserFormPage() {
     }
   };
 
-  const initialValues = isEdit
+  const initialValues = isGuardEdit
+    ? {
+        firstName: loadedRecord?.firstName || '',
+        lastName: loadedRecord?.lastName || '',
+        phone: loadedRecord?.mobileNumber || '',
+        email: loadedRecord?.email || '',
+        profilePictureUrl: loadedRecord?.photoPath || '',
+      }
+    : isEdit
     ? {
         firstName: existing.data.first_name || '',
         lastName: existing.data.last_name || '',
@@ -78,7 +99,7 @@ export default function UserFormPage() {
         onSubmit={handleSubmit}
         submitting={submitting}
         submitError={submitError}
-        cancelTo={isEdit ? `/users/${userId}` : '/users'}
+        cancelTo={isGuardEdit ? '/users' : isEdit ? `/users/${userId}` : '/users'}
       />
     </PageContainer>
   );

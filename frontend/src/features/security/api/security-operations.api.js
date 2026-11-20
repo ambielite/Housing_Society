@@ -1,4 +1,4 @@
-import { legacyApi as axiosClient } from "../../../lib/axios";
+import apiClient, { legacyApi as axiosClient } from "../../../lib/axios";
 
 const societyParams = () => {
     const societyId = String(localStorage.getItem("selectedSocietyId") || "").replace(/^:+/, "").trim();
@@ -6,14 +6,45 @@ const societyParams = () => {
 };
 
 const securityApi = {
+    getUsers: async () => {
+        const users = [];
+        let page = 1;
+        let totalPages = 1;
+        do {
+            const response = await apiClient.get("/users", {
+                params: { ...(societyParams().params || {}), page, limit: 100 },
+            });
+            const result = response.data?.data || {};
+            users.push(...(Array.isArray(result.users) ? result.users : []));
+            totalPages = result.pagination?.totalPages || 1;
+            page += 1;
+        } while (page <= totalPages);
+        return users;
+    },
     updateResource: async (resource, id, data) => (await axiosClient.put(`/${resource}/${id}`, data, data instanceof FormData ? { headers: { "Content-Type": "multipart/form-data" } } : undefined)).data,
     deleteResource: async (resource, id) => (await axiosClient.delete(`/${resource}/${id}`)).data,
     updateAttendance: async (id, data) => (await axiosClient.put(`/staff-attendance/${id}`, data)).data,
     createAttendance: async (data) => (await axiosClient.post("/staff-attendance", data)).data,
     getStaff: async () => (await axiosClient.get("/staff", societyParams())).data,
+    getStaffById: async (id) => (await axiosClient.get(`/staff/${id}`)).data?.data,
+    getGuardLoginHistory: async (id) => (await apiClient.get(`/users/guards/${id}/login-history`)).data?.data || [],
     createStaff: async (data) => (await axiosClient.post("/staff", data, data instanceof FormData ? { headers: { "Content-Type": "multipart/form-data" } } : undefined)).data,
     deleteStaff: async (id) => (await axiosClient.delete(`/staff/${id}`)).data,
-    updateStaff: async (id, data) => (await axiosClient.put(`/staff/${id}`, data)).data,
+    updateStaff: async (id, data) => {
+        const payload = data instanceof FormData
+            ? data
+            : data?.profilePicture
+                ? Object.entries(data).reduce((formData, [key, value]) => {
+                    if (value !== undefined && value !== null) formData.append(key, value);
+                    return formData;
+                }, new FormData())
+                : data;
+        return (await axiosClient.put(
+            `/staff/${id}`,
+            payload,
+            payload instanceof FormData ? { headers: { "Content-Type": "multipart/form-data" } } : undefined
+        )).data;
+    },
     activateStaff: async (id) => (await axiosClient.post(`/staff/${id}/activate`)).data,
     deactivateStaff: async (id) => (await axiosClient.post(`/staff/${id}/deactivate`)).data,
     getAttendance: async () => {

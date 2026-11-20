@@ -1,5 +1,8 @@
 const LABELS = {
   ACTIVE: 'Active',
+  INACTIVE: 'Inactive',
+  ON_LEAVE: 'On leave',
+  TERMINATED: 'Terminated',
   SUSPENDED: 'Suspended',
   PENDING: 'Pending',
   ARCHIVED: 'Archived',
