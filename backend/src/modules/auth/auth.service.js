@@ -168,13 +168,15 @@ const login = async ({ email, password, securityCode, selfieData, selfieMimeType
        JOIN staff s ON s.id = sg.staff_id
        JOIN users u ON u.id = sg.user_id
        WHERE upper(s.employee_code) = upper($1)
-         AND u.id = $2
+         AND s.society_id = $2
          AND s.staff_type = 'SECURITY_GUARD'
          AND s.status = 'ACTIVE'
          AND sg.status = 'ACTIVE'
          AND u.status = 'ACTIVE'
        LIMIT 1`,
-      [securityCode.trim(), user.id]
+      // Shared guard credentials authenticate the security login account;
+      // the employee code selects the specific guard and profile photo.
+      [securityCode.trim(), user.society_id]
     );
     if (!guardResult.rowCount) {
       await authRepository.createLoginHistory({
