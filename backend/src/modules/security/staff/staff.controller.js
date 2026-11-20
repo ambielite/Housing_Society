@@ -107,7 +107,8 @@ const updateStaff = async (req, res) => {
             await StaffService.updateStaff(
                 req.params.id,
                 req.body,
-                req.file
+                req.file,
+                req.user
             );
 
         return res.status(200).json({
@@ -132,7 +133,8 @@ const activateStaff = async (req, res) => {
 
         const staff =
             await StaffService.activateStaff(
-                req.params.id
+                req.params.id,
+                req.user
             );
 
         return res.status(200).json({
@@ -157,7 +159,8 @@ const deactivateStaff = async (req, res) => {
 
         const staff =
             await StaffService.deactivateStaff(
-                req.params.id
+                req.params.id,
+                req.user
             );
 
         return res.status(200).json({

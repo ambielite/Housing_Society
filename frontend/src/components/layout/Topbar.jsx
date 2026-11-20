@@ -128,7 +128,7 @@ export default function Topbar() {
 
   useEffect(() => {
     void loadUnreadNotifications();
-    const interval = window.setInterval(loadUnreadNotifications, 60000);
+    const interval = window.setInterval(loadUnreadNotifications, 5000);
     const onFocus = () => void loadUnreadNotifications();
     window.addEventListener('focus', onFocus);
     return () => {
@@ -225,7 +225,7 @@ export default function Topbar() {
               aria-expanded={quickAddOpen}
               aria-haspopup="dialog"
             >
-              <Plus size={17} />
+              <Plus size={18} strokeWidth={2.4} aria-hidden="true" />
               <span>Add New</span>
               <ChevronDown size={15} className={quickAddOpen ? 'quick-add-chevron is-open' : 'quick-add-chevron'} />
             </button>

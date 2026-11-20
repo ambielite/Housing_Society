@@ -155,10 +155,19 @@ const matchesPath = (pathname, path) => pathname === path || pathname.startsWith
 const visibleTree = (items, hasAnyPermission) => items
   .map((item) => ({ ...item, children: item.children ? visibleTree(item.children, hasAnyPermission) : undefined }))
   .filter((item) => canSee(item, hasAnyPermission) || item.children?.length);
-const itemIsActive = (item, pathname, search) => (item.parkingTab
-  ? pathname === '/parking' && new URLSearchParams(search).get('tab') === item.parkingTab
-  : pathname === item.to)
-  || item.children?.some((child) => itemIsActive(child, pathname, search));
+const activeNavigationKey = (items, pathname, search) => {
+  const matches = [];
+  const visit = (nodes, depth = 0) => nodes.forEach((item) => {
+    const matchesRoute = item.parkingTab
+      ? pathname === '/parking' && new URLSearchParams(search).get('tab') === item.parkingTab
+      : matchesPath(pathname, item.to);
+    if (matchesRoute) matches.push({ key: item.key || item.to, pathLength: item.to.length, depth });
+    if (item.children?.length) visit(item.children, depth + 1);
+  });
+  visit(items);
+  matches.sort((a, b) => b.pathLength - a.pathLength || b.depth - a.depth);
+  return matches[0]?.key;
+};
 const groupAncestors = (items, targetKey, ancestors = []) => {
   for (const item of items) {
     const key = item.key || item.to;
@@ -183,6 +192,7 @@ export default function Sidebar() {
     ...visibleItems.filter((item) => item !== societyOverview && item.children?.length),
     ...visibleItems.filter((item) => item !== societyOverview && !item.children?.length),
   ];
+  const activeKey = activeNavigationKey(orderedItems, pathname, search);
   const manageVendors = orderedItems.find((item) => item.to === '/vendors');
   const purchaseWorkflowIndex = orderedItems.findIndex((item) => item.key === 'purchase-workflow');
   if (manageVendors && purchaseWorkflowIndex >= 0) {
@@ -211,6 +221,10 @@ export default function Sidebar() {
   const handleNavigationClick = (key, hasChildren) => {
     if (hasChildren) {
       toggleGroup(key);
+    } else {
+      // Keep only the groups that contain the destination open. Navigating to
+      // Home (a top-level leaf) therefore collapses any open module submenu.
+      setOpenGroups(new Set(groupAncestors(orderedItems, key) || []));
     }
     closeSidebar();
   };
@@ -221,7 +235,9 @@ export default function Sidebar() {
     const hasChildren = children.length > 0;
     const key = item.key || item.to;
     const expanded = openGroups.has(key);
-    const active = itemIsActive(item, pathname, search);
+    // Highlight only the exact destination. Parent groups can stay expanded
+    // without looking selected when one of their dropdown pages is active.
+    const active = key === activeKey;
     const destination = canSee(item, hasAnyPermission) ? item.to : children[0]?.to || item.to;
     const submenuId = `sidebar-submenu-${key.replaceAll('/', '-').replaceAll(' ', '-').toLowerCase()}`;
 

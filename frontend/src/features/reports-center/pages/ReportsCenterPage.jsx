@@ -205,7 +205,7 @@ function ReportResults({ data, report }) {
       { key: 'utilities', title: 'Utilities', icon: BarChart3 },
     ];
     return <>
-      <div className="rc-dashboard-note"><Activity size={17} /><span>Snapshot generated {data.generatedAt ? new Date(data.generatedAt).toLocaleString('en-IN') : 'by the reports service'}. Metrics are from your Phase 17 modules.</span></div>
+      <div className="rc-dashboard-note"><Activity size={17} /><span>Snapshot generated {data.generatedAt ? new Date(data.generatedAt).toLocaleString('en-IN') : 'by the reports service'}. </span></div>
       <div className="rc-dashboard-grid">{groups.filter((group) => data[group.key]).map((group) => {
         const Icon = group.icon;
         return <article className="rc-dashboard-card" key={group.key}>
@@ -465,7 +465,7 @@ export default function ReportsCenterPage() {
       actions={<button type="button" className="btn btn-secondary" onClick={() => runReport()} disabled={loading}><RefreshCw size={15} className={loading ? 'rc-spin' : ''} /> Refresh</button>}
     >
       <div className="rc-overview-strip">
-        <div><span className="rc-overview-icon"><BarChart3 size={19} /></span><div><strong>Reports & analytics</strong><p>Live data from Phase 17 report endpoints</p></div></div>
+        <div><span className="rc-overview-icon"><BarChart3 size={19} /></span><div><strong>Reports & analytics</strong></div></div>
         <span className="rc-overview-caption"><Shield size={14} /> Permission-aware access</span>
       </div>
 
@@ -494,7 +494,9 @@ export default function ReportsCenterPage() {
         </div>
 
         {canExport && <div className="rc-export-row"><span><Download size={15} /> Export report details</span><div>
+          {/* CSV export button is intentionally hidden; uncomment to restore it.
           <button type="button" className="btn btn-secondary btn-sm" onClick={() => exportReport('csv')} disabled={Boolean(exporting)}><FileText size={14} /> {exporting === 'csv' ? 'Preparing…' : 'CSV'}</button>
+          */}
           <button type="button" className="btn btn-secondary btn-sm" onClick={() => exportReport('pdf')} disabled={Boolean(exporting)}><FileText size={14} /> {exporting === 'pdf' ? 'Preparing…' : 'PDF'}</button>
           <button type="button" className="btn btn-secondary btn-sm" onClick={() => exportReport('xlsx')} disabled={Boolean(exporting)}><FileSpreadsheet size={14} /> {exporting === 'xlsx' ? 'Preparing…' : 'Excel'}</button>
         </div></div>}

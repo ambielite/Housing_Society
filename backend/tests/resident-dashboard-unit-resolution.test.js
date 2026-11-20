@@ -1,5 +1,5 @@
 jest.mock('../src/config/db', () => ({ query: jest.fn(), pool: { end: jest.fn().mockResolvedValue(undefined) } }));
-jest.mock('../src/modules/notices/notices.service', () => ({ list: jest.fn() }));
+jest.mock('../src/modules/notices/notices.service', () => ({ list: jest.fn(), processSchedule: jest.fn() }));
 jest.mock('../src/modules/resident-context/residentUnitContext.service', () => ({ resolveResidentUnits: jest.fn() }));
 
 const { query } = require('../src/config/db');

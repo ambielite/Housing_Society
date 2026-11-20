@@ -1,4 +1,5 @@
 const service = require('./gates.service');
+const securityEvents = require('./securityEvents');
 const ApiResponse = require('../../common/ApiResponse');
 const asyncHandler = require('../../common/asyncHandler');
 
@@ -33,6 +34,41 @@ const deleteGate = asyncHandler(async (req, res) => {
 const listGuards = asyncHandler(async (req, res) => {
   const guards = await service.listGuards(req.query);
   return ApiResponse.success(res, guards);
+});
+
+const getMyGuard = asyncHandler(async (req, res) => {
+  const guard = await service.getMyGuard(req.user);
+  return ApiResponse.success(res, guard);
+});
+
+const listMyNotifications = asyncHandler(async (req, res) => {
+  const notifications = await service.listMyNotifications(req.user);
+  return ApiResponse.success(res, notifications);
+});
+
+const streamMySecurityEvents = asyncHandler(async (req, res) => {
+  res.status(200);
+  res.set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.flushHeaders?.();
+  securityEvents.subscribe(req.user.id, res);
+
+  const heartbeat = setInterval(() => {
+    if (!res.destroyed && !res.writableEnded) res.write(': keep-alive\n\n');
+  }, 25000);
+  res.on('close', () => clearInterval(heartbeat));
+});
+
+const markMyNotificationRead = asyncHandler(async (req, res) => {
+  const notification = await service.markMyNotificationRead(
+    req.user,
+    req.params.notificationId
+  );
+  return ApiResponse.success(res, notification, 'Notification marked as read');
 });
 
 const getGuard = asyncHandler(async (req, res) => {
@@ -110,6 +146,10 @@ module.exports = {
   updateGate,
   deleteGate,
   listGuards,
+  getMyGuard,
+  listMyNotifications,
+  streamMySecurityEvents,
+  markMyNotificationRead,
   getGuard,
   updateGuard,
   deleteGuard,

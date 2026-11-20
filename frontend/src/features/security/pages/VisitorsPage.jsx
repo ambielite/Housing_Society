@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { LogIn, LogOut, Plus, SquarePen } from 'lucide-react';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
 import useFetch from '../../../utils/useFetch';
@@ -16,6 +16,7 @@ import * as api from '../api/security.api';
 import { ID_TYPES, BLACKLIST_STATUSES, INVITE_STATUSES, PASS_STATUSES, OVERSTAY_STATUSES, label, deliveryTransitions } from '../components/securityOptions';
 import SecurityBadge from '../components/SecurityBadge';
 import { FormActions, GatePicker, VisitorPicker, InvitePicker, ErrorBox } from '../components/SecurityFormHelpers';
+import { isValidPhone, phoneInputProps } from '../../../utils/phone';
 
 const VISITOR_TYPES = ['GUEST', 'DELIVERY_PERSON', 'SERVICE_PROVIDER', 'STAFF', 'OTHER'];
 const DELIVERY_COMPANIES = [
@@ -52,9 +53,15 @@ function ProfileForm({ societyId, societyName, value, onSubmit, onCancel, saving
     otherDeliveryCompany: currentCompany && !listedCompany ? currentCompany : '',
   });
   const edit = Boolean(value);
+  const [phoneError, setPhoneError] = useState('');
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const submit = (e) => {
     e.preventDefault();
+    if (!isValidPhone(form.phone)) {
+      setPhoneError('Enter a valid 10-digit phone number.');
+      return;
+    }
+    setPhoneError('');
     const deliveryCompany = form.visitorType === 'DELIVERY_PERSON'
       ? form.deliveryCompany === 'Other' ? form.otherDeliveryCompany.trim() : form.deliveryCompany
       : null;
@@ -72,7 +79,7 @@ function ProfileForm({ societyId, societyName, value, onSubmit, onCancel, saving
     <ErrorBox error={error} />
     {!edit && <TextField id="profileSociety" label="Society" value={societyName || 'Selected society'} disabled />}
     <TextField id="visitorName" label="Visitor name" value={form.name} onChange={(e) => set('name', e.target.value)} required />
-    <TextField id="visitorPhone" label="Phone" value={form.phone} onChange={(e) => set('phone', e.target.value)} />
+    <TextField id="visitorPhone" label="Phone (optional)" value={form.phone} onChange={(e) => { set('phone', e.target.value.replace(/\D/g, '').slice(0, 10)); setPhoneError(''); }} {...phoneInputProps} error={phoneError} />
     <SelectField id="visitorType" label="Visitor type" options={VISITOR_TYPES.map((v) => ({ value: v, label: label(v) }))} value={form.visitorType} onChange={(e) => { set('visitorType', e.target.value); if (e.target.value !== 'DELIVERY_PERSON') { set('deliveryCompany', ''); set('otherDeliveryCompany', ''); } }} required />
     {form.visitorType === 'DELIVERY_PERSON' && <>
       <SelectField id="deliveryCompany" label="Delivery company" placeholder="Select company" options={DELIVERY_COMPANIES.map((company) => ({ value: company, label: company }))} value={form.deliveryCompany} onChange={(e) => set('deliveryCompany', e.target.value)} required />
@@ -135,6 +142,17 @@ export default function VisitorsPage({ societyId, societyName, currentUser, gate
   const alertRows = list(alerts.data);
   const userRows = list(users.data);
 
+  // Guard actions are written immediately through the shared visitor API.
+  // Keep the admin pass/event tables in sync while either live view is open.
+  useEffect(() => {
+    if (tab !== 'passes' && tab !== 'events') return undefined;
+    const timer = window.setInterval(() => {
+      passes.reload();
+      if (tab === 'events') events.reload();
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [tab, passes.reload, events.reload]);
+
   const run = async (action, success) => {
     setError(''); setNotice('');
     try { await action(); setNotice(success); setDialog(null); setSelected(null); profiles.reload(); invites.reload(); passes.reload(); events.reload(); alerts.reload(); }
@@ -149,7 +167,7 @@ export default function VisitorsPage({ societyId, societyName, currentUser, gate
     { key: 'blacklist', header: 'Status', render: (p) => <SecurityBadge value={p.blacklist_status} /> },
     { key: 'actions', header: 'Actions', render: (p) => <div className="row-actions">
       {hasPermission('VISITOR_PROFILE_READ') && <button className="btn btn-secondary btn-sm" onClick={() => { setSelected(p); setDialog('profile-detail'); }}>View</button>}
-      {hasPermission('VISITOR_PROFILE_UPDATE') && <button className="btn btn-secondary btn-sm" onClick={() => { setSelected(p); setDialog('profile-edit'); }}>Edit</button>}
+      {hasPermission('VISITOR_PROFILE_UPDATE') && <button type="button" className="security-table-icon-action" aria-label="Edit visitor profile" title="Edit" onClick={() => { setSelected(p); setDialog('profile-edit'); }}><SquarePen size={18} aria-hidden="true" /></button>}
       {hasPermission('VISITOR_PROFILE_UPDATE') && <button className="btn btn-danger btn-sm" onClick={() => run(() => api.setBlacklistStatus(p.id, p.blacklist_status === 'BLACKLISTED' ? 'NONE' : 'BLACKLISTED'), p.blacklist_status === 'BLACKLISTED' ? 'Visitor removed from blacklist.' : 'Visitor blacklisted.')}>{p.blacklist_status === 'BLACKLISTED' ? 'Unblacklist' : 'Blacklist'}</button>}
     </div> },
   ];
@@ -286,7 +304,16 @@ const passColumns = [
   {
     key: 'type',
     header: 'Event',
-    render: (e) => <SecurityBadge value={e.event_type} />
+    render: (e) => {
+      const eventType = String(e.event_type || '').toUpperCase();
+      const EventIcon = eventType === 'ENTRY' ? LogIn : LogOut;
+      return (
+        <span className={`gate-event-badge gate-event-badge--${eventType.toLowerCase()}`}>
+          <EventIcon size={13} strokeWidth={2.5} aria-hidden="true" />
+          {label(eventType)}
+        </span>
+      );
+    }
   },
   {
     key: 'gate',
@@ -398,7 +425,7 @@ const passColumns = [
 
     {tab === 'invites' && <><div className="section-head"><div><h2 className="section-title">Visitor invites</h2><p className="muted section-hint">Pre-approve expected visitors for a unit.</p></div>{hasPermission('VISITOR_INVITE_CREATE') && <button className="btn btn-primary" onClick={() => setDialog('invite-new')}><Plus size={16} /> New invite</button>}</div><DataTable tableClassName="security-actions-table visitor-invites-table" columns={inviteColumns} rows={inviteRows} loading={invites.loading} error={invites.error ? getErrorMessage(invites.error) : ''} onRetry={invites.reload} emptyTitle="No invites" emptyMessage="Create an invite for a pre-approved visitor." /></>}
 
-    {tab === 'passes' && <><div className="section-head"><div><h2 className="section-title">Visitor passes</h2><p className="muted section-hint">Gate-facing lifecycle: expected → arrival → entry → exit/overstay.</p></div>{hasPermission('VISITOR_PASS_CREATE') && <button className="btn btn-primary" onClick={() => setDialog('pass-new')}><span className="button-plus" aria-hidden="true">+</span> Issue pass</button>}</div><DataTable tableClassName="society-table security-actions-table" columns={passColumns} rows={passRows} loading={passes.loading} error={passes.error ? getErrorMessage(passes.error) : ''} onRetry={passes.reload} emptyTitle="No visitor passes" emptyMessage="Issue a pass for an approved invite or a walk-in visitor." /></>}
+    {tab === 'passes' && <><div className="section-head"><div><h2 className="section-title">Visitor passes</h2><p className="muted section-hint">Gate-facing lifecycle: expected → arrival → entry → exit/overstay.</p></div>{hasPermission('VISITOR_PASS_CREATE') && <button className="btn btn-primary" onClick={() => setDialog('pass-new')}><Plus size={18} strokeWidth={2.4} aria-hidden="true" /> Issue pass</button>}</div><DataTable tableClassName="society-table security-actions-table" columns={passColumns} rows={passRows} loading={passes.loading} error={passes.error ? getErrorMessage(passes.error) : ''} onRetry={passes.reload} emptyTitle="No visitor passes" emptyMessage="Issue a pass for an approved invite or a walk-in visitor." /></>}
 
     {tab === 'events' && <><div className="section-head"><div><h2 className="section-title">Gate events</h2><p className="muted section-hint">Immutable visitor entry/exit audit trail.</p></div></div><DataTable tableClassName="society-table" columns={eventColumns} rows={eventRows} loading={events.loading} error={events.error ? getErrorMessage(events.error) : ''} onRetry={events.reload} emptyTitle="No gate events" emptyMessage="Visitor entry/exit events will appear here." /></>}
 

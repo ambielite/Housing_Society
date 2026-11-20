@@ -1,4 +1,5 @@
 const repository = require('./notices.repository');
+const residentDashboardEvents = require('../resident-dashboard/residentDashboardEvents');
 
 const isUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ''));
 const validDate = (value, label) => {
@@ -59,6 +60,10 @@ const update = async (societyId, userId, id, data) => {
   if (existing.status === 'SCHEDULED' && !values.scheduledAt) {
     notice.queued_count = await repository.queueNoticeNotifications(societyId, notice);
   }
+  notice.updated_notification_count = await repository.queueNoticeUpdateNotifications(
+    societyId,
+    notice,
+  );
   return notice;
 };
 
@@ -73,6 +78,10 @@ const expire = async (societyId, userId, id) => {
   requireUuid(id, 'notice ID');
   const notice = await repository.expire(societyId, id, userId);
   if (!notice) throw new Error('Notice not found or already expired');
+  notice.expired_notification_count = await repository.queueNoticeExpiredNotifications(
+    societyId,
+    notice,
+  );
   return notice;
 };
 
@@ -97,6 +106,15 @@ const createFromTemplate = async (societyId, userId, templateId, data = {}) => {
   return create(societyId, userId, { ...template, ...data });
 };
 
-const processSchedule = async () => repository.publishDue();
+const processSchedule = async () => {
+  const result = await repository.publishDue();
+  if (Number(result?.published_count) > 0 || Number(result?.expired_count) > 0) {
+    residentDashboardEvents.publishToUsers(
+      result.notified_user_ids,
+      'notice-published',
+    );
+  }
+  return result;
+};
 
 module.exports = { list, getById, create, update, markRead, expire, renotify, saveTemplate, templates, createFromTemplate, processSchedule };

@@ -4,7 +4,10 @@ import { X } from "lucide-react";
 import moveOutApi from "../api/moveOut.api";
 import societyApi from "../../societies/api/society.api";
 import unitApi from "../../units/api/unit.api";
+import floorApi from "../../floors/api/floor.api";
+import towerApi from "../../towers/api/tower.api";
 import residentApi from "../../residents/api/resident.api";
+import unitLocationLabel from "../../../utils/unitLocation";
 
 const rowsFrom = (response) => {
     const rows = Array.isArray(response) ? response : response?.data || response?.records || [];
@@ -30,10 +33,12 @@ const initialValues = (moveOut = null) => ({
     remarks: moveOut?.remarks || ""
 });
 
-const MoveOutForm = ({ moveOut, onClose, onSuccess }) => {
+const MoveOutForm = ({ moveOut, moveOuts = [], onClose, onSuccess }) => {
     const [values, setValues] = useState(() => initialValues(moveOut));
     const [societies, setSocieties] = useState([]);
     const [units, setUnits] = useState([]);
+    const [floors, setFloors] = useState([]);
+    const [towers, setTowers] = useState([]);
     const [residents, setResidents] = useState([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -48,10 +53,12 @@ const MoveOutForm = ({ moveOut, onClose, onSuccess }) => {
 
         const loadOptions = async () => {
             try {
-                const [societyResponse, unitResponse, residentResponse] = await Promise.all([
+                const [societyResponse, unitResponse, residentResponse, floorResponse, towerResponse] = await Promise.all([
                     societyApi.getAll(),
                     unitApi.getAll(),
-                    residentApi.getAll()
+                    residentApi.getAll(),
+                    floorApi.getAll(),
+                    towerApi.getAll()
                 ]);
 
                 if (!isMounted) return;
@@ -59,6 +66,8 @@ const MoveOutForm = ({ moveOut, onClose, onSuccess }) => {
                 setSocieties(rowsFrom(societyResponse));
                 setUnits(rowsFrom(unitResponse));
                 setResidents(rowsFrom(residentResponse));
+                setFloors(rowsFrom(floorResponse));
+                setTowers(rowsFrom(towerResponse));
             } catch (err) {
                 if (isMounted) {
                     setError(err.response?.data?.message || "Could not load move-out form options.");
@@ -143,6 +152,17 @@ const MoveOutForm = ({ moveOut, onClose, onSuccess }) => {
             setError(`Please clear the pending amount of ${formatInr(pendingAmount)} before proceeding with move-out.`);
             return;
         }
+        const duplicate = moveOuts.find((record) =>
+            record.id !== moveOut?.id &&
+            String(record.societyId) === String(values.societyId) &&
+            String(record.unitId) === String(values.unitId) &&
+            String(record.residentId) === String(values.residentId) &&
+            !["REJECTED", "CANCELLED"].includes(record.status)
+        );
+        if (duplicate) {
+            setError("This resident already has a move-out request or completed move-out for this unit.");
+            return;
+        }
 
         try {
             setSaving(true);
@@ -171,6 +191,8 @@ const MoveOutForm = ({ moveOut, onClose, onSuccess }) => {
         }
     };
 
+    const floorsById = new Map(floors.map((floor) => [String(floor.id), floor]));
+    const towersById = new Map(towers.map((tower) => [String(tower.id), tower]));
     return (
         <section className="society-form-modal" role="dialog" aria-modal="true" aria-labelledby="moveout-form-title">
             <header className="society-form-header">
@@ -205,7 +227,7 @@ const MoveOutForm = ({ moveOut, onClose, onSuccess }) => {
                                 <select id="moveout-unit" name="unitId" value={values.unitId} onChange={updateField} required disabled={loading || units.length === 0}>
                                     <option value="">{loading ? "Loading units…" : "Select a unit"}</option>
                                     {units.map((unit) => (
-                                        <option key={unit.id} value={unit.id}>{unit.unitNumber || unit.name || unit.id}</option>
+                                        <option key={unit.id} value={unit.id}>{unitLocationLabel(unit, floorsById, towersById)}</option>
                                     ))}
                                 </select>
                             </div>
@@ -215,7 +237,7 @@ const MoveOutForm = ({ moveOut, onClose, onSuccess }) => {
                                 <select id="moveout-resident" name="residentId" value={values.residentId} onChange={updateField} required disabled={loading || residents.length === 0}>
                                     <option value="">{loading ? "Loading residents…" : "Select a resident"}</option>
                                     {residents.map((resident) => (
-                                        <option key={resident.id} value={resident.id}>{resident.displayName || `${resident.firstName || ""} ${resident.lastName || ""}`.trim() || resident.name || resident.id}</option>
+                                        <option key={resident.id} value={resident.id} disabled={moveOuts.some((record) => record.id !== moveOut?.id && String(record.societyId) === String(values.societyId) && String(record.unitId) === String(values.unitId) && String(record.residentId) === String(resident.id) && !["REJECTED", "CANCELLED"].includes(record.status))}>{resident.displayName || `${resident.firstName || ""} ${resident.lastName || ""}`.trim() || resident.name || resident.id}{moveOuts.some((record) => record.id !== moveOut?.id && String(record.societyId) === String(values.societyId) && String(record.unitId) === String(values.unitId) && String(record.residentId) === String(resident.id) && !["REJECTED", "CANCELLED"].includes(record.status)) ? " (already moved out)" : ""}</option>
                                     ))}
                                 </select>
                             </div>

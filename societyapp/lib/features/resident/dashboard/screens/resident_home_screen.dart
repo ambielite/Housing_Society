@@ -1,15 +1,35 @@
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../auth/data/auth_api.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../amenities/screens/resident_amenities_screen.dart';
+import '../../complaints/data/resident_complaints_api.dart';
 import '../../complaints/screens/resident_complaints_screen.dart';
 import '../../bills/screens/resident_finance_screen.dart';
+import '../data/resident_delivery_notifications_api.dart';
+import '../data/resident_emergency_contacts_api.dart';
+import '../data/resident_notifications_api.dart';
+import '../../visitors/data/resident_visitors_api.dart';
+import '../../visitors/screens/resident_visitors_screen.dart';
 import '../data/resident_dashboard_api.dart';
-import 'resident_profile_screen.dart';
+import '../../profile/screens/resident_profile_screen.dart';
+
+const _configuredResidentApiBaseUrl = String.fromEnvironment('API_BASE_URL');
+
+String get _residentApiBaseUrl => _configuredResidentApiBaseUrl.isNotEmpty
+    ? _configuredResidentApiBaseUrl
+    : kIsWeb
+    ? 'http://localhost:5000/api/v1'
+    : 'http://localhost:5000/api/v1';
+
+enum _ResidentSection { home, amenities, visitors, complaints, profile }
 
 class ResidentHomeScreen extends StatefulWidget {
   const ResidentHomeScreen({super.key, required this.user});
@@ -23,50 +43,191 @@ class ResidentHomeScreen extends StatefulWidget {
 class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     with WidgetsBindingObserver {
   int _selectedTab = 0;
+  _ResidentSection _activeSection = _ResidentSection.home;
   late Future<ResidentDashboardData> _dashboardFuture;
+  late Future<List<ResidentComplaint>> _complaintsFuture;
   ResidentDashboardData? _dashboardData;
-  Timer? _dashboardRefreshTimer;
+  String? _updatedResidentName;
+  Timer? _complaintsRefreshTimer;
+  Timer? _visitorRequestsRefreshTimer;
+  Timer? _deliveryNotificationsRefreshTimer;
+  Timer? _noticeExpiryTimer;
+  Timer? _residentEventsReconnectTimer;
+  http.Client? _residentEventsClient;
+  StreamSubscription<String>? _residentEventsSubscription;
+  Duration _residentEventsRetryDelay = const Duration(seconds: 2);
+  bool _hadResidentEventsConnection = false;
   bool _refreshingDashboard = false;
+  bool _dashboardRefreshQueued = false;
+  bool _refreshingComplaints = false;
+  bool _refreshingVisitorRequests = false;
+  bool _refreshingDeliveryNotifications = false;
+  bool _refreshingNotifications = false;
+  final Set<String> _decidingVisitorRequestIds = {};
+  List<ResidentVisitorRequest> _visitorRequests = const [];
+  List<ResidentDeliveryNotification> _deliveryNotifications = const [];
+  List<ResidentAppNotification> _notifications = const [];
+  AuthenticatedUser? _updatedUser;
 
-  String get _firstName => widget.user.name.trim().split(' ').first;
+  String get _residentDisplayName => _updatedResidentName ?? widget.user.name;
+  String get _firstName => _residentDisplayName.trim().split(' ').first;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _dashboardFuture = ResidentDashboardApi.load(widget.user.accessToken).then(
-      (data) {
-        _dashboardData = data;
-        return data;
-      },
+    _dashboardFuture = ResidentDashboardApi.load(widget.user.accessToken)
+        .then((data) {
+          _dashboardData = data;
+          _scheduleNoticeExpiry(data);
+          return data;
+        });
+    _complaintsFuture = ResidentComplaintsApi.listComplaints(
+      widget.user.accessToken,
     );
-    _dashboardRefreshTimer = Timer.periodic(
-      const Duration(seconds: 30),
-      (_) => _refreshDashboardInBackground(),
+    _complaintsRefreshTimer = Timer.periodic(
+      const Duration(seconds: 2),
+      (_) => _refreshComplaintsInBackground(),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(_refreshVisitorRequests());
+      unawaited(_refreshDeliveryNotifications());
+      unawaited(_refreshNotifications());
+      _connectResidentEvents();
+    });
+    _visitorRequestsRefreshTimer = Timer.periodic(
+      const Duration(seconds: 2),
+      (_) => _refreshVisitorRequests(),
+    );
+    _deliveryNotificationsRefreshTimer = Timer.periodic(
+      const Duration(seconds: 3),
+      (_) => _refreshDeliveryNotifications(),
     );
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _refreshDashboardInBackground();
+      _restartResidentEvents();
+      unawaited(_refreshDashboard().catchError((_) {}));
+      _refreshComplaintsInBackground();
+      _refreshVisitorRequests();
+      _refreshDeliveryNotifications();
+      _refreshNotifications();
     }
   }
 
   @override
   void dispose() {
-    _dashboardRefreshTimer?.cancel();
+    _complaintsRefreshTimer?.cancel();
+    _visitorRequestsRefreshTimer?.cancel();
+    _deliveryNotificationsRefreshTimer?.cancel();
+    _noticeExpiryTimer?.cancel();
+    _residentEventsReconnectTimer?.cancel();
+    _residentEventsSubscription?.cancel();
+    _residentEventsClient?.close();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
+  void _restartResidentEvents() {
+    _residentEventsReconnectTimer?.cancel();
+    _residentEventsReconnectTimer = null;
+    _residentEventsSubscription?.cancel();
+    _residentEventsSubscription = null;
+    _residentEventsClient?.close();
+    _residentEventsClient = null;
+    _connectResidentEvents();
+  }
+
+  Future<void> _connectResidentEvents() async {
+    if (!mounted || _residentEventsSubscription != null) return;
+    final client = http.Client();
+    try {
+      final request = http.Request(
+        'GET',
+        Uri.parse('$_residentApiBaseUrl/resident-dashboard/events'),
+      )..headers['Authorization'] = 'Bearer ${widget.user.accessToken}';
+      final response = await client
+          .send(request)
+          .timeout(const Duration(seconds: 15));
+      if (response.statusCode != 200) {
+        client.close();
+        _scheduleResidentEventsReconnect();
+        return;
+      }
+      if (!mounted) {
+        client.close();
+        return;
+      }
+      final recoveringConnection = _hadResidentEventsConnection;
+      _hadResidentEventsConnection = true;
+      _residentEventsClient = client;
+      _residentEventsRetryDelay = const Duration(seconds: 2);
+      _residentEventsSubscription = response.stream
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())
+          .listen(
+            (line) {
+              if (!line.startsWith('data:')) return;
+              try {
+                final event = jsonDecode(line.substring(5).trim());
+                if (event is Map &&
+                    (event['type'] == 'resident-updated' ||
+                        event['type'] == 'notice-published')) {
+                  unawaited(_refreshNotifications());
+                  unawaited(_refreshDashboard().catchError((_) {}));
+                }
+              } catch (_) {
+                // Ignore malformed stream events and keep the connection open.
+              }
+            },
+            onError: (_) => _onResidentEventsDisconnected(client),
+            onDone: () => _onResidentEventsDisconnected(client),
+            cancelOnError: true,
+          );
+      if (recoveringConnection) {
+        unawaited(_refreshNotifications());
+        unawaited(_refreshDashboard().catchError((_) {}));
+      }
+    } catch (_) {
+      client.close();
+      _scheduleResidentEventsReconnect();
+    }
+  }
+
+  void _onResidentEventsDisconnected(http.Client client) {
+    if (!identical(client, _residentEventsClient)) return;
+    _residentEventsSubscription = null;
+    _residentEventsClient = null;
+    client.close();
+    _scheduleResidentEventsReconnect();
+  }
+
+  void _scheduleResidentEventsReconnect() {
+    if (!mounted || (_residentEventsReconnectTimer?.isActive ?? false)) return;
+    final delay = _residentEventsRetryDelay;
+    _residentEventsRetryDelay = Duration(
+      seconds: (_residentEventsRetryDelay.inSeconds * 2).clamp(2, 60).toInt(),
+    );
+    _residentEventsReconnectTimer = Timer(delay, () {
+      _residentEventsReconnectTimer = null;
+      _connectResidentEvents();
+    });
+  }
+
   Future<void> _refreshDashboard() async {
-    if (_refreshingDashboard) return;
+    if (_refreshingDashboard) {
+      _dashboardRefreshQueued = true;
+      return;
+    }
     _refreshingDashboard = true;
     try {
       final data = await ResidentDashboardApi.load(widget.user.accessToken);
       if (mounted) {
         final refreshedData = _mergeLocalBookings(data);
+        _scheduleNoticeExpiry(refreshedData);
         setState(() {
           _dashboardData = refreshedData;
           _dashboardFuture = Future.value(refreshedData);
@@ -74,21 +235,453 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
       }
     } finally {
       _refreshingDashboard = false;
+      if (_dashboardRefreshQueued && mounted) {
+        _dashboardRefreshQueued = false;
+        unawaited(_refreshDashboard().catchError((_) {}));
+      }
     }
   }
 
-  Future<void> _refreshDashboardInBackground() async {
+  void _scheduleNoticeExpiry(ResidentDashboardData dashboard) {
+    _noticeExpiryTimer?.cancel();
+    final now = DateTime.now();
+    final upcomingExpiries = dashboard.notices
+        .map((notice) => notice.expiresAt)
+        .whereType<DateTime>()
+        .where((expiry) => expiry.isAfter(now))
+        .toList()
+      ..sort();
+    if (upcomingExpiries.isEmpty) return;
+
+    final delay = upcomingExpiries.first.difference(now);
+    _noticeExpiryTimer = Timer(delay, () {
+      if (!mounted) return;
+      setState(() {});
+      _scheduleNoticeExpiry(dashboard);
+    });
+  }
+
+  List<ResidentNotice> _visibleNotices(ResidentDashboardData dashboard) {
+    final now = DateTime.now();
+    return dashboard.notices.where((notice) {
+      if (notice.status.toUpperCase() == 'EXPIRED') return false;
+      final endsAt = notice.expiresAt;
+      return endsAt == null || endsAt.isAfter(now);
+    }).toList(growable: false);
+  }
+
+  Future<void> _refreshComplaintsInBackground() async {
     if (!mounted ||
-        _refreshingDashboard ||
+        _refreshingComplaints ||
         _selectedTab != 0 ||
         WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed ||
         ModalRoute.of(context)?.isCurrent == false) {
       return;
     }
+    _refreshingComplaints = true;
     try {
-      await _refreshDashboard();
+      final complaints = await ResidentComplaintsApi.listComplaints(
+        widget.user.accessToken,
+      );
+      if (mounted) {
+        setState(() {
+          _complaintsFuture = Future.value(complaints);
+        });
+      }
     } catch (_) {
-      // Keep showing the last successfully loaded dashboard on network errors.
+      // Keep the last successful complaint statuses visible during network errors.
+    } finally {
+      _refreshingComplaints = false;
+    }
+  }
+
+  Future<void> _refreshVisitorRequests() async {
+    if (!mounted ||
+        _refreshingVisitorRequests ||
+        WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed ||
+        ModalRoute.of(context)?.isCurrent == false) {
+      return;
+    }
+    _refreshingVisitorRequests = true;
+    try {
+      final requests = await ResidentVisitorsApi.listPending(
+        widget.user.accessToken,
+      );
+      if (!mounted) return;
+      setState(() => _visitorRequests = requests);
+    } catch (_) {
+      // Leave any already visible gate requests on screen during network errors.
+    } finally {
+      _refreshingVisitorRequests = false;
+    }
+  }
+
+  Future<void> _refreshDeliveryNotifications() async {
+    if (!mounted ||
+        _refreshingDeliveryNotifications ||
+        WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed ||
+        ModalRoute.of(context)?.isCurrent == false) {
+      return;
+    }
+    _refreshingDeliveryNotifications = true;
+    try {
+      final notifications = await ResidentDeliveryNotificationsApi.list(
+        widget.user.accessToken,
+      );
+      if (mounted) setState(() => _deliveryNotifications = notifications);
+    } catch (_) {
+      // Keep the last visible delivery alerts when the network is unavailable.
+    } finally {
+      _refreshingDeliveryNotifications = false;
+    }
+  }
+
+  Future<void> _refreshNotifications() async {
+    if (!mounted ||
+        _refreshingNotifications ||
+        WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed ||
+        ModalRoute.of(context)?.isCurrent == false) {
+      return;
+    }
+    _refreshingNotifications = true;
+    try {
+      final notifications = await ResidentNotificationsApi.listUnread(
+        widget.user.accessToken,
+      );
+      if (mounted) setState(() => _notifications = notifications);
+    } catch (_) {
+      // Keep the last known unread count when the service is unavailable.
+    } finally {
+      _refreshingNotifications = false;
+    }
+  }
+
+  Future<void> _markNotificationRead(
+    ResidentAppNotification notification,
+  ) async {
+    setState(
+      () => _notifications.removeWhere((item) => item.id == notification.id),
+    );
+    try {
+      await ResidentNotificationsApi.markRead(
+        widget.user.accessToken,
+        notification.id,
+      );
+    } catch (_) {
+      unawaited(_refreshNotifications());
+    }
+  }
+
+  Future<void> _openNotifications() async {
+    await _refreshNotifications();
+    if (!mounted) return;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => SafeArea(
+        top: false,
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(sheetContext).height * .78,
+          ),
+          decoration: const BoxDecoration(
+            color: Color(0xFFF7F8FC),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 11),
+              Container(
+                width: 38,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD9DEEA),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 18, 14),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Notifications',
+                            style: TextStyle(
+                              color: AppColors.ink,
+                              fontSize: 19,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          SizedBox(height: 3),
+                          Text(
+                            'Updates for your society and home',
+                            style: TextStyle(color: Colors.black, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.of(sheetContext).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+              ),
+              if (_notifications.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(24, 28, 24, 36),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.notifications_none_rounded,
+                        color: Color(0xFF9AA4B4),
+                        size: 38,
+                      ),
+                      SizedBox(height: 10),
+                      Text(
+                        'You’re all caught up',
+                        style: TextStyle(
+                          color: AppColors.ink,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'New notifications will appear here.',
+                        style: TextStyle(color: Colors.black, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+                    itemCount: _notifications.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 9),
+                    itemBuilder: (context, index) {
+                      final notification = _notifications[index];
+                      return _notificationTile(
+                        notification,
+                        onTap: () {
+                          Navigator.of(sheetContext).pop();
+                          unawaited(_markNotificationRead(notification));
+                        },
+                        onMarkRead: () =>
+                            unawaited(_markNotificationRead(notification)),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _notificationTile(
+    ResidentAppNotification notification, {
+    required VoidCallback onTap,
+    VoidCallback? onMarkRead,
+  }) {
+    final isUrgent =
+        notification.priority == 'HIGH' || notification.priority == 'CRITICAL';
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: isUrgent
+                      ? const Color(0xFFFFF0ED)
+                      : const Color(0xFFEAF0FF),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  _notificationIcon(notification),
+                  size: 19,
+                  color: isUrgent ? const Color(0xFFD65F4B) : AppColors.indigo,
+                ),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            notification.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppColors.ink,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                        if (isUrgent)
+                          const Text(
+                            'URGENT',
+                            style: TextStyle(
+                              color: Color(0xFFD65F4B),
+                              fontSize: 8,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: .6,
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      notification.message,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.black,
+                        height: 1.4,
+                        fontSize: 11,
+                      ),
+                    ),
+                    if (notification.referenceType == 'NOTICE' &&
+                        (notification.scheduledAt != null ||
+                            notification.expiresAt != null)) ...[
+                      const SizedBox(height: 7),
+                      if (notification.scheduledAt != null)
+                        Text(
+                          'Meeting: ${_formatDateTime(notification.scheduledAt!)}',
+                          style: const TextStyle(
+                            color: Colors.black,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      if (notification.expiresAt != null)
+                        Text(
+                          'Ends: ${_formatDateTime(notification.expiresAt!)}',
+                          style: const TextStyle(
+                            color: Colors.black,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                    ],
+                    if (notification.createdAt != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'Received ${_formatDateTime(notification.createdAt!)}',
+                        style: const TextStyle(
+                          color: Color(0xFF5B6479),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 5),
+              if (onMarkRead != null)
+                IconButton(
+                  tooltip: 'Mark as read',
+                  onPressed: onMarkRead,
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 34,
+                    height: 34,
+                  ),
+                  padding: EdgeInsets.zero,
+                  style: IconButton.styleFrom(
+                    backgroundColor: const Color(0xFFE7F7EE),
+                    foregroundColor: const Color(0xFF16834A),
+                  ),
+                  icon: const Icon(Icons.check_rounded, size: 19),
+                )
+              else
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: Color(0xFF9AA4B4),
+                  size: 19,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  IconData _notificationIcon(ResidentAppNotification notification) {
+    if (notification.priority == 'CRITICAL' ||
+        notification.type == 'EMERGENCY') {
+      return Icons.warning_amber_rounded;
+    }
+    if (notification.referenceType == 'NOTICE') return Icons.campaign_outlined;
+    return Icons.notifications_active_outlined;
+  }
+
+  Future<void> _dismissDeliveryNotification(
+    ResidentDeliveryNotification notification,
+  ) async {
+    setState(
+      () => _deliveryNotifications.removeWhere(
+        (item) => item.id == notification.id,
+      ),
+    );
+    try {
+      await ResidentDeliveryNotificationsApi.markRead(
+        widget.user.accessToken,
+        notification.id,
+      );
+    } catch (_) {
+      unawaited(_refreshDeliveryNotifications());
+    }
+  }
+
+  Future<void> _decideVisitorRequest(
+    ResidentVisitorRequest request,
+    String decision,
+  ) async {
+    if (_decidingVisitorRequestIds.contains(request.id)) return;
+    setState(() => _decidingVisitorRequestIds.add(request.id));
+    try {
+      await ResidentVisitorsApi.decide(
+        token: widget.user.accessToken,
+        passId: request.id,
+        decision: decision,
+      );
+      if (!mounted) return;
+      setState(
+        () => _visitorRequests.removeWhere((item) => item.id == request.id),
+      );
+    } on ResidentVisitorException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _decidingVisitorRequestIds.remove(request.id));
+      }
     }
   }
 
@@ -154,22 +747,23 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
         sameTime(first.endTime, second.endTime);
   }
 
-  Future<void> _openProfile(BuildContext context) async {
-    setState(() => _selectedTab = 4);
-    ResidentDashboardData dashboard;
-    try {
-      dashboard = await _dashboardFuture;
-    } catch (_) {
-      dashboard = const ResidentDashboardData();
-    }
-    if (!context.mounted) return;
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) =>
-            ResidentProfileScreen(user: widget.user, dashboard: dashboard),
-      ),
-    );
-    if (mounted) setState(() => _selectedTab = 0);
+  void _openProfile() {
+    setState(() {
+      _selectedTab = 4;
+      _activeSection = _ResidentSection.profile;
+    });
+  }
+
+  void _selectTab(int index) {
+    setState(() {
+      _selectedTab = index;
+      _activeSection = switch (index) {
+        2 => _ResidentSection.visitors,
+        3 => _ResidentSection.complaints,
+        4 => _ResidentSection.profile,
+        _ => _ResidentSection.home,
+      };
+    });
   }
 
   @override
@@ -195,74 +789,171 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                     );
                   }
                   final dashboard = snapshot.data!;
-                  return RefreshIndicator(
-                    color: AppColors.indigo,
-                    onRefresh: _refreshDashboard,
-                    child: CustomScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      slivers: [
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
-                          sliver: SliverList.list(
-                            children: [
-                              _topBar(context, dashboard),
-                              const SizedBox(height: 26),
-                              _greeting(),
-                              const SizedBox(height: 22),
-                              _societyCard(dashboard),
-                              const SizedBox(height: 25),
-                              _sectionTitle(
-                                'Quick actions',
-                                trailing: 'See all',
-                              ),
-                              const SizedBox(height: 14),
-                              _quickActions(context),
-                              const SizedBox(height: 27),
-                              _sectionTitle(
-                                'Maintenance',
-                                trailing: 'View details',
-                              ),
-                              const SizedBox(height: 13),
-                              _maintenanceCard(dashboard),
-                              if (dashboard.upcomingBookings.isNotEmpty) ...[
-                                const SizedBox(height: 27),
-                                const Text(
-                                  'Upcoming booking',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: -.25,
-                                    color: AppColors.ink,
+                  final visibleNotices = _visibleNotices(dashboard);
+                  final profileUpdateNotifications = _notifications
+                      .where(
+                        (item) => item.referenceType == 'RESIDENT_PROFILE',
+                      )
+                      .toList();
+                  if (_selectedTab == 4) {
+                    return ResidentProfileScreen(
+                      user: _updatedUser ?? widget.user,
+                      dashboard: dashboard,
+                      header: const SizedBox.shrink(),
+                      onProfileUpdated: (user) {
+                        if (!mounted) return;
+                        setState(() {
+                          _updatedResidentName = user.name;
+                          _updatedUser = user;
+                        });
+                        unawaited(_refreshDashboard().catchError((_) {}));
+                      },
+                    );
+                  }
+                  return Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
+                        child: _topBar(context, dashboard),
+                      ),
+                      Expanded(
+                        child: switch (_activeSection) {
+                          _ResidentSection.visitors => ResidentVisitorsScreen(
+                            user: widget.user,
+                          ),
+                          _ResidentSection.complaints =>
+                            ResidentComplaintsScreen(user: widget.user),
+                          _ResidentSection.amenities => ResidentAmenitiesScreen(
+                            user: widget.user,
+                            onBookingCreated: _addUpcomingBooking,
+                          ),
+                          _ => RefreshIndicator(
+                            color: AppColors.indigo,
+                            onRefresh: _refreshDashboard,
+                            child: CustomScrollView(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              slivers: [
+                                SliverPadding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    20,
+                                    4,
+                                    20,
+                                    28,
+                                  ),
+                                  sliver: SliverList.list(
+                                    children: [
+                                      const SizedBox(height: 8),
+                                      _greeting(),
+                                      if (profileUpdateNotifications
+                                          .isNotEmpty) ...[
+                                        const SizedBox(height: 18),
+                                        _sectionTitle(
+                                          'Profile updates',
+                                          trailing:
+                                              '${profileUpdateNotifications.length} new',
+                                        ),
+                                        const SizedBox(height: 12),
+                                        ...profileUpdateNotifications
+                                            .take(2)
+                                            .map(
+                                              (notification) => Padding(
+                                                padding: const EdgeInsets.only(
+                                                  bottom: 10,
+                                                ),
+                                                child: _notificationTile(
+                                                  notification,
+                                                  onTap: () {
+                                                    unawaited(
+                                                      _markNotificationRead(
+                                                        notification,
+                                                      ),
+                                                    );
+                                                  },
+                                                ),
+                                              ),
+                                            ),
+                                      ],
+                                      const SizedBox(height: 17),
+                                      _emergencyContactsCard(dashboard),
+                                      if (_visitorRequests.isNotEmpty) ...[
+                                        const SizedBox(height: 16),
+                                        _visitorAttentionSection(),
+                                      ],
+                                      if (_deliveryNotifications
+                                          .isNotEmpty) ...[
+                                        const SizedBox(height: 12),
+                                        _deliveryAttentionSection(),
+                                      ],
+                                      const SizedBox(height: 25),
+                                      _sectionTitle(
+                                        'Quick actions',
+                                        trailing: '',
+                                      ),
+                                      const SizedBox(height: 14),
+                                      _quickActions(context),
+                                      const SizedBox(height: 27),
+                                      _sectionTitle(
+                                        'Complaint status',
+                                        trailing: 'View all',
+                                        onTap: _openHelp,
+                                      ),
+                                      const SizedBox(height: 13),
+                                      _complaintStatusSection(context),
+                                      const SizedBox(height: 27),
+                                      _sectionTitle(
+                                        'Maintenance',
+                                        trailing: 'View details',
+                                      ),
+                                      const SizedBox(height: 13),
+                                      _maintenanceCard(dashboard),
+                                      if (dashboard
+                                          .upcomingBookings
+                                          .isNotEmpty) ...[
+                                        const SizedBox(height: 27),
+                                        const Text(
+                                          'Upcoming booking',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w800,
+                                            letterSpacing: -.25,
+                                            color: AppColors.ink,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 13),
+                                        ...dashboard.upcomingBookings.expand(
+                                          (booking) => [
+                                            _upcomingBookingCard(booking),
+                                            const SizedBox(height: 10),
+                                          ],
+                                        ),
+                                      ],
+                                      const SizedBox(height: 27),
+                                      _sectionTitle(
+                                        'Announcements',
+                                        trailing:
+                                            '${visibleNotices.length} updates',
+                                      ),
+                                      const SizedBox(height: 13),
+                                      ...visibleNotices.expand(
+                                        (notice) => [
+                                          _noticeCard(notice),
+                                          const SizedBox(height: 10),
+                                        ],
+                                      ),
+                                      if (visibleNotices.isEmpty)
+                                        _emptyCard(
+                                          'There are no current notices.',
+                                        ),
+                                      const SizedBox(height: 16),
+                                    ],
                                   ),
                                 ),
-                                const SizedBox(height: 13),
-                                ...dashboard.upcomingBookings.expand(
-                                  (booking) => [
-                                    _upcomingBookingCard(booking),
-                                    const SizedBox(height: 10),
-                                  ],
-                                ),
                               ],
-                              const SizedBox(height: 27),
-                              _sectionTitle(
-                                'Announcements',
-                                trailing: '${dashboard.notices.length} updates',
-                              ),
-                              const SizedBox(height: 13),
-                              ...dashboard.notices.expand(
-                                (notice) => [
-                                  _noticeCard(notice),
-                                  const SizedBox(height: 10),
-                                ],
-                              ),
-                              if (dashboard.notices.isEmpty)
-                                _emptyCard('There are no current notices.'),
-                              const SizedBox(height: 16),
-                            ],
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
+                        },
+                      ),
+                    ],
                   );
                 },
               ),
@@ -284,26 +975,16 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           borderRadius: BorderRadius.circular(15),
           border: Border.all(color: const Color(0xFFE8ECF3)),
         ),
-        child: dashboard.societyLogoUrl == null
-            ? const Icon(
-                Icons.apartment_rounded,
-                color: AppColors.indigo,
-                size: 24,
-              )
-            : ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: Image.network(
-                  dashboard.societyLogoUrl!,
-                  width: 44,
-                  height: 44,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => const Icon(
-                    Icons.apartment_rounded,
-                    color: AppColors.indigo,
-                    size: 24,
-                  ),
-                ),
-              ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: Image.asset(
+            'assets/images/logo1.png',
+            width: 44,
+            height: 44,
+            fit: BoxFit.contain,
+            semanticLabel: 'ShubNivas logo',
+          ),
+        ),
       ),
       const SizedBox(width: 11),
       Expanded(
@@ -311,7 +992,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              dashboard.societyName ?? 'Society',
+              'ShubNivas',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -328,7 +1009,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                 fontSize: 9,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 1.3,
-                color: AppColors.muted,
+                color: Colors.black,
               ),
             ),
           ],
@@ -336,14 +1017,15 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
       ),
       _roundIcon(
         Icons.notifications_none_rounded,
-        badge: dashboard.notices.isNotEmpty,
+        badgeCount: _notifications.length,
+        onTap: _openNotifications,
       ),
       const SizedBox(width: 9),
       PopupMenuButton<String>(
         tooltip: 'Account',
         onSelected: (value) {
           if (value == 'profile') {
-            _openProfile(context);
+            _openProfile();
           } else if (value == 'logout') {
             Navigator.of(context).pushAndRemoveUntil(
               MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
@@ -361,18 +1043,25 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
   );
 
   Widget _residentAvatar(ResidentDashboardData dashboard) {
-    final photoUrl = dashboard.residentPhotoUrl;
+    final photoPath = _updatedUser?.profilePictureUrl ?? dashboard.residentPhotoUrl;
+    final photoUrl = photoPath == null || photoPath.isEmpty
+        ? null
+        : Uri.tryParse(photoPath)?.hasScheme == true
+        ? photoPath
+        : Uri.parse(
+            const String.fromEnvironment(
+              'API_BASE_URL',
+              defaultValue: 'http://localhost:5000/api/v1',
+            ),
+          ).resolve(photoPath).toString();
     if (photoUrl == null) {
       return CircleAvatar(
         radius: 22,
         backgroundColor: const Color(0xFFEAE8FF),
-        child: Text(
-          _initials(widget.user.name),
-          style: const TextStyle(
-            color: AppColors.indigo,
-            fontWeight: FontWeight.w800,
-            fontSize: 13,
-          ),
+        child: const Icon(
+          Icons.person_rounded,
+          color: AppColors.indigo,
+          size: 26,
         ),
       );
     }
@@ -385,14 +1074,11 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           width: 44,
           height: 44,
           fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => Center(
-            child: Text(
-              _initials(widget.user.name),
-              style: const TextStyle(
-                color: AppColors.indigo,
-                fontWeight: FontWeight.w800,
-                fontSize: 13,
-              ),
+          errorBuilder: (_, _, _) => const Center(
+            child: Icon(
+              Icons.person_rounded,
+              color: AppColors.indigo,
+              size: 26,
             ),
           ),
         ),
@@ -441,7 +1127,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
             fontSize: 10,
             fontWeight: FontWeight.w800,
             letterSpacing: 1.15,
-            color: AppColors.muted,
+            color: Colors.black,
           ),
         ),
         const SizedBox(height: 7),
@@ -457,138 +1143,513 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
         const SizedBox(height: 5),
         const Text(
           'Here’s what’s happening in your community.',
-          style: TextStyle(fontSize: 13, color: Color(0xFF7C879B)),
+          style: TextStyle(
+            fontSize: 13,
+            color: Color.fromARGB(255, 11, 11, 11),
+          ),
         ),
       ],
     );
   }
 
-  Widget _societyCard(ResidentDashboardData dashboard) => Container(
-    padding: const EdgeInsets.all(18),
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(22),
-      gradient: const LinearGradient(
-        colors: [Color(0xFF6557E9), Color(0xFF8878F6)],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ),
-      boxShadow: const [
-        BoxShadow(
-          color: Color(0x286455E9),
-          blurRadius: 20,
-          offset: Offset(0, 10),
-        ),
-      ],
-    ),
-    child: Stack(
-      children: [
-        Positioned(
-          right: -18,
-          top: -28,
-          child: Container(
-            width: 130,
-            height: 130,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white.withValues(alpha: .08),
-            ),
-          ),
-        ),
-        Column(
+  Widget _emergencyContactsCard(ResidentDashboardData dashboard) => Material(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(18),
+    child: InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: _showEmergencyContacts,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+        decoration: _cardDecoration(),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 const Icon(
                   Icons.location_on_outlined,
-                  color: Color(0xFFDCD8FF),
-                  size: 16,
+                  color: AppColors.indigo,
+                  size: 18,
                 ),
-                const SizedBox(width: 5),
-                const Expanded(
+                const SizedBox(width: 7),
+                Expanded(
                   child: Text(
-                    'YOUR HOME',
-                    style: TextStyle(
-                      color: Color(0xFFE2DFFF),
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.25,
-                    ),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 9,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: .17),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Text(
-                    'ACTIVE',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: .7,
+                    _residentHomeLabel(dashboard),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.ink,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            Text(
-              dashboard.societyName ?? 'Society',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 21,
-                fontWeight: FontWeight.w800,
-              ),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Divider(height: 1, color: Color(0xFFEAEFF5)),
             ),
-            const SizedBox(height: 5),
-            Text(
-              _unitLabel(dashboard),
-              style: const TextStyle(
-                color: Color(0xFFE7E4FF),
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 19),
-            Container(height: 1, color: Colors.white.withValues(alpha: .22)),
-            const SizedBox(height: 13),
             Row(
-              children: const [
-                Icon(
-                  Icons.groups_2_outlined,
-                  color: Color(0xFFE7E4FF),
-                  size: 17,
-                ),
-                SizedBox(width: 7),
-                Text(
-                  'A better community, together',
-                  style: TextStyle(
-                    color: Color(0xFFE7E4FF),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF1ED),
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: const Icon(
+                    Icons.phone_in_talk_outlined,
+                    color: Color(0xFFDF654D),
+                    size: 20,
                   ),
                 ),
-                Spacer(),
-                Icon(
-                  Icons.arrow_forward_rounded,
-                  color: Colors.white,
-                  size: 18,
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Emergency contacts',
+                        style: TextStyle(
+                          color: AppColors.ink,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      SizedBox(height: 3),
+                      Text(
+                        'Police, ambulance, security & more',
+                        style: TextStyle(color: Colors.black, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: Color(0xFF8994A7),
                 ),
               ],
             ),
           ],
         ),
-      ],
+      ),
     ),
   );
 
-  Widget _sectionTitle(String title, {required String trailing}) => Row(
+  void _showEmergencyContacts() {
+    final contactsFuture = ResidentEmergencyContactsApi.list(
+      widget.user.accessToken,
+    );
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => DraggableScrollableSheet(
+        initialChildSize: .76,
+        minChildSize: .5,
+        maxChildSize: .94,
+        snap: true,
+        snapSizes: const [.76, .94],
+        expand: false,
+        builder: (context, scrollController) => Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: const BoxDecoration(
+            color: Color(0xFFF7F8FC),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: Column(
+            children: [
+              const SizedBox(height: 11),
+              Container(
+                width: 38,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD9DEEA),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 16, 16),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFEEE9),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(
+                        Icons.call_rounded,
+                        color: Color(0xFFDF654D),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Emergency contacts',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.ink,
+                            ),
+                          ),
+                          SizedBox(height: 3),
+                          Text(
+                            'Tap a number to call for help',
+                            style: TextStyle(fontSize: 11, color: Colors.black),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Material(
+                      color: const Color(0xFFEEF1F7),
+                      shape: const CircleBorder(),
+                      child: IconButton(
+                        tooltip: 'Close emergency contacts',
+                        onPressed: () => Navigator.of(sheetContext).pop(),
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: Color(0xFF68748A),
+                          size: 19,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: FutureBuilder<List<ResidentEmergencyContact>>(
+                  future: contactsFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState != ConnectionState.done) {
+                      return const Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.indigo,
+                        ),
+                      );
+                    }
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.cloud_off_rounded,
+                                color: Color(0xFF9AA4B4),
+                                size: 34,
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                '${snapshot.error}',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.black,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              OutlinedButton.icon(
+                                onPressed: () =>
+                                    Navigator.of(sheetContext).pop(),
+                                icon: const Icon(Icons.close_rounded),
+                                label: const Text('Close'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+                    final contacts =
+                        (snapshot.data ?? const <ResidentEmergencyContact>[])
+                            .where((contact) => contact.isActive)
+                            .toList();
+                    if (contacts.isEmpty) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(28),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.contact_phone_outlined,
+                                color: Color(0xFF9AA4B4),
+                                size: 38,
+                              ),
+                              SizedBox(height: 10),
+                              Text(
+                                'No emergency contacts available',
+                                style: TextStyle(
+                                  color: AppColors.ink,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              SizedBox(height: 5),
+                              Text(
+                                'Your society administrator can add contacts in the admin portal.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.black,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+                    return ListView.separated(
+                      controller: scrollController,
+                      padding: const EdgeInsets.fromLTRB(16, 2, 16, 24),
+                      itemCount: contacts.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) =>
+                          _emergencyContactTile(contacts[index]),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _emergencyContactTile(ResidentEmergencyContact contact) {
+    final category = contact.category
+        .toLowerCase()
+        .split('_')
+        .map(
+          (part) => part.isEmpty
+              ? part
+              : '${part[0].toUpperCase()}${part.substring(1)}',
+        )
+        .join(' ');
+    final subtitle = contact.available24x7
+        ? 'Available 24/7'
+        : (contact.operatingHours?.isNotEmpty == true
+              ? contact.operatingHours!
+              : 'Hours not listed');
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE9EDF4)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x070F1A35),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1EEFF),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  _emergencyCategoryIcon(category),
+                  size: 16,
+                  color: AppColors.indigo,
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  category.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.indigo,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ),
+              if (contact.available24x7)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEAF7F0),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    '24/7',
+                    style: TextStyle(
+                      color: Color(0xFF278454),
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 7),
+          Text(
+            contact.name,
+            style: const TextStyle(
+              color: AppColors.ink,
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(
+                Icons.schedule_rounded,
+                size: 14,
+                color: Color(0xFF8994A7),
+              ),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Text(
+                  subtitle,
+                  style: const TextStyle(color: Colors.black, fontSize: 11),
+                ),
+              ),
+            ],
+          ),
+          if (contact.address?.isNotEmpty == true) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(
+                  Icons.location_on_outlined,
+                  size: 14,
+                  color: Color(0xFF8994A7),
+                ),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: Text(
+                    contact.address!,
+                    style: const TextStyle(color: Colors.black, fontSize: 11),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 12),
+          _contactNumberButton(contact.phone),
+          if (contact.alternatePhone?.isNotEmpty == true) ...[
+            const SizedBox(height: 7),
+            _contactNumberButton(contact.alternatePhone!),
+          ],
+          if (contact.notes?.isNotEmpty == true) ...[
+            const SizedBox(height: 9),
+            Text(
+              contact.notes!,
+              style: const TextStyle(
+                color: Colors.black,
+                fontSize: 11,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _contactNumberButton(String phone, {String? label}) => Material(
+    color: const Color(0xFFFAFAFD),
+    borderRadius: BorderRadius.circular(12),
+    child: InkWell(
+      onTap: () => _callEmergencyNumber(phone),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 43),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE8EAF2)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.call_rounded, size: 16, color: AppColors.indigo),
+            const SizedBox(width: 9),
+            if (label != null) ...[
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.black, fontSize: 10),
+                ),
+              ),
+              const SizedBox(width: 5),
+            ],
+            Expanded(
+              child: Text(
+                phone,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.ink,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  IconData _emergencyCategoryIcon(String category) {
+    final value = category.toLowerCase();
+    if (value.contains('ambulance') || value.contains('medical')) {
+      return Icons.medical_services_outlined;
+    }
+    if (value.contains('fire')) return Icons.local_fire_department_outlined;
+    if (value.contains('police')) return Icons.local_police_outlined;
+    if (value.contains('hospital')) return Icons.local_hospital_outlined;
+    if (value.contains('security')) return Icons.shield_outlined;
+    return Icons.support_agent_rounded;
+  }
+
+  Future<void> _callEmergencyNumber(String phone) async {
+    final uri = Uri(
+      scheme: 'tel',
+      path: phone.replaceAll(RegExp(r'[^+0-9]'), ''),
+    );
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Your device cannot open the phone app.')),
+      );
+    }
+  }
+
+  Widget _sectionTitle(
+    String title, {
+    required String trailing,
+    VoidCallback? onTap,
+  }) => Row(
     children: [
       Expanded(
         child: Text(
@@ -601,20 +1662,33 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           ),
         ),
       ),
-      Text(
-        trailing,
-        style: const TextStyle(
-          fontSize: 11,
-          color: AppColors.indigo,
-          fontWeight: FontWeight.w700,
+      if (trailing.isNotEmpty)
+        InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(6),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 5),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  trailing,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.indigo,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(width: 2),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: AppColors.indigo,
+                  size: 17,
+                ),
+              ],
+            ),
+          ),
         ),
-      ),
-      const SizedBox(width: 2),
-      const Icon(
-        Icons.chevron_right_rounded,
-        color: AppColors.indigo,
-        size: 17,
-      ),
     ],
   );
 
@@ -636,6 +1710,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           'Visitors',
           const Color(0xFFE4F7F1),
           const Color(0xFF229B78),
+          onTap: _openVisitors,
         ),
       ),
       const SizedBox(width: 10),
@@ -645,7 +1720,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           'Complaints',
           const Color(0xFFFFF1E5),
           const Color(0xFFE68A36),
-          onTap: () => _openHelp(context),
+          onTap: _openHelp,
         ),
       ),
       const SizedBox(width: 10),
@@ -655,7 +1730,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           'Amenities',
           const Color(0xFFE8F1FF),
           const Color(0xFF4784DB),
-          onTap: () => _openAmenities(context),
+          onTap: _openAmenities,
         ),
       ),
     ],
@@ -689,64 +1764,75 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           style: const TextStyle(
             fontSize: 10,
             fontWeight: FontWeight.w700,
-            color: Color(0xFF59657A),
+            color: Colors.black,
           ),
         ),
       ],
     ),
   );
 
-  Future<void> _openHelp(BuildContext context) async {
-    setState(() => _selectedTab = 3);
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => ResidentComplaintsScreen(user: widget.user),
-      ),
-    );
-    if (mounted) setState(() => _selectedTab = 0);
+  void _openHelp() {
+    _selectTab(3);
   }
 
-  Future<void> _openAmenities(BuildContext context) async {
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => ResidentAmenitiesScreen(
-          user: widget.user,
-          onBookingCreated: _addUpcomingBooking,
-        ),
-      ),
-    );
+  void _openVisitors() {
+    _selectTab(2);
+  }
+
+  void _openAmenities() {
+    setState(() {
+      _selectedTab = 0;
+      _activeSection = _ResidentSection.amenities;
+    });
   }
 
   Widget _maintenanceCard(ResidentDashboardData dashboard) {
-    final maintenance = dashboard.maintenance;
-    if (maintenance == null) {
+    final invoices = dashboard.maintenance;
+    if (invoices.isEmpty) {
       return _emptyCard('No outstanding maintenance invoice.');
     }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: _cardDecoration(),
+      child: Column(
+        children: [
+          for (var index = 0; index < invoices.length; index++) ...[
+            if (index > 0) const Divider(height: 1, color: Color(0xFFEBEFF5)),
+            _maintenanceInvoiceRow(invoices[index], dashboard.currency),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _maintenanceInvoiceRow(
+    ResidentMaintenance maintenance,
+    String currency,
+  ) {
     final amount = maintenance.amount
         .toStringAsFixed(2)
         .replaceFirst(RegExp(r'\.00$'), '');
     final dueDate = maintenance.dueDate == null
         ? 'Due date unavailable'
         : 'Due ${maintenance.dueDate!.day} ${_monthName(maintenance.dueDate!.month)}';
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: _cardDecoration(),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
       child: Row(
         children: [
           Container(
-            width: 44,
-            height: 44,
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
               color: const Color(0xFFFFF3E9),
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(13),
             ),
             child: const Icon(
               Icons.account_balance_wallet_outlined,
               color: Color(0xFFE28A38),
-              size: 22,
+              size: 21,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 11),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -756,7 +1842,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                       maintenance.billingPeriod ??
                       maintenance.invoiceNumber ??
                       'Maintenance invoice',
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 12,
@@ -764,24 +1850,22 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                     color: AppColors.ink,
                   ),
                 ),
-                SizedBox(height: 5),
+                const SizedBox(height: 5),
                 Text(
                   dueDate,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: Color(0xFF8994A7),
-                  ),
+                  style: const TextStyle(fontSize: 10, color: Colors.black),
                 ),
               ],
             ),
           ),
+          const SizedBox(width: 8),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '${_currencySymbol(dashboard.currency)} $amount',
+                '${_currencySymbol(currency)} $amount',
                 style: const TextStyle(
-                  fontSize: 15,
+                  fontSize: 14,
                   fontWeight: FontWeight.w800,
                   color: AppColors.ink,
                 ),
@@ -810,11 +1894,359 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     );
   }
 
+  Widget _complaintStatusSection(BuildContext context) =>
+      FutureBuilder<List<ResidentComplaint>>(
+        future: _complaintsFuture,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return _emptyCard('Complaint status is temporarily unavailable.');
+          }
+          if (!snapshot.hasData) {
+            return _emptyCard('Checking your latest complaint status…');
+          }
+          final complaints = snapshot.data!;
+          if (complaints.isEmpty) {
+            return _emptyCard('You have no complaints yet.');
+          }
+          return _latestComplaintCard(complaints.first);
+        },
+      );
+
+  Widget _visitorAttentionSection() => Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: const Color(0xFFECE9FF),
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: const Color(0xFFDCD7FF)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Needs your attention',
+                style: TextStyle(
+                  color: AppColors.ink,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            Text(
+              'Today',
+              style: TextStyle(color: const Color(0xFF7B72C9), fontSize: 13),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ..._visitorRequests.map(
+          (request) => Padding(
+            padding: const EdgeInsets.only(bottom: 9),
+            child: _visitorRequestCard(request),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _deliveryAttentionSection() => Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: const Color(0xFFEAF5FF),
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: const Color(0xFFD5E9FF)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Delivery updates',
+          style: TextStyle(
+            color: AppColors.ink,
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 10),
+        ..._deliveryNotifications.map(
+          (notification) => Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: const Color(0xFFE8ECF3)),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  notification.type == 'PARCEL'
+                      ? Icons.inventory_2_outlined
+                      : Icons.local_shipping_outlined,
+                  color: AppColors.indigo,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        notification.title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.ink,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        notification.message,
+                        style: const TextStyle(
+                          color: Colors.black,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Dismiss update',
+                  onPressed: () => _dismissDeliveryNotification(notification),
+                  icon: const Icon(Icons.close_rounded, size: 19),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _visitorRequestCard(ResidentVisitorRequest request) {
+    final busy = _decidingVisitorRequestIds.contains(request.id);
+    final visitorType = request.visitorType.replaceAll('_', ' ').toLowerCase();
+    final waitingLabel = request.status == 'ARRIVED'
+        ? 'Arrived ${_visitorElapsed(request.createdAt)}'
+        : 'Registered ${_visitorElapsed(request.createdAt)}';
+    final initials = request.visitorName
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .take(2)
+        .map((part) => part[0].toUpperCase())
+        .join();
+
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: const Color(0xFFE8ECF3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.access_time_rounded,
+                size: 17,
+                color: AppColors.indigo,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '${_visitorRequests.length} ${_visitorRequests.length == 1 ? 'visitor' : 'visitors'} waiting at the gate',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.ink,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 27,
+                backgroundColor: const Color(0xFFECE9FF),
+                child: Text(
+                  initials.isEmpty ? 'V' : initials,
+                  style: const TextStyle(
+                    color: AppColors.indigo,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      request.visitorName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.ink,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${_capitalize(visitorType)}  ·  ${request.gateName}  ·  $waitingLabel',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.black, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 46,
+                  child: FilledButton.icon(
+                    onPressed: busy
+                        ? null
+                        : () => _decideVisitorRequest(request, 'APPROVED'),
+                    icon: const Icon(Icons.check_rounded, size: 18),
+                    label: const Text('Approve'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.navy,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: SizedBox(
+                  height: 46,
+                  child: OutlinedButton.icon(
+                    onPressed: busy
+                        ? null
+                        : () => _decideVisitorRequest(request, 'REJECTED'),
+                    icon: const Icon(Icons.close_rounded, size: 18),
+                    label: const Text('Reject'),
+                    style: OutlinedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _visitorElapsed(DateTime? createdAt) {
+    if (createdAt == null) return 'just now';
+    final minutes = DateTime.now().difference(createdAt).inMinutes;
+    if (minutes < 1) return 'just now';
+    if (minutes == 1) return '1 min ago';
+    if (minutes < 60) return '$minutes min ago';
+    final hours = minutes ~/ 60;
+    if (hours == 1) return '1 hr ago';
+    return '$hours hrs ago';
+  }
+
+  String _capitalize(String value) => value.isEmpty
+      ? 'Guest'
+      : '${value[0].toUpperCase()}${value.substring(1)}';
+
+  Widget _latestComplaintCard(ResidentComplaint complaint) {
+    final status = complaint.status.replaceAll('_', ' ');
+    final statusColor = switch (complaint.status.toUpperCase()) {
+      'RESOLVED' || 'CLOSED' => const Color(0xFF229B78),
+      'IN_PROGRESS' || 'ASSIGNED' => const Color(0xFF4784DB),
+      'ON_HOLD' => const Color(0xFFE28A38),
+      _ => AppColors.indigo,
+    };
+
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: _openHelp,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFE8ECF3)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: .1),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(Icons.support_agent_rounded, color: statusColor),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      complaint.subject,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.ink,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      '${complaint.ticketNumber}  ·  $status',
+                      style: TextStyle(
+                        color: statusColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: Colors.black),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _upcomingBookingCard(ResidentUpcomingBooking booking) {
     final date = booking.slotDate;
     final weekday = date == null ? '' : _weekdayShort(date.weekday);
     final month = date == null ? '' : _monthShort(date.month);
-    final dateLabel = date == null ? 'Date unavailable' : '$weekday ${date.day} $month';
+    final dateLabel = date == null
+        ? 'Date unavailable'
+        : '$weekday ${date.day} $month';
     final timeRange = _bookingTimeRange(booking.startTime, booking.endTime);
     final duration = _bookingDuration(booking.startTime, booking.endTime);
     final confirmed = booking.status.toUpperCase() == 'CONFIRMED';
@@ -854,7 +2286,10 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
               ),
               const SizedBox(width: 10),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 11,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFF123D38),
                   borderRadius: BorderRadius.circular(18),
@@ -933,7 +2368,10 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      [timeRange, if (duration.isNotEmpty) duration].join(' · '),
+                      [
+                        timeRange,
+                        if (duration.isNotEmpty) duration,
+                      ].join(' · '),
                       style: const TextStyle(
                         color: Color(0xFFB5B1D1),
                         fontSize: 13,
@@ -950,15 +2388,8 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     );
   }
 
-  String _weekdayShort(int weekday) => const [
-    'Mon',
-    'Tue',
-    'Wed',
-    'Thu',
-    'Fri',
-    'Sat',
-    'Sun',
-  ][weekday - 1];
+  String _weekdayShort(int weekday) =>
+      const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][weekday - 1];
 
   String _monthShort(int month) => const [
     'Jan',
@@ -1074,10 +2505,12 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                         ),
                       ),
                       Text(
-                        _relativeDate(notice.postedAt),
+                        notice.status.toUpperCase() == 'SCHEDULED'
+                            ? 'Scheduled ${_relativeDate(notice.postedAt)}'
+                            : _relativeDate(notice.postedAt),
                         style: const TextStyle(
                           fontSize: 9,
-                          color: Color(0xFF9AA4B4),
+                          color: Colors.black,
                         ),
                       ),
                     ],
@@ -1090,9 +2523,30 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                     style: const TextStyle(
                       fontSize: 10,
                       height: 1.45,
-                      color: Color(0xFF7F8A9D),
+                      color: Colors.black,
                     ),
                   ),
+                  if (notice.scheduledAt != null || notice.expiresAt != null) ...[
+                    const SizedBox(height: 8),
+                    if (notice.scheduledAt != null)
+                      Text(
+                        'Meeting: ${_formatDateTime(notice.scheduledAt!)}',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.black,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    if (notice.expiresAt != null)
+                      Text(
+                        'Ends: ${_formatDateTime(notice.expiresAt!)}',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.black,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                  ],
                   const SizedBox(height: 8),
                   const Text(
                     'Tap to read',
@@ -1160,21 +2614,32 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              if (notice.postedAt != null) ...[
+              if (notice.scheduledAt != null) ...[
                 const SizedBox(height: 7),
                 Text(
-                  '${notice.postedAt!.day} ${_monthName(notice.postedAt!.month)} ${notice.postedAt!.year}',
-                  style: const TextStyle(
-                    color: Color(0xFF8994A7),
-                    fontSize: 12,
-                  ),
+                  'Meeting: ${_formatDateTime(notice.scheduledAt!)}',
+                  style: const TextStyle(color: Colors.black, fontSize: 12),
+                ),
+              ],
+              if (notice.expiresAt != null) ...[
+                const SizedBox(height: 5),
+                Text(
+                  'Ends: ${_formatDateTime(notice.expiresAt!)}',
+                  style: const TextStyle(color: Colors.black, fontSize: 12),
+                ),
+              ],
+              if (notice.scheduledAt == null && notice.postedAt != null) ...[
+                const SizedBox(height: 7),
+                Text(
+                  'Posted: ${_formatDateTime(notice.postedAt!)}',
+                  style: const TextStyle(color: Colors.black, fontSize: 12),
                 ),
               ],
               const SizedBox(height: 18),
               Text(
                 notice.description,
                 style: const TextStyle(
-                  color: Color(0xFF59657A),
+                  color: Colors.black,
                   fontSize: 14,
                   height: 1.6,
                 ),
@@ -1200,12 +2665,12 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.cloud_off_rounded, color: AppColors.muted, size: 40),
+          const Icon(Icons.cloud_off_rounded, color: Colors.black, size: 40),
           const SizedBox(height: 12),
           Text(
             error,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.inkSoft),
+            style: const TextStyle(color: Colors.black),
           ),
           const SizedBox(height: 14),
           FilledButton(
@@ -1223,16 +2688,18 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     decoration: _cardDecoration(),
     child: Text(
       message,
-      style: const TextStyle(fontSize: 12, color: Color(0xFF8994A7)),
+      style: const TextStyle(fontSize: 12, color: Colors.black),
     ),
   );
 
-  String _unitLabel(ResidentDashboardData dashboard) {
+  String _residentHomeLabel(ResidentDashboardData dashboard) {
     final parts = [
-      if (dashboard.towerName != null) dashboard.towerName!,
-      if (dashboard.unitNumber != null) 'Flat ${dashboard.unitNumber}',
+      if (dashboard.societyName?.isNotEmpty == true) dashboard.societyName!,
+      if (dashboard.towerName?.isNotEmpty == true) dashboard.towerName!,
+      if (dashboard.unitNumber?.isNotEmpty == true)
+        'Flat ${dashboard.unitNumber}',
     ];
-    return parts.isEmpty ? 'Unit information unavailable' : parts.join('  ·  ');
+    return parts.isEmpty ? 'Your home' : parts.join(' · ');
   }
 
   String _currencySymbol(String currency) => switch (currency.toUpperCase()) {
@@ -1267,6 +2734,16 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     return '${date.day} ${_monthName(date.month)}';
   }
 
+  String _formatDateTime(DateTime value) {
+    final local = value.toLocal();
+    final hour24 = local.hour;
+    final hour12 = hour24 % 12 == 0 ? 12 : hour24 % 12;
+    final minute = local.minute.toString().padLeft(2, '0');
+    final period = hour24 < 12 ? 'AM' : 'PM';
+    return '${local.day.toString().padLeft(2, '0')} ${_monthName(local.month)} '
+        '${local.year}, $hour12:$minute $period';
+  }
+
   Widget _bottomBar(BuildContext context) => Container(
     decoration: const BoxDecoration(
       color: Colors.white,
@@ -1280,18 +2757,18 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           children: [
             _tab(Icons.home_rounded, 'Home', 0),
             _tab(Icons.receipt_long_outlined, 'Payments', 1),
-            _tab(Icons.people_alt_outlined, 'Community', 2),
             _tab(
-              Icons.help_outline_rounded,
-              'Help',
-              3,
-              onTap: () => _openHelp(context),
+              Icons.people_alt_outlined,
+              'Visitors',
+              2,
+              onTap: _openVisitors,
             ),
+            _tab(Icons.help_outline_rounded, 'Help', 3, onTap: _openHelp),
             _tab(
               Icons.person_outline_rounded,
               'Profile',
               4,
-              onTap: () => _openProfile(context),
+              onTap: _openProfile,
             ),
           ],
         ),
@@ -1304,7 +2781,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     return Expanded(
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        onTap: onTap ?? () => setState(() => _selectedTab = index),
+        onTap: onTap ?? () => _selectTab(index),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 5),
           child: Column(
@@ -1313,7 +2790,9 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
               Icon(
                 icon,
                 size: 21,
-                color: selected ? AppColors.indigo : const Color(0xFFA0AABD),
+                color: selected
+                    ? AppColors.indigo
+                    : const Color.fromARGB(255, 0, 1, 3),
               ),
               const SizedBox(height: 4),
               Text(
@@ -1321,7 +2800,9 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                 style: TextStyle(
                   fontSize: 9,
                   fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                  color: selected ? AppColors.indigo : const Color(0xFFA0AABD),
+                  color: selected
+                      ? AppColors.indigo
+                      : const Color.fromARGB(255, 0, 1, 3),
                 ),
               ),
             ],
@@ -1331,33 +2812,56 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     );
   }
 
-  Widget _roundIcon(IconData icon, {bool badge = false}) => Container(
-    width: 42,
-    height: 42,
-    decoration: BoxDecoration(
-      color: Colors.white,
-      shape: BoxShape.circle,
-      border: Border.all(color: const Color(0xFFE8ECF3)),
-    ),
-    child: Stack(
-      alignment: Alignment.center,
-      children: [
-        Icon(icon, color: const Color(0xFF68748A), size: 21),
-        if (badge)
-          const Positioned(
-            right: 10,
-            top: 9,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: Color(0xFFFF6F72),
-                shape: BoxShape.circle,
-              ),
-              child: SizedBox(width: 7, height: 7),
+  Widget _roundIcon(IconData icon, {int badgeCount = 0, VoidCallback? onTap}) =>
+      Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFFE8ECF3)),
+            ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                Icon(icon, color: const Color(0xFF68748A), size: 21),
+                if (badgeCount > 0)
+                  Positioned(
+                    right: -5,
+                    top: -5,
+                    child: Container(
+                      constraints: const BoxConstraints(
+                        minWidth: 17,
+                        minHeight: 17,
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      alignment: Alignment.center,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFE4515D),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        badgeCount > 99 ? '99+' : '$badgeCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 8,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
-      ],
-    ),
-  );
+        ),
+      );
 
   BoxDecoration _cardDecoration() => BoxDecoration(
     color: Colors.white,

@@ -1,9 +1,10 @@
 const service = require("./residentKyc.service");
+const path = require("path");
 
 
 const createDocument = async (req, res) => {
     try {
-        const document = await service.createDocument(req.body);
+        const document = await service.createDocument(req.body, req.file, req.user?.id);
 
         return res.status(201).json({
             success: true,
@@ -39,12 +40,23 @@ const getDocument = async (req, res) => {
     }
 };
 
+const downloadDocument = async (req, res) => {
+    try {
+        const { document, fullPath } = await service.getDocumentFile(req.params.id, req.user?.societyId);
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        return res.download(fullPath, path.basename(document.fileName || "resident-document"));
+    } catch (error) {
+        return res.status(404).json({ success: false, message: error.message });
+    }
+};
+
 
 const getStakeholderDocuments = async (req, res) => {
     try {
         const documents =
             await service.getStakeholderDocuments(
-                req.params.stakeholderId
+                req.params.stakeholderId,
+                req.user?.societyId
             );
 
         return res.status(200).json({
@@ -264,6 +276,7 @@ const getExpiringDocuments = async (req, res) => {
 module.exports = {
     createDocument,
     getDocument,
+    downloadDocument,
     getStakeholderDocuments,
     getSocietyDocuments,
     getPendingDocuments,

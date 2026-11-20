@@ -76,14 +76,58 @@ const sendCsv = (res, name, rows) => {
   return res.status(200).send(lines.join('\n'));
 };
 
+const exportRowsFromData = (data) => {
+  const rows = [];
+  const walk = (value, section = 'Summary') => {
+    if (Array.isArray(value)) {
+      value.forEach((item) => {
+        if (item && typeof item === 'object' && !Array.isArray(item)) {
+          rows.push({ section, ...Object.fromEntries(Object.entries(item).map(([key, cell]) => [key, cell && typeof cell === 'object' ? JSON.stringify(cell) : cell])) });
+        }
+      });
+      return;
+    }
+    if (!value || typeof value !== 'object') return;
+    Object.entries(value).forEach(([key, child]) => {
+      if (['society', 'period'].includes(key)) return;
+      if (Array.isArray(child)) walk(child, titleCase(key));
+      else if (child && typeof child === 'object' && !(child instanceof Date)) walk(child, section);
+    });
+  };
+  walk(data);
+  return rows;
+};
+
 
 // --- PDF (tabular: one column per field of the detail rows) -----------------
 const titleCase = (key) => String(key).replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-const pdfIsId = (key) => /(^|_)(id|uuid|guid)($|_)/i.test(String(key).replace(/([a-z0-9])([A-Z])/g, '$1_$2'));
+const readableLabel = (value) => titleCase(value)
+  .replace(/\b(Ticket|Pass|Invoice|Purchase Order|Meter|Tracking|Quotation|Request) No\b/gi, '$1 Number')
+  .replace(/\bCreated At\b/gi, 'Created On')
+  .replace(/\bOpened At\b/gi, 'Opened On')
+  .replace(/\bResolved At\b/gi, 'Resolved On')
+  .replace(/\bClosed At\b/gi, 'Closed On')
+  .replace(/\bSla(s?)\b/gi, (_match, plural) => plural ? 'Service deadlines' : 'Service deadline')
+  .replace(/\bRfq(s?)\b/gi, (_match, plural) => plural ? 'Quotation requests' : 'Quotation request')
+  .replace(/\bGrn(s?)\b/gi, (_match, plural) => plural ? 'Goods receipts' : 'Goods receipt')
+  .replace(/^Service deadline Breaches$/i, 'Missed service deadlines')
+  .replace(/\bPos\b/gi, 'Purchase orders')
+  .replace(/\bPo No\b/gi, 'Purchase order number')
+  .replace(/\bPo\b/gi, 'Purchase order')
+  .replace(/\bUnit Of Measure\b/gi, 'Measurement unit')
+  .replace(/\bCriteria Scores (\d+)\b/gi, 'Evaluation $1')
+  .replace(/\s*\/\s*/g, ' - ');
+const pdfIsId = (key) => /(^|_)(id|uuid|guid|fk|foreign_key)(_|$)/i.test(
+  String(key).replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase()
+);
 const pdfIsUuid = (value) => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.trim());
 const pdfCell = (value) => {
   if (value === null || value === undefined || pdfIsUuid(value)) return '-';
-  const text = value instanceof Date ? value.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : String(value);
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  let text = value instanceof Date ? value.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : String(value);
+  if (/^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/.test(text) && /_|^[A-Z]{3,}$/.test(text)) {
+    text = text.toLowerCase().replace(/(^|_)([a-z])/g, (_match, prefix, letter) => `${prefix ? ' ' : ''}${letter.toUpperCase()}`);
+  }
   return text.replace(/\u20B9/g, 'INR ').replace(/[\u2014\u2013]/g, '-');
 };
 
@@ -102,20 +146,9 @@ const societyBranding = async (societyId) => {
 
 // Compact, consistent PDF layout used by every report export. The API may
 // return several overlapping breakdowns; when a canonical `rows` list exists,
-// show that list and the report's summary only.
-const compactPdfData = (data, maxRecords = 100) => {
-  const summary = [];
+// show that list only.
+const compactPdfData = (data, maxRecords = 5000) => {
   const sections = [];
-  const ignoredSummary = new Set(['society', 'period', 'rows', 'generatedAt', 'responseTimeDefinition', 'utilizationNote']);
-  const visitSummary = (value, prefix = '') => {
-    if (!value || typeof value !== 'object' || value instanceof Date || Array.isArray(value)) return;
-    Object.entries(value).forEach(([key, child]) => {
-      if (!prefix && ignoredSummary.has(key)) return;
-      const label = prefix ? `${prefix} / ${titleCase(key)}` : titleCase(key);
-      if (child && typeof child === 'object' && !Array.isArray(child) && !(child instanceof Date)) visitSummary(child, label);
-      else if (!Array.isArray(child) && child !== undefined && !pdfIsUuid(child)) summary.push({ label, value: pdfCell(child) });
-    });
-  };
   const makeFields = (record) => {
     const fields = [];
     const walk = (value, prefix = '') => {
@@ -124,42 +157,81 @@ const compactPdfData = (data, maxRecords = 100) => {
       } else if (value && typeof value === 'object' && !(value instanceof Date)) {
         Object.entries(value).forEach(([key, child]) => {
           if (!pdfIsId(key) && !/^(description|message|body|internal_notes)$/i.test(key)) {
-            walk(child, prefix ? `${prefix} / ${titleCase(key)}` : titleCase(key));
+            walk(child, prefix ? `${prefix} / ${key}` : key);
           }
         });
       } else if (prefix && !pdfIsUuid(value)) {
-        let text = pdfCell(value);
-        if (text.length > 180) text = `${text.slice(0, 177)}...`;
-        fields.push({ label: prefix, value: text });
+        fields.push({ label: readableLabel(prefix), value: pdfCell(value) });
       }
     };
     walk(record);
     return fields;
   };
 
-  visitSummary(data);
   if (Array.isArray(data?.rows)) {
     sections.push({ title: 'Report records', total: data.rows.length, records: data.rows.slice(0, maxRecords) });
   } else {
     const collectArrays = (value, path = '') => {
       if (!value || typeof value !== 'object' || value instanceof Date) return;
       Object.entries(value).forEach(([key, child]) => {
-        if (Array.isArray(child) && child.length) sections.push({ title: titleCase(path ? `${path} / ${key}` : key), total: child.length, records: child.slice(0, 25) });
+        if (Array.isArray(child) && child.length) sections.push({ title: readableLabel(path ? `${path} / ${key}` : key), total: child.length, records: child.slice(0, maxRecords) });
         else if (child && typeof child === 'object' && !(child instanceof Date)) collectArrays(child, path ? `${path} / ${titleCase(key)}` : titleCase(key));
       });
     };
     collectArrays(data);
   }
-  return { summary, sections: sections.map((section) => ({
+  return { sections: sections.map((section) => ({
     ...section,
     records: section.records.map(makeFields).filter((fields) => fields.length),
   })) };
 };
 
+const reportDescriptions = {
+  dashboard: 'A snapshot of key society operations, including vehicles, visitors, helpdesk activity, vendors and utilities.',
+  'legacy-executive': 'A high-level view of society activity and performance for the selected period.',
+  'finance-dashboard': 'An overview of society income, expenses, collections and outstanding dues.',
+  'bank-balance': 'Bank account balances and transactions recorded for the selected period.',
+  collection: 'Maintenance and other payments collected from residents during the selected period.',
+  arrears: 'Resident balances that remain unpaid, including overdue amounts.',
+  'income-expense': 'Income received and expenses recorded by the society during the selected period.',
+  'society-operations': 'An overview of residents, vehicles, occupancy and day-to-day society activity.',
+  occupancy: 'Occupied and vacant homes in the society.',
+  residents: 'Resident and household details recorded for the society.',
+  'society-vehicles': 'Vehicles registered in the society, including their type, registration and linked flat.',
+  parking: 'Parking space availability, usage and allocation for the society.',
+  vehicles: 'Vehicles registered in the society, including their type, registration and linked flat.',
+  visitors: 'Visitor passes created during the selected period, with visitor, gate and pass validity details.',
+  'legacy-visitors': 'An overview of visitor activity and visitor profile totals for the society.',
+  'gate-activity': 'Entry and exit activity recorded at society gates during the selected period.',
+  'gate-summary': 'An overview of gate activity, including entries and exits by gate.',
+  'staff-summary': 'Security and support staff counts and current work status.',
+  'patrol-summary': 'Security patrol rounds and recorded checkpoints for the selected period.',
+  overstay: 'Visitor passes that remained inside beyond the expected visit duration.',
+  deliveries: 'Packages and courier deliveries received for society flats, including handover status.',
+  tickets: 'Helpdesk requests raised by residents, including category, priority and current status.',
+  'sla-breaches': 'Helpdesk requests that missed their expected response or resolution deadlines.',
+  'approvals-dashboard': 'An overview of requests waiting for approval and their current progress.',
+  'approval-details': 'Approval requests, decisions and related payment details.',
+  'approval-status': 'Approval requests grouped by their current status.',
+  'approval-sla': 'Approval requests that met or missed their expected processing deadlines.',
+  'approval-payments': 'Payments linked to approved requests, including amounts and payment status.',
+  'category-trends': 'Helpdesk request volumes grouped by category and month.',
+  'vendor-outstanding': 'Vendor invoices, payments received and amounts still due.',
+  'vendor-contracts': 'Vendor agreements, their values and upcoming expiry dates.',
+  'vendor-spend': 'Purchase order and invoice spending grouped by vendor.',
+  'vendor-sla-performance': 'Vendor-assigned helpdesk requests, completed work and missed deadlines.',
+  'quotation-comparison': 'Vendor quotations and their prices and evaluation scores for the selected request.',
+  'procurement-summary': 'Purchase requests, quotations, purchase orders and vendor bills for the selected period.',
+  'purchase-orders': 'Purchase orders, delivery dates, costs and goods received from vendors.',
+  'vendor-bills': 'Vendor invoices, related purchase orders, due dates and payment status.',
+  'amenity-utilization': 'Amenity capacity and booking usage during the selected period.',
+  'amenity-bookings': 'Amenity reservations, including the flat, date, time and booking status.',
+  'utility-bills': 'Utility meter readings, consumption and bills during the selected period.',
+};
+
 const sendCompactPdf = (res, name, data, period, society) => {
-  const { summary, sections } = compactPdfData(data);
-  const reportTitle = titleCase(name.replace(/-/g, '_'));
-  const recordCount = sections.reduce((total, section) => total + section.records.length, 0);
+  const { sections } = compactPdfData(data);
+  const reportTitle = readableLabel(name);
   const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 36, bufferPages: true });
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="${name}-${new Date().toISOString().slice(0, 10)}.pdf"`);
@@ -186,12 +258,25 @@ const sendCompactPdf = (res, name, data, period, society) => {
     doc.restore();
     doc.y = 119;
     doc.x = doc.page.margins.left;
+    const description = reportDescriptions[name] || `Detailed records for ${reportTitle.toLowerCase()} in this society.`;
+    doc.fillColor('#46566f').font('Helvetica').fontSize(9).text(description, 38, doc.y, {
+      width: doc.page.width - 76,
+      lineGap: 2,
+    });
+    doc.y += 12;
   };
   drawHeader();
 
   // Keep report content and the footer inside PDFKit's printable page bounds.
   const bottom = () => doc.page.height - 64;
-  const ensureSpace = (height) => { if (doc.y + height > bottom()) doc.addPage(); };
+  const ensureSpace = (height) => { if (doc.y + height > bottom()) addContentPage(); };
+  // Society branding and report details belong on the first page only.
+  // Continuation pages start directly with their section or table headings.
+  const addContentPage = () => {
+    doc.addPage();
+    doc.y = doc.page.margins.top;
+    doc.x = doc.page.margins.left;
+  };
   const sectionTitle = (title, subtitle = '') => {
     ensureSpace(32);
     const y = doc.y;
@@ -224,27 +309,69 @@ const sendCompactPdf = (res, name, data, period, society) => {
     }
   };
 
-  if (summary.length) {
-    sectionTitle('Summary');
-    drawGrid(summary, 3, 42, 9);
-  }
+  // Render details as a familiar table. Four data columns per table keep
+  // headings and values readable even when a report has many fields.
+  const drawRecordTable = (records) => {
+    const labels = [...new Set(records.flatMap((fields) => fields.map((field) => field.label)))];
+    const usableWidth = doc.page.width - 72;
+    const recordWidth = 54;
+    const dataWidth = (usableWidth - recordWidth) / 4;
+    const recordColumn = { label: 'Record', width: recordWidth, getValue: (_fields, index) => String(index + 1) };
+    const dataColumns = labels.map((label) => ({ label, width: dataWidth, getValue: (fields) => fields.find((field) => field.label === label)?.value || '-' }));
+    const drawTableHeader = (chunk) => {
+      const y = doc.y;
+      const headerHeight = 25;
+      doc.rect(36, y, usableWidth, headerHeight).fill('#edf1ff');
+      let x = 36;
+      chunk.forEach((column) => {
+        doc.fillColor('#344563').font('Helvetica-Bold').fontSize(7)
+          .text(column.label, x + 5, y + 6, { width: column.width - 10, height: headerHeight - 8, ellipsis: true });
+        x += column.width;
+      });
+      doc.y = y + headerHeight;
+    };
+    for (let start = 0; start < dataColumns.length; start += 4) {
+      // Each continuation table includes the record number so readers can
+      // match additional fields to the same record.
+      const chunk = [recordColumn, ...dataColumns.slice(start, start + 4)];
+      if (doc.y + 25 > bottom()) addContentPage();
+      drawTableHeader(chunk);
+      records.forEach((fields, recordIndex) => {
+        doc.font('Helvetica').fontSize(7.5);
+        const rowHeight = Math.max(28, ...chunk.map((column) => doc.heightOfString(
+          String(column.getValue(fields, recordIndex)),
+          { width: column.width - 10, lineGap: 1 }
+        ) + 10));
+        if (doc.y + rowHeight > bottom()) {
+          addContentPage();
+          drawTableHeader(chunk);
+        }
+        const y = doc.y;
+        if (recordIndex % 2 === 1) doc.rect(36, y, usableWidth, rowHeight).fill('#f8faff');
+        let x = 36;
+        chunk.forEach((column) => {
+          doc.rect(x, y, column.width, rowHeight).lineWidth(0.45).strokeColor('#dfe5ef').stroke();
+          doc.fillColor(column.label === 'Record' ? '#5145cd' : '#17243a')
+            .font(column.label === 'Record' ? 'Helvetica-Bold' : 'Helvetica').fontSize(7.5)
+            .text(String(column.getValue(fields, recordIndex)), x + 5, y + 5, { width: column.width - 10, lineGap: 1 });
+          x += column.width;
+        });
+        doc.y = y + rowHeight;
+      });
+      doc.y += 12;
+    }
+  };
+
   sections.forEach((section) => {
     sectionTitle(section.title, `${section.total} total`);
-    section.records.forEach((fields, index) => {
-      const recordName = fields.find((field) => /^(Name|Number|Request|Ticket|Vehicle|Vendor|Booking|PO No|Invoice No|Tracking No)$/i.test(field.label));
-      ensureSpace(26);
-      doc.fillColor('#17243a').font('Helvetica-Bold').fontSize(8.5).text(recordName ? `${index + 1}. ${recordName.value}` : `Record ${index + 1}`, 38, doc.y);
-      doc.y += 14;
-      drawGrid(fields, 3, 38, 8.5);
-      doc.y += 5;
-    });
+    if (section.records.length) drawRecordTable(section.records);
     if (section.total > section.records.length) {
       ensureSpace(20);
       doc.fillColor('#64748b').font('Helvetica-Oblique').fontSize(8).text(`Showing ${section.records.length} of ${section.total} records to keep this report concise.`, 38, doc.y);
       doc.y += 18;
     }
   });
-  if (!summary.length && !recordCount) {
+  if (!sections.length || sections.every((section) => !section.records.length)) {
     doc.fillColor('#64748b').font('Helvetica').fontSize(10).text('No report data is available for the selected filters.', 38, doc.y);
   }
 
@@ -259,50 +386,57 @@ const sendCompactPdf = (res, name, data, period, society) => {
   return doc.end();
 };
 
-// --- XLSX (numbers stay numeric; text is stored as text, never as a formula) -
-const sendXlsx = async (res, name, rows) => {
-  const list = rows || [];
+// --- XLSX (tabular report records only) ------------------------------------
+const sendXlsx = async (res, name, data) => {
+  const { sections } = compactPdfData(data, 5000);
   const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet(name.slice(0, 31));
-  const headers = list.length ? Object.keys(list[0]) : [];
-  sheet.columns = headers.map((h) => ({ header: titleCase(h), key: h, width: Math.min(Math.max(h.length + 6, 14), 40) }));
-  list.forEach((row) => sheet.addRow(headers.reduce((acc, h) => ({ ...acc, [h]: row[h] === undefined ? null : row[h] }), {})));
-  sheet.getRow(1).font = { bold: true };
-  sheet.views = [{ state: 'frozen', ySplit: 1 }];
+  const usedNames = new Set();
+  sections.forEach((section, sectionIndex) => {
+    const labels = [...new Set(section.records.flatMap((fields) => fields.map((field) => field.label)))];
+    const friendlySectionTitle = readableLabel(section.title || `Details ${sectionIndex + 1}`);
+    const baseName = friendlySectionTitle.replace(/[\\/*?:\[\]]/g, ' ').slice(0, 31).trim() || `Details ${sectionIndex + 1}`;
+    let sheetName = baseName;
+    let suffix = 2;
+    while (usedNames.has(sheetName.toLowerCase())) {
+      const ending = ` ${suffix++}`;
+      sheetName = `${baseName.slice(0, 31 - ending.length)}${ending}`;
+    }
+    usedNames.add(sheetName.toLowerCase());
+    const sheet = workbook.addWorksheet(sheetName);
+    sheet.addRow(['Record', ...labels]);
+    section.records.forEach((fields, index) => {
+      const byLabel = new Map(fields.map((field) => [field.label, field.value]));
+      sheet.addRow([String(index + 1), ...labels.map((label) => byLabel.get(label) || '-')]);
+    });
+    sheet.getRow(1).font = { bold: true, color: { argb: 'FF17243A' } };
+    sheet.getRow(1).alignment = { vertical: 'middle', wrapText: true };
+    sheet.getRow(1).height = 30;
+    sheet.columns = [
+      { width: 11 },
+      ...labels.map((label, columnIndex) => {
+        const longest = Math.max(label.length, ...section.records.slice(0, 100).map((fields) => String(fields.find((field) => field.label === label)?.value || '').length));
+        return { width: Math.min(Math.max(longest + 2, 14), 36), key: `field_${columnIndex + 1}` };
+      }),
+    ];
+    sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: Math.max(1, section.records.length + 1), column: Math.max(1, labels.length + 1) } };
+    sheet.views = [{ state: 'frozen', ySplit: 1 }];
+    sheet.eachRow((row, rowNumber) => {
+      row.alignment = { vertical: 'top', wrapText: true };
+      if (rowNumber > 1 && rowNumber % 2 === 0) {
+        row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F7FC' } };
+      }
+    });
+  });
+  if (!sections.length) {
+    const sheet = workbook.addWorksheet('Report data');
+    sheet.addRow(['No detail records for the selected report.']);
+    sheet.getColumn(1).width = 42;
+  }
+
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', `attachment; filename="${name}-${new Date().toISOString().slice(0, 10)}.xlsx"`);
   await workbook.xlsx.write(res);
   res.end();
-};
-
-const exportRowsFromData = (data) => {
-  const detailRows = [];
-  const summaryRows = [];
-  const toCell = (value) => value && typeof value === 'object' ? JSON.stringify(value) : value;
-  const walk = (value, path = '') => {
-    if (Array.isArray(value)) {
-      value.forEach((item) => {
-        if (item && typeof item === 'object' && !Array.isArray(item)) {
-          detailRows.push({ section: path || 'Details', ...Object.fromEntries(Object.entries(item).map(([key, cell]) => [key, toCell(cell)])) });
-        } else {
-          detailRows.push({ section: path || 'Details', value: toCell(item) });
-        }
-      });
-      return;
-    }
-    if (!value || typeof value !== 'object') return;
-    Object.entries(value).forEach(([key, child]) => {
-      if (['society', 'period'].includes(key)) return;
-      const nextPath = path ? `${path}.${key}` : key;
-      if (Array.isArray(child)) walk(child, key);
-      else if (child && typeof child === 'object') walk(child, nextPath);
-      else if (child !== undefined) summaryRows.push({ section: path || 'Summary', label: nextPath, value: toCell(child) });
-    });
-  };
-
-  walk(data);
-  const rows = [...summaryRows, ...detailRows];
-  return rows.length ? rows : [{ message: 'No data for the selected filters.' }];
 };
 
 const exportReportData = asyncHandler(async (req, res) => {
@@ -321,7 +455,7 @@ const exportReportData = asyncHandler(async (req, res) => {
   const rows = exportRowsFromData(data);
   if (format === 'csv') return sendCsv(res, name, rows);
   if (format === 'pdf') return sendCompactPdf(res, name, data, data?.period || { fromDate, toDate }, await societyBranding(societyId));
-  return sendXlsx(res, name, rows);
+  return sendXlsx(res, name, data);
 });
 
 /**
@@ -343,7 +477,7 @@ const handler = (serviceFn, message, exportName) =>
     const data = await serviceFn(params);
     if (format === 'csv') return sendCsv(res, exportName, data.rows);
     if (format === 'pdf') return sendCompactPdf(res, exportName, data, data.period, await societyBranding(params.societyId));
-    if (format === 'xlsx') return sendXlsx(res, exportName, data.rows);
+    if (format === 'xlsx') return sendXlsx(res, exportName, data);
     return ApiResponse.success(res, data, message);
   });
 

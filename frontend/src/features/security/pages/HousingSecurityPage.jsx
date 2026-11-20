@@ -12,10 +12,14 @@ import {
   Search,
   Shield,
   Siren,
+  SquarePen,
+  Trash2,
   Users,
   X,
 } from "lucide-react";
 import securityApi from "../api/security-operations.api";
+import useUnits from "../../../utils/useUnits";
+import unitLocationLabel from "../../../utils/unitLocation";
 
 const rowsFrom = (response) => {
   let rows = Array.isArray(response)
@@ -574,6 +578,8 @@ export default function SecurityPage() {
           Manage
         </button>
       );
+    if (tab === "rosters" && item.status?.toUpperCase() === "CANCELLED")
+      return <span className="security-roster-cancelled-label">Cancelled</span>;
     if (["rosters", "tasks", "incidents", "emergencies"].includes(tab))
       return (
         <button
@@ -588,7 +594,7 @@ export default function SecurityPage() {
   const headings = {
     staff: ["Employee", "Type", "Contact", "Joined", "Status"],
     attendance: ["Staff", "Date", "Check in", "Check out", "Status"],
-    rosters: ["Staff", "Shift", "Date", "Type", "Status"],
+    rosters: ["Staff", "Shift", "Date", "Type", "Status", "Cancellation details"],
     tasks: ["Title", "Staff", "Type", "Due", "Priority", "Status"],
     patrols: ["Patrol", "Staff", "Date", "Window", "Status"],
     incidents: ["Number", "Incident", "Severity", "Location", "Status"],
@@ -619,6 +625,18 @@ export default function SecurityPage() {
         item.rosterDate?.slice(0, 10),
         titleCase(item.rosterType),
         titleCase(item.status),
+        item.status === "CANCELLED" ? (
+          <span className="security-roster-cancellation">
+            <strong>Reason: {item.cancellationReason || "Not provided"}</strong>
+            <small>
+              Cancelled {item.cancelledAt ? new Date(item.cancelledAt).toLocaleString() : "time unavailable"}
+            </small>
+            <small>
+              {item.cancelledBySecurityGuard ? "Cancelled by security guard" : "Cancelled by administrator"}
+              {item.cancelledByName ? `: ${item.cancelledByName}` : ""}
+            </small>
+          </span>
+        ) : "—",
       ],
       tasks: [
         item.title,
@@ -800,6 +818,7 @@ export default function SecurityPage() {
                   className="society-add-button"
                   onClick={() => setForm("attendance")}
                 >
+                  <Plus size={16} />
                   Add attendance
                 </button>
               </>
@@ -980,15 +999,22 @@ export default function SecurityPage() {
                           {actionsFor(item)}
                           {tab !== "audit" && (
                             <button
+                              type="button"
+                              className="security-table-icon-action"
+                              aria-label={`Edit ${tabs.find(([key]) => key === tab)?.[1].toLowerCase()} record`}
+                              title="Edit"
                               onClick={() => setEditRecord({ item, tab })}
                             >
-                              Edit
+                              <SquarePen size={18} aria-hidden="true" />
                             </button>
                           )}
                           {(tab !== "audit" ||
                             resourceFor === "security-audits") && (
                             <button
-                              className="society-delete-action"
+                              type="button"
+                              className="security-table-icon-action is-delete"
+                              aria-label={`Delete ${tabs.find(([key]) => key === tab)?.[1].toLowerCase()} record`}
+                              title="Delete"
                               onClick={() =>
                                 window.confirm(
                                   `Delete this ${tabs.find(([key]) => key === tab)?.[1].toLowerCase()} record?`,
@@ -1005,7 +1031,7 @@ export default function SecurityPage() {
                                 )
                               }
                             >
-                              Delete
+                              <Trash2 size={18} aria-hidden="true" />
                             </button>
                           )}
                         </div>
@@ -1081,7 +1107,11 @@ export default function SecurityPage() {
                       ) : (
                         <input
                           name={name}
-                          type={type}
+                          type={name === "mobileNumber" || name === "phone" ? "tel" : type}
+                          inputMode={name === "mobileNumber" || name === "phone" ? "numeric" : undefined}
+                          maxLength={name === "mobileNumber" || name === "phone" ? 10 : undefined}
+                          pattern={name === "mobileNumber" || name === "phone" ? "[0-9]{10}" : undefined}
+                          title={name === "mobileNumber" || name === "phone" ? "Enter a valid 10-digit phone number." : undefined}
                           required={
                             ![
                               "lastName",
@@ -1183,7 +1213,7 @@ export default function SecurityPage() {
             } else if (type === "tasks")
               await act(securityApi.taskAction, item.id, action, payload);
             else if (type === "rosters")
-              await act(securityApi.rosterAction, item.id, action);
+              await act(securityApi.rosterAction, item.id, action, payload);
             else
               await act(
                 type === "incidents"
@@ -1202,6 +1232,7 @@ export default function SecurityPage() {
 }
 
 function RecordEditModal({ record, tab, onClose, onSave }) {
+  const { units } = useUnits();
   const normalizeDate = (value) => {
     if (!value || value === "Invalid date") return "";
     const date = String(value).match(/^\d{4}-\d{2}-\d{2}/)?.[0];
@@ -1231,6 +1262,11 @@ function RecordEditModal({ record, tab, onClose, onSave }) {
         value === "" ? null : value,
       ]),
     );
+    const phoneEntry = Object.entries(payload).find(([key]) => ["mobileNumber", "mobile_number", "phone"].includes(key));
+    if (phoneEntry && phoneEntry[1] && !/^\d{10}$/.test(String(phoneEntry[1]).trim())) {
+      setError("Enter a valid 10-digit mobile number.");
+      return;
+    }
     if (tab === "staff" && !payload.joiningDate) {
       setError("Enter a valid joining date before saving staff details.");
       return;
@@ -1287,7 +1323,7 @@ function RecordEditModal({ record, tab, onClose, onSave }) {
                   >
                     {units.map((unit) => (
                       <option key={unit.id} value={unit.id}>
-                        {unit.unitNumber || unit.name || unit.id}
+                        {unitLocationLabel(unit)}
                       </option>
                     ))}
                   </select>
@@ -1357,7 +1393,7 @@ function SecurityWorkflowDialog({
       : type === "tasks"
         ? "start"
         : type === "rosters"
-          ? "confirm"
+          ? ""
           : "acknowledge",
   );
   const [gps, setGps] = useState(null);
@@ -1389,7 +1425,6 @@ function SecurityWorkflowDialog({
           ]
         : type === "rosters"
           ? [
-              ["confirm", "Confirm roster"],
               ["complete", "Complete roster"],
               ["cancel", "Cancel roster"],
             ]
@@ -1414,6 +1449,10 @@ function SecurityWorkflowDialog({
               ];
   const submit = async (event) => {
     event.preventDefault();
+    if (!action) {
+      setError("Choose an action first.");
+      return;
+    }
     const values = Object.fromEntries(
       new FormData(event.currentTarget).entries(),
     );
@@ -1423,7 +1462,9 @@ function SecurityWorkflowDialog({
       payload = { investigationNotes: values.notes };
     if (action === "resolve") payload = { resolutionDetails: values.notes };
     if (action === "respond") payload = { responseNotes: values.notes };
-    if (["cancel", "false-alarm", "missed"].includes(action))
+    if (type === "rosters" && action === "cancel")
+      payload = { reason: values.notes };
+    else if (["cancel", "false-alarm", "missed"].includes(action))
       payload = { remarks: values.notes };
     if (action === "external-contacts")
       payload = {
@@ -1503,12 +1544,14 @@ function SecurityWorkflowDialog({
             <label className="security-field">
               Action
               <select
+                required
                 value={action}
                 onChange={(event) => {
                   setAction(event.target.value);
                   setError("");
                 }}
               >
+                <option value="" disabled>Choose an action</option>
                 {actionOptions.map(([value, label]) => (
                   <option key={value} value={value}>
                     {label}
@@ -1610,9 +1653,11 @@ function SecurityWorkflowDialog({
                     ? "Investigation notes"
                     : action === "respond"
                       ? "Response notes"
-                      : action === "verify"
-                        ? "Visit notes"
-                        : "Reason / remarks"}
+                      : type === "rosters" && action === "cancel"
+                        ? "Cancellation reason"
+                        : action === "verify"
+                          ? "Visit notes"
+                          : "Reason / remarks"}
                 <textarea
                   name="notes"
                   rows="3"
@@ -1630,7 +1675,7 @@ function SecurityWorkflowDialog({
             <button type="button" onClick={onClose}>
               Cancel
             </button>
-            <button className="society-add-button" disabled={busy}>
+            <button className="society-add-button" disabled={busy || !action}>
               {busy ? "Applying…" : "Apply action"}
             </button>
           </footer>

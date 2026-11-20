@@ -45,6 +45,7 @@ router.get('/', authorize('USER_READ'), validate(listUsersQuerySchema, 'query'),
 router.post('/', authorize('USER_CREATE'), parseProfilePicture, validate(createUserSchema), controller.createUser);
 
 router.get('/me/societies', controller.listMySocieties);
+router.patch('/me/profile', parseProfilePicture, validate(updateProfileSchema), controller.updateMyProfile);
 
 router.get('/:userId', authorize('USER_READ'), controller.getUser);
 router.patch('/:userId', authorize('USER_UPDATE'), parseProfilePicture, validate(updateProfileSchema), controller.updateProfile);

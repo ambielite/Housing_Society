@@ -24,7 +24,7 @@ function addCreationIcons(node) {
   if (node.type === 'button' || typeof node.props.to === 'string') {
     const label = readButtonText(children).trim();
     if (CREATION_ACTION.test(label) && !containsPlus(children)) {
-      return cloneElement(node, {}, <><Plus size={16} aria-hidden="true" /> {children}</>);
+      return cloneElement(node, {}, <><Plus size={18} strokeWidth={2.4} aria-hidden="true" /> {children}</>);
     }
   }
 
@@ -42,7 +42,7 @@ export default function PageContainer({ title, subtitle, eyebrow, actions, child
         </div>
         {actions && <div className="page-actions">{addCreationIcons(actions)}</div>}
       </header>}
-      {children}
+      {addCreationIcons(children)}
     </section>
   );
 }

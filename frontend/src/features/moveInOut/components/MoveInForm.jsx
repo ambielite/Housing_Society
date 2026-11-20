@@ -5,8 +5,11 @@ import moveInApi from "../api/moveIn.api";
 import agreementApi from "../api/agreement.api";
 import societyApi from "../../societies/api/society.api";
 import unitApi from "../../units/api/unit.api";
+import floorApi from "../../floors/api/floor.api";
+import towerApi from "../../towers/api/tower.api";
 import residentApi from "../../residents/api/resident.api";
 import { openMoveInDocument } from "../utils/openMoveInDocument";
+import unitLocationLabel from "../../../utils/unitLocation";
 
 const rowsFrom = (response) => {
     const rows = Array.isArray(response) ? response : response?.data || response?.records || [];
@@ -23,10 +26,12 @@ const initialValues = (moveIn = null) => ({
     remarks: moveIn?.remarks || ""
 });
 
-const MoveInForm = ({ moveIn, onClose, onSuccess }) => {
+const MoveInForm = ({ moveIn, moveIns = [], onClose, onSuccess }) => {
     const [values, setValues] = useState(() => initialValues(moveIn));
     const [societies, setSocieties] = useState([]);
     const [units, setUnits] = useState([]);
+    const [floors, setFloors] = useState([]);
+    const [towers, setTowers] = useState([]);
     const [residents, setResidents] = useState([]);
     const [agreements, setAgreements] = useState([]);
     const [documents, setDocuments] = useState({ leaseDocument: null, registryDocument: null, policeVerificationDocument: null });
@@ -39,11 +44,13 @@ const MoveInForm = ({ moveIn, onClose, onSuccess }) => {
 
         const loadOptions = async () => {
             try {
-                const [societyResponse, unitResponse, residentResponse, agreementResponse] = await Promise.all([
+                const [societyResponse, unitResponse, residentResponse, agreementResponse, floorResponse, towerResponse] = await Promise.all([
                     societyApi.getAll(),
                     unitApi.getAll(),
                     residentApi.getAll(),
-                    agreementApi.getAll()
+                    agreementApi.getAll(),
+                    floorApi.getAll(),
+                    towerApi.getAll()
                 ]);
 
                 if (!isMounted) return;
@@ -52,6 +59,8 @@ const MoveInForm = ({ moveIn, onClose, onSuccess }) => {
                 setUnits(rowsFrom(unitResponse));
                 setResidents(rowsFrom(residentResponse));
                 setAgreements(rowsFrom(agreementResponse));
+                setFloors(rowsFrom(floorResponse));
+                setTowers(rowsFrom(towerResponse));
             } catch (err) {
                 if (isMounted) {
                     setError(err.response?.data?.message || "Could not load move-in form options.");
@@ -87,6 +96,18 @@ const MoveInForm = ({ moveIn, onClose, onSuccess }) => {
             return;
         }
 
+        const duplicate = moveIns.find((record) =>
+            record.id !== moveIn?.id &&
+            String(record.societyId) === String(values.societyId) &&
+            String(record.unitId) === String(values.unitId) &&
+            String(record.residentId) === String(values.residentId) &&
+            !["REJECTED", "CANCELLED"].includes(record.status)
+        );
+        if (duplicate) {
+            setError("This resident already has a move-in request or completed move-in for this unit.");
+            return;
+        }
+
         if (!['OWNER', 'TENANT'].includes(values.occupancyType)) {
             setError("Occupancy type must be OWNER or TENANT.");
             return;
@@ -115,6 +136,8 @@ const MoveInForm = ({ moveIn, onClose, onSuccess }) => {
         }
     };
 
+    const floorsById = new Map(floors.map((floor) => [String(floor.id), floor]));
+    const towersById = new Map(towers.map((tower) => [String(tower.id), tower]));
     return (
         <section className="society-form-modal" role="dialog" aria-modal="true" aria-labelledby="movein-form-title">
             <header className="society-form-header">
@@ -149,7 +172,7 @@ const MoveInForm = ({ moveIn, onClose, onSuccess }) => {
                                 <select id="movein-unit" name="unitId" value={values.unitId} onChange={updateField} required disabled={loading || units.length === 0}>
                                     <option value="">{loading ? "Loading units…" : "Select a unit"}</option>
                                     {units.map((unit) => (
-                                        <option key={unit.id} value={unit.id}>{unit.unitNumber || unit.name || unit.id}</option>
+                                        <option key={unit.id} value={unit.id}>{unitLocationLabel(unit, floorsById, towersById)}</option>
                                     ))}
                                 </select>
                             </div>
@@ -159,7 +182,7 @@ const MoveInForm = ({ moveIn, onClose, onSuccess }) => {
                                 <select id="movein-resident" name="residentId" value={values.residentId} onChange={updateField} required disabled={loading || residents.length === 0}>
                                     <option value="">{loading ? "Loading residents…" : "Select a resident"}</option>
                                     {residents.map((resident) => (
-                                        <option key={resident.id} value={resident.id}>{resident.displayName || `${resident.firstName || ""} ${resident.lastName || ""}`.trim() || resident.name || resident.id}</option>
+                                        <option key={resident.id} value={resident.id} disabled={moveIns.some((record) => record.id !== moveIn?.id && String(record.societyId) === String(values.societyId) && String(record.unitId) === String(values.unitId) && String(record.residentId) === String(resident.id) && !["REJECTED", "CANCELLED"].includes(record.status))}>{resident.displayName || `${resident.firstName || ""} ${resident.lastName || ""}`.trim() || resident.name || resident.id}{moveIns.some((record) => record.id !== moveIn?.id && String(record.societyId) === String(values.societyId) && String(record.unitId) === String(values.unitId) && String(record.residentId) === String(resident.id) && !["REJECTED", "CANCELLED"].includes(record.status)) ? " (already moved in)" : ""}</option>
                                     ))}
                                 </select>
                             </div>

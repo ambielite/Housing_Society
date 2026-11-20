@@ -3,6 +3,13 @@ const sequelize = require("../../../config/database");
 const InvoiceRepository = require("../../financial/invoice/invoice.repository");
 const ResidentFinanceService = require("../../resident-finance/residentFinance.service");
 const { processEffectiveMoveOut } = require("./moveOutEffectiveProcessor.service");
+const ApiError = require("../../../common/ApiError");
+
+const assertNoDuplicateMoveOut = async ({ societyId, residentId, unitId }, excludeId = null) => {
+    const records = await repository.findByResidentAndUnit(societyId, residentId, unitId);
+    const duplicate = records.find((record) => record.id !== excludeId && !["REJECTED", "CANCELLED"].includes(record.status));
+    if (duplicate) throw new ApiError(409, "This resident already has a move-out request or completed move-out for this unit.");
+};
 
 const getPendingAmount = async (data, user) => {
     if (!user?.societyId || data.societyId !== user.societyId) {
@@ -19,6 +26,7 @@ const createMoveOut = async (data, user) => {
         error.status = 403;
         throw error;
     }
+    await assertNoDuplicateMoveOut(data);
     const effectiveMoveOutDate = data.effectiveMoveOutDate || data.requestedMoveOutDate;
     const transaction = await sequelize.transaction();
     try {
@@ -64,6 +72,13 @@ const getMoveOut = async (id) => {
 };
 
 const updateMoveOut = async (id, data) => {
+    const current = await repository.findById(id);
+    if (!current) return null;
+    await assertNoDuplicateMoveOut({
+        societyId: data.societyId || current.societyId,
+        residentId: data.residentId || current.residentId,
+        unitId: data.unitId || current.unitId
+    }, id);
     return await repository.update(id, data);
 };
 

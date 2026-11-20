@@ -7,7 +7,10 @@ import Alert from '../../../components/ui/Alert';
 import { isUuid } from '../../../utils/validators';
 import { VEHICLE_TYPES } from './vehicleOptions';
 
-const normalizeReg = (text) => text.toUpperCase().replace(/\s+/g, ' ').trim();
+const normalizeReg = (text) => text.trim().toUpperCase().replace(/[\s-]+/g, '');
+const registrationPattern = /^[A-Z]{2}\d{1,4}[A-Z]{1,3}\d{1,4}$/;
+const registrationPrefixPattern = /^[A-Z]{0,2}(?:\d{0,4}(?:[A-Z]{0,3}(?:\d{0,4})?)?)?$/;
+const invalidRegistrationMessage = 'Vehicle number is not correct. Check its format and try again.';
 
 /**
  * Create: registration number, type, unit, make, model, colour.
@@ -25,10 +28,26 @@ export default function VehicleForm({ mode, vehicle, onSubmit, cancelTo, onCance
   });
   const [errors, setErrors] = useState({});
   const [note, setNote] = useState('');
+  const [invalidRegistrationAttempt, setInvalidRegistrationAttempt] = useState(false);
 
   const onChange = (event) => {
     setNote('');
-    setValues((v) => ({ ...v, [event.target.name]: event.target.value }));
+    const { name } = event.target;
+    const value = name === 'registrationNo' ? event.target.value.toUpperCase() : event.target.value;
+    if (name === 'registrationNo') {
+      if (!registrationPrefixPattern.test(normalizeReg(value))) {
+        setInvalidRegistrationAttempt(true);
+        setErrors((current) => ({ ...current, registrationNo: invalidRegistrationMessage }));
+        return;
+      }
+      setInvalidRegistrationAttempt(false);
+    }
+    setErrors((current) => {
+      const remaining = { ...current };
+      delete remaining[name];
+      return remaining;
+    });
+    setValues((current) => ({ ...current, [name]: value }));
   };
 
   const handleSubmit = (event) => {
@@ -37,16 +56,24 @@ export default function VehicleForm({ mode, vehicle, onSubmit, cancelTo, onCance
     const reg = normalizeReg(values.registrationNo);
 
     if (!isEdit) {
-      if (!reg) next.registrationNo = 'Enter the registration number.';
-      else if (reg.length > 20) next.registrationNo = 'Use 20 characters or fewer.';
-      else if (!/^[A-Z0-9][A-Z0-9 -]*$/.test(reg)) next.registrationNo = 'Use letters, numbers, spaces and hyphens only.';
+      if (invalidRegistrationAttempt) next.registrationNo = invalidRegistrationMessage;
+      else if (!reg) next.registrationNo = 'Enter the registration number.';
+      else if (reg.length < 5) next.registrationNo = 'The registration number is too short to be valid.';
+      else if (reg.length > 13) next.registrationNo = 'The registration number is too long to be valid.';
+      else if (!registrationPattern.test(reg)) {
+        next.registrationNo = 'Use the format MH12AB1234: state, RTO, series, then number.';
+      } else if (/^0+$/.test(reg.match(/\d+$/)?.[0] || '')) {
+        next.registrationNo = 'The final registration number cannot be all zeros.';
+      }
       if (!values.vehicleType) next.vehicleType = 'Choose a vehicle type.';
     }
-    if (values.unitId.trim() && !isUuid(values.unitId)) next.unitId = "That doesn't look like a valid unit ID.";
-    if (isEdit && vehicle.unit_id && !values.unitId.trim()) next.unitId = 'A unit can be changed but not removed.';
-    if (values.make.trim().length > 100) next.make = 'Use 100 characters or fewer.';
+    if (!values.unitId.trim()) next.unitId = 'Choose a unit for this vehicle.';
+    else if (!isUuid(values.unitId)) next.unitId = "That doesn't look like a valid unit ID.";
+    if (!values.make.trim()) next.make = 'Enter the vehicle make.';
+    else if (values.make.trim().length > 100) next.make = 'Use 100 characters or fewer.';
     if (values.model.trim().length > 100) next.model = 'Use 100 characters or fewer.';
-    if (values.color.trim().length > 50) next.color = 'Use 50 characters or fewer.';
+    if (!values.color.trim()) next.color = 'Enter the vehicle colour.';
+    else if (values.color.trim().length > 50) next.color = 'Use 50 characters or fewer.';
     setErrors(next);
     if (Object.keys(next).length) return;
 
@@ -66,11 +93,14 @@ export default function VehicleForm({ mode, vehicle, onSubmit, cancelTo, onCance
       return;
     }
 
-    const payload = { registrationNo: reg, vehicleType: values.vehicleType };
-    if (current.make) payload.make = current.make;
+    const payload = {
+      registrationNo: reg,
+      vehicleType: values.vehicleType,
+      make: current.make,
+      color: current.color,
+      unitId: current.unitId,
+    };
     if (current.model) payload.model = current.model;
-    if (current.color) payload.color = current.color;
-    if (current.unitId) payload.unitId = current.unitId;
     onSubmit(payload);
   };
 
@@ -85,11 +115,14 @@ export default function VehicleForm({ mode, vehicle, onSubmit, cancelTo, onCance
           name="registrationNo"
           label="Registration number"
           placeholder="e.g. MH12AB1234"
+          maxLength={20}
           value={values.registrationNo}
           onChange={onChange}
           error={errors.registrationNo}
           disabled={isEdit}
-          hint={isEdit ? "The registration number can't be changed." : undefined}
+          hint={isEdit
+            ? "The registration number can't be changed."
+            : 'Spaces and hyphens are accepted and removed when saved.'}
         />
         <SelectField
           id="vehicleType"
@@ -102,10 +135,22 @@ export default function VehicleForm({ mode, vehicle, onSubmit, cancelTo, onCance
           error={errors.vehicleType}
           disabled={isEdit}
         />
-        <TextField id="make" name="make" label="Make (optional)" placeholder="e.g. Honda" value={values.make} onChange={onChange} error={errors.make} />
+        <TextField id="make" name="make" label="Make" placeholder="e.g. Honda" value={values.make} onChange={onChange} error={errors.make} />
         <TextField id="model" name="model" label="Model (optional)" placeholder="e.g. City" value={values.model} onChange={onChange} error={errors.model} />
-        <TextField id="color" name="color" label="Colour (optional)" placeholder="e.g. White" value={values.color} onChange={onChange} error={errors.color} />
-        <UnitSelect label="Unit (optional)" value={values.unitId} onChange={(unitId) => setValues((v) => ({ ...v, unitId }))} error={errors.unitId} />
+        <TextField id="color" name="color" label="Colour" placeholder="e.g. White" value={values.color} onChange={onChange} error={errors.color} />
+        <UnitSelect
+          label="Unit"
+          value={values.unitId}
+          onChange={(unitId) => {
+            setValues((current) => ({ ...current, unitId }));
+            setErrors((current) => {
+              const remaining = { ...current };
+              delete remaining.unitId;
+              return remaining;
+            });
+          }}
+          error={errors.unitId}
+        />
       </div>
 
       <div className="form-actions">

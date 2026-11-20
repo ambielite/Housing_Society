@@ -225,7 +225,7 @@ class _ResidentChangePasswordScreenState
                       : const Icon(Icons.check_rounded),
                   label: Text(_submitting ? 'Updating…' : 'Update password'),
                   style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.indigo,
+                    backgroundColor: AppColors.navy,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
@@ -241,7 +241,7 @@ class _ResidentChangePasswordScreenState
       const Text(
         'Your current password is required to confirm this change.',
         textAlign: TextAlign.center,
-        style: TextStyle(color: AppColors.muted, fontSize: 12),
+        style: TextStyle(color: Colors.black, fontSize: 12),
       ),
     ],
   );
@@ -260,7 +260,7 @@ class _ResidentChangePasswordScreenState
         child: FilledButton(
           onPressed: _goToLogin,
           style: FilledButton.styleFrom(
-            backgroundColor: AppColors.indigo,
+            backgroundColor: AppColors.navy,
             foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
@@ -338,7 +338,7 @@ class _ResidentChangePasswordScreenState
         description,
         textAlign: TextAlign.center,
         style: const TextStyle(
-          color: AppColors.inkSoft,
+          color: Colors.black,
           fontSize: 14,
           height: 1.45,
         ),

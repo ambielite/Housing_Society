@@ -63,7 +63,7 @@ app.use((req, res, next) => {
     );
     res.setHeader(
         "Access-Control-Allow-Headers",
-        "Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Society-Id"
+        "Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Society-Id, Cache-Control, Pragma"
     );
     res.setHeader("Access-Control-Max-Age", "86400");
     res.setHeader("Access-Control-Allow-Credentials", "true");
@@ -76,7 +76,8 @@ app.use((req, res, next) => {
 });
 
 app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
-app.use(express.json());
+// The guard login request carries one compressed, short-lived selfie payload.
+app.use(express.json({ limit: '3mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // All legacy Nikhil module routes are mounted directly under /api and do not

@@ -11,7 +11,7 @@ String get _apiBaseUrl => _configuredApiBaseUrl.isNotEmpty
     ? _configuredApiBaseUrl
     : kIsWeb
     ? 'http://localhost:5000/api/v1'
-    : 'http://10.0.2.2:5000/api/v1';
+    : 'http://localhost:5000/api/v1';
 
 class ResidentDashboardData {
   const ResidentDashboardData({
@@ -22,11 +22,12 @@ class ResidentDashboardData {
     this.societyPhone,
     this.residentName,
     this.residentPhotoUrl,
+    this.residentProfile,
     this.currency = 'INR',
     this.unitNumber,
     this.towerName,
     this.floorName,
-    this.maintenance,
+    this.maintenance = const [],
     this.upcomingBookings = const [],
     this.notices = const [],
   });
@@ -38,11 +39,12 @@ class ResidentDashboardData {
   final String? societyPhone;
   final String? residentName;
   final String? residentPhotoUrl;
+  final ResidentProfileDetails? residentProfile;
   final String currency;
   final String? unitNumber;
   final String? towerName;
   final String? floorName;
-  final ResidentMaintenance? maintenance;
+  final List<ResidentMaintenance> maintenance;
   final List<ResidentUpcomingBooking> upcomingBookings;
   final List<ResidentNotice> notices;
 
@@ -56,6 +58,7 @@ class ResidentDashboardData {
     societyPhone: societyPhone,
     residentName: residentName,
     residentPhotoUrl: residentPhotoUrl,
+    residentProfile: residentProfile,
     currency: currency,
     unitNumber: unitNumber,
     towerName: towerName,
@@ -68,8 +71,13 @@ class ResidentDashboardData {
   factory ResidentDashboardData.fromJson(Map<String, dynamic> json) {
     final society = _asMap(json['society']);
     final resident = _asMap(json['resident']);
+    final account = _asMap(json['account']);
     final unit = _asMap(json['unit']);
-    final maintenance = _asMap(json['maintenance']);
+    final maintenanceRows = json['maintenance'] is List
+        ? json['maintenance'] as List<dynamic>
+        : json['maintenance'] is Map<String, dynamic>
+        ? [json['maintenance']]
+        : const <dynamic>[];
     final bookingRows = json['upcomingBookings'] as List<dynamic>?;
     final legacyBooking = _asMap(json['upcomingBooking']);
     final noticeRows = json['notices'] as List<dynamic>? ?? const [];
@@ -80,14 +88,20 @@ class ResidentDashboardData {
       societyEmail: _string(society?['email']),
       societyPhone: _string(society?['phone']),
       residentName: _string(resident?['name']),
-      residentPhotoUrl: _imageUrl(resident?['photoUrl']),
+      residentPhotoUrl:
+          _imageUrl(account?['photoUrl']) ?? _imageUrl(resident?['photoUrl']),
+      residentProfile: resident == null
+          ? null
+          : ResidentProfileDetails.fromJson(resident),
       currency: _string(society?['currency']) ?? 'INR',
       unitNumber: _string(unit?['number']),
       towerName: _string(unit?['tower']),
       floorName: _string(unit?['floor']),
-      maintenance: maintenance == null
-          ? null
-          : ResidentMaintenance.fromJson(maintenance),
+      maintenance: maintenanceRows
+          .whereType<Map<String, dynamic>>()
+          .map(ResidentMaintenance.fromJson)
+          .where((invoice) => invoice.amount > 0)
+          .toList(),
       upcomingBookings: (bookingRows ?? (legacyBooking == null ? [] : [legacyBooking]))
           .whereType<Map<String, dynamic>>()
           .map(ResidentUpcomingBooking.fromJson)
@@ -98,6 +112,43 @@ class ResidentDashboardData {
           .toList(),
     );
   }
+}
+
+class ResidentProfileDetails {
+  const ResidentProfileDetails({
+    this.email,
+    this.phone,
+    this.alternatePhone,
+    this.dateOfBirth,
+    this.emergencyContactName,
+    this.emergencyContactPhone,
+    this.emergencyContactRelation,
+    this.role,
+    this.status,
+  });
+
+  final String? email;
+  final String? phone;
+  final String? alternatePhone;
+  final String? dateOfBirth;
+  final String? emergencyContactName;
+  final String? emergencyContactPhone;
+  final String? emergencyContactRelation;
+  final String? role;
+  final String? status;
+
+  factory ResidentProfileDetails.fromJson(Map<String, dynamic> json) =>
+      ResidentProfileDetails(
+        email: _string(json['email']),
+        phone: _string(json['phone']),
+        alternatePhone: _string(json['alternatePhone']),
+        dateOfBirth: _string(json['dateOfBirth']),
+        emergencyContactName: _string(json['emergencyContactName']),
+        emergencyContactPhone: _string(json['emergencyContactPhone']),
+        emergencyContactRelation: _string(json['emergencyContactRelation']),
+        role: _string(json['role']),
+        status: _string(json['status']),
+      );
 }
 
 class ResidentUpcomingBooking {
@@ -159,12 +210,16 @@ class ResidentNotice {
     required this.description,
     required this.status,
     this.postedAt,
+    this.scheduledAt,
+    this.expiresAt,
   });
 
   final String title;
   final String description;
   final String status;
   final DateTime? postedAt;
+  final DateTime? scheduledAt;
+  final DateTime? expiresAt;
 
   factory ResidentNotice.fromJson(Map<String, dynamic> json) => ResidentNotice(
     title: _string(json['title']) ?? '',
@@ -173,6 +228,8 @@ class ResidentNotice {
     postedAt: DateTime.tryParse(
       '${json['posted_at'] ?? json['scheduled_at'] ?? json['created_at'] ?? ''}',
     ),
+    scheduledAt: DateTime.tryParse('${json['scheduled_at'] ?? ''}'),
+    expiresAt: DateTime.tryParse('${json['expires_at'] ?? ''}'),
   );
 }
 

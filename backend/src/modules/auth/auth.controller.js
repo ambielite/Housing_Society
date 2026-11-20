@@ -10,8 +10,17 @@ const register = asyncHandler(async (req, res) => {
 });
 
 const login = asyncHandler(async (req, res) => {
-  const result = await authService.login(req.body, buildMeta(req));
-  return ApiResponse.success(res, result, 'Login successful');
+  try {
+    const result = await authService.login(req.body, buildMeta(req));
+    return ApiResponse.success(res, result, 'Login successful');
+  } finally {
+    // The selfie is request-only data. Drop the body reference on success and
+    // every auth failure so it cannot linger on the request object.
+    if (req.body && typeof req.body === 'object') {
+      delete req.body.selfieData;
+      delete req.body.selfieMimeType;
+    }
+  }
 });
 
 const refresh = asyncHandler(async (req, res) => {
@@ -49,6 +58,26 @@ const resetPassword = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, null, 'Password reset successfully');
 });
 
+const requestResidentPasswordResetOtp = asyncHandler(async (req, res) => {
+  const result = await authService.requestResidentPasswordResetOtp(req.body.email);
+  return ApiResponse.success(res, result, 'Request processed');
+});
+
+const resetResidentPasswordWithOtp = asyncHandler(async (req, res) => {
+  await authService.resetResidentPasswordWithOtp(req.body);
+  return ApiResponse.success(res, null, 'Password reset successfully');
+});
+
+const requestAdminPasswordResetOtp = asyncHandler(async (req, res) => {
+  const result = await authService.requestAdminPasswordResetOtp(req.body.email);
+  return ApiResponse.success(res, result, 'Request processed');
+});
+
+const resetAdminPasswordWithOtp = asyncHandler(async (req, res) => {
+  await authService.resetAdminPasswordWithOtp(req.body);
+  return ApiResponse.success(res, null, 'Password reset successfully');
+});
+
 module.exports = {
   register,
   login,
@@ -59,4 +88,8 @@ module.exports = {
   changePassword,
   forgotPassword,
   resetPassword,
+  requestResidentPasswordResetOtp,
+  resetResidentPasswordWithOtp,
+  requestAdminPasswordResetOtp,
+  resetAdminPasswordWithOtp,
 };

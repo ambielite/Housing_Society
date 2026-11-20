@@ -5,6 +5,7 @@ const helpdeskSetupRepository = require('../helpdesk-setup/helpdesk-setup.reposi
 const slaService = require('../sla/sla.service');
 const vendorsRepository = require('../vendors/vendors.repository');
 const usersRepository = require('../users/users.repository');
+const { publishTicketStatusChanged } = require('./tickets.events');
 
 const generateTicketNo = () => `TKT-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
 
@@ -133,6 +134,8 @@ const updateStatus = async (id, newStatus, changedBy, remarks, vendorScope) => {
     await slaService.markMet(id);
   }
 
+  publishTicketStatusChanged(updated);
+
   return updated;
 };
 
@@ -206,7 +209,7 @@ const unassignTicket = async (ticketId, changedBy, vendorScope) => {
   }
   const unassigned = await repository.unassign(current.id);
   if (ticket.status === 'ASSIGNED') {
-    await repository.updateStatus(ticketId, 'OPEN');
+    const reopened = await repository.updateStatus(ticketId, 'OPEN');
     await repository.addStatusHistory({
       ticketId,
       oldStatus: 'ASSIGNED',
@@ -214,6 +217,7 @@ const unassignTicket = async (ticketId, changedBy, vendorScope) => {
       changedBy,
       remarks: 'Automatically reopened after unassignment',
     });
+    publishTicketStatusChanged(reopened);
   }
   return unassigned;
 };

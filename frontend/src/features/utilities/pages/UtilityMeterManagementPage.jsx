@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, AlertTriangle, Droplets, Gauge, Plus, Search, SquarePen, Trash2, Zap } from 'lucide-react';
+import { Activity, AlertTriangle, Droplets, Gauge, Plus, RefreshCw, Search, SquarePen, Trash2, Zap } from 'lucide-react';
 import PageContainer from '../../../components/layout/PageContainer';
 import DataTable from '../../../components/tables/DataTable';
 import Alert from '../../../components/ui/Alert';
@@ -13,6 +13,7 @@ import { getErrorMessage } from '../../../lib/axios';
 import unitApi from '../../units/api/unit.api';
 import floorApi from '../../floors/api/floor.api';
 import towerApi from '../../towers/api/tower.api';
+import unitLocationLabel from '../../../utils/unitLocation';
 import * as utilityApi from '../api/utilityMeter.api';
 import {
   METER_STATUSES, READING_SOURCES, READING_STATUSES, UTILITY_TYPE_STATUSES, UTILITY_UNITS,
@@ -218,15 +219,12 @@ export default function UtilityMeterManagementPage() {
     Promise.all([unitApi.getAll(societyConfig), floorApi.getAll(societyConfig), towerApi.getAll(societyConfig)])
       .then(([unitResponse, floorResponse, towerResponse]) => {
         if (!isCurrent) return;
-        const floorsById = new Map(unwrapRows(floorResponse).map((floor) => [floor.id, floor]));
-        const towersById = new Map(unwrapRows(towerResponse).map((tower) => [tower.id, tower]));
+        const floorsById = new Map(unwrapRows(floorResponse).map((floor) => [String(floor.id), floor]));
+        const towersById = new Map(unwrapRows(towerResponse).map((tower) => [String(tower.id), tower]));
         const options = unwrapRows(unitResponse)
           .filter((unit) => unit.status !== 'INACTIVE')
           .map((unit) => {
-            const floor = floorsById.get(unit.floorId);
-            const tower = floor && towersById.get(floor.towerId);
-            const unitName = unit.unitNumber || unit.name || 'Unit';
-            return { value: unit.id, label: tower?.name ? `${unitName} — ${tower.name}` : unitName };
+            return { value: unit.id, label: unitLocationLabel(unit, floorsById, towersById) };
           });
         setUnitOptions(options);
       })
@@ -482,9 +480,9 @@ export default function UtilityMeterManagementPage() {
     { key: 'status', header: 'Status', render: (r) => <StatusPill value={r.status} /> },
     { key: 'actions', header: 'Actions', render: (r) => <div className="um-row-actions">
       {hasPermission('METER_UPDATE') && <button type="button" className="society-icon-action" title={`Edit meter ${r.meter_no}`} aria-label={`Edit meter ${r.meter_no}`} onClick={() => openModal('meter', r)}><SquarePen size={16} /></button>}
-      {hasPermission('METER_UPDATE') && r.status !== 'REPLACED' && <button className="btn btn-ghost btn-sm" onClick={() => openModal('replace', r)}>Replace</button>}
+      {hasPermission('METER_UPDATE') && r.status !== 'REPLACED' && <button type="button" className="society-icon-action" title={`Replace meter ${r.meter_no}`} aria-label={`Replace meter ${r.meter_no}`} disabled={busy} onClick={() => openModal('replace', r)}><RefreshCw size={16} /></button>}
       {hasPermission('METER_DELETE') && <button type="button" className="society-icon-action society-delete-action" title={`Delete meter ${r.meter_no}`} aria-label={`Delete meter ${r.meter_no}`} onClick={() => remove('meter', r)}><Trash2 size={16} /></button>}
-      {hasPermission('METER_READING_CREATE') && <button className="btn btn-ghost btn-sm" onClick={() => { setSelectedMeter(r.id); openModal('reading'); }}><span className="button-plus" aria-hidden="true">+</span> Add reading</button>}
+      {hasPermission('METER_READING_CREATE') && <button type="button" className="society-icon-action" title={`Add reading for meter ${r.meter_no}`} aria-label={`Add reading for meter ${r.meter_no}`} disabled={busy} onClick={() => { setSelectedMeter(r.id); openModal('reading'); }}><Plus size={18} strokeWidth={2.4} /></button>}
     </div> },
   ];
   const columnsTypes = [
@@ -535,7 +533,7 @@ export default function UtilityMeterManagementPage() {
     {tab === 'tariffs' && canCreateTariff && <button className="btn btn-primary" onClick={() => openModal('tariff')}><Plus size={16} /> New tariff</button>}
   </div>;
 
-  return <PageContainer eyebrow="UTILITY OPERATIONS" title="Utility & Meter Management" subtitle="Manage utility types, meters, readings, tariffs and consumption-based bills." actions={actions}>
+  return <PageContainer className="utility-meter-page" eyebrow="UTILITY OPERATIONS" title="Utility & Meter Management" subtitle="Manage utility types, meters, readings, tariffs and consumption-based bills." actions={actions}>
     {error && <Alert variant="error">{error}</Alert>}
     {notice && <Alert variant="success">{notice}</Alert>}
     {bulkResult && <div className="um-bulk-summary"><div><strong>Bulk upload results</strong><span>{bulkResult.succeeded} succeeded · {bulkResult.failed} failed of {bulkResult.total}</span></div><button className="btn btn-ghost btn-sm" onClick={() => setBulkResult(null)}>Dismiss</button>{bulkResult.results?.map((r) => <p key={r.index} className={r.success ? 'um-result-ok' : 'um-result-fail'}>Row {r.index + 1}: {r.success ? 'Submitted' : r.error}</p>)}</div>}

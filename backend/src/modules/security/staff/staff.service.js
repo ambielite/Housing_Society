@@ -5,6 +5,8 @@ const StaffRepository =
 const Staff = require("./staff.model");
 const sequelize = require("../../../config/database");
 const assertUniqueEmail = require("../../../common/assertUniqueEmail");
+const securityEvents = require("../../gates/securityEvents");
+const { formatAdminLabel, changedFieldLabels } = require("./securityProfileNotifications");
 
 const {
     validateCreateStaff,
@@ -14,6 +16,12 @@ const { saveProfilePicture, removeProfilePicture } = require("../../users/profil
 
 const ensureSecurityHeadAccount = async (staff, transaction) => {
     let userId = null;
+    const [linkedUsers] = await sequelize.query(
+        "SELECT user_id FROM security_guards WHERE staff_id = :staffId AND user_id IS NOT NULL LIMIT 1",
+        { replacements: { staffId: staff.id }, transaction }
+    );
+    userId = linkedUsers[0]?.user_id || null;
+
     if (staff.email) {
         const [users] = await sequelize.query(
             `SELECT id
@@ -32,15 +40,7 @@ const ensureSecurityHeadAccount = async (staff, transaction) => {
              LIMIT 1`,
             { replacements: { email: staff.email, societyId: staff.societyId }, transaction }
         );
-        userId = users[0]?.id || null;
-    }
-
-    if (!userId) {
-        const [linkedUsers] = await sequelize.query(
-            "SELECT user_id FROM security_guards WHERE staff_id = :staffId AND user_id IS NOT NULL LIMIT 1",
-            { replacements: { staffId: staff.id }, transaction }
-        );
-        userId = linkedUsers[0]?.user_id || null;
+        userId = userId || users[0]?.id || null;
     }
 
     if (!userId) {
@@ -168,6 +168,63 @@ const syncSecurityGuard = async (staff, transaction) => {
             transaction,
         }
     );
+    await sequelize.query(
+        `UPDATE users SET
+           first_name = :firstName,
+           last_name = :lastName,
+           email = COALESCE(NULLIF(:email, ''), email),
+           phone = :phone,
+           profile_picture_url = COALESCE(:photoPath, profile_picture_url),
+           status = CASE WHEN :userStatus = 'ACTIVE' THEN 'ACTIVE' ELSE 'SUSPENDED' END,
+           updated_at = now()
+         WHERE id = :userId`,
+        {
+            replacements: {
+                userId,
+                firstName: staff.firstName,
+                lastName: staff.lastName || null,
+                email: staff.email || null,
+                phone: staff.mobileNumber || null,
+                photoPath: staff.photoPath || null,
+                userStatus: staff.status,
+            },
+            transaction,
+        }
+    );
+};
+
+const notifyGuardProfileUpdated = async (staff, changes, actor, transaction) => {
+    if (staff.staffType !== "SECURITY_GUARD") return null;
+    const [guards] = await sequelize.query(
+        `SELECT user_id FROM security_guards
+          WHERE staff_id = :staffId AND user_id IS NOT NULL LIMIT 1`,
+        { replacements: { staffId: staff.id }, transaction }
+    );
+    const userId = guards[0]?.user_id;
+    if (!userId) return null;
+
+    const changedFields = changedFieldLabels(changes);
+    const details = changedFields.length ? ` Updated: ${changedFields.join(", ")}.` : "";
+    const title = "Security profile updated";
+    const message = `${formatAdminLabel(actor)} updated your profile details.${details}`;
+    await sequelize.query(
+        `INSERT INTO notifications
+           (society_id, user_id, channel, notification_type, title, subject, message,
+            data, reference_type, priority, status, is_read, created_at, updated_at)
+         VALUES (:societyId, :userId, 'IN_APP', 'OPERATIONAL', :title, :title, :message,
+            CAST(:data AS jsonb), 'SECURITY_PROFILE', 'MEDIUM', 'PENDING', false, now(), now())`,
+        {
+            replacements: {
+                societyId: staff.societyId,
+                userId,
+                title,
+                message,
+                data: JSON.stringify({ staffId: staff.id, changedFields }),
+            },
+            transaction,
+        }
+    );
+    return userId;
 };
 
 
@@ -241,7 +298,7 @@ const getAllStaff = async (filters = {}) => {
 };
 
 
-const updateStaff = async (id, data, profilePicture) => {
+const updateStaff = async (id, data, profilePicture, actor) => {
 
     const staff =
         await StaffRepository.findById(id);
@@ -293,16 +350,23 @@ const updateStaff = async (id, data, profilePicture) => {
     const previousPhotoPath = staff.photoPath;
     const photoPath = profilePicture ? saveProfilePicture(profilePicture) : null;
     try {
-        const updated = await sequelize.transaction(async (transaction) => {
+        const result = await sequelize.transaction(async (transaction) => {
             const saved = await StaffRepository.update(staff, {
                 ...data,
                 ...(photoPath ? { photoPath } : {}),
             }, { transaction });
             await syncSecurityGuard(saved, transaction);
-            return saved;
+            const guardUserId = await notifyGuardProfileUpdated(
+                saved,
+                { ...data, ...(photoPath ? { photoPath } : {}) },
+                actor,
+                transaction
+            );
+            return { saved, guardUserId };
         });
         if (photoPath && previousPhotoPath) removeProfilePicture(previousPhotoPath);
-        return updated;
+        securityEvents.publishProfileUpdated(result.guardUserId);
+        return result.saved;
     } catch (error) {
         if (photoPath) removeProfilePicture(photoPath);
         throw error;
@@ -310,7 +374,7 @@ const updateStaff = async (id, data, profilePicture) => {
 };
 
 
-const activateStaff = async (id) => {
+const activateStaff = async (id, actor) => {
 
     const staff =
         await StaffRepository.findById(id);
@@ -319,15 +383,18 @@ const activateStaff = async (id) => {
         throw new Error("Staff not found");
     }
 
-    return await sequelize.transaction(async (transaction) => {
+    const result = await sequelize.transaction(async (transaction) => {
         const updated = await StaffRepository.update(staff, { status: "ACTIVE" }, { transaction });
         await syncSecurityGuard(updated, transaction);
-        return updated;
+        const guardUserId = await notifyGuardProfileUpdated(updated, { status: "ACTIVE" }, actor, transaction);
+        return { updated, guardUserId };
     });
+    securityEvents.publishProfileUpdated(result.guardUserId);
+    return result.updated;
 };
 
 
-const deactivateStaff = async (id) => {
+const deactivateStaff = async (id, actor) => {
 
     const staff =
         await StaffRepository.findById(id);
@@ -336,11 +403,14 @@ const deactivateStaff = async (id) => {
         throw new Error("Staff not found");
     }
 
-    return await sequelize.transaction(async (transaction) => {
+    const result = await sequelize.transaction(async (transaction) => {
         const updated = await StaffRepository.update(staff, { status: "INACTIVE" }, { transaction });
         await syncSecurityGuard(updated, transaction);
-        return updated;
+        const guardUserId = await notifyGuardProfileUpdated(updated, { status: "INACTIVE" }, actor, transaction);
+        return { updated, guardUserId };
     });
+    securityEvents.publishProfileUpdated(result.guardUserId);
+    return result.updated;
 };
 
 

@@ -45,7 +45,7 @@ export default function LoginForm() {
         id="email"
         name="email"
         type="email"
-        label="Email"
+        label="Email Address"
         autoComplete="username"
         value={values.email}
         onChange={onChange}
@@ -61,15 +61,15 @@ export default function LoginForm() {
         onChange={onChange}
         error={errors.password}
       />
+      <div className="login-form-options">
+        <label className="remember-me"><input type="checkbox" /> <span>Remember Me</span></label>
+        <Link to="/forgot-password">Forgot Password?</Link>
+      </div>
       <button type="submit" className="btn btn-primary btn-block" disabled={submitting}>
-        {submitting ? 'Signing in...' : 'Sign in'}
+        {submitting ? 'Signing in...' : <><span aria-hidden="true">↪</span> Sign In</>}
       </button>
-      <p className="auth-links">
-        <Link to="/forgot-password">Forgot your password?</Link>
-      </p>
-      <p className="auth-links">
-        New here? <Link to="/register">Create an account</Link>
-      </p>
+      <div className="login-secure-note"><span aria-hidden="true">♧</span> Secure &amp; Trusted</div>
+      <div className="login-copyright">Powered By <a href="https://ambielite.in/" target="_blank" rel="noopener noreferrer">Ambi Elite Pvt Ltd</a></div>
     </form>
   );
 }

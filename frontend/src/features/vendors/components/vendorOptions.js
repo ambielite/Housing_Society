@@ -36,7 +36,7 @@ export const maskPan = (pan) => (pan && pan.length >= 6 ? `${pan.slice(0, 5)}***
 export const PAN_PATTERN = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
 export const GSTIN_PATTERN = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
 export const IFSC_PATTERN = /^[A-Z]{4}0[A-Z0-9]{6}$/;
-export const PHONE_PATTERN = /^[0-9+\-\s()]{6,20}$/;
+export const PHONE_PATTERN = /^\d{10}$/;
 
 // A blocked delete comes back from the backend as a "foreign key" error - say it plainly.
 export const friendlyDeleteError = (error, what) => {

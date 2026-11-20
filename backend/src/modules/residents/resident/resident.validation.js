@@ -32,6 +32,16 @@ const validateCreateResident = (data) => {
         errors.push("Invalid userId");
     }
 
+    if (data.familyOwnerId && !validateUUID(data.familyOwnerId)) {
+        errors.push("Invalid familyOwnerId");
+    }
+
+    if (["PRIMARY_OWNER", "CO_OWNER", "TENANT"].includes(data.role) && !data.unitId) {
+        errors.push("unitId is required for owners and tenants");
+    } else if (data.unitId && !validateUUID(data.unitId)) {
+        errors.push("Invalid unitId");
+    }
+
     if (!data.userId && (!data.accountPassword || String(data.accountPassword).length < 8 || String(data.accountPassword).length > 128)) {
         errors.push("Set an initial login password between 8 and 128 characters, or select an existing Resident account");
     }
@@ -78,6 +88,10 @@ const validateCreateResident = (data) => {
         errors.push(
             `role must be one of: ${RESIDENT_ROLES.join(", ")}`
         );
+    }
+
+    if (data.role === "FAMILY_MEMBER" && !data.familyOwnerId) {
+        errors.push("familyOwnerId is required for a family member");
     }
 
     if (
@@ -139,6 +153,10 @@ const validateUpdateResident = (data) => {
         errors.push(
             `role must be one of: ${RESIDENT_ROLES.join(", ")}`
         );
+    }
+
+    if (data.familyOwnerId && !validateUUID(data.familyOwnerId)) {
+        errors.push("Invalid familyOwnerId");
     }
 
     if (

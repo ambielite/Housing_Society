@@ -33,6 +33,7 @@ const createParcelSchema = Joi.object({
 });
 
 const listParcelsQuerySchema = Joi.object({
+  societyId: Joi.string().uuid(),
   deliveryId: Joi.string().uuid(),
   status: Joi.string().valid('STORED', ...PARCEL_STATUSES),
 });

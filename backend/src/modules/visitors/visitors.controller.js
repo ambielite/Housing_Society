@@ -13,6 +13,11 @@ const listProfiles = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, profiles);
 });
 
+const listDestinations = asyncHandler(async (req, res) => {
+  const destinations = await service.listDestinations(req.user.societyId);
+  return ApiResponse.success(res, destinations);
+});
+
 const getProfile = asyncHandler(async (req, res) => {
   const profile = await service.getProfile(req.params.profileId);
   return ApiResponse.success(res, profile);
@@ -32,6 +37,11 @@ const setBlacklistStatus = asyncHandler(async (req, res) => {
 const createInvite = asyncHandler(async (req, res) => {
   const invite = await service.createInvite(req.body);
   return ApiResponse.success(res, invite, 'Visitor invite created successfully', 201);
+});
+
+const createResidentInvite = asyncHandler(async (req, res) => {
+  const invite = await service.createResidentInvite(req.user, req.body);
+  return ApiResponse.success(res, invite, 'Visitor pre-approved successfully', 201);
 });
 
 const listInvites = asyncHandler(async (req, res) => {
@@ -85,6 +95,27 @@ const cancelPass = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, pass, 'Visitor pass cancelled successfully');
 });
 
+const listResidentVisitorRequests = asyncHandler(async (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  const requests = await service.listResidentVisitorRequests(req.user);
+  return ApiResponse.success(res, requests, 'Pending visitor requests loaded');
+});
+
+const listResidentVisitorHistory = asyncHandler(async (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  const visitors = await service.listResidentVisitorHistory(req.user);
+  return ApiResponse.success(res, visitors, 'Visitor history loaded');
+});
+
+const decideResidentVisitorRequest = asyncHandler(async (req, res) => {
+  const request = await service.decideResidentVisitorRequest(
+    req.user,
+    req.params.passId,
+    req.body.decision,
+  );
+  return ApiResponse.success(res, request, 'Visitor request decision saved');
+});
+
 // --- gate events ---
 const listGateEvents = asyncHandler(async (req, res) => {
   const events = await service.listGateEvents(req.query);
@@ -110,10 +141,12 @@ const acknowledgeOverstayAlert = asyncHandler(async (req, res) => {
 module.exports = {
   createProfile,
   listProfiles,
+  listDestinations,
   getProfile,
   updateProfile,
   setBlacklistStatus,
   createInvite,
+  createResidentInvite,
   listInvites,
   getInvite,
   decideInvite,
@@ -124,6 +157,9 @@ module.exports = {
   recordEntry,
   recordExit,
   cancelPass,
+  listResidentVisitorRequests,
+  listResidentVisitorHistory,
+  decideResidentVisitorRequest,
   listGateEvents,
   triggerOverstay,
   listOverstayAlerts,

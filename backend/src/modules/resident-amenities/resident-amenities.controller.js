@@ -2,8 +2,10 @@ const ApiResponse = require('../../common/ApiResponse');
 const asyncHandler = require('../../common/asyncHandler');
 const service = require('./resident-amenities.service');
 
-const listAmenities = asyncHandler(async (req, res) =>
-  ApiResponse.success(res, await service.listAmenities(req.user), 'Amenities loaded'));
+const listAmenities = asyncHandler(async (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  return ApiResponse.success(res, await service.listAmenities(req.user), 'Amenities loaded');
+});
 
 const listSlots = asyncHandler(async (req, res) =>
   ApiResponse.success(res, await service.listSlots(req.user, req.params.amenityId), 'Available slots loaded'));

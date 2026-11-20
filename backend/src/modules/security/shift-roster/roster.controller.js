@@ -11,7 +11,8 @@ const createRoster = async (
 
         const result =
             await RosterService.createRoster(
-                req.body
+                req.body,
+                req.user
             );
 
         return res.status(201).json({
@@ -182,7 +183,8 @@ const updateRoster = async (
             await RosterService
                 .updateRoster(
                     req.params.id,
-                    req.body
+                    req.body,
+                    req.user
                 );
 
         return res.status(200).json({
@@ -239,11 +241,18 @@ const cancelRoster = async (
 
     try {
 
-        const result =
-            await RosterService
-                .cancelRoster(
-                    req.params.id
-                );
+        const isSecurityGuard = req.user?.roles?.includes("SECURITY_HEAD");
+        const result = isSecurityGuard
+            ? await RosterService.cancelRosterByGuard(
+                req.params.id,
+                req.user,
+                req.body.reason
+            )
+            : await RosterService.cancelRoster(
+                req.params.id,
+                req.user,
+                req.body?.reason
+            );
 
         return res.status(200).json({
             success: true,

@@ -1,4 +1,5 @@
 const express = require('express');
+const Joi = require('joi');
 const controller = require('./visitors.controller');
 const validate = require('../../common/validate');
 const {
@@ -7,6 +8,7 @@ const {
   updateProfileSchema,
   setBlacklistStatusSchema,
   createInviteSchema,
+  createResidentInviteSchema,
   listInvitesQuerySchema,
   decideInviteSchema,
   createPassSchema,
@@ -23,6 +25,22 @@ const router = express.Router();
 
 router.use(authenticate);
 
+const residentDecisionSchema = Joi.object({
+  decision: Joi.string().valid('APPROVED', 'REJECTED').required(),
+});
+const residentRequestParamsSchema = Joi.object({
+  passId: Joi.string().uuid().required(),
+});
+
+router.get('/resident-requests', controller.listResidentVisitorRequests);
+router.get('/resident-history', controller.listResidentVisitorHistory);
+router.patch(
+  '/resident-requests/:passId/decision',
+  validate(residentRequestParamsSchema, 'params'),
+  validate(residentDecisionSchema),
+  controller.decideResidentVisitorRequest,
+);
+
 // Visitor profiles
 router.post('/profiles', authorize('VISITOR_PROFILE_CREATE'), validate(createProfileSchema), controller.createProfile);
 router.get(
@@ -31,6 +49,7 @@ router.get(
   validate(listProfilesQuerySchema, 'query'),
   controller.listProfiles
 );
+router.get('/destinations', authorize('VISITOR_PASS_CREATE'), controller.listDestinations);
 router.get('/profiles/:profileId', authorize('VISITOR_PROFILE_READ'), controller.getProfile);
 router.patch(
   '/profiles/:profileId',
@@ -46,6 +65,7 @@ router.patch(
 );
 
 // Visitor invites (pre-approval)
+router.post('/resident-invites', validate(createResidentInviteSchema), controller.createResidentInvite);
 router.post('/invites', authorize('VISITOR_INVITE_CREATE'), validate(createInviteSchema), controller.createInvite);
 router.get('/invites', authorize('VISITOR_INVITE_READ'), validate(listInvitesQuerySchema, 'query'), controller.listInvites);
 router.get('/invites/:inviteId', authorize('VISITOR_INVITE_READ'), controller.getInvite);

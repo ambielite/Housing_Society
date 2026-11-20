@@ -24,6 +24,16 @@ const updateDeliveryStatus = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, delivery, 'Delivery status updated successfully');
 });
 
+const listResidentNotifications = asyncHandler(async (req, res) => {
+  const notifications = await service.listResidentNotifications(req.user);
+  return ApiResponse.success(res, notifications, 'Resident delivery notifications loaded');
+});
+
+const markResidentNotificationRead = asyncHandler(async (req, res) => {
+  const notification = await service.markResidentNotificationRead(req.user, req.params.notificationId);
+  return ApiResponse.success(res, notification, 'Notification marked as read');
+});
+
 // --- parcels ---
 const createParcel = asyncHandler(async (req, res) => {
   const parcel = await service.createParcel(req.body);
@@ -50,6 +60,8 @@ module.exports = {
   listDeliveries,
   getDelivery,
   updateDeliveryStatus,
+  listResidentNotifications,
+  markResidentNotificationRead,
   createParcel,
   listParcels,
   getParcel,

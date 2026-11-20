@@ -37,7 +37,7 @@ const securityApi = {
     deleteShift: async (id) => (await axiosClient.delete(`/shifts/${id}`)).data,
     getRosters: async () => (await axiosClient.get("/rosters", societyParams())).data,
     createRoster: async (data) => (await axiosClient.post("/rosters", data)).data,
-    rosterAction: async (id, action) => (await axiosClient.post(`/rosters/${id}/${action}`)).data,
+    rosterAction: async (id, action, data = {}) => (await axiosClient.post(`/rosters/${id}/${action}`, data)).data,
     getTasks: async () => (await axiosClient.get("/staff-tasks", societyParams())).data,
     createTask: async (data) => (await axiosClient.post("/staff-tasks", data)).data,
     taskAction: async (id, action, data = {}) => (await axiosClient.post(`/staff-tasks/${id}/${action}`, data)).data,

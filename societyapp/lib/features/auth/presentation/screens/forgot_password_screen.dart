@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-import '../../../../app/theme/app_colors.dart';
 import '../../data/auth_api.dart';
+import '../widgets/auth_brand_header.dart';
 import 'reset_password_screen.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
@@ -43,15 +44,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
       _error = null;
     });
     try {
-      await AuthApi.forgotPassword(
-        email: _emailController.text.trim(),
-      );
+      await AuthApi.forgotPassword(email: _emailController.text.trim());
       if (mounted) {
         Navigator.of(context).push<void>(
           MaterialPageRoute<void>(
-            builder: (_) => ResetPasswordScreen(
-              email: _emailController.text.trim(),
-            ),
+            builder: (_) =>
+                ResetPasswordScreen(email: _emailController.text.trim()),
           ),
         );
       }
@@ -68,35 +66,55 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
       parent: _entryController,
       curve: Curves.easeOutCubic,
     );
-    return Scaffold(
-      backgroundColor: AppColors.canvas,
-      appBar: AppBar(
-        title: const Text('Forgot password'),
-        backgroundColor: AppColors.canvas,
-        foregroundColor: AppColors.ink,
-        elevation: 0,
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light.copyWith(
+        statusBarColor: Colors.transparent,
+        systemNavigationBarColor: const Color(0xFFF7FAFD),
+        systemNavigationBarIconBrightness: Brightness.dark,
       ),
-      body: SafeArea(
-        top: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 500),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(22, 30, 22, 32),
-              children: [
-                FadeTransition(
-                  opacity: entrance,
-                  child: SlideTransition(
-                    position: entrance.drive(
-                      Tween<Offset>(
-                        begin: const Offset(0, .12),
-                        end: Offset.zero,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF7FAFD),
+        body: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    AuthBrandHeader(
+                      height: keyboardOpen ? 220 : 270,
+                      headline: 'A secure way back in.',
+                      subtitle: 'Your community account stays protected.',
+                      onBack: () => Navigator.of(context).pop(),
+                      backLabel: 'Back to sign in',
+                    ),
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        22,
+                        6,
+                        22,
+                        MediaQuery.viewPaddingOf(context).bottom + 24,
+                      ),
+                      child: FadeTransition(
+                        opacity: entrance,
+                        child: SlideTransition(
+                          position: entrance.drive(
+                            Tween<Offset>(
+                              begin: const Offset(0, .08),
+                              end: Offset.zero,
+                            ),
+                          ),
+                          child: _requestContent(),
+                        ),
                       ),
                     ),
-                    child: _requestContent(),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -110,7 +128,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
       _heading(
         icon: Icons.mark_email_unread_rounded,
         title: 'Recover your account',
-        message: 'Enter your account email to continue resetting your password.',
+        message:
+            'Enter your account email to continue resetting your password.',
       ),
       const SizedBox(height: 26),
       _card(
@@ -176,13 +195,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
             gradient: LinearGradient(
               colors: success
                   ? const [Color(0xFF39C89A), Color(0xFF159B75)]
-                  : const [Color(0xFF8174FF), Color(0xFF5948DC)],
+                  : const [Color(0xFF16466F), Color(0xFF102A43)],
             ),
             borderRadius: BorderRadius.circular(25),
             boxShadow: [
               BoxShadow(
-                color: (success ? const Color(0xFF159B75) : AppColors.indigo)
-                    .withValues(alpha: .22),
+                color:
+                    (success
+                            ? const Color(0xFF159B75)
+                            : const Color(0xFF16466F))
+                        .withValues(alpha: .22),
                 blurRadius: 22,
                 offset: const Offset(0, 9),
               ),
@@ -196,7 +218,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
         title,
         textAlign: TextAlign.center,
         style: const TextStyle(
-          color: AppColors.ink,
+          color: Color(0xFF102A43),
           fontSize: 23,
           fontWeight: FontWeight.w800,
           letterSpacing: -.3,
@@ -207,7 +229,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
         message,
         textAlign: TextAlign.center,
         style: const TextStyle(
-          color: AppColors.inkSoft,
+          color: Color(0xFF5B6E82),
           fontSize: 14,
           height: 1.5,
         ),
@@ -218,12 +240,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
   Widget _card(Widget child) => Container(
     padding: const EdgeInsets.all(18),
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: Color(0xFFFFFFFF),
       borderRadius: BorderRadius.circular(21),
-      border: Border.all(color: const Color(0xFFE3E9F3)),
+      border: Border.all(color: Color(0xFFDDE6EF)),
       boxShadow: const [
         BoxShadow(
-          color: Color(0x0C101A35),
+          color: Color(0x14102A43),
           blurRadius: 20,
           offset: Offset(0, 7),
         ),
@@ -270,8 +292,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
           : Icon(icon ?? Icons.send_rounded, size: 18),
       label: Text(label),
       style: FilledButton.styleFrom(
-        backgroundColor: AppColors.indigo,
-        foregroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       ),
     ),
@@ -281,25 +301,24 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     onPressed: () => Navigator.of(context).pop(),
     icon: const Icon(Icons.arrow_back_rounded, size: 17),
     label: const Text('Back to sign in'),
-    style: TextButton.styleFrom(foregroundColor: AppColors.indigo),
   );
 
   InputDecoration _decoration(String label, IconData icon) => InputDecoration(
     labelText: label,
-    prefixIcon: Icon(icon, color: AppColors.muted),
+    prefixIcon: Icon(icon, color: Color(0xFF718096)),
     filled: true,
-    fillColor: const Color(0xFFFCFCFF),
+    fillColor: const Color(0xFFFFFFFF),
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(14),
-      borderSide: const BorderSide(color: Color(0xFFDDE3F0)),
+      borderSide: const BorderSide(color: Color(0xFFDDE6EF)),
     ),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(14),
-      borderSide: const BorderSide(color: Color(0xFFDDE3F0)),
+      borderSide: const BorderSide(color: Color(0xFFDDE6EF)),
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(14),
-      borderSide: const BorderSide(color: AppColors.indigo, width: 1.6),
+      borderSide: const BorderSide(color: Color(0xFF2786C5), width: 1.5),
     ),
   );
 }

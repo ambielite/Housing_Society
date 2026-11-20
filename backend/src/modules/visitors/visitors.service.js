@@ -1,6 +1,26 @@
 const ApiError = require('../../common/ApiError');
+const { query } = require('../../config/db');
 const repository = require('./visitors.repository');
 const gatesRepository = require('../gates/gates.repository');
+const deliveriesRepository = require('../deliveries/deliveries.repository');
+
+const requireResidentId = async (user) => {
+  if (!user.societyId) {
+    throw new ApiError(403, 'Your account is not linked to a society');
+  }
+  const result = await query(
+    `SELECT id
+       FROM residents
+      WHERE user_id = $1 AND society_id = $2 AND status = 'ACTIVE'
+      LIMIT 1`,
+    [user.id, user.societyId],
+  );
+  const resident = result.rows[0];
+  if (!resident) {
+    throw new ApiError(403, 'Your resident profile is not linked to this account');
+  }
+  return resident.id;
+};
 
 /**
  * Implements the Visitor Lifecycle exactly as documented:
@@ -26,6 +46,7 @@ const gatesRepository = require('../gates/gates.repository');
 const createProfile = (payload) => repository.createProfile(payload);
 
 const listProfiles = (query) => repository.listProfiles(query);
+const listDestinations = (societyId) => repository.listDestinations(societyId);
 
 const getProfile = async (id) => {
   const profile = await repository.findProfileById(id);
@@ -64,6 +85,27 @@ const createInvite = async ({ societyId, invitedBy, unitId, visitorProfileId, ex
   return repository.createInvite({ societyId, invitedBy, unitId, visitorProfileId, expectedFrom, expectedUntil, purpose });
 };
 
+const createResidentInvite = async (user, { name, phone, visitorType, expectedFrom, expectedUntil, purpose }) => {
+  const residentId = await requireResidentId(user);
+  const societyId = user.societyId;
+  const destinations = await repository.listDestinations(societyId);
+  const destination = destinations.find((item) => item.resident_id === residentId);
+  if (!destination) throw new ApiError(403, 'Your account is not linked to an active home');
+  const profile = await repository.createProfile({ societyId, name, phone, visitorType });
+  const invite = await repository.createInvite({
+    societyId, invitedBy: user.id, unitId: destination.unit_id,
+    visitorProfileId: profile.id, expectedFrom, expectedUntil, purpose,
+  });
+  await repository.updateInviteStatus(invite.id, 'APPROVED');
+  const [gate] = await gatesRepository.listGates(societyId);
+  if (!gate) throw new ApiError(409, 'No active gate is configured for this society');
+  await repository.createPass({
+    inviteId: invite.id, visitorProfileId: profile.id, gateId: gate.id,
+    passNo: invite.id, unitId: destination.unit_id, residentId,
+  });
+  return invite;
+};
+
 const listInvites = (query) => repository.listInvites(query);
 
 const getInvite = async (id) => {
@@ -93,7 +135,7 @@ const decideInvite = async (id, status) => {
  * be APPROVED). inviteId absent = walk-in, created directly by a guard.
  * This single function covers "Pre-approved/Walk-in created".
  */
-const createPass = async ({ inviteId, visitorProfileId, gateId, passNo }) => {
+const createPass = async ({ inviteId, visitorProfileId, gateId, passNo, unitId, residentId }) => {
   const profile = await repository.findProfileById(visitorProfileId);
   if (!profile) {
     throw new ApiError(404, 'Visitor profile not found');
@@ -106,6 +148,18 @@ const createPass = async ({ inviteId, visitorProfileId, gateId, passNo }) => {
   if (!gate) {
     throw new ApiError(404, 'Gate not found');
   }
+  if (profile.society_id !== gate.society_id) {
+    throw new ApiError(400, 'The visitor profile and gate must belong to the same society');
+  }
+  if (unitId || residentId) {
+    if (!unitId || !residentId || !await repository.destinationBelongsToSociety({
+      societyId: gate.society_id,
+      unitId,
+      residentId,
+    })) {
+      throw new ApiError(400, 'Select an active resident and flat in this society');
+    }
+  }
 
   if (inviteId) {
     const invite = await repository.findInviteById(inviteId);
@@ -117,7 +171,7 @@ const createPass = async ({ inviteId, visitorProfileId, gateId, passNo }) => {
     }
   }
 
-  return repository.createPass({ inviteId, visitorProfileId, gateId, passNo });
+  return repository.createPass({ inviteId, visitorProfileId, gateId, passNo, unitId, residentId });
 };
 
 const listPasses = (query) => repository.listPasses(query);
@@ -139,7 +193,12 @@ const recordArrival = async (id) => {
   if (pass.status !== 'EXPECTED') {
     throw new ApiError(400, `Cannot register arrival - pass is currently ${pass.status}`);
   }
-  return repository.updatePassStatus(id, 'ARRIVED');
+  if (pass.resident_decision === 'REJECTED') {
+    throw new ApiError(400, 'The resident rejected this visitor request');
+  }
+  const updated = await repository.updatePassStatus(id, 'ARRIVED');
+  await deliveriesRepository.syncStatusFromVisitorPass(id, 'ARRIVED');
+  return updated;
 };
 
 /** "Entry recorded" + "Inside-premises timer begins" steps. */
@@ -151,6 +210,14 @@ const recordEntry = async (id, { capturedBy }) => {
   if (pass.status !== 'ARRIVED' && pass.status !== 'EXPECTED') {
     throw new ApiError(400, `Cannot record entry - pass is currently ${pass.status}`);
   }
+  if (pass.resident_decision === 'PENDING' || pass.resident_decision === 'REJECTED') {
+    throw new ApiError(
+      400,
+      pass.resident_decision === 'REJECTED'
+        ? 'The resident rejected this visitor request'
+        : 'Wait for the resident to approve this visitor before entry',
+    );
+  }
 
   await repository.createGateEvent({
     societyId: (await gatesRepository.findGateById(pass.gate_id)).society_id,
@@ -160,7 +227,40 @@ const recordEntry = async (id, { capturedBy }) => {
     capturedBy,
   });
 
-  return repository.updatePassStatus(id, 'INSIDE');
+  const updated = await repository.updatePassStatus(id, 'INSIDE');
+  await deliveriesRepository.syncStatusFromVisitorPass(id, 'INSIDE');
+  return updated;
+};
+
+const listResidentVisitorRequests = async (user) => {
+  const residentId = await requireResidentId(user);
+  return repository.listResidentVisitorRequests({
+    residentId,
+    societyId: user.societyId,
+  });
+};
+
+const listResidentVisitorHistory = async (user) => {
+  const residentId = await requireResidentId(user);
+  return repository.listResidentVisitorHistory({
+    residentId,
+    societyId: user.societyId,
+  });
+};
+
+const decideResidentVisitorRequest = async (user, passId, decision) => {
+  const residentId = await requireResidentId(user);
+  const updated = await repository.decideResidentVisitorRequest({
+    passId,
+    residentId,
+    societyId: user.societyId,
+    decision,
+  });
+  if (!updated) throw new ApiError(404, 'Pending visitor request not found');
+  if (decision === 'REJECTED') {
+    await deliveriesRepository.syncStatusFromVisitorPass(passId, 'CANCELLED');
+  }
+  return updated;
 };
 
 /** "Exit recorded" branch of the lifecycle's final step. */
@@ -236,14 +336,19 @@ const acknowledgeOverstayAlert = async (id, acknowledgedBy, status) => {
 module.exports = {
   createProfile,
   listProfiles,
+  listDestinations,
   getProfile,
   updateProfile,
   setBlacklistStatus,
   createInvite,
+  createResidentInvite,
   listInvites,
   getInvite,
   decideInvite,
   createPass,
+  listResidentVisitorRequests,
+  listResidentVisitorHistory,
+  decideResidentVisitorRequest,
   listPasses,
   getPass,
   recordArrival,

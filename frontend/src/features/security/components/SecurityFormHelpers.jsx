@@ -5,6 +5,7 @@ import useUnits from '../../../utils/useUnits';
 import { getErrorMessage } from '../../../lib/axios';
 import * as securityApi from '../api/security.api';
 import SelectField from '../../../components/ui/SelectField';
+import unitLocationLabel from '../../../utils/unitLocation';
 import TextField from '../../../components/ui/TextField';
 
 export function FormActions({ saving, onCancel, submitLabel = 'Save' }) {
@@ -19,7 +20,7 @@ export function SocietyField({ value, onChange, error }) {
 export function UnitPicker({ value, onChange, error }) {
   const { units, loading, error: loadError } = useUnits();
   if (loadError) return <TextField id="unitId" label="Unit ID" value={value} onChange={(e) => onChange(e.target.value)} error={error} hint="The existing Units API is not available, so enter the unit UUID." />;
-  return <SelectField id="unitId" label="Unit" placeholder={loading ? 'Loading units...' : 'Choose unit'} options={units.filter((u) => u.status !== 'INACTIVE').map((u) => ({ value: u.id, label: `${u.unitNumber}${u.bhk ? ` - ${u.bhk}` : ''}` }))} value={value} onChange={(e) => onChange(e.target.value)} error={error} disabled={loading} />;
+  return <SelectField id="unitId" label="Unit" placeholder={loading ? 'Loading units...' : 'Choose unit'} options={units.filter((u) => u.status !== 'INACTIVE').map((u) => ({ value: u.id, label: unitLocationLabel(u) }))} value={value} onChange={(e) => onChange(e.target.value)} error={error} disabled={loading} />;
 }
 
 export function UserPicker({ value, onChange, label = 'User', error }) {

@@ -114,6 +114,52 @@ const listGuards = async ({ societyId, agencyVendorId, status }) => {
   return result.rows;
 };
 
+const findGuardByUserId = async (userId, societyId) => {
+  const result = await db.query(
+    `SELECT sg.*, st.id AS staff_id, st.employee_code,
+            st.first_name, st.last_name, st.mobile_number, st.email,
+            st.date_of_birth, st.joining_date, st.designation, st.department,
+            st.emergency_contact_name, st.emergency_contact_number,
+            st.address, st.photo_path, st.remarks,
+            st.staff_type, st.first_name AS user_first_name,
+            st.last_name AS user_last_name, u.email AS user_email
+       FROM security_guards sg
+       JOIN staff st ON st.id = sg.staff_id
+       LEFT JOIN users u ON u.id = sg.user_id
+      WHERE sg.user_id = $1
+        AND st.society_id = $2
+        AND st.staff_type = 'SECURITY_GUARD'
+      LIMIT 1`,
+    [userId, societyId]
+  );
+  return result.rows[0] || null;
+};
+
+const listMyNotifications = async (userId, societyId) => {
+  const result = await db.query(
+    `SELECT id, title, message, notification_type, priority,
+            reference_type, created_at
+       FROM notifications
+      WHERE user_id = $1 AND society_id = $2 AND channel = 'IN_APP'
+        AND is_read = false AND status IN ('PENDING', 'SENT', 'DELIVERED')
+      ORDER BY created_at DESC
+      LIMIT 50`,
+    [userId, societyId]
+  );
+  return result.rows;
+};
+
+const markMyNotificationRead = async (userId, societyId, notificationId) => {
+  const result = await db.query(
+    `UPDATE notifications
+        SET is_read = true, read_at = now(), updated_at = now()
+      WHERE id = $1 AND user_id = $2 AND society_id = $3 AND channel = 'IN_APP'
+      RETURNING id`,
+    [notificationId, userId, societyId]
+  );
+  return result.rows[0] || null;
+};
+
 const updateGuard = async (id, { employeeCode, agencyVendorId, status }) => {
   const result = await db.query(
     `UPDATE security_guards SET
@@ -278,6 +324,9 @@ module.exports = {
   deleteGate,
   findGuardById,
   listGuards,
+  findGuardByUserId,
+  listMyNotifications,
+  markMyNotificationRead,
   updateGuard,
   deleteGuard,
   createAccessCard,

@@ -1,6 +1,38 @@
-const { query } = require('../../config/db');
+﻿const { query } = require('../../config/db');
 const noticesService = require('../notices/notices.service');
 const { resolveResidentUnits } = require('../resident-context/residentUnitContext.service');
+const ApiError = require('../../common/ApiError');
+
+const listResidentNotifications = async (user) => {
+  if (!user.societyId) return [];
+  await noticesService.processSchedule();
+  const result = await query(
+    `SELECT notification.id, notification.title, notification.message,
+            notification.notification_type, notification.priority,
+            notification.reference_type, notification.reference_id, notification.created_at,
+            COALESCE(notification.data, '{}'::jsonb) || CASE WHEN notice.id IS NULL THEN '{}'::jsonb ELSE
+              jsonb_build_object('scheduledAt', notice.scheduled_at, 'expiresAt', notice.expires_at) END AS data
+       FROM notifications notification LEFT JOIN notices notice
+         ON notification.reference_type = 'NOTICE' AND notice.id = notification.reference_id
+        AND notice.society_id = notification.society_id
+      WHERE notification.society_id = $1 AND notification.user_id = $2 AND notification.channel = 'IN_APP'
+        AND notification.is_read = false AND notification.status IN ('PENDING', 'SENT', 'DELIVERED')
+      ORDER BY notification.created_at DESC LIMIT 50`,
+    [user.societyId, user.id],
+  );
+  return result.rows;
+};
+
+const markResidentNotificationRead = async (user, notificationId) => {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(notificationId)) throw new ApiError(400, 'Invalid notification ID');
+  const result = await query(
+    `UPDATE notifications SET is_read = true, read_at = now(), updated_at = now()
+      WHERE id = $1 AND society_id = $2 AND user_id = $3 AND channel = 'IN_APP' RETURNING id`,
+    [notificationId, user.societyId, user.id,],
+  );
+  if (!result.rows[0]) throw new ApiError(404, 'Notification not found');
+  return result.rows[0];
+};
 
 const getDashboard = async (user) => {
   const societyId = user.societyId;
@@ -21,6 +53,14 @@ const getDashboard = async (user) => {
   // The dashboard contract exposes one Unit. Prefer physical Occupancy, then
   // the latest eligible relationship, with a stable Unit-ID tie-breaker.
   const unit = residentContext.units[0] || null;
+
+  const accountResult = await query(
+    `SELECT COALESCE(NULLIF(s.photo_path, ''), NULLIF(u.profile_picture_url, '')) AS photo_url
+       FROM users u LEFT JOIN security_guards sg ON sg.user_id = u.id
+       LEFT JOIN staff s ON s.id = sg.staff_id AND s.staff_type = 'SECURITY_GUARD'
+      WHERE u.id = $1 LIMIT 1`,
+    [user.id],
+  );
 
   let maintenance = null;
   let upcomingBookings = [];
@@ -76,7 +116,12 @@ const getDashboard = async (user) => {
     );
     return firstPage.rows.concat(...remainingPages.map((page) => page.rows));
   };
-  const notices = await getAllNotices('current');
+  await noticesService.processSchedule();
+  const [currentNotices, upcomingNotices] = await Promise.all([
+    getAllNotices('current'),
+    getAllNotices('upcoming'),
+  ]);
+  const notices = [...currentNotices, ...upcomingNotices];
   notices.sort((left, right) => {
     const leftDate = new Date(
       left.posted_at || left.scheduled_at || left.created_at || 0,
@@ -88,6 +133,7 @@ const getDashboard = async (user) => {
   });
 
   return {
+    account: { photoUrl: accountResult.rows[0]?.photo_url || null },
     society: home ? {
       id: home.society_id,
       name: home.society_name,
@@ -112,4 +158,4 @@ const getDashboard = async (user) => {
   };
 };
 
-module.exports = { getDashboard };
+module.exports = { getDashboard, listResidentNotifications, markResidentNotificationRead };

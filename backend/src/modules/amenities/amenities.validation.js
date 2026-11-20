@@ -42,6 +42,8 @@ const createSlotSchema = Joi.object({
 const listSlotsQuerySchema = Joi.object({
   amenityId: Joi.string().uuid(),
   slotDate: Joi.date().iso(),
+  dateFrom: Joi.date().iso(),
+  dateTo: Joi.date().iso().min(Joi.ref('dateFrom')),
   status: Joi.string().valid(...SLOT_STATUSES),
 });
 

@@ -1,6 +1,6 @@
 const Resident = require("./resident.model");
 const sequelize = require("../../../config/database");
-const { QueryTypes } = require("sequelize");
+const { QueryTypes, Op } = require("sequelize");
 
 const create = async (data, options = {}) => {
 
@@ -90,6 +90,18 @@ const findByEmail = async (societyId, email) => {
     });
 };
 
+const findEligibleFamilyOwner = async (id, societyId, excludeResidentId) => {
+    if (excludeResidentId && id === excludeResidentId) return null;
+    return Resident.findOne({
+        where: {
+            id,
+            societyId,
+            role: { [Op.in]: ["PRIMARY_OWNER", "CO_OWNER"] },
+            status: "ACTIVE"
+        }
+    });
+};
+
 
 const findAll = async (where = {}) => {
 
@@ -102,9 +114,9 @@ const findAll = async (where = {}) => {
 };
 
 
-const update = async (resident, data) => {
+const update = async (resident, data, options = {}) => {
 
-    await resident.update(data);
+    await resident.update(data, options);
 
     return resident;
 };
@@ -125,6 +137,7 @@ module.exports = {
     findByIdAndSociety,
     findByMobile,
     findByEmail,
+    findEligibleFamilyOwner,
     findAll,
     update,
     deleteResident

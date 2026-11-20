@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-import '../../../../app/theme/app_colors.dart';
 import '../../data/auth_api.dart';
 import 'login_screen.dart';
+import '../widgets/auth_brand_header.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
-  const ResetPasswordScreen({
-    super.key,
-    required this.email,
-  });
+  const ResetPasswordScreen({super.key, required this.email});
 
   final String email;
 
@@ -19,7 +17,7 @@ class ResetPasswordScreen extends StatefulWidget {
 class _ResetPasswordScreenState extends State<ResetPasswordScreen>
     with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
-  final _tokenController = TextEditingController();
+  final _otpController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   late final AnimationController _entryController;
@@ -42,7 +40,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
   void dispose() {
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();
-    _tokenController.dispose();
+    _otpController.dispose();
     _entryController.dispose();
     super.dispose();
   }
@@ -56,7 +54,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
     });
     try {
       await AuthApi.resetPassword(
-        token: _tokenController.text.trim(),
+        email: widget.email,
+        otp: _otpController.text.trim(),
         newPassword: _newPasswordController.text,
       );
       if (mounted) {
@@ -83,35 +82,59 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
       parent: _entryController,
       curve: Curves.easeOutCubic,
     );
-    return Scaffold(
-      backgroundColor: AppColors.canvas,
-      appBar: AppBar(
-        title: const Text('Reset password'),
-        backgroundColor: AppColors.canvas,
-        foregroundColor: AppColors.ink,
-        elevation: 0,
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light.copyWith(
+        statusBarColor: Colors.transparent,
+        systemNavigationBarColor: const Color(0xFFF7FAFD),
+        systemNavigationBarIconBrightness: Brightness.dark,
       ),
-      body: SafeArea(
-        top: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 500),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(22, 30, 22, 32),
-              children: [
-                FadeTransition(
-                  opacity: entrance,
-                  child: SlideTransition(
-                    position: entrance.drive(
-                      Tween<Offset>(
-                        begin: const Offset(0, .12),
-                        end: Offset.zero,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF7FAFD),
+        body: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    AuthBrandHeader(
+                      height: keyboardOpen ? 220 : 270,
+                      headline: _success
+                          ? 'You are back in control.'
+                          : 'One last step.',
+                      subtitle: _success
+                          ? 'Your account is ready to use.'
+                          : 'Set a new password for your account.',
+                      onBack: () => Navigator.of(context).pop(),
+                      backLabel: 'Back',
+                    ),
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        22,
+                        6,
+                        22,
+                        MediaQuery.viewPaddingOf(context).bottom + 26,
+                      ),
+                      child: FadeTransition(
+                        opacity: entrance,
+                        child: SlideTransition(
+                          position: entrance.drive(
+                            Tween<Offset>(
+                              begin: const Offset(0, .08),
+                              end: Offset.zero,
+                            ),
+                          ),
+                          child: _success ? _successContent() : _formContent(),
+                        ),
                       ),
                     ),
-                    child: _success ? _successContent() : _formContent(),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -125,7 +148,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
       _heading(
         icon: Icons.lock_reset_rounded,
         title: 'Choose a new password',
-        subtitle: 'Create a strong password you haven’t used before.',
+        subtitle: 'Create a strong password you can remember.',
       ),
       const SizedBox(height: 26),
       _card(
@@ -134,22 +157,40 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              _otpSentMessage(),
+              const SizedBox(height: 16),
               if (_error != null) ...[
                 _errorMessage(_error!),
                 const SizedBox(height: 16),
               ],
               TextFormField(
-                controller: _tokenController,
-                keyboardType: TextInputType.text,
+                controller: _otpController,
+                keyboardType: TextInputType.number,
                 textInputAction: TextInputAction.next,
                 autocorrect: false,
                 enableSuggestions: false,
+                maxLength: 6,
                 decoration: const InputDecoration(
-                  labelText: 'Reset token',
+                  labelText: '6-digit verification code',
                   prefixIcon: Icon(Icons.mark_email_read_outlined),
+                  counterText: '',
+                  filled: true,
+                  fillColor: Color(0xFFFFFFFF),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(12)),
+                    borderSide: BorderSide(color: Color(0xFFDDE6EF)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(12)),
+                    borderSide: BorderSide(
+                      color: Color(0xFF2786C5),
+                      width: 1.5,
+                    ),
+                  ),
                 ),
-                validator: (value) => value == null || value.trim().isEmpty
-                    ? 'Enter the reset token from your email'
+                validator: (value) =>
+                    value == null || !RegExp(r'^\d{6}$').hasMatch(value.trim())
+                    ? 'Enter the 6-digit code sent to your email'
                     : null,
               ),
               const SizedBox(height: 16),
@@ -182,7 +223,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
                 children: [
                   _passwordRule(
                     icon: Icons.numbers_rounded,
-                    label: '8–128 characters',
+                    label: '8 to 128 characters',
                     complete:
                         _newPasswordController.text.length >= 8 &&
                         _newPasswordController.text.length <= 128,
@@ -199,7 +240,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
               ),
               const SizedBox(height: 20),
               _button(
-                label: _submitting ? 'Updating…' : 'Update password',
+                label: _submitting ? 'Updating...' : 'Update password',
                 icon: Icons.check_rounded,
                 loading: _submitting,
                 onPressed: _submitting ? null : _resetPassword,
@@ -210,11 +251,58 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
       ),
       const SizedBox(height: 16),
       Text(
-        'Enter the reset token sent to ${widget.email}. It expires in 30 minutes and can only be used once.',
+        'Enter the verification code sent to ${widget.email}. It expires in 10 minutes and can only be used once.',
         textAlign: TextAlign.center,
-        style: TextStyle(color: AppColors.muted, fontSize: 12),
+        style: const TextStyle(color: Color(0xFF718096), fontSize: 12),
       ),
     ],
+  );
+
+  Widget _otpSentMessage() => Semantics(
+    liveRegion: true,
+    child: Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Color(0xFFEAF8F2),
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: Color(0xFFC7EEDD)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.mark_email_read_rounded,
+            color: Color(0xFF188754),
+            size: 19,
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Verification code sent',
+                  style: TextStyle(
+                    color: Color(0xFF146C43),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'We have sent a verification code to your email.',
+                  style: const TextStyle(
+                    color: Color(0xFF267653),
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
   );
 
   Widget _successContent() => Column(
@@ -253,13 +341,16 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
             gradient: LinearGradient(
               colors: success
                   ? const [Color(0xFF39C89A), Color(0xFF159B75)]
-                  : const [Color(0xFF8174FF), Color(0xFF5948DC)],
+                  : const [Color(0xFF16466F), Color(0xFF102A43)],
             ),
             borderRadius: BorderRadius.circular(25),
             boxShadow: [
               BoxShadow(
-                color: (success ? const Color(0xFF159B75) : AppColors.indigo)
-                    .withValues(alpha: .22),
+                color:
+                    (success
+                            ? const Color(0xFF159B75)
+                            : const Color(0xFF16466F))
+                        .withValues(alpha: .22),
                 blurRadius: 22,
                 offset: const Offset(0, 9),
               ),
@@ -292,7 +383,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
         title,
         textAlign: TextAlign.center,
         style: const TextStyle(
-          color: AppColors.ink,
+          color: Color(0xFF102A43),
           fontSize: 23,
           fontWeight: FontWeight.w800,
           letterSpacing: -.3,
@@ -303,7 +394,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
         subtitle,
         textAlign: TextAlign.center,
         style: const TextStyle(
-          color: AppColors.inkSoft,
+          color: Color(0xFF5B6E82),
           fontSize: 14,
           height: 1.5,
         ),
@@ -314,12 +405,12 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
   Widget _card(Widget child) => Container(
     padding: const EdgeInsets.all(18),
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: Color(0xFFFFFFFF),
       borderRadius: BorderRadius.circular(21),
-      border: Border.all(color: const Color(0xFFE3E9F3)),
+      border: Border.all(color: Color(0xFFDDE6EF)),
       boxShadow: const [
         BoxShadow(
-          color: Color(0x0C101A35),
+          color: Color(0x14102A43),
           blurRadius: 20,
           offset: Offset(0, 7),
         ),
@@ -331,9 +422,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
   Widget _errorMessage(String message) => Container(
     padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(
-      color: const Color(0xFFFFF0F0),
+      color: Color(0xFFFFF0F0),
       borderRadius: BorderRadius.circular(13),
-      border: Border.all(color: const Color(0xFFFFD4D4)),
+      border: Border.all(color: Color(0xFFFFD4D4)),
     ),
     child: Text(
       message,
@@ -346,7 +437,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
     required String label,
     required bool complete,
   }) {
-    final color = complete ? const Color(0xFF168B68) : AppColors.muted;
+    final color = complete ? const Color(0xFF168B68) : const Color(0xFF718096);
     return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
@@ -369,7 +460,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
           Text(
             label,
             style: TextStyle(
-              color: complete ? const Color(0xFF168B68) : AppColors.inkSoft,
+              color: complete
+                  ? const Color(0xFF168B68)
+                  : const Color(0xFF5B6E82),
               fontSize: 11,
               fontWeight: FontWeight.w700,
             ),
@@ -400,8 +493,6 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
           : Icon(icon, size: 18),
       label: Text(label),
       style: FilledButton.styleFrom(
-        backgroundColor: AppColors.indigo,
-        foregroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       ),
     ),
@@ -422,7 +513,20 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
     onChanged: (_) => setState(() {}),
     decoration: InputDecoration(
       labelText: label,
-      prefixIcon: const Icon(Icons.lock_outline_rounded),
+      prefixIcon: const Icon(
+        Icons.lock_outline_rounded,
+        color: Color(0xFF718096),
+      ),
+      filled: true,
+      fillColor: const Color(0xFFFFFFFF),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFDDE6EF)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFF2786C5), width: 1.5),
+      ),
       suffixIcon: IconButton(
         onPressed: onToggle,
         tooltip: obscured ? 'Show password' : 'Hide password',

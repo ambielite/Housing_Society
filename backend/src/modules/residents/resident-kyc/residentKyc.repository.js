@@ -19,10 +19,11 @@ const findAll = async (where = {}) => {
 };
 
 
-const findByStakeholder = async (stakeholderId) => {
+const findByStakeholder = async (stakeholderId, societyId) => {
     return await ResidentKyc.findAll({
         where: {
             stakeholderId,
+            ...(societyId ? { societyId } : {}),
             isActive: true
         },
         order: [["created_at", "DESC"]]

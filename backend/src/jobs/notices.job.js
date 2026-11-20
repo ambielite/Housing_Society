@@ -14,7 +14,7 @@ const processNotices = async () => {
 
 const startNoticesJob = () => {
   void processNotices();
-  cron.schedule('* * * * *', processNotices);
+  cron.schedule('*/15 * * * * *', processNotices);
   console.log('Notice scheduler started');
 };
 

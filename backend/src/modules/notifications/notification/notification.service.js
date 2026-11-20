@@ -10,6 +10,7 @@ const Society =
 
 const notificationProvider =
     require("../providers/notification.provider");
+const sequelize = require("../../../config/database");
 
 const {
     validateCreateNotification,
@@ -320,6 +321,21 @@ const markAsRead = async (id) => {
     }
 
 
+    const sharedEventId = notification.referenceType === "RESIDENT_PASSWORD"
+        ? notification.data?.eventId
+        : null;
+
+    if (sharedEventId) {
+        await sequelize.query(
+            `UPDATE notifications
+             SET is_read = true, read_at = COALESCE(read_at, now()), updated_at = now()
+             WHERE reference_type = 'RESIDENT_PASSWORD'
+               AND data->>'eventId' = :eventId`,
+            { replacements: { eventId: sharedEventId } }
+        );
+        return notification;
+    }
+
     if (!notification.isRead) {
 
         return await notificationRepository.update(
@@ -360,6 +376,21 @@ const markAsUnread = async (id) => {
         );
     }
 
+
+    const sharedEventId = notification.referenceType === "RESIDENT_PASSWORD"
+        ? notification.data?.eventId
+        : null;
+
+    if (sharedEventId) {
+        await sequelize.query(
+            `UPDATE notifications
+             SET is_read = false, read_at = null, updated_at = now()
+             WHERE reference_type = 'RESIDENT_PASSWORD'
+               AND data->>'eventId' = :eventId`,
+            { replacements: { eventId: sharedEventId } }
+        );
+        return notification;
+    }
 
     return await notificationRepository.update(
         notification,

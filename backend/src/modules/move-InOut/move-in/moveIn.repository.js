@@ -39,6 +39,13 @@ const findByResident = async (residentId) => {
     });
 };
 
+const findByResidentAndUnit = async (societyId, residentId, unitId) => {
+    return await MoveIn.findAll({
+        where: { societyId, residentId, unitId },
+        order: [["created_at", "DESC"]]
+    });
+};
+
 const findByStatus = async (status) => {
     return await MoveIn.findAll({
         where: { status },
@@ -135,6 +142,7 @@ module.exports = {
     findBySociety,
     findByUnit,
     findByResident,
+    findByResidentAndUnit,
     findByStatus,
     findPendingReview,
     update,
