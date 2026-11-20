@@ -1,5 +1,28 @@
 const { validate: isUUID } = require("uuid");
 
+const isValidDateOnly = (value) => {
+    if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    const date = new Date(`${value}T00:00:00.000Z`);
+    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+};
+
+const validatePendingAmountQuery = (req, res, next) => {
+    const { societyId, unitId, residentId, requestedMoveOutDate } = req.query;
+    if (!societyId || !isUUID(societyId)) {
+        return res.status(400).json({ success: false, message: "Valid Society ID is required" });
+    }
+    if (!unitId || !isUUID(unitId)) {
+        return res.status(400).json({ success: false, message: "Valid Unit ID is required" });
+    }
+    if (!residentId || !isUUID(residentId)) {
+        return res.status(400).json({ success: false, message: "Valid Resident ID is required" });
+    }
+    if (!isValidDateOnly(requestedMoveOutDate)) {
+        return res.status(400).json({ success: false, message: "Requested Move-Out Date must be a valid date" });
+    }
+    next();
+};
+
 const validateCreateMoveOut = (
     req,
     res,
@@ -61,11 +84,7 @@ const validateCreateMoveOut = (
         });
     }
 
-    const date = new Date(
-        requestedMoveOutDate
-    );
-
-    if (Number.isNaN(date.getTime())) {
+    if (!isValidDateOnly(requestedMoveOutDate)) {
         return res.status(400).json({
             success: false,
             message: "Invalid move-out date"
@@ -179,6 +198,7 @@ const validateRejection = (
 };
 
 module.exports = {
+    validatePendingAmountQuery,
     validateCreateMoveOut,
     validateMoveOutId,
     validateOutstandingDues,

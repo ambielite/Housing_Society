@@ -9,7 +9,7 @@ const createAccessAssignment = async (
 
         const assignment =
             await service.createAccessAssignment(
-                req.body
+                { ...req.body, societyId: req.user.societyId }
             );
 
         res.status(201).json({
@@ -36,7 +36,7 @@ const getAccessAssignments = async (
     try {
 
         const assignments =
-            await service.getAccessAssignments();
+            await service.getAccessAssignments(req.user.societyId);
 
         res.status(200).json({
             success: true,
@@ -61,7 +61,8 @@ const getAccessAssignment = async (
 
         const assignment =
             await service.getAccessAssignment(
-                req.params.id
+                req.params.id,
+                req.user.societyId
             );
 
         if (!assignment) {
@@ -94,7 +95,7 @@ const getActiveAccess = async (
     try {
 
         const assignments =
-            await service.getActiveAccess();
+            await service.getActiveAccess(req.user.societyId);
 
         res.status(200).json({
             success: true,
@@ -119,7 +120,8 @@ const getActiveAccessByUnit = async (
 
         const assignment =
             await service.getActiveAccessByUnit(
-                req.params.unitId
+                req.params.unitId,
+                req.user.societyId
             );
 
         res.status(200).json({
@@ -145,7 +147,8 @@ const getActiveAccessByResident = async (
 
         const assignments =
             await service.getActiveAccessByResident(
-                req.params.residentId
+                req.params.residentId,
+                req.user.societyId
             );
 
         res.status(200).json({
@@ -171,7 +174,8 @@ const getAccessHistoryByUnit = async (
 
         const assignments =
             await service.getAccessHistoryByUnit(
-                req.params.unitId
+                req.params.unitId,
+                req.user.societyId
             );
 
         res.status(200).json({
@@ -197,7 +201,8 @@ const getAccessHistoryByResident = async (
 
         const assignments =
             await service.getAccessHistoryByResident(
-                req.params.residentId
+                req.params.residentId,
+                req.user.societyId
             );
 
         res.status(200).json({
@@ -224,7 +229,8 @@ const getAccessByLifecycle = async (
         const assignments =
             await service.getAccessByLifecycle(
                 req.params.lifecycleType,
-                req.params.lifecycleId
+                req.params.lifecycleId,
+                req.user.societyId
             );
 
         res.status(200).json({
@@ -251,6 +257,7 @@ const revokeAccess = async (
         const assignment =
             await service.revokeAccess(
                 req.params.id,
+                req.user.societyId,
                 req.body.revokedBy,
                 req.body.remarks
             );
@@ -281,6 +288,7 @@ const suspendAccess = async (
         const assignment =
             await service.suspendAccess(
                 req.params.id,
+                req.user.societyId,
                 req.body.remarks
             );
 
@@ -310,6 +318,7 @@ const reactivateAccess = async (
         const assignment =
             await service.reactivateAccess(
                 req.params.id,
+                req.user.societyId,
                 req.body.activatedBy,
                 req.body.remarks
             );
@@ -339,7 +348,8 @@ const deleteAccessAssignment = async (
 
         const assignment =
             await service.deleteAccessAssignment(
-                req.params.id
+                req.params.id,
+                req.user.societyId
             );
 
         res.status(200).json({

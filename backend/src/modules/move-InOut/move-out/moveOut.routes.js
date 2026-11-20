@@ -6,6 +6,12 @@ const controller = require("./moveOut.controller");
 
 const validation = require("./moveOut.validation");
 
+router.get(
+    "/pending-amount",
+    validation.validatePendingAmountQuery,
+    controller.getPendingAmount
+);
+
 router.post(
     "/",
     validation.validateCreateMoveOut,

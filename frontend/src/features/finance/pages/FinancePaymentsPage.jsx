@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Plus, ReceiptText, Search, Trash2 } from "lucide-react";
+import { CheckCircle2, Plus, ReceiptText, Search } from "lucide-react";
 import paymentApi from "../api/payment.api";
 import PaymentForm from "../components/PaymentForm";
 
@@ -87,16 +87,6 @@ const FinancePaymentsPage = () => {
         }
     };
 
-    const handleDelete = async (id) => {
-        if (!window.confirm("Delete this payment?")) return;
-        try {
-            await paymentApi.cancel(id);
-            await loadData();
-        } catch (err) {
-            window.alert(err.response?.data?.message || "Failed to cancel payment.");
-        }
-    };
-
     const handleFormSuccess = async () => {
         closeForm();
         await loadData();
@@ -138,7 +128,7 @@ const FinancePaymentsPage = () => {
                             <td>{payment.paymentDate ? String(payment.paymentDate).slice(0, 10) : "—"}</td>
                             <td>{formatCurrency(payment.amount)}</td>
                             <td>{payment.status || "PENDING"}</td>
-                            <td><div className="society-row-actions">{payment.status === "VERIFICATION_PENDING" && <button className="society-icon-action" title="Verify offline payment" onClick={() => handleVerify(payment.id)}><CheckCircle2 size={16} /></button>}{!payment.journalId && !["SUCCESS", "VERIFIED", "CANCELLED"].includes(payment.status) && <button className="society-icon-action society-delete-action" title="Cancel payment" onClick={() => handleDelete(payment.id)}><Trash2 size={16} /></button>}</div></td>
+                            <td><div className="society-row-actions">{payment.status === "VERIFICATION_PENDING" && payment.paymentChannel !== "GATEWAY" && <button className="society-icon-action" title="Collect offline payment" onClick={() => handleVerify(payment.id)}><CheckCircle2 size={16} /></button>}</div></td>
                         </tr>
                     ))}</tbody></table></div>
                 )}

@@ -1,4 +1,4 @@
-const express = require("express");
+﻿const express = require("express");
 const app = express();
 const path = require("path");
 const helmet = require("helmet");
@@ -7,6 +7,7 @@ const requestId = require("./common/requestId");
 const { pool } = require("./config/db");
 const sequelize = require("./config/database");
 const sujalApiRoutes = require("./routes");
+const residentFinanceRoutes = require("./modules/resident-finance/residentFinance.routes");
 const { notFoundHandler, errorHandler } = require("./common/errorHandler");
 const { authenticate } = require("./common/authMiddleware");
 const ApiError = require("./common/ApiError");
@@ -74,6 +75,7 @@ app.use((req, res, next) => {
     next();
 });
 
+app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -81,6 +83,7 @@ app.use(express.urlencoded({ extended: true }));
 // carry per-route authentication. Protect that API surface while preserving
 // the public login/refresh routes in the versioned /api/v1 API.
 app.use("/api", (req, res, next) => {
+    if (req.path === "/payments/webhook") return next();
     if (req.path === "/v1" || req.path.startsWith("/v1/")) return next();
     return authenticate(req, res, (error) => {
         if (error) return next(error);
@@ -326,6 +329,7 @@ app.use("/api/non-members",nonMemberRoutes);
 // The former Sujal service is now mounted into the shared Express server.
 // Keep its established /api/v1 paths while the existing API remains under /api.
 app.use("/api/v1", sujalApiRoutes);
+app.use("/api/v1/resident/finance", residentFinanceRoutes);
 
 app.get("/health", async (req, res, next) => {
     try {
@@ -354,3 +358,4 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 module.exports = app;
+

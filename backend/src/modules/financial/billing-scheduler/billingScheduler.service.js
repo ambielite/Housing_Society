@@ -1,4 +1,5 @@
-const { Op } = require("sequelize");
+const { Op, QueryTypes } = require("sequelize");
+const sequelize = require("../../../config/database");
 
 const BillingConfig =
     require("../billing-config/billingConfig.model");
@@ -20,12 +21,36 @@ const LedgerAccount =
 
 const BillingService =
     require("../billing/billing.service");
+const { getSocietyBusinessDate } = require("../billing/businessDate");
 
 const InvoiceService =
     require("../invoice/invoice.service");
 
 const InvoiceRepository =
     require("../invoice/invoice.repository");
+
+const toCents = (amount) => Math.round(Number(amount || 0) * 100);
+const fromCents = (amount) => Number((amount / 100).toFixed(2));
+const calculateScheduledTotal = (components) =>
+    BillingService.calculatePayableTotal(components);
+
+const existingScheduledResult = async (invoice, transaction = null) => {
+    const billing = invoice?.billingId
+        ? await Billing.findByPk(invoice.billingId, transaction ? { transaction } : undefined)
+        : null;
+    if (
+        !billing ||
+        billing.status !== "ISSUED" ||
+        !billing.journalId ||
+        invoice.journalId !== billing.journalId ||
+        !["ISSUED", "PARTIALLY_PAID", "PAID", "OVERDUE"].includes(invoice.status)
+    ) {
+        throw new Error(
+            "An existing scheduled Invoice is not fully issued with its Billing Journal; reconcile it before retrying."
+        );
+    }
+    return { success: true, duplicate: true, billing, invoice };
+};
 
 
 /*
@@ -616,18 +641,7 @@ const generateForUnit = async ({
 
 
     if (existingInvoice) {
-
-        return {
-
-            success:
-                true,
-
-            duplicate:
-                true,
-
-            invoice:
-                existingInvoice
-        };
+        return existingScheduledResult(existingInvoice);
     }
 
 
@@ -696,8 +710,34 @@ const generateForUnit = async ({
 
 
     /*
-     * Calculate billing amount
+     * The unit-scoped advisory lock is shared with payment posting, so the
+     * source invoice outstanding values and statement creation see one stable
+     * state for this Society + Unit.
      */
+    const transaction = await sequelize.transaction();
+    try {
+    await InvoiceRepository.lockUnitFinancialScope(societyId, unit.id, transaction);
+    const existingInTransaction = await InvoiceRepository.findByIdempotencyKey(
+        societyId,
+        idempotencyKey,
+        transaction
+    );
+    if (existingInTransaction) {
+        const duplicateResult = await existingScheduledResult(existingInTransaction, transaction);
+        await transaction.commit();
+        return duplicateResult;
+    }
+
+    const isStatementInvoice = billingRule.chargeCategory === "MAINTENANCE";
+    const sourceInvoices = isStatementInvoice
+        ? await InvoiceRepository.findOutstandingByUnit(
+            societyId,
+            unit.id,
+            billingDate,
+            transaction,
+            billingPeriod
+        )
+        : [];
 
     const calculation =
         await BillingService
@@ -720,7 +760,10 @@ const generateForUnit = async ({
                     0,
 
                 penaltyAmount:
-                    0
+                    0,
+                billingPeriod,
+                includePreviousBalance: isStatementInvoice,
+                transaction
             });
 
 
@@ -728,17 +771,9 @@ const generateForUnit = async ({
      * Calculate penalty
      */
 
-    const penaltyAmount =
-        await calculatePenalty({
-
-            societyId,
-
-            billDate:
-                billingDate,
-
-            previousBalance:
-                calculation.previousBalance
-        });
+    // Penalties are assessed against the original overdue bill by the daily
+    // penalty pass, never against a new bill's carried-forward balance.
+    const penaltyAmount = 0;
 
 
     /*
@@ -755,20 +790,14 @@ const generateForUnit = async ({
             calculation.previousBalance || 0
         );
 
-    const taxAmount =
-        Number(
-            calculation.taxAmount || 0
-        );
+    const taxAmount = Number(calculation.taxAmount || 0);
 
-    const totalAmount =
-        Number(
-            (
-                subtotal +
-                previousBalance +
-                taxAmount +
-                penaltyAmount
-            ).toFixed(2)
-        );
+    const totalAmount = calculateScheduledTotal({
+        subtotal,
+        previousBalance,
+        taxAmount,
+        penaltyAmount
+    });
 
 
     /*
@@ -797,6 +826,12 @@ const generateForUnit = async ({
      * Create Billing
      */
 
+    const penaltyRuleSnapshot = await BillingService.getPenaltyRuleSnapshot(
+        societyId,
+        billingDate,
+        transaction
+    );
+
     const billing =
         await Billing.create({
 
@@ -814,11 +849,13 @@ const generateForUnit = async ({
             billingConfigId:
                 billingRule.id,
 
+            penaltyRuleSnapshot,
+
             billNumber,
 
             billingPeriod,
 
-            billDate,
+            billDate: billingDate,
 
             dueDate,
 
@@ -854,7 +891,7 @@ const generateForUnit = async ({
 
             status:
                 "DRAFT"
-        });
+        }, { transaction });
 
 
     /*
@@ -886,7 +923,17 @@ const generateForUnit = async ({
 
             idempotencyKey,
 
+            previousBalance,
+
             penaltyAmount,
+
+            accountingTotals: {
+                previousBalance,
+                subtotal,
+                taxAmount,
+                penaltyAmount,
+            },
+            previousBalanceSources: sourceInvoices,
 
             description:
                 `${billingRule.name} - ${billingPeriod}`,
@@ -916,10 +963,17 @@ const generateForUnit = async ({
                                 billingRule.taxRate || 0
                             )
                             : 0
-                }
+                },
+                ...(penaltyAmount > 0 ? [{
+                    description: "Penalty",
+                    quantity: 1,
+                    rate: penaltyAmount,
+                    taxRate: 0,
+                    taxAmount: 0,
+                }] : [])
 
             ]
-        });
+        }, { transaction });
 
 
     /*
@@ -935,10 +989,16 @@ const generateForUnit = async ({
     ) {
 
         await InvoiceService.issueInvoice(
-            invoiceResult.invoice.id
+            invoiceResult.invoice.id,
+            transaction
         );
     }
 
+    const issuedBilling = await BillingService.issueBilling(
+        billing.id,
+        { transaction }
+    );
+    await transaction.commit();
 
     /*
      * Return result
@@ -954,11 +1014,26 @@ const generateForUnit = async ({
                 invoiceResult.duplicate
             ),
 
-        billing,
+        billing: issuedBilling,
 
         invoice:
             invoiceResult.invoice
     };
+    } catch (error) {
+        if (!transaction.finished) {
+            await transaction.rollback();
+        }
+        if (error.name === "SequelizeUniqueConstraintError") {
+            const duplicate = await InvoiceRepository.findByIdempotencyKey(
+                societyId,
+                idempotencyKey
+            );
+            if (duplicate) {
+                return existingScheduledResult(duplicate);
+            }
+        }
+        throw error;
+    }
 };
 
 
@@ -1053,6 +1128,13 @@ const runBillingForSociety = async ({
 
         throw new Error(
             "No active billing rules found"
+        );
+    }
+
+    const statementRules = billingRules.filter((rule) => rule.chargeCategory === "MAINTENANCE");
+    if (statementRules.length > 1) {
+        throw new Error(
+            "Previous Balance statement designation is ambiguous: configure exactly one active MAINTENANCE billing rule per Society and billing period."
         );
     }
 
@@ -1166,6 +1248,86 @@ const runBillingForSociety = async ({
     };
 };
 
+const checkPenaltySnapshotSchema = async () => {
+    try {
+        const rows = await sequelize.query(
+            `SELECT EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = 'billings'
+                  AND column_name = 'penalty_rule_snapshot'
+            ) AS column_exists`,
+            { type: QueryTypes.SELECT }
+        );
+        return { ready: rows[0]?.column_exists === true };
+    } catch (error) {
+        return { ready: false, error: error.message };
+    }
+};
+
+const runOverduePenaltyPass = async ({ asOfDate = getSocietyBusinessDate() } = {}) => {
+    if (!asOfDate) throw new Error("asOfDate is required");
+
+    const schema = await checkPenaltySnapshotSchema();
+    if (!schema.ready) {
+        return {
+            asOfDate,
+            skipped: true,
+            reason: "PENALTY_SNAPSHOT_SCHEMA_NOT_READY",
+            message: schema.error
+                ? `Could not verify billings.penalty_rule_snapshot: ${schema.error}`
+                : "billings.penalty_rule_snapshot is missing; apply the approved schema migration before enabling penalty processing.",
+            candidateCount: 0,
+            appliedCount: 0,
+            failedCount: 0,
+            results: []
+        };
+    }
+
+    const candidates = await Billing.findAll({
+        where: {
+            outstandingAmount: { [Op.gt]: 0 },
+            penaltyAmount: 0,
+            status: { [Op.in]: ["ISSUED", "PARTIALLY_PAID", "OVERDUE"] }
+        },
+        order: [["due_date", "ASC"], ["created_at", "ASC"]]
+    });
+
+    const results = [];
+    for (const billing of candidates) {
+        try {
+            const result = await BillingService.applyPenaltyToBill({
+                billingId: billing.id,
+                societyId: billing.societyId,
+                asOfDate
+            });
+            results.push({
+                billingId: billing.id,
+                billNumber: billing.billNumber,
+                societyId: billing.societyId,
+                ...result
+            });
+        } catch (error) {
+            results.push({
+                billingId: billing.id,
+                billNumber: billing.billNumber,
+                societyId: billing.societyId,
+                applied: false,
+                error: error.message
+            });
+        }
+    }
+
+    return {
+        asOfDate,
+        candidateCount: candidates.length,
+        appliedCount: results.filter((result) => result.applied).length,
+        failedCount: results.filter((result) => result.error).length,
+        results
+    };
+};
+
 
 /*
 |--------------------------------------------------------------------------
@@ -1181,5 +1343,8 @@ module.exports = {
 
     getBillingPeriod,
 
-    calculatePenalty
+    calculatePenalty,
+    calculateScheduledTotal,
+    runOverduePenaltyPass,
+    checkPenaltySnapshotSchema
 };

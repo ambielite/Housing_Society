@@ -7,6 +7,7 @@ const billingApi = {
     calculate: async (data) => (await axiosClient.post("/billings/calculate", data)).data,
     create: async (data) => (await axiosClient.post("/billings", data)).data,
     updateOverdue: async () => (await axiosClient.post("/billings/update-overdue")).data,
+    applyPenalty: async (id, data) => (await axiosClient.post(`/billings/${id}/apply-penalty`, data)).data,
     issue: async (id) => (await axiosClient.post(`/billings/${id}/issue`)).data,
     cancel: async (id) => (await axiosClient.post(`/billings/${id}/cancel`)).data,
     remove: async (id) => (await axiosClient.delete(`/billings/${id}`)).data

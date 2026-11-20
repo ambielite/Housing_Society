@@ -1,7 +1,7 @@
 const MoveOut = require("./moveOut.model");
 
-const create = async (data) => {
-    return await MoveOut.create(data);
+const create = async (data, transaction = null) => {
+    return await MoveOut.create(data, transaction ? { transaction } : undefined);
 };
 
 const findAll = async () => {
@@ -10,8 +10,11 @@ const findAll = async () => {
     });
 };
 
-const findById = async (id) => {
-    return await MoveOut.findByPk(id);
+const findById = async (id, options = {}) => {
+    const queryOptions = {};
+    if (options.transaction) queryOptions.transaction = options.transaction;
+    if (options.lock && options.transaction) queryOptions.lock = options.transaction.LOCK.UPDATE;
+    return await MoveOut.findByPk(id, queryOptions);
 };
 
 const findBySociety = async (societyId) => {
@@ -57,14 +60,14 @@ const findPendingReview = async () => {
     });
 };
 
-const update = async (id, data) => {
-    const moveOut = await MoveOut.findByPk(id);
+const update = async (id, data, transaction = null) => {
+    const moveOut = await MoveOut.findByPk(id, transaction ? { transaction, lock: transaction.LOCK.UPDATE } : undefined);
 
     if (!moveOut) {
         return null;
     }
 
-    await moveOut.update(data);
+    await moveOut.update(data, transaction ? { transaction } : undefined);
 
     return moveOut;
 };

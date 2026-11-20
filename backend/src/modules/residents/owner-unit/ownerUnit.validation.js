@@ -10,6 +10,54 @@ const STATUSES = [
     "INACTIVE"
 ];
 
+const normalizeDate = (value, field, errors, optional = false) => {
+    if (value === undefined) return undefined;
+    if (value === null || value === "") {
+        if (optional) return null;
+        errors.push(`${field} is required`);
+        return value;
+    }
+    if (typeof value !== "string") {
+        errors.push(`${field} must be a valid date`);
+        return value;
+    }
+
+    let year;
+    let month;
+    let day;
+    let match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    if (match) {
+        [, year, month, day] = match;
+    } else {
+        match = /^(\d{2})-(\d{2})-(\d{4})$/.exec(value);
+        if (!match) {
+            errors.push(`${field} must be a valid date`);
+            return value;
+        }
+        [, day, month, year] = match;
+    }
+
+    const iso = `${year}-${month}-${day}`;
+    const parsed = new Date(`${iso}T00:00:00.000Z`);
+    if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== iso) {
+        errors.push(`${field} must be a valid date`);
+        return value;
+    }
+    return iso;
+};
+
+const normalizeOwnerUnitDates = (data) => {
+    const errors = [];
+    const normalized = { ...data };
+    if (Object.hasOwn(data, "effectiveFrom")) {
+        normalized.effectiveFrom = normalizeDate(data.effectiveFrom, "effectiveFrom", errors);
+    }
+    if (Object.hasOwn(data, "effectiveTo")) {
+        normalized.effectiveTo = normalizeDate(data.effectiveTo, "effectiveTo", errors, true);
+    }
+    return { data: normalized, errors };
+};
+
 const validateCreateOwnerUnit = (data) => {
 
     const errors = [];
@@ -70,12 +118,7 @@ const validateCreateOwnerUnit = (data) => {
         );
     }
 
-    if (
-        data.effectiveTo &&
-        data.effectiveFrom &&
-        new Date(data.effectiveTo) <
-        new Date(data.effectiveFrom)
-    ) {
+    if (data.effectiveTo && data.effectiveFrom && data.effectiveTo < data.effectiveFrom) {
         errors.push(
             "effectiveTo cannot be before effectiveFrom"
         );
@@ -136,12 +179,7 @@ const validateUpdateOwnerUnit = (data) => {
         );
     }
 
-    if (
-        data.effectiveFrom &&
-        data.effectiveTo &&
-        new Date(data.effectiveTo) <
-        new Date(data.effectiveFrom)
-    ) {
+    if (data.effectiveFrom && data.effectiveTo && data.effectiveTo < data.effectiveFrom) {
         errors.push(
             "effectiveTo cannot be before effectiveFrom"
         );
@@ -160,6 +198,7 @@ module.exports = {
     validateCreateOwnerUnit,
     validateUpdateOwnerUnit,
     validateId,
+    normalizeOwnerUnitDates,
     OWNERSHIP_TYPES,
     STATUSES
 };

@@ -11,8 +11,11 @@ const findAll = async () => {
     });
 };
 
-const findById = async (id) => {
-    return await MoveIn.findByPk(id);
+const findById = async (id, options = {}) => {
+    const queryOptions = {};
+    if (options.transaction) queryOptions.transaction = options.transaction;
+    if (options.lock && options.transaction) queryOptions.lock = options.transaction.LOCK.UPDATE;
+    return await MoveIn.findByPk(id, queryOptions);
 };
 
 const findBySociety = async (societyId) => {
@@ -60,14 +63,14 @@ const findPendingReview = async () => {
     });
 };
 
-const update = async (id, data) => {
-    const moveIn = await MoveIn.findByPk(id);
+const update = async (id, data, transaction = null) => {
+    const moveIn = await MoveIn.findByPk(id, transaction ? { transaction, lock: transaction.LOCK.UPDATE } : undefined);
 
     if (!moveIn) {
         return null;
     }
 
-    await moveIn.update(data);
+    await moveIn.update(data, transaction ? { transaction } : undefined);
 
     return moveIn;
 };

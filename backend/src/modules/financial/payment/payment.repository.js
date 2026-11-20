@@ -3,8 +3,13 @@ const { Op } = require("sequelize");
 const Payment =
     require("./payment.model");
 
-const findById = async (id) => {
-    return await Payment.findByPk(id);
+const findById = async (id, transaction = null, lock = false) => {
+    return await Payment.findByPk(id, transaction
+        ? {
+            transaction,
+            ...(lock ? { lock: transaction.LOCK.UPDATE } : {})
+        }
+        : undefined);
 };
 
 const findByIdempotencyKey = async (

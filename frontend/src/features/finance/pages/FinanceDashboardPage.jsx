@@ -48,10 +48,10 @@ const FinanceDashboardPage = () => {
 
             const societyId = String(localStorage.getItem("selectedSocietyId") || "").replace(/^:+/, "").trim();
             const [accountResponse, journalResponse, paymentResponse, periodResponse, otherIncomeResponse] = await Promise.all([
-                accountApi.getAll(),
-                journalApi.getAll(),
-                paymentApi.getAll(),
-                accountingPeriodApi.getAll(),
+                accountApi.getAll(societyId),
+                journalApi.getAll(societyId),
+                paymentApi.getAll(societyId),
+                accountingPeriodApi.getAll(societyId),
                 otherIncomeApi.list(societyId)
             ]);
 

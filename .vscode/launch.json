@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Housing Society (Physical Android)",
+      "request": "launch",
+      "type": "dart",
+      "program": "societyapp/lib/main.dart",
+      "cwd": "societyapp",
+      "toolArgs": [
+        "--dart-define=API_BASE_URL=http://10.180.56.140:5000/api/v1"
+      ]
+    }
+  ]
+}

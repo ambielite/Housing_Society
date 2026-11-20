@@ -15,6 +15,7 @@ import * as approvalsApi from '../../approvals/api/approvals.api';
 import * as helpdeskApi from '../../helpdesk/api/helpdesk.api';
 import * as reportsCenterApi from '../../reports-center/api/reportsCenter.api';
 import legacyReportsApi from '../../reports/api/reports.api';
+import { calculateFinancialOverview } from '../utils/financeOverviewMetrics';
 import './housing-dashboard.css';
 
 const REFRESH_INTERVAL_MS = 60000;
@@ -118,19 +119,11 @@ export default function HousingDashboardPage() {
     const staffReport = valueAt(10) || {};
 
     const openTickets = tickets.filter((ticket) => !['RESOLVED', 'CLOSED', 'CANCELLED'].includes(String(ticket.status || '').toUpperCase()));
-    const outstanding = financeBills.reduce((total, bill) => {
-      if (String(bill.status || '').toUpperCase() === 'CANCELLED') return total;
-      const due = bill.outstandingAmount ?? bill.outstanding_amount ?? (number(bill.totalAmount ?? bill.total_amount) - number(bill.paidAmount ?? bill.paid_amount));
-      return total + Math.max(number(due), 0);
-    }, 0);
-    const overdue = financeBills.filter((bill) => {
-      const due = bill.outstandingAmount ?? bill.outstanding_amount ?? (number(bill.totalAmount ?? bill.total_amount) - number(bill.paidAmount ?? bill.paid_amount));
-      const dueDate = bill.dueDate ?? bill.due_date;
-      return number(due) > 0 && dueDate && String(dueDate).slice(0, 10) < today;
-    }).length;
-    const received = payments.reduce((total, payment) => (
-      ['SUCCESS', 'VERIFIED'].includes(String(payment.status || '').toUpperCase()) ? total + number(payment.amount ?? payment.amount_paid) : total
-    ), 0);
+    const { outstanding, overdue, received, billCount, paymentCount } = calculateFinancialOverview({
+      bills: financeBills,
+      payments,
+      today,
+    });
 
     const activity = [
       ...residents.slice(0, 5).map((resident) => ({
@@ -214,8 +207,8 @@ export default function HousingDashboardPage() {
       outstanding: failed(6) ? null : outstanding,
       overdue: failed(6) ? null : overdue,
       received: failed(7) ? null : received,
-      billCount: failed(6) ? null : financeBills.length,
-      paymentCount: failed(7) ? null : payments.length,
+      billCount: failed(6) ? null : billCount,
+      paymentCount: failed(7) ? null : paymentCount,
       activity,
       failedSources,
     });

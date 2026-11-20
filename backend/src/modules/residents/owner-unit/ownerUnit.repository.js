@@ -46,6 +46,24 @@ const findRelation = async (
     });
 };
 
+const findEffectiveActiveRelation = async (societyId, ownerId, unitId, effectiveDate, transaction) => {
+    return await OwnerUnit.findAll({
+        where: {
+            societyId,
+            ownerId,
+            unitId,
+            status: "ACTIVE",
+            effectiveFrom: { [Op.lte]: effectiveDate },
+            [Op.or]: [
+                { effectiveTo: null },
+                { effectiveTo: { [Op.gte]: effectiveDate } }
+            ]
+        },
+        transaction,
+        lock: transaction.LOCK.UPDATE
+    });
+};
+
 
 // FIND PRIMARY OWNER
 const findPrimaryOwner = async (
@@ -174,6 +192,7 @@ module.exports = {
     findById,
     findAll,
     findRelation,
+    findEffectiveActiveRelation,
     findPrimaryOwner,
     findActiveUnitOwners,
     findOwnerUnits,

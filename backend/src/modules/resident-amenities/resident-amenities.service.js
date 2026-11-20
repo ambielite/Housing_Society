@@ -1,28 +1,13 @@
 const ApiError = require('../../common/ApiError');
 const { query } = require('../../config/db');
+const { resolveSingleUnit } = require('../resident-context/residentUnitContext.service');
 const amenitiesRepository = require('../amenities/amenities.repository');
 const bookingsService = require('../amenity-bookings/amenity-bookings.service');
 
 const residentContext = async (user) => {
   if (!user.societyId) throw new ApiError(403, 'Your account is not linked to a society');
-  const result = await query(
-    `SELECT r.id AS resident_id, ou.unit_id
-       FROM residents r
-       LEFT JOIN owner_units ou
-         ON ou.owner_id = r.id AND ou.society_id = r.society_id
-        AND ou.status = 'ACTIVE'
-        AND (ou.effective_to IS NULL OR ou.effective_to >= CURRENT_DATE)
-      WHERE r.society_id = $1 AND r.status = 'ACTIVE'
-        AND (r.user_id = $2 OR (r.user_id IS NULL AND lower(r.email) = lower($3)))
-      ORDER BY ou.effective_from DESC NULLS LAST
-      LIMIT 1`,
-    [user.societyId, user.id, user.email],
-  );
-  const resident = result.rows[0];
-  if (!resident || !resident.unit_id) {
-    throw new ApiError(403, 'Your resident profile is not linked to an active unit');
-  }
-  return resident;
+  const context = await resolveSingleUnit(user);
+  return { resident_id: context.resident.id, unit_id: context.unit.unit_id };
 };
 
 const listAmenities = async (user) => {

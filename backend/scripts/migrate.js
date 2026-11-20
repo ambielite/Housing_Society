@@ -10,6 +10,65 @@ const crypto = require("node:crypto");
 const { Client } = require("pg");
 
 const migrationsRoot = path.join(__dirname, "../migrations");
+const SCOPED_ROOT_MIGRATIONS = new Set([
+    "0109_unique_billing_journal_reference.sql",
+    "0110_add_billing_penalty_rule_snapshot.sql",
+    "0111_add_invoice_previous_balance_sources.sql",
+]);
+
+function parseScopedOptions(args) {
+    let target = null;
+    let apply = false;
+    let dryRun = false;
+
+    for (let index = 0; index < args.length; index += 1) {
+        const argument = args[index];
+        if (argument === "--target") {
+            if (target || !args[index + 1]) throw new Error("scoped requires one --target migration filename");
+            target = args[index + 1];
+            index += 1;
+        } else if (argument === "--apply") {
+            apply = true;
+        } else if (argument === "--dry-run") {
+            dryRun = true;
+        } else {
+            throw new Error(`Unknown scoped migration option: ${argument}`);
+        }
+    }
+
+    if (!target) throw new Error("scoped requires --target <approved root migration filename>");
+    if (!SCOPED_ROOT_MIGRATIONS.has(target)) {
+        throw new Error(`Migration target is not approved for scoped execution: ${target}`);
+    }
+    if (apply === dryRun) throw new Error("Choose exactly one of --dry-run or --apply");
+    return { target, apply, dryRun };
+}
+
+function buildScopedPlan(migrations, appliedNames, target) {
+    if (!SCOPED_ROOT_MIGRATIONS.has(target)) {
+        throw new Error(`Migration target is not approved for scoped execution: ${target}`);
+    }
+
+    const targetIndex = migrations.findIndex((migration) => migration.name === target);
+    if (targetIndex < 0) throw new Error(`Approved migration target is not present in this workspace: ${target}`);
+
+    const applied = appliedNames instanceof Set ? appliedNames : new Set(appliedNames);
+    const earlierUnapprovedPending = migrations
+        .slice(0, targetIndex)
+        .filter((migration) => !applied.has(migration.name) && !SCOPED_ROOT_MIGRATIONS.has(migration.name));
+    if (earlierUnapprovedPending.length) {
+        throw new Error(
+            `Cannot scope through ${target}; earlier non-approved migrations are pending: ${earlierUnapprovedPending.map((migration) => migration.name).join(", ")}`
+        );
+    }
+
+    const selected = migrations
+        .slice(0, targetIndex + 1)
+        .filter((migration) => SCOPED_ROOT_MIGRATIONS.has(migration.name) && !applied.has(migration.name));
+    const notSelected = migrations
+        .filter((migration) => !applied.has(migration.name) && !selected.includes(migration));
+    return { selected, notSelected };
+}
 
 function readMigrations() {
     const rootFiles = fs.readdirSync(migrationsRoot)
@@ -96,9 +155,12 @@ async function readLegacyHistory(client, migrations) {
     throw new Error("The existing public.schema_migrations table has an unsupported layout.");
 }
 
-async function main() {
-    const mode = process.argv[2] || "up";
-    if (!["up", "status", "check"].includes(mode)) throw new Error("Usage: node scripts/migrate.js [up|status|check]");
+async function main(args = process.argv.slice(2)) {
+    const mode = args[0] || "up";
+    const scopedOptions = mode === "scoped" ? parseScopedOptions(args.slice(1)) : null;
+    if (!scopedOptions && !["up", "status", "check"].includes(mode)) {
+        throw new Error("Usage: node scripts/migrate.js [up|status|check] | scoped --target <approved-root-file> (--dry-run|--apply)");
+    }
 
     const migrations = readMigrations();
     const client = new Client({
@@ -113,11 +175,18 @@ async function main() {
     let locked = false;
     try {
         await client.connect();
-        await client.query("SELECT pg_advisory_lock(734921, 1)");
-        locked = true;
+        // Dry runs are read-only and do not take a database advisory lock.
+        // Applying migrations keeps the same lock as the default runner.
+        if (!scopedOptions?.dryRun) {
+            await client.query("SELECT pg_advisory_lock(734921, 1)");
+            locked = true;
+        }
 
         const legacy = await readLegacyHistory(client, migrations);
         const trackerExists = await client.query("SELECT to_regclass('public.integration_schema_migrations') AS name");
+        if (scopedOptions && !trackerExists.rows[0].name) {
+            throw new Error("Scoped execution requires existing public.integration_schema_migrations history; it will not create or adopt a migration baseline.");
+        }
         if (mode === "up") {
             await client.query(`
                 CREATE TABLE IF NOT EXISTS public.integration_schema_migrations (
@@ -148,6 +217,37 @@ async function main() {
 
         const applied = new Set(historyByName.keys());
         const pending = migrations.filter((migration) => !applied.has(migration.name));
+        if (scopedOptions) {
+            const plan = buildScopedPlan(migrations, applied, scopedOptions.target);
+            console.log(`Scoped migration target: ${scopedOptions.target}`);
+            console.log(`Mode: ${scopedOptions.dryRun ? "DRY RUN (no migration SQL will execute)" : "APPLY"}`);
+            console.log("Pending approved migrations:");
+            if (!plan.selected.length) console.log("  (none)");
+            for (const migration of plan.selected) console.log(`  ${migration.name}`);
+            console.log("Pending migrations not selected:");
+            if (!plan.notSelected.length) console.log("  (none)");
+            for (const migration of plan.notSelected) console.log(`  ${migration.name}`);
+
+            if (scopedOptions.dryRun) return;
+            for (const migration of plan.selected) {
+                await client.query("BEGIN");
+                try {
+                    await client.query("SET LOCAL search_path TO public");
+                    await client.query(migration.sql);
+                    await client.query(
+                        "INSERT INTO public.integration_schema_migrations (name, checksum) VALUES ($1, $2)",
+                        [migration.name, migration.checksum]
+                    );
+                    await client.query("COMMIT");
+                    console.log(`Applied ${migration.name}`);
+                } catch (error) {
+                    await client.query("ROLLBACK");
+                    throw new Error(`${migration.name} failed: ${error.message}`);
+                }
+            }
+            if (!plan.selected.length) console.log("No approved pending migrations.");
+            return;
+        }
         if (mode === "status") {
             for (const migration of migrations) console.log(`${applied.has(migration.name) ? "APPLIED " : "PENDING "}${migration.name}`);
             return;
@@ -181,7 +281,15 @@ async function main() {
     }
 }
 
-main().catch((error) => {
-    console.error(error.message);
-    process.exitCode = 1;
-});
+if (require.main === module) {
+    main().catch((error) => {
+        console.error(error.message);
+        process.exitCode = 1;
+    });
+}
+
+module.exports = {
+    SCOPED_ROOT_MIGRATIONS,
+    parseScopedOptions,
+    buildScopedPlan,
+};

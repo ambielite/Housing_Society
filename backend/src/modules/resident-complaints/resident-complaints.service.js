@@ -3,22 +3,11 @@ const { query } = require('../../config/db');
 const helpdeskRepository = require('../helpdesk-setup/helpdesk-setup.repository');
 const ticketsRepository = require('../tickets/tickets.repository');
 const ticketsService = require('../tickets/tickets.service');
+const { resolveResident, resolveSingleUnit } = require('../resident-context/residentUnitContext.service');
 
 const requireResidentContext = async (user) => {
   if (!user.societyId) throw new ApiError(403, 'Your account is not linked to a society');
-  const result = await query(
-    `SELECT r.id AS resident_id, ou.unit_id
-       FROM residents r
-       LEFT JOIN owner_units ou
-         ON ou.owner_id = r.id AND ou.society_id = r.society_id
-        AND ou.status = 'ACTIVE'
-        AND (ou.effective_to IS NULL OR ou.effective_to >= CURRENT_DATE)
-      WHERE r.user_id = $1 AND r.society_id = $2 AND r.status = 'ACTIVE'
-      ORDER BY ou.effective_from DESC NULLS LAST
-      LIMIT 1`,
-    [user.id, user.societyId],
-  );
-  const resident = result.rows[0];
+  const resident = await resolveResident(user, { allowEmailFallback: false });
   if (!resident) throw new ApiError(403, 'Your resident profile is not linked to this account');
   return resident;
 };
@@ -48,7 +37,8 @@ const listComplaints = async (user) => {
 };
 
 const createComplaint = async (user, payload) => {
-  const resident = await requireResidentContext(user);
+  if (!user.societyId) throw new ApiError(403, 'Your account is not linked to a society');
+  const { resident, unit } = await resolveSingleUnit(user, { allowEmailFallback: false });
   const category = await helpdeskRepository.findCategoryById(payload.categoryId);
   if (!category || category.society_id !== user.societyId || category.status !== 'ACTIVE') {
     throw new ApiError(400, 'Choose an active complaint category for your society');
@@ -66,7 +56,7 @@ const createComplaint = async (user, payload) => {
     societyId: user.societyId,
     categoryId: category.id,
     raisedBy: user.id,
-    unitId: resident.unit_id,
+    unitId: unit.unit_id,
     subject,
     description,
   });

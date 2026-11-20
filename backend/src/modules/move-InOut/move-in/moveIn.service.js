@@ -1,5 +1,9 @@
 const repository = require("./moveIn.repository");
 const accessAssignmentService = require("../access/accessAssignment.service");
+const occupancyService = require("../occupancy/occupancy.service");
+const ownerUnitService = require("../../residents/owner-unit/ownerUnit.service");
+const { recalculateUnitStatus } = require("../unitStatus.service");
+const sequelize = require("../../../config/database");
 
 const documentFields = ["leaseDocument", "registryDocument", "policeVerificationDocument"];
 
@@ -193,35 +197,78 @@ const markLedgerCreated = async (id) => {
 };
 
 const activateAccess = async (id) => {
-    const moveIn = await repository.findById(id);
+    const transaction = await sequelize.transaction();
+    try {
+        const moveIn = await repository.findById(id, { transaction, lock: true });
+        if (!moveIn) {
+            await transaction.commit();
+            return null;
+        }
+        if (["ACCESS_ACTIVATED", "COMPLETED"].includes(moveIn.status)) {
+            await transaction.commit();
+            return moveIn;
+        }
+        if (moveIn.status !== "LEDGER_CREATED") {
+            throw new Error("Access can only be activated after ledger creation");
+        }
 
-    if (!moveIn) {
-        return null;
-    }
+        const now = new Date();
+        const actualMoveInDate = moveIn.actualMoveInDate || [
+            now.getFullYear(),
+            String(now.getMonth() + 1).padStart(2, "0"),
+            String(now.getDate()).padStart(2, "0")
+        ].join("-");
 
-    if (moveIn.status !== "LEDGER_CREATED") {
-        throw new Error(
-            "Access can only be activated after ledger creation"
-        );
-    }
+        if (moveIn.occupancyType === "TENANT") {
+            await occupancyService.ensureTenantOccupancyForMoveIn(
+                moveIn,
+                String(actualMoveInDate).slice(0, 10),
+                transaction
+            );
+        } else if (moveIn.occupancyType === "OWNER") {
+            await ownerUnitService.ensureExistingOwnerUnitForMoveIn(
+                moveIn,
+                String(actualMoveInDate).slice(0, 10),
+                transaction
+            );
+            await occupancyService.ensureOwnerOccupancyForMoveIn(
+                moveIn,
+                String(actualMoveInDate).slice(0, 10),
+                transaction
+            );
+        }
 
-    const existingAssignments = await accessAssignmentService.getAccessByLifecycle("MOVE_IN", id);
-    if (!existingAssignments.length) {
-        await accessAssignmentService.createAccessAssignment({
+        // Keep Unit status in sync with effective physical Occupancy.
+        await recalculateUnitStatus({
             societyId: moveIn.societyId,
             unitId: moveIn.unitId,
-            residentId: moveIn.residentId,
-            lifecycleType: "MOVE_IN",
-            lifecycleId: id,
-            accessType: moveIn.occupancyType === "TENANT" ? "TENANT" : "OWNER",
-            remarks: "Activated through approved move-in"
+            effectiveDate: String(actualMoveInDate).slice(0, 10),
+            transaction
         });
-    }
 
-    return await repository.update(id, {
-        status: "ACCESS_ACTIVATED",
-        actualMoveInDate: new Date()
-    });
+        const existingAssignments = await accessAssignmentService.getAccessByLifecycle("MOVE_IN", id, moveIn.societyId, transaction);
+        if (!existingAssignments.length) {
+            await accessAssignmentService.createAccessAssignment({
+                societyId: moveIn.societyId,
+                unitId: moveIn.unitId,
+                residentId: moveIn.residentId,
+                lifecycleType: "MOVE_IN",
+                lifecycleId: id,
+                accessType: moveIn.occupancyType === "TENANT" ? "TENANT" : "OWNER",
+                remarks: "Activated through approved move-in"
+            }, transaction);
+        }
+
+        const updated = await repository.update(id, {
+            status: "ACCESS_ACTIVATED",
+            actualMoveInDate
+        }, transaction);
+        await transaction.commit();
+        return updated;
+    } catch (error) {
+        if (!transaction.finished) await transaction.rollback();
+        throw error;
+    }
 };
 
 const completeMoveIn = async (id) => {

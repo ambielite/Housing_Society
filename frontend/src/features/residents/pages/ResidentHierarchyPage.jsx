@@ -14,6 +14,16 @@ const rowsFrom = (response) => {
     return Array.isArray(rows) ? rows : [];
 };
 
+const normalizeDate = (value) => {
+    if (!value) return null;
+    let iso = value;
+    const dmy = /^(\d{2})-(\d{2})-(\d{4})$/.exec(value);
+    if (dmy) iso = `${dmy[3]}-${dmy[2]}-${dmy[1]}`;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+    const parsed = new Date(`${iso}T00:00:00.000Z`);
+    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === iso ? iso : null;
+};
+
 const profileImageUrl = (url) => {
     if (!url) return undefined;
     const value = String(url).trim().replaceAll("\\", "/");
@@ -137,10 +147,17 @@ const ResidentHierarchyPage = () => {
         setError("");
 
         try {
+            const effectiveFrom = normalizeDate(form.effectiveFrom || new Date().toISOString().slice(0, 10));
+            const effectiveTo = form.effectiveTo ? normalizeDate(form.effectiveTo) : null;
+            if (!effectiveFrom || (form.effectiveTo && !effectiveTo)) {
+                setError("Enter valid effective dates.");
+                return;
+            }
             const payload = {
                 ...form,
                 ownershipPercentage: Number(form.ownershipPercentage || 100),
-                effectiveFrom: form.effectiveFrom || new Date().toISOString().slice(0, 10)
+                effectiveFrom,
+                effectiveTo
             };
 
             if (editingId) await ownerUnitApi.update(editingId, payload);

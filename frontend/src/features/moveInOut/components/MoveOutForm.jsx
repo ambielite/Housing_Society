@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 
 import moveOutApi from "../api/moveOut.api";
@@ -10,6 +10,13 @@ const rowsFrom = (response) => {
     const rows = Array.isArray(response) ? response : response?.data || response?.records || [];
     return Array.isArray(rows) ? rows : [];
 };
+
+const formatInr = (amount) => new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+}).format(amount);
 
 const initialValues = (moveOut = null) => ({
     societyId: moveOut?.societyId || "",
@@ -31,6 +38,10 @@ const MoveOutForm = ({ moveOut, onClose, onSuccess }) => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
+    const [pendingAmount, setPendingAmount] = useState(null);
+    const [pendingAmountLoading, setPendingAmountLoading] = useState(false);
+    const [pendingAmountError, setPendingAmountError] = useState("");
+    const pendingAmountRequest = useRef(0);
 
     useEffect(() => {
         let isMounted = true;
@@ -64,8 +75,54 @@ const MoveOutForm = ({ moveOut, onClose, onSuccess }) => {
         };
     }, []);
 
+    useEffect(() => {
+        const requestId = ++pendingAmountRequest.current;
+        if (moveOut || !values.societyId || !values.unitId || !values.residentId) {
+            setPendingAmount(null);
+            setPendingAmountLoading(false);
+            setPendingAmountError("");
+            return () => {
+                pendingAmountRequest.current += 1;
+            };
+        }
+
+        setPendingAmount(null);
+        setPendingAmountError("");
+        setPendingAmountLoading(true);
+        const today = new Date();
+        const localToday = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+        const calculationDate = values.requestedMoveOutDate || localToday;
+        moveOutApi.getPendingAmount({
+            societyId: values.societyId,
+            unitId: values.unitId,
+            residentId: values.residentId,
+            requestedMoveOutDate: calculationDate
+        }).then((response) => {
+            if (pendingAmountRequest.current !== requestId) return;
+            const amount = Number(response?.data?.amount);
+            if (!Number.isFinite(amount) || amount < 0) throw new Error("The pending amount response was invalid.");
+            setPendingAmount(amount);
+        }).catch((requestError) => {
+            if (pendingAmountRequest.current === requestId) {
+                setPendingAmountError(requestError.response?.data?.message || requestError.message || "Could not calculate the pending amount.");
+            }
+        }).finally(() => {
+            if (pendingAmountRequest.current === requestId) setPendingAmountLoading(false);
+        });
+
+        return () => {
+            if (pendingAmountRequest.current === requestId) pendingAmountRequest.current += 1;
+        };
+    }, [moveOut, values.societyId, values.unitId, values.residentId, values.requestedMoveOutDate]);
+
     const updateField = (event) => {
         const { name, value } = event.target;
+        if (["societyId", "unitId", "residentId", "requestedMoveOutDate"].includes(name)) {
+            pendingAmountRequest.current += 1;
+            setPendingAmount(null);
+            setPendingAmountLoading(false);
+            setPendingAmountError("");
+        }
         setValues((current) => ({ ...current, [name]: value }));
     };
 
@@ -75,6 +132,15 @@ const MoveOutForm = ({ moveOut, onClose, onSuccess }) => {
 
         if (!values.societyId || !values.unitId || !values.residentId || !values.requestedMoveOutDate) {
             setError("Society, unit, resident and requested move-out date are required.");
+            return;
+        }
+
+        if (!moveOut && (pendingAmountLoading || pendingAmount === null || pendingAmountError)) {
+            setError("Verify the pending amount before creating the move-out request.");
+            return;
+        }
+        if (!moveOut && pendingAmount > 0) {
+            setError(`Please clear the pending amount of ${formatInr(pendingAmount)} before proceeding with move-out.`);
             return;
         }
 
@@ -159,6 +225,31 @@ const MoveOutForm = ({ moveOut, onClose, onSuccess }) => {
                                 <input id="moveout-date" type="date" name="requestedMoveOutDate" value={values.requestedMoveOutDate} onChange={updateField} required />
                             </div>
 
+                            {!moveOut && <div className="form-group form-group-full">
+                                <label htmlFor="moveout-pending-amount">Pending Amount (₹)</label>
+                                <input
+                                    id="moveout-pending-amount"
+                                    type="text"
+                                    value={pendingAmountLoading ? "Calculating…" : pendingAmount === null ? "--" : formatInr(pendingAmount)}
+                                    readOnly
+                                    aria-busy={pendingAmountLoading}
+                                    aria-describedby="moveout-pending-amount-message"
+                                />
+                                <small id="moveout-pending-amount-message" role={pendingAmountError || pendingAmount > 0 ? "alert" : "status"}>
+                                    {pendingAmountLoading
+                                        ? "Calculating pending amount…"
+                                        : pendingAmountError
+                                            ? pendingAmountError
+                                            : pendingAmount > 0
+                                                ? `Please clear the pending amount of ${formatInr(pendingAmount)} before proceeding with move-out.`
+                                                : pendingAmount === 0
+                                                    ? ""
+                                                : !values.societyId || !values.unitId || !values.residentId
+                                                    ? "Select the society, unit, and resident to calculate."
+                                                    : "Calculated as of today; selecting a requested move-out date refreshes this amount."}
+                                </small>
+                            </div>}
+
                             <div className="form-group"><label htmlFor="moveout-effective-date">Effective move-out date</label><input id="moveout-effective-date" type="date" name="effectiveMoveOutDate" value={values.effectiveMoveOutDate} onChange={updateField} /></div>
                             <div className="form-group"><label htmlFor="moveout-charges">Configured move-out charges</label><input id="moveout-charges" type="number" min="0" step="0.01" name="configuredCharges" value={values.configuredCharges} onChange={updateField} /></div>
                             <div className="form-group form-group-full"><label className="form-checkbox-label"><input type="checkbox" name="revertBillingToOwner" checked={values.revertBillingToOwner} onChange={(event) => setValues((current) => ({ ...current, revertBillingToOwner: event.target.checked }))} /> <span>Revert billing responsibility to the owner on the effective date</span></label></div>
@@ -175,7 +266,7 @@ const MoveOutForm = ({ moveOut, onClose, onSuccess }) => {
 
                 <footer className="society-form-footer">
                     <button type="button" className="btn-secondary" onClick={onClose} disabled={saving}>Cancel</button>
-                    <button type="submit" className="btn-primary" disabled={saving || loading}>{saving ? "Saving…" : (moveOut ? "Update move-out" : "Create move-out")}</button>
+                    <button type="submit" className="btn-primary" disabled={saving || loading || (!moveOut && (pendingAmountLoading || pendingAmount === null || Boolean(pendingAmountError) || pendingAmount > 0))}>{saving ? "Saving…" : (moveOut ? "Update move-out" : "Create move-out")}</button>
                 </footer>
             </form>
         </section>

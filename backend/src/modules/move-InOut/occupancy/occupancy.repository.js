@@ -1,7 +1,28 @@
 const Occupancy = require("./occupancy.model");
 
-const create = async (data) => {
-    return await Occupancy.create(data);
+const create = async (data, transaction = null) => {
+    return await Occupancy.create(data, transaction ? { transaction } : undefined);
+};
+
+const findCurrentBySocietyAndUnit = async (societyId, unitId, transaction = null) => {
+    return await Occupancy.findAll({
+        where: { societyId, unitId, isCurrent: true },
+        ...(transaction ? { transaction, lock: transaction.LOCK.UPDATE } : {})
+    });
+};
+
+const findCurrentTenantByRelationship = async (societyId, unitId, residentId, transaction = null) => {
+    return await Occupancy.findAll({
+        where: { societyId, unitId, residentId, occupancyType: "TENANT", isCurrent: true },
+        ...(transaction ? { transaction, lock: transaction.LOCK.UPDATE } : {})
+    });
+};
+
+const findCurrentByRelationship = async (societyId, unitId, residentId, transaction = null) => {
+    return await Occupancy.findAll({
+        where: { societyId, unitId, residentId, isCurrent: true },
+        ...(transaction ? { transaction, lock: transaction.LOCK.UPDATE } : {})
+    });
 };
 
 const findAll = async () => {
@@ -55,9 +76,10 @@ const update = async (id, data) => {
 
 const closeOccupancy = async (
     id,
-    endDate
+    endDate,
+    transaction = null
 ) => {
-    const occupancy = await Occupancy.findByPk(id);
+    const occupancy = await Occupancy.findByPk(id, transaction ? { transaction, lock: transaction.LOCK.UPDATE } : undefined);
 
     if (!occupancy) {
         return null;
@@ -67,13 +89,16 @@ const closeOccupancy = async (
         endDate,
         billingEndDate: endDate,
         isCurrent: false
-    });
+    }, transaction ? { transaction } : undefined);
 
     return occupancy;
 };
 
 module.exports = {
     create,
+    findCurrentBySocietyAndUnit,
+    findCurrentTenantByRelationship,
+    findCurrentByRelationship,
     findAll,
     findById,
     findCurrentByUnit,

@@ -1,4 +1,4 @@
-const validateAmount = (amount) => {
+﻿const validateAmount = (amount) => {
 
     if (
         amount === undefined ||
@@ -43,6 +43,10 @@ const validatePaymentMethod = (
 
     const allowed = [
         "ONLINE",
+        "UPI",
+        "GOOGLE_PAY",
+        "PHONEPE",
+        "RUPAY_CARD",
         "CHEQUE",
         "NEFT",
         "RTGS",

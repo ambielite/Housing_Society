@@ -1,6 +1,11 @@
 import { legacyApi as axiosClient } from "../../../lib/axios";
 
 const moveOutApi = {
+    getPendingAmount: async (params) => {
+        const response = await axiosClient.get("/move-outs/pending-amount", { params });
+        return response.data;
+    },
+
     getAll: async () => {
         const response = await axiosClient.get("/move-outs");
         return response.data;

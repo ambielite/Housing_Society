@@ -4,7 +4,8 @@ const ownerUnitRepository =
 const {
     validateCreateOwnerUnit,
     validateUpdateOwnerUnit,
-    validateId
+    validateId,
+    normalizeOwnerUnitDates
 } = require("./ownerUnit.validation");
 
 const Society =
@@ -12,6 +13,8 @@ const Society =
 
 const Unit =
     require("../../../modules/societies/unit/unit.model");
+const sequelize = require("../../../config/database");
+const { QueryTypes } = require("sequelize");
 
 
 // IMPORTANT:
@@ -20,12 +23,46 @@ const Unit =
 const Resident =
     require("../resident/resident.model");
 
-const markUnitOccupiedForActiveOwnership = async (unitId, relationshipStatus) => {
-    if (relationshipStatus !== "ACTIVE") return;
-    const unit = await Unit.findByPk(unitId);
-    if (unit && unit.status !== "OCCUPIED") {
-        await unit.update({ status: "OCCUPIED" });
+// Move-In records do not establish legal ownership. Reuse only an existing,
+// active OwnerUnit relationship that is valid on the actual move-in date.
+const ensureExistingOwnerUnitForMoveIn = async (moveIn, effectiveDate, transaction) => {
+    const resident = await Resident.findOne({
+        where: { id: moveIn.residentId, societyId: moveIn.societyId },
+        transaction,
+        lock: transaction.LOCK.UPDATE
+    });
+    if (!resident) throw new Error("Owner/Resident does not belong to the selected society");
+
+    const [unit] = await sequelize.query(
+        `SELECT u.id
+           FROM units u
+           JOIN floors f ON f.id = u.floor_id
+           JOIN towers t ON t.id = f.tower_id
+          WHERE u.id = :unitId AND t.society_id = :societyId
+          LIMIT 1
+          FOR UPDATE OF u`,
+        {
+            replacements: { unitId: moveIn.unitId, societyId: moveIn.societyId },
+            type: QueryTypes.SELECT,
+            transaction
+        }
+    );
+    if (!unit) throw new Error("Unit does not belong to the selected society");
+
+    const relationships = await ownerUnitRepository.findEffectiveActiveRelation(
+        moveIn.societyId,
+        moveIn.residentId,
+        moveIn.unitId,
+        effectiveDate,
+        transaction
+    );
+    if (relationships.length !== 1) {
+        throw new Error(relationships.length
+            ? "Multiple active ownership relationships match this Move-In"
+            : "An active ownership relationship for this resident and unit is required before Owner Move-In");
     }
+
+    return relationships[0];
 };
 
 
@@ -34,6 +71,12 @@ const markUnitOccupiedForActiveOwnership = async (unitId, relationshipStatus) =>
 // ============================================================
 
 const createOwnerUnit = async (data) => {
+
+    const dateResult = normalizeOwnerUnitDates(data);
+    if (dateResult.errors.length > 0) {
+        throw new Error(dateResult.errors.join(", "));
+    }
+    data = dateResult.data;
 
     const errors =
         validateCreateOwnerUnit(data);
@@ -174,10 +217,6 @@ const createOwnerUnit = async (data) => {
 
     const relationship = await ownerUnitRepository.create(data);
 
-    // An active ownership assignment means the unit is occupied, regardless
-    // of its previous status.
-    await markUnitOccupiedForActiveOwnership(unit.id, relationship.status);
-
     return relationship;
 };
 
@@ -307,6 +346,12 @@ const updateOwnerUnit = async (
     data
 ) => {
 
+    const dateResult = normalizeOwnerUnitDates(data);
+    if (dateResult.errors.length > 0) {
+        throw new Error(dateResult.errors.join(", "));
+    }
+    data = dateResult.data;
+
     if (!validateId(id)) {
         throw new Error(
             "Invalid owner-unit relationship ID"
@@ -411,7 +456,6 @@ const updateOwnerUnit = async (
         data
     );
 
-    await markUnitOccupiedForActiveOwnership(record.unitId, updated.status);
     return updated;
 };
 
@@ -512,6 +556,7 @@ const deleteOwnerUnit = async (
 
 
 module.exports = {
+    ensureExistingOwnerUnitForMoveIn,
     createOwnerUnit,
     getAllOwnerUnits,
     getOwnerUnitById,

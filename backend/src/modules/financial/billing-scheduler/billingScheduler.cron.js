@@ -9,6 +9,7 @@ const service =
 
 const { Op } =
     require("sequelize");
+const { getSocietyBusinessDate, BUSINESS_TIME_ZONE } = require("../billing/businessDate");
 
 
 const startBillingScheduler = () => {
@@ -27,14 +28,23 @@ const startBillingScheduler = () => {
 
             try {
 
-                const billingDate =
-                    new Date()
-                        .toISOString()
-                        .split("T")[0];
+                const billingDate = getSocietyBusinessDate();
 
                 console.log(
                     `Billing scheduler started for ${billingDate}`
                 );
+
+                // Keep overdue assessment independent from billing-cycle setup.
+                try {
+                    const penaltyResult = await service.runOverduePenaltyPass({ asOfDate: billingDate });
+                    if (penaltyResult.skipped) {
+                        console.warn("Overdue penalty pass skipped:", penaltyResult.message);
+                    } else {
+                        console.log("Overdue penalty pass:", JSON.stringify(penaltyResult));
+                    }
+                } catch (error) {
+                    console.error("Overdue penalty pass failed:", error.message);
+                }
 
                 const cycles =
                     await BillingConfig.findAll({
@@ -130,7 +140,8 @@ const startBillingScheduler = () => {
                     error
                 );
             }
-        }
+        },
+        { timezone: BUSINESS_TIME_ZONE }
     );
 
     console.log(

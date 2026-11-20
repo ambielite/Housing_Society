@@ -2,6 +2,8 @@ const { Op } = require("sequelize");
 
 const Invoice = require("./invoice.model");
 const InvoiceItem = require("./invoiceItem.model");
+const InvoicePreviousBalanceSource = require("./invoicePreviousBalanceSource.model");
+const sequelize = require("../../../config/database");
 
 const createInvoice = async (
     data,
@@ -29,7 +31,8 @@ const createItem = async (
 
 const findById = async (
     id,
-    transaction = null
+    transaction = null,
+    lock = false
 ) => {
     return Invoice.findByPk(
         id,
@@ -41,7 +44,10 @@ const findById = async (
                 }
             ],
             ...(transaction
-                ? { transaction }
+                ? {
+                    transaction,
+                    ...(lock ? { lock: { level: transaction.LOCK.UPDATE, of: Invoice } } : {})
+                }
                 : {})
         }
     );
@@ -49,19 +55,22 @@ const findById = async (
 
 const findByInvoiceNumber = async (
     societyId,
-    invoiceNumber
+    invoiceNumber,
+    transaction = null
 ) => {
     return Invoice.findOne({
         where: {
             societyId,
             invoiceNumber
-        }
+        },
+        ...(transaction ? { transaction } : {})
     });
 };
 
 const findByIdempotencyKey = async (
     societyId,
-    idempotencyKey
+    idempotencyKey,
+    transaction = null
 ) => {
     return Invoice.findOne({
         where: {
@@ -73,12 +82,14 @@ const findByIdempotencyKey = async (
                 model: InvoiceItem,
                 as: "items"
             }
-        ]
+        ],
+        ...(transaction ? { transaction } : {})
     });
 };
 
 const findByBillingId = async (
-    billingId
+    billingId,
+    transaction = null
 ) => {
     return Invoice.findOne({
         where: {
@@ -89,7 +100,8 @@ const findByBillingId = async (
                 model: InvoiceItem,
                 as: "items"
             }
-        ]
+        ],
+        ...(transaction ? { transaction } : {})
     });
 };
 
@@ -120,7 +132,9 @@ const findAll = async (
 const findOutstandingByUnit = async (
     societyId,
     unitId,
-    invoiceDate = null
+    invoiceDate = null,
+    transaction = null,
+    currentBillingPeriod = null
 ) => {
     const where = {
         societyId,
@@ -145,6 +159,10 @@ const findOutstandingByUnit = async (
         };
     }
 
+    if (currentBillingPeriod) {
+        where.billingPeriod = { [Op.ne]: currentBillingPeriod };
+    }
+
     return Invoice.findAll({
         where,
         order: [
@@ -152,8 +170,36 @@ const findOutstandingByUnit = async (
                 "invoice_date",
                 "ASC"
             ]
-        ]
+        ],
+        ...(transaction ? { transaction } : {})
     });
+};
+
+// Transaction-scoped mutex shared by billing generation and payment posting.
+// A collision only serializes unrelated units; it cannot weaken isolation.
+const lockUnitFinancialScope = async (societyId, unitId, transaction) => {
+    if (!transaction) throw new Error("A transaction is required to lock a unit financial scope");
+    await sequelize.query(
+        "SELECT pg_advisory_xact_lock(hashtext(:scope), hashtext(:unitId))",
+        { replacements: { scope: `housing-society-finance:${societyId}`, unitId }, transaction }
+    );
+};
+
+const createPreviousBalanceSources = async (statementInvoice, sources, transaction) => {
+    for (const source of sources || []) {
+        if (source.id === statementInvoice.id) throw new Error("An invoice cannot reference itself as a previous balance source");
+        if (source.societyId !== statementInvoice.societyId || source.unitId !== statementInvoice.unitId) {
+            throw new Error("Previous balance source Invoice must belong to the same Society and Unit");
+        }
+        if (!["ISSUED", "PARTIALLY_PAID", "OVERDUE"].includes(source.status) || Number(source.outstandingAmount) <= 0) {
+            throw new Error(`Previous balance source Invoice ${source.invoiceNumber} is no longer eligible`);
+        }
+        await InvoicePreviousBalanceSource.create({
+            statementInvoiceId: statementInvoice.id,
+            sourceInvoiceId: source.id,
+            amountAtStatement: Number(source.outstandingAmount),
+        }, { transaction });
+    }
 };
 
 const update = async (
@@ -187,5 +233,7 @@ module.exports = {
     findByBillingId,
     findAll,
     findOutstandingByUnit,
+    lockUnitFinancialScope,
+    createPreviousBalanceSources,
     update
 };

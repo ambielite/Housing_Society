@@ -6,12 +6,11 @@ const rbacRoutes = require('../modules/rbac/rbac.routes');
 const parkingRoutes = require('../modules/parking/parking.routes');
 const vehiclesRoutes = require('../modules/vehicles/vehicles.routes');
 
-
 const vendorsRoutes = require('../modules/vendors/vendors.routes');
 const approvalsRoutes = require('../modules/approvals/approvals.routes');
 const procurementRoutes = require('../modules/procurement/procurement.routes');
 const purchaseOrdersRoutes = require('../modules/purchase-orders/purchase-orders.routes');
-const vendorInvoicesRoutes = require('../modules/purchase-orders/vendor-invoices.routes')
+const vendorInvoicesRoutes = require('../modules/purchase-orders/vendor-invoices.routes');
 
 const gatesRoutes = require('../modules/gates/gates.routes');
 const visitorsRoutes = require('../modules/visitors/visitors.routes');
@@ -34,14 +33,13 @@ const reportsCenterRoutes = require('../modules/reports-center/reports-center.ro
 const residentDashboardRoutes = require('../modules/resident-dashboard/resident-dashboard.routes');
 const residentComplaintsRoutes = require('../modules/resident-complaints/resident-complaints.routes');
 const residentAmenitiesRoutes = require('../modules/resident-amenities/resident-amenities.routes');
+const residentBillsRoutes = require('../modules/resident-bills/resident-bills.routes');
 
 const router = express.Router();
 
 router.use('/auth', authRoutes);
 router.use('/users', usersRoutes);
 router.use('/rbac', rbacRoutes);
-
-
 
 router.use('/parking', parkingRoutes);
 router.use('/vehicles', vehiclesRoutes);
@@ -73,7 +71,6 @@ router.use('/reports-center', reportsCenterRoutes);
 router.use('/resident-dashboard', residentDashboardRoutes);
 router.use('/resident-complaints', residentComplaintsRoutes);
 router.use('/resident-amenities', residentAmenitiesRoutes);
-
-
+router.use('/resident-bills', residentBillsRoutes);
 
 module.exports = router;

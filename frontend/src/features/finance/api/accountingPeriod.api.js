@@ -1,8 +1,8 @@
 import { legacyApi as axiosClient } from "../../../lib/axios";
 
 const accountingPeriodApi = {
-    getAll: async () => {
-        const response = await axiosClient.get("/accounting-periods");
+    getAll: async (societyId) => {
+        const response = await axiosClient.get("/accounting-periods", { params: societyId ? { societyId } : {} });
         return response.data;
     },
 

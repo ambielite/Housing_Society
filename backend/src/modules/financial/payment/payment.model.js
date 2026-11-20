@@ -1,4 +1,4 @@
-const { DataTypes } = require("sequelize");
+﻿const { DataTypes } = require("sequelize");
 const sequelize = require("../../../config/database");
 
 const Payment = sequelize.define(
@@ -49,6 +49,10 @@ const Payment = sequelize.define(
         paymentMethod: {
             type: DataTypes.ENUM(
                 "ONLINE",
+                "UPI",
+                "GOOGLE_PAY",
+                "PHONEPE",
+                "RUPAY_CARD",
                 "CHEQUE",
                 "NEFT",
                 "RTGS",

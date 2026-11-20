@@ -7,6 +7,7 @@ import '../../../auth/data/auth_api.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../amenities/screens/resident_amenities_screen.dart';
 import '../../complaints/screens/resident_complaints_screen.dart';
+import '../../bills/screens/resident_finance_screen.dart';
 import '../data/resident_dashboard_api.dart';
 import 'resident_profile_screen.dart';
 
@@ -180,7 +181,9 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
         child: Column(
           children: [
             Expanded(
-              child: FutureBuilder<ResidentDashboardData>(
+              child: _selectedTab == 1
+                  ? ResidentFinanceScreen(user: widget.user)
+                  : FutureBuilder<ResidentDashboardData>(
                 future: _dashboardFuture,
                 builder: (context, snapshot) {
                   if (snapshot.hasError) {
@@ -623,6 +626,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           'Pay dues',
           const Color(0xFFECE9FF),
           AppColors.indigo,
+          onTap: () => setState(() => _selectedTab = 1),
         ),
       ),
       const SizedBox(width: 10),

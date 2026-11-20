@@ -6,18 +6,26 @@ const repository =
 
 const Billing =
     require("../billing/billing.model");
+const PreviousBalanceService = require("./previousBalance.service");
+
+const toCents = (amount) => Math.round(Number(amount || 0) * 100);
+const fromCents = (amount) => Number((amount / 100).toFixed(2));
 
 const calculatePreviousBalance = async (
     societyId,
     unitId,
-    invoiceDate
+    invoiceDate,
+    transaction = null,
+    billingPeriod = null
 ) => {
 
     const invoices =
         await repository.findOutstandingByUnit(
             societyId,
             unitId,
-            invoiceDate
+            invoiceDate,
+            transaction,
+            billingPeriod
         );
 
     let previousBalance = 0;
@@ -36,8 +44,11 @@ const calculatePreviousBalance = async (
 };
 
 const createInvoice = async (
-    data
+    data,
+    options = {}
 ) => {
+    const transaction = options.transaction || null;
+    const ownsTransaction = !transaction;
 
     /*
      * STEP 1
@@ -47,7 +58,8 @@ const createInvoice = async (
     const existingByKey =
         await repository.findByIdempotencyKey(
             data.societyId,
-            data.idempotencyKey
+            data.idempotencyKey,
+            transaction
         );
 
     if (existingByKey) {
@@ -66,7 +78,8 @@ const createInvoice = async (
     const existingByNumber =
         await repository.findByInvoiceNumber(
             data.societyId,
-            data.invoiceNumber
+            data.invoiceNumber,
+            transaction
         );
 
     if (existingByNumber) {
@@ -102,7 +115,8 @@ const createInvoice = async (
 
         const existingBillingInvoice =
             await repository.findByBillingId(
-                data.billingId
+                data.billingId,
+                transaction
             );
 
         if (existingBillingInvoice) {
@@ -120,13 +134,21 @@ const createInvoice = async (
      * Calculate previous balance.
      */
 
-    const previousBalance = data.includePreviousBalance === false
-        ? 0
-        : await calculatePreviousBalance(
-            data.societyId,
-            data.unitId,
-            data.invoiceDate
-        );
+    let previousBalance = data.previousBalance !== undefined
+        ? Number(data.previousBalance)
+        : data.includePreviousBalance !== true
+            ? 0
+            : await calculatePreviousBalance(
+                data.societyId,
+                data.unitId,
+                data.invoiceDate,
+                transaction,
+                data.billingPeriod
+            );
+
+    if (!Number.isFinite(previousBalance) || previousBalance < 0) {
+        throw new Error("previousBalance must be a non-negative number");
+    }
 
     /*
      * STEP 6
@@ -144,8 +166,8 @@ const createInvoice = async (
         );
     }
 
-    let subtotal = 0;
-    let taxAmount = 0;
+    let subtotalCents = 0;
+    let taxAmountCents = 0;
 
     const preparedItems = [];
 
@@ -168,51 +190,38 @@ const createInvoice = async (
                 item.taxRate || 0
             );
 
-        if (quantity <= 0) {
+        if (!Number.isFinite(quantity) || quantity <= 0) {
             throw new Error(
                 "Item quantity must be greater than 0"
             );
         }
 
-        if (rate < 0) {
+        if (!Number.isFinite(rate) || rate < 0) {
             throw new Error(
                 "Item rate cannot be negative"
             );
         }
 
-        if (taxRate < 0) {
+        if (!Number.isFinite(taxRate) || taxRate < 0) {
             throw new Error(
                 "Item tax rate cannot be negative"
             );
         }
 
-        const amount =
-            Number(
-                (
-                    quantity *
-                    rate
-                ).toFixed(2)
-            );
+        const amount = fromCents(Math.round(quantity * rate * 100));
 
-        const itemTax =
-            Number(
-                (
-                    amount *
-                    taxRate /
-                    100
-                ).toFixed(2)
-            );
+        const itemTax = item.taxAmount === undefined
+            ? fromCents(Math.round(toCents(amount) * taxRate / 100))
+            : fromCents(toCents(item.taxAmount));
 
-        const itemTotal =
-            Number(
-                (
-                    amount +
-                    itemTax
-                ).toFixed(2)
-            );
+        if (!Number.isFinite(itemTax) || itemTax < 0) {
+            throw new Error("Item tax amount must be a non-negative number");
+        }
 
-        subtotal += amount;
-        taxAmount += itemTax;
+        const itemTotal = fromCents(toCents(amount) + toCents(itemTax));
+
+        subtotalCents += toCents(amount);
+        taxAmountCents += toCents(itemTax);
 
         preparedItems.push({
             billingConfigId:
@@ -238,17 +247,10 @@ const createInvoice = async (
         });
     }
 
-    subtotal =
-        Number(
-            subtotal.toFixed(2)
-        );
+    let subtotal = fromCents(subtotalCents);
+    let taxAmount = fromCents(taxAmountCents);
 
-    taxAmount =
-        Number(
-            taxAmount.toFixed(2)
-        );
-
-    const penaltyAmount =
+    let penaltyAmount =
         Number(
             data.penaltyAmount || 0
         );
@@ -263,15 +265,40 @@ const createInvoice = async (
      * Total invoice amount
      */
 
-    const totalAmount =
-        Number(
-            (
-                previousBalance +
-                subtotal +
-                taxAmount +
-                penaltyAmount
-            ).toFixed(2)
-        );
+    const accountingTotals = data.accountingTotals;
+    if (accountingTotals !== undefined) {
+        const components = {
+            previousBalance: Number(accountingTotals.previousBalance),
+            subtotal: Number(accountingTotals.subtotal),
+            taxAmount: Number(accountingTotals.taxAmount),
+            penaltyAmount: Number(accountingTotals.penaltyAmount),
+        };
+        if (Object.values(components).some((amount) => !Number.isFinite(amount) || amount < 0)) {
+            throw new Error("accountingTotals must contain non-negative monetary amounts");
+        }
+        const componentTotalCents = toCents(components.subtotal) +
+            toCents(components.taxAmount) + toCents(components.penaltyAmount);
+        const itemTotalCents = preparedItems
+            .reduce((sum, item) => sum + toCents(item.totalAmount), 0);
+        const itemTaxCents = preparedItems
+            .reduce((sum, item) => sum + toCents(item.taxAmount), 0);
+        if (
+            itemTotalCents !== componentTotalCents ||
+            itemTaxCents !== toCents(components.taxAmount)
+        ) {
+            throw new Error("Invoice item totals do not reconcile to accountingTotals");
+        }
+        previousBalance = fromCents(toCents(components.previousBalance));
+        subtotal = fromCents(toCents(components.subtotal));
+        taxAmount = fromCents(toCents(components.taxAmount));
+        penaltyAmount = fromCents(toCents(components.penaltyAmount));
+    }
+
+    const totalAmount = fromCents(
+        toCents(subtotal) +
+        toCents(taxAmount) +
+        toCents(penaltyAmount)
+    );
 
     /*
      * STEP 7
@@ -279,8 +306,7 @@ const createInvoice = async (
      * inside one transaction.
      */
 
-    const transaction =
-        await sequelize.transaction();
+    const writeTransaction = transaction || await sequelize.transaction();
 
     try {
 
@@ -342,8 +368,27 @@ const createInvoice = async (
                         data.remarks ||
                         null
                 },
-                transaction
+                writeTransaction
             );
+
+        if (toCents(previousBalance) > 0 && !data.previousBalanceSources?.length) {
+            throw new Error("Positive display-only Previous Balance requires auditable source invoices");
+        }
+        if (data.previousBalanceSources?.length) {
+            const sourceTotal = fromCents(data.previousBalanceSources
+                .reduce((sum, source) => sum + toCents(source.outstandingAmount), 0));
+            if (toCents(sourceTotal) !== toCents(previousBalance)) {
+                throw new Error("Previous balance source invoices do not reconcile to the displayed balance");
+            }
+            if (!(await PreviousBalanceService.hasSourceTable(writeTransaction))) {
+                throw new Error("Previous Balance source schema is not ready; apply migration 0111 before issuing this statement Invoice.");
+            }
+            await repository.createPreviousBalanceSources(
+                invoice,
+                data.previousBalanceSources,
+                writeTransaction
+            );
+        }
 
         for (
             const item
@@ -357,16 +402,18 @@ const createInvoice = async (
 
                     ...item
                 },
-                transaction
+                writeTransaction
             );
         }
 
-        await transaction.commit();
+        if (ownsTransaction) {
+            await writeTransaction.commit();
+        }
 
-        const createdInvoice =
-            await repository.findById(
-                invoice.id
-            );
+        const createdInvoice = await repository.findById(
+            invoice.id,
+            ownsTransaction ? null : writeTransaction
+        );
 
         return {
             invoice:
@@ -377,10 +424,10 @@ const createInvoice = async (
     } catch (error) {
 
         if (
-            transaction &&
-            !transaction.finished
+            ownsTransaction &&
+            !writeTransaction.finished
         ) {
-            await transaction.rollback();
+            await writeTransaction.rollback();
         }
 
         /*
@@ -391,6 +438,7 @@ const createInvoice = async (
          */
 
         if (
+            ownsTransaction &&
             error.name ===
             "SequelizeUniqueConstraintError"
         ) {
@@ -436,9 +484,17 @@ const getAll = async ({
             status;
     }
 
-    return repository.findAll(
-        where
-    );
+    const invoices = await repository.findAll(where);
+    const liveBalances = await PreviousBalanceService.getLivePreviousBalances(invoices);
+    return invoices.map((invoice) => {
+        const plain = typeof invoice.toJSON === "function" ? invoice.toJSON() : invoice;
+        const liveBalance = liveBalances.get(invoice.id) || { amount: 0, sources: [] };
+        return {
+            ...plain,
+            previousBalance: liveBalance.amount,
+            previousBalanceSources: liveBalance.sources,
+        };
+    });
 };
 
 const getById = async (
@@ -456,16 +512,25 @@ const getById = async (
         );
     }
 
-    return invoice;
+    const liveBalances = await PreviousBalanceService.getLivePreviousBalances([invoice]);
+    const plain = typeof invoice.toJSON === "function" ? invoice.toJSON() : invoice;
+    const liveBalance = liveBalances.get(invoice.id) || { amount: 0, sources: [] };
+    return {
+        ...plain,
+        previousBalance: liveBalance.amount,
+        previousBalanceSources: liveBalance.sources,
+    };
 };
 
 const issueInvoice = async (
-    id
+    id,
+    transaction = null
 ) => {
 
     const invoice =
         await repository.findById(
-            id
+            id,
+            transaction
         );
 
     if (!invoice) {
@@ -485,7 +550,7 @@ const issueInvoice = async (
 
     await invoice.update({
         status: "ISSUED"
-    });
+    }, transaction ? { transaction } : undefined);
 
     return invoice;
 };

@@ -33,13 +33,17 @@ const findAll = async (
 
 const findById = async (
     id,
-    transaction = null
+    transaction = null,
+    lock = false
 ) => {
 
     return Billing.findByPk(
         id,
         transaction
-            ? { transaction }
+            ? {
+                transaction,
+                ...(lock ? { lock: transaction.LOCK.UPDATE } : {})
+            }
             : undefined
     );
 };
@@ -57,6 +61,26 @@ const findByBillNumber = async (
         }
     });
 };
+
+const findIssuedMonthlyMaintenanceDuplicate = async ({
+    societyId,
+    unitId,
+    billingPeriod,
+    billingConfigId,
+    excludeBillingId,
+    transaction,
+}) => Billing.findOne({
+    where: {
+        societyId,
+        unitId,
+        billingPeriod,
+        billingConfigId,
+        id: { [Op.ne]: excludeBillingId },
+        status: { [Op.in]: ["ISSUED", "PARTIALLY_PAID", "OVERDUE", "PAID"] },
+    },
+    transaction,
+    lock: transaction.LOCK.UPDATE,
+});
 
 
 const findByUnit = async (
@@ -182,6 +206,7 @@ module.exports = {
     findAll,
     findById,
     findByBillNumber,
+    findIssuedMonthlyMaintenanceDuplicate,
     findByUnit,
     findOutstandingByUnit,
     findOverdueBills,

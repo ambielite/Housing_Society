@@ -40,6 +40,12 @@ const Billing = sequelize.define(
             field: "billing_config_id"
         },
 
+        penaltyRuleSnapshot: {
+            type: DataTypes.JSONB,
+            allowNull: true,
+            field: "penalty_rule_snapshot"
+        },
+
         billNumber: {
             type: DataTypes.STRING(100),
             allowNull: false,

@@ -1,116 +1,73 @@
-const AccessAssignment = require("./accessAssignment.model");
+const AccessAssignment = require('./accessAssignment.model');
 
-const create = async (data) => {
-    return await AccessAssignment.create(data);
+const create = async (data, transaction = null) => AccessAssignment.create(data, transaction ? { transaction } : undefined);
+
+const findAll = async (societyId) => AccessAssignment.findAll({
+  where: { societyId },
+  order: [['created_at', 'DESC']],
+});
+
+const findById = async (id, societyId, transaction = null) => AccessAssignment.findOne({
+  where: { id, societyId },
+  ...(transaction ? { transaction, lock: transaction.LOCK.UPDATE } : {}),
+});
+
+const findActiveByUnit = async (unitId, societyId) => AccessAssignment.findOne({
+  where: { unitId, societyId, accessStatus: 'ACTIVE' },
+  order: [['created_at', 'DESC']],
+});
+
+const findActiveByResident = async (residentId, societyId, transaction = null) => AccessAssignment.findAll({
+  where: { residentId, societyId, accessStatus: 'ACTIVE' },
+  ...(transaction ? { transaction, lock: transaction.LOCK.UPDATE } : {}),
+  order: [['created_at', 'DESC']],
+});
+
+const findByUnit = async (unitId, societyId) => AccessAssignment.findAll({
+  where: { unitId, societyId },
+  order: [['created_at', 'DESC']],
+});
+
+const findByResident = async (residentId, societyId) => AccessAssignment.findAll({
+  where: { residentId, societyId },
+  order: [['created_at', 'DESC']],
+});
+
+const findByLifecycle = async (lifecycleType, lifecycleId, societyId, transaction = null) => AccessAssignment.findAll({
+  where: { lifecycleType, lifecycleId, societyId },
+  ...(transaction ? { transaction, lock: transaction.LOCK.UPDATE } : {}),
+  order: [['created_at', 'DESC']],
+});
+
+const findActive = async (societyId) => AccessAssignment.findAll({
+  where: { societyId, accessStatus: 'ACTIVE' },
+  order: [['created_at', 'DESC']],
+});
+
+const update = async (id, societyId, data) => {
+  const assignment = await findById(id, societyId);
+  if (!assignment) return null;
+  await assignment.update(data);
+  return assignment;
 };
 
-
-const findAll = async () => {
-    return await AccessAssignment.findAll({
-        order: [["created_at", "DESC"]]
-    });
+const deleteById = async (id, societyId) => {
+  const assignment = await findById(id, societyId);
+  if (!assignment) return null;
+  await assignment.destroy();
+  return assignment;
 };
-
-
-const findById = async (id) => {
-    return await AccessAssignment.findByPk(id);
-};
-
-
-const findActiveByUnit = async (unitId) => {
-    return await AccessAssignment.findOne({
-        where: {
-            unitId,
-            accessStatus: "ACTIVE"
-        },
-        order: [["created_at", "DESC"]]
-    });
-};
-
-
-const findActiveByResident = async (residentId) => {
-    return await AccessAssignment.findAll({
-        where: {
-            residentId,
-            accessStatus: "ACTIVE"
-        },
-        order: [["created_at", "DESC"]]
-    });
-};
-
-
-const findByUnit = async (unitId) => {
-    return await AccessAssignment.findAll({
-        where: {
-            unitId
-        },
-        order: [["created_at", "DESC"]]
-    });
-};
-
-
-const findByLifecycle = async (
-    lifecycleType,
-    lifecycleId
-) => {
-    return await AccessAssignment.findAll({
-        where: {
-            lifecycleType,
-            lifecycleId
-        },
-        order: [["created_at", "DESC"]]
-    });
-};
-
-
-const findActive = async () => {
-    return await AccessAssignment.findAll({
-        where: {
-            accessStatus: "ACTIVE"
-        },
-        order: [["created_at", "DESC"]]
-    });
-};
-
-
-const update = async (id, data) => {
-    const assignment =
-        await AccessAssignment.findByPk(id);
-
-    if (!assignment) {
-        return null;
-    }
-
-    await assignment.update(data);
-
-    return assignment;
-};
-
-
-const deleteById = async (id) => {
-    const assignment =
-        await AccessAssignment.findByPk(id);
-
-    if (!assignment) {
-        return null;
-    }
-
-    await assignment.destroy();
-
-    return assignment;
-};
-
 
 module.exports = {
-    create,
-    findAll,
-    findById,
-    findActiveByUnit,
-    findActiveByResident,
-    findByUnit,
-    //findByResident,
-    findByLifecycle,
-    findActive,
-    update,
-    deleteById
+  create,
+  findAll,
+  findById,
+  findActiveByUnit,
+  findActiveByResident,
+  findByUnit,
+  findByResident,
+  findByLifecycle,
+  findActive,
+  update,
+  deleteById,
 };

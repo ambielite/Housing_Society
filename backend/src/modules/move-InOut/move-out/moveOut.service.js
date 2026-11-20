@@ -1,23 +1,58 @@
 const repository = require("./moveOut.repository");
-const AccessAssignment = require("../access/accessAssignment.model");
-const LifecycleAudit = require("../lifecycle-audit/lifecycleAudit.model");
-const BillingResponsibility = require("../billing-responsibility/billingResponsibility.model");
-const Resident = require("../../residents/resident/resident.model");
+const sequelize = require("../../../config/database");
+const InvoiceRepository = require("../../financial/invoice/invoice.repository");
+const ResidentFinanceService = require("../../resident-finance/residentFinance.service");
+const { processEffectiveMoveOut } = require("./moveOutEffectiveProcessor.service");
 
-const createMoveOut = async (data) => {
+const getPendingAmount = async (data, user) => {
+    if (!user?.societyId || data.societyId !== user.societyId) {
+        const error = new Error("Request society must match the active society");
+        error.status = 403;
+        throw error;
+    }
+    return ResidentFinanceService.calculateMoveOutPendingAmount(data);
+};
+
+const createMoveOut = async (data, user) => {
+    if (!user?.societyId || data.societyId !== user.societyId) {
+        const error = new Error("Request society must match the active society");
+        error.status = 403;
+        throw error;
+    }
     const effectiveMoveOutDate = data.effectiveMoveOutDate || data.requestedMoveOutDate;
-    return await repository.create({
-        societyId: data.societyId,
-        unitId: data.unitId,
-        residentId: data.residentId,
-        requestedMoveOutDate: data.requestedMoveOutDate,
-        effectiveMoveOutDate,
-        configuredCharges: data.configuredCharges || 0,
-        revertBillingToOwner: data.revertBillingToOwner !== false,
-        checklistTasks: Array.isArray(data.checklistTasks) ? data.checklistTasks : [],
-        remarks: data.remarks || null,
-        status: "REQUESTED"
-    });
+    const transaction = await sequelize.transaction();
+    try {
+        await InvoiceRepository.lockUnitFinancialScope(data.societyId, data.unitId, transaction);
+        const pending = await ResidentFinanceService.calculateMoveOutPendingAmount({
+            societyId: data.societyId,
+            unitId: data.unitId,
+            residentId: data.residentId,
+            requestedMoveOutDate: data.requestedMoveOutDate,
+            transaction,
+        });
+        if (pending.amount > 0) {
+            const error = new Error(`Please clear the pending amount of ₹${pending.amount.toFixed(2)} before proceeding with move-out.`);
+            error.status = 409;
+            throw error;
+        }
+        const moveOut = await repository.create({
+            societyId: data.societyId,
+            unitId: data.unitId,
+            residentId: data.residentId,
+            requestedMoveOutDate: data.requestedMoveOutDate,
+            effectiveMoveOutDate,
+            configuredCharges: data.configuredCharges || 0,
+            revertBillingToOwner: data.revertBillingToOwner !== false,
+            checklistTasks: Array.isArray(data.checklistTasks) ? data.checklistTasks : [],
+            remarks: data.remarks || null,
+            status: "REQUESTED"
+        }, transaction);
+        await transaction.commit();
+        return moveOut;
+    } catch (error) {
+        if (!transaction.finished) await transaction.rollback();
+        throw error;
+    }
 };
 
 const getMoveOuts = async () => {
@@ -209,46 +244,7 @@ const issueMoveOutPass = async (id) => {
 };
 
 const revokeAccess = async (id) => {
-    const moveOut = await repository.findById(id);
-
-    if (!moveOut) {
-        return null;
-    }
-
-    if (
-        moveOut.status !==
-        "MOVE_OUT_PASS_ISSUED"
-    ) {
-        throw new Error(
-            "Access can only be revoked after move-out pass issuance"
-        );
-    }
-
-    const effectiveDate = new Date(`${moveOut.effectiveMoveOutDate || moveOut.requestedMoveOutDate}T00:00:00`);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (effectiveDate > today) {
-        throw new Error(`Access remains active until the approved effective move-out date (${moveOut.effectiveMoveOutDate || moveOut.requestedMoveOutDate})`);
-    }
-
-    const revoked = await repository.update(id, {
-        status: "ACCESS_REVOKED"
-    });
-    await AccessAssignment.update(
-        { accessStatus: "REVOKED", revokedAt: new Date(), remarks: "Revoked on approved move-out effective date" },
-        { where: { residentId: moveOut.residentId, unitId: moveOut.unitId, accessStatus: "ACTIVE" } }
-    );
-    await Resident.update({ status: "ARCHIVED" }, { where: { id: moveOut.residentId, societyId: moveOut.societyId, role: "TENANT" } });
-    await BillingResponsibility.update(
-        { isCurrent: false, endDate: new Date().toISOString().slice(0, 10) },
-        { where: { residentId: moveOut.residentId, unitId: moveOut.unitId, isCurrent: true } }
-    );
-    if (moveOut.revertBillingToOwner !== false) {
-        const ownerResponsibility = await BillingResponsibility.findOne({ where: { unitId: moveOut.unitId, responsibilityType: "OWNER" }, order: [["created_at", "DESC"]] });
-        if (ownerResponsibility) await ownerResponsibility.update({ isCurrent: true, startDate: new Date().toISOString().slice(0, 10), endDate: null });
-    }
-    await LifecycleAudit.create({ lifecycleType: "MOVE_OUT", lifecycleId: id, action: "ACCESS_REVOKED", previousStatus: "MOVE_OUT_PASS_ISSUED", newStatus: "ACCESS_REVOKED", performedAt: new Date(), remarks: "Access revoked after approved effective date" });
-    return revoked;
+    return processEffectiveMoveOut(id);
 };
 
 const cancelMoveOut = async (id, reason) => {
@@ -297,6 +293,7 @@ const deleteMoveOut = async (id) => {
 };
 
 module.exports = {
+    getPendingAmount,
     createMoveOut,
     getMoveOuts,
     getMoveOut,

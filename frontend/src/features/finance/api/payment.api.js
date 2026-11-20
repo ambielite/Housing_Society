@@ -9,6 +9,6 @@ const paymentApi = {
     create: async (data) => (await axiosClient.post("/payments/offline", data)).data,
     initiate: async (data) => (await axiosClient.post("/payments/initiate", data)).data,
     verify: async (id, data = {}) => (await axiosClient.post(`/payments/${id}/verify`, data)).data,
-    cancel: async (id) => (await axiosClient.post(`/payments/${id}/cancel`)).data
+    cancel: async (id, remarks) => (await axiosClient.post(`/payments/${id}/cancel`, { remarks })).data
 };
 export default paymentApi;

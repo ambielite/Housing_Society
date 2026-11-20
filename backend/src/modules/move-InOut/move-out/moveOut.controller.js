@@ -2,9 +2,7 @@ const service = require("./moveOut.service");
 
 const createMoveOut = async (req, res) => {
     try {
-        const moveOut = await service.createMoveOut(
-            req.body
-        );
+        const moveOut = await service.createMoveOut(req.body, req.user);
 
         return res.status(201).json({
             success: true,
@@ -12,10 +10,19 @@ const createMoveOut = async (req, res) => {
             data: moveOut
         });
     } catch (error) {
-        return res.status(500).json({
+        return res.status(error.status || 500).json({
             success: false,
             message: error.message
         });
+    }
+};
+
+const getPendingAmount = async (req, res) => {
+    try {
+        const data = await service.getPendingAmount(req.query, req.user);
+        return res.status(200).json({ success: true, data });
+    } catch (error) {
+        return res.status(error.status || 400).json({ success: false, message: error.message });
     }
 };
 
@@ -390,6 +397,7 @@ const cancelMoveOut = async (req, res) => {
 };
 
 module.exports = {
+    getPendingAmount,
     createMoveOut,
     getMoveOuts,
     getMoveOut,

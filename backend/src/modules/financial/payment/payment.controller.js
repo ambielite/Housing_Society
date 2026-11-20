@@ -25,7 +25,7 @@ const initiateOnlinePayment = async (
             message:
                 result.duplicate
                     ? "Existing payment returned"
-                    : "Online payment initiated successfully",
+                    : "Payment request recorded and pending provider confirmation",
 
             duplicate:
                 result.duplicate,
@@ -107,7 +107,8 @@ const verifyOfflinePayment = async (
             await PaymentService
                 .verifyOfflinePayment(
                     req.params.id,
-                    req.body
+                    req.body,
+                    req.user?.id
                 );
 
         return res.status(200).json({
@@ -149,8 +150,9 @@ const webhook = async (
 
         const result =
             await PaymentService
-                .processWebhook(
-                    req.body
+                .processRazorpayWebhook(
+                    req.body,
+                    req.get('x-razorpay-signature')
                 );
 
         return res.status(200).json({

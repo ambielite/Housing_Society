@@ -55,6 +55,11 @@ router.post(
     controller.updateOverdue
 );
 
+router.post(
+    "/:id/apply-penalty",
+    controller.applyPenalty
+);
+
 
 // =====================================================
 // GET BILLINGS BY UNIT

@@ -9,8 +9,30 @@ DB_NAME, DB_USER, DB_PASSWORD. Run commands from the backend directory.
 
 The numbered SQL files are a snapshot of the 88 currently registered
 Sequelize models, including enums, SQL UUID defaults, keys, and model indexes.
-The runner records SHA-256 checksums in public.schema_migrations, locks concurrent
-runners, and commits each SQL file and its history record in one transaction.
+The current runner records SHA-256 checksums in
+`public.integration_schema_migrations`, locks applying runners, and commits each
+SQL file and its history record in one transaction. It can read an older
+`public.schema_migrations` table as legacy history when present.
+
+## Scoped billing migrations
+
+The scoped runner mode is restricted to the approved root migration filenames
+0109, 0110, and 0111 (0111 becomes executable only after its reviewed migration
+file is added). It requires an existing
+`public.integration_schema_migrations` table and never creates or adopts a
+baseline. It prints the selected pending migrations and other pending files
+before doing anything:
+
+```text
+node scripts/migrate.js scoped --target 0110_add_billing_penalty_rule_snapshot.sql --dry-run
+node scripts/migrate.js scoped --target 0110_add_billing_penalty_rule_snapshot.sql --apply
+```
+
+`--dry-run` only reads migration history and does not take the migration lock.
+`--apply` is explicit and applies approved root migrations through the selected
+target in filename order. Pending `sujal/` migrations are displayed as not
+selected and are not applied. Do not use `--apply` until the exact pending SQL,
+backup, and rollback plan have been approved.
 
 ## New database
 

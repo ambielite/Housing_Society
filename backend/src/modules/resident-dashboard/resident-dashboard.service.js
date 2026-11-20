@@ -1,5 +1,6 @@
 const { query } = require('../../config/db');
 const noticesService = require('../notices/notices.service');
+const { resolveResidentUnits } = require('../resident-context/residentUnitContext.service');
 
 const getDashboard = async (user) => {
   const societyId = user.societyId;
@@ -7,46 +8,33 @@ const getDashboard = async (user) => {
     return { society: null, unit: null, maintenance: null, notices: [] };
   }
 
-  const homeResult = await query(
-    `SELECT s.id AS society_id, s.name AS society_name, s.currency,
-            s.logo_url AS society_logo_url, s.address AS society_address,
-            s.email AS society_email, s.phone AS society_phone,
-            r.id AS resident_id, r.display_name, r.profile_photo AS resident_photo_url,
-            t.name AS tower_name, f.name AS floor_name, u.id AS unit_id, u.unit_number
-       FROM societies s
-       LEFT JOIN residents r
-         ON r.society_id = s.id
-        AND (r.user_id = $2 OR (r.user_id IS NULL AND lower(r.email) = lower($3)))
-        AND r.status = 'ACTIVE'
-       LEFT JOIN owner_units ou
-         ON ou.owner_id = r.id AND ou.society_id = s.id AND ou.status = 'ACTIVE'
-        AND (ou.effective_to IS NULL OR ou.effective_to >= CURRENT_DATE)
-       LEFT JOIN units u ON u.id = ou.unit_id
-       LEFT JOIN floors f ON f.id = u.floor_id
-       LEFT JOIN towers t ON t.id = f.tower_id
-      WHERE s.id = $1
-      ORDER BY ou.effective_from DESC NULLS LAST
-      LIMIT 1`,
-    [societyId, user.id, user.email],
+  const societyResult = await query(
+    `SELECT id AS society_id, name AS society_name, currency,
+            logo_url AS society_logo_url, address AS society_address,
+            email AS society_email, phone AS society_phone
+       FROM societies WHERE id = $1`,
+    [societyId],
   );
-  const home = homeResult.rows[0];
+  const home = societyResult.rows[0] || null;
+  const residentContext = await resolveResidentUnits(user);
+  const resident = residentContext.resident;
+  // The dashboard contract exposes one Unit. Prefer physical Occupancy, then
+  // the latest eligible relationship, with a stable Unit-ID tie-breaker.
+  const unit = residentContext.units[0] || null;
 
   let maintenance = null;
   let upcomingBookings = [];
-  if (home?.resident_id) {
+  if (resident) {
     const invoiceResult = await query(
       `SELECT i.invoice_number, i.billing_period,
               to_char(i.due_date, 'YYYY-MM-DD') AS due_date,
               i.outstanding_amount, i.status, i.description
          FROM invoices i
-         JOIN owner_units ou ON ou.unit_id = i.unit_id
-        WHERE ou.owner_id = $1 AND ou.society_id = $2 AND ou.status = 'ACTIVE'
-          AND (ou.effective_to IS NULL OR ou.effective_to >= CURRENT_DATE)
-          AND i.society_id = $2 AND i.outstanding_amount > 0
+        WHERE i.unit_id = $1 AND i.society_id = $2 AND i.outstanding_amount > 0
           AND i.status IN ('ISSUED', 'PARTIALLY_PAID', 'OVERDUE')
         ORDER BY i.due_date ASC
         LIMIT 1`,
-      [home.resident_id, societyId],
+      [unit?.unit_id || null, societyId],
     );
     maintenance = invoiceResult.rows[0] || null;
 
@@ -109,14 +97,14 @@ const getDashboard = async (user) => {
       email: home.society_email,
       phone: home.society_phone,
     } : null,
-    resident: home?.resident_id ? {
-      name: home.display_name,
-      photoUrl: home.resident_photo_url,
+    resident: resident ? {
+      name: resident.display_name,
+      photoUrl: resident.profile_photo,
     } : null,
-    unit: home?.unit_number ? {
-      number: home.unit_number,
-      tower: home.tower_name,
-      floor: home.floor_name,
+    unit: unit ? {
+      number: unit.unit_number,
+      tower: unit.tower_name,
+      floor: unit.floor_name,
     } : null,
     maintenance,
     upcomingBookings,

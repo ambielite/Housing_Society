@@ -335,6 +335,28 @@ const updateOverdue = async (
 
 
 // =====================================================
+// APPLY PENALTY TO ONE BILL
+// =====================================================
+
+const applyPenalty = async (req, res) => {
+    try {
+        const result = await service.applyPenaltyToBill({
+            billingId: req.params.id,
+            societyId: req.body.societyId,
+            asOfDate: req.body.asOfDate
+        });
+        return res.json({
+            success: true,
+            message: result.applied ? "Penalty applied to bill" : "No penalty applied",
+            data: result
+        });
+    } catch (error) {
+        return res.status(400).json({ success: false, message: error.message });
+    }
+};
+
+
+// =====================================================
 // CANCEL
 // =====================================================
 
@@ -430,6 +452,8 @@ module.exports = {
     issue,
 
     updateOverdue,
+
+    applyPenalty,
 
     cancel,
 
