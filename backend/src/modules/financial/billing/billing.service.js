@@ -491,8 +491,9 @@ const calculateCompleteBilling = async ({
 // CREATE BILLING
 // =====================================================
 
-const createBilling = async (
-    data
+const createBillingRecord = async (
+    data,
+    transaction = null
 ) => {
 
     const existing =
@@ -740,10 +741,51 @@ const createBilling = async (
 
             remarks:
                 data.remarks || null
-        });
+        }, transaction);
 
 
     return billing;
+};
+
+const createBilling = async (data) => {
+    const billingRule = data.billingConfigId
+        ? await BillingConfig.findByPk(data.billingConfigId)
+        : data.billingRuleCode
+            ? await getBillingRule(data.societyId, data.billingRuleCode, data.billDate)
+            : null;
+    const isMonthlyFlatMaintenance = billingRule?.societyId === data.societyId
+        && billingRule?.configType === "BILLING_RULE"
+        && billingRule?.code === "BR-MNT-001";
+    if (!isMonthlyFlatMaintenance) return createBillingRecord(data);
+
+    const transaction = await sequelize.transaction();
+    try {
+        await repository.lockMonthlyMaintenanceScope({
+            societyId: data.societyId,
+            memberId: data.memberId,
+            unitId: data.unitId,
+            billingPeriod: data.billingPeriod,
+            billingConfigId: billingRule.id,
+            transaction,
+        });
+        const duplicate = await repository.findIssuedMonthlyMaintenanceDuplicate({
+            societyId: data.societyId,
+            memberId: data.memberId,
+            unitId: data.unitId,
+            billingPeriod: data.billingPeriod,
+            billingConfigId: billingRule.id,
+            transaction,
+        });
+        if (duplicate) {
+            throw new Error("Monthly Flat Rent bill already exists for this resident for the selected month.");
+        }
+        const created = await createBillingRecord(data, transaction);
+        await transaction.commit();
+        return created;
+    } catch (error) {
+        if (!transaction.finished) await transaction.rollback();
+        throw error;
+    }
 };
 
 
@@ -799,9 +841,18 @@ const issueBilling = async (
             && billingRule?.configType === "BILLING_RULE"
             && billingRule?.code === "BR-MNT-001";
         if (isMonthlyFlatMaintenance) {
+            await repository.lockMonthlyMaintenanceScope({
+                societyId: billing.societyId,
+                memberId: billing.memberId,
+                unitId: billing.unitId,
+                billingPeriod: billing.billingPeriod,
+                billingConfigId: billing.billingConfigId,
+                transaction,
+            });
             const existingIssuedBill = await repository.findIssuedMonthlyMaintenanceDuplicate({
                 societyId: billing.societyId,
                 unitId: billing.unitId,
+                memberId: billing.memberId,
                 billingPeriod: billing.billingPeriod,
                 billingConfigId: billing.billingConfigId,
                 excludeBillingId: billing.id,
@@ -1572,56 +1623,104 @@ const updateOverdueBills = async () => {
 const cancelBilling = async (
     id
 ) => {
+    const initialBilling = await repository.findById(id);
+    if (!initialBilling) throw new Error("Billing record not found");
 
-    const billing =
-        await repository.findById(
-            id
-        );
+    const transaction = await sequelize.transaction();
+    try {
+        let billing;
+        let invoice = null;
+        if (initialBilling.status === "DRAFT") {
+            // Draft cancellation shares the bill-row lock order with issueBilling.
+            billing = await repository.findById(id, transaction, true);
+            if (!billing) throw new Error("Billing record not found");
+            if (billing.status !== "DRAFT") {
+                await transaction.rollback();
+                return cancelBilling(id);
+            }
+            const unexpectedInvoice = await InvoiceRepository.findByBillingId(id, transaction);
+            if (unexpectedInvoice) throw new Error("Draft billing has a linked invoice and must be reconciled before cancellation");
+        } else {
+            // Payment posting locks Payment, Unit scope, Invoice, then Billing.
+            // Read and lock payment rows first to avoid racing settlement.
+            const invoiceCandidate = await InvoiceRepository.findByBillingId(id, transaction);
+            if (!invoiceCandidate) throw new Error("Issued billing has no linked invoice and must be reconciled before cancellation");
+            const Payment = require("../payment/payment.model");
+            const payments = await Payment.findAll({
+                where: { invoiceId: invoiceCandidate.id },
+                transaction,
+                lock: transaction.LOCK.UPDATE,
+            });
+            if (payments.some((payment) => ["SUCCESS", "VERIFIED", "REFUNDED"].includes(payment.status) || payment.journalId)) {
+                throw new Error("Billing with a completed payment cannot be cancelled; use the existing refund or reversal workflow");
+            }
+            if (payments.some((payment) => payment.paymentChannel === "GATEWAY" && ["INITIATED", "PENDING", "VERIFICATION_PENDING"].includes(payment.status))) {
+                throw new Error("A gateway payment is still in progress. Resolve that payment attempt before cancelling this bill");
+            }
+            for (const payment of payments) {
+                if (payment.paymentChannel !== "GATEWAY" && ["INITIATED", "PENDING", "VERIFICATION_PENDING"].includes(payment.status)) {
+                    await payment.update({ status: "CANCELLED", remarks: payment.remarks || `Cancelled with billing ${initialBilling.billNumber}` }, { transaction });
+                }
+            }
 
+            // Payment posting locks Unit scope, Invoice, then Billing; follow
+            // that order after taking the Payment row locks above.
+            await InvoiceRepository.lockUnitFinancialScope(
+                initialBilling.societyId,
+                initialBilling.unitId,
+                transaction
+            );
+            invoice = await InvoiceRepository.findById(invoiceCandidate.id, transaction, true);
+            billing = await repository.findById(id, transaction, true);
+            if (!billing || !invoice) throw new Error("Billing record or linked invoice not found");
+            if (invoice.billingId !== billing.id || invoice.societyId !== billing.societyId || invoice.unitId !== billing.unitId) {
+                throw new Error("Billing and linked invoice references do not match");
+            }
+        }
 
-    if (!billing) {
-        throw new Error(
-            "Billing record not found"
-        );
+        if (billing.status === "PAID" || billing.status === "PARTIALLY_PAID") {
+            throw new Error(`${billing.status === "PAID" ? "Paid" : "Partially paid"} billing cannot be cancelled`);
+        }
+        if (billing.status === "CANCELLED") throw new Error("Billing is already cancelled");
+        if (invoice) {
+            if (["PAID", "PARTIALLY_PAID"].includes(invoice.status) || Number(invoice.paidAmount || 0) > 0) {
+                throw new Error("Paid or partially paid invoice cannot be cancelled");
+            }
+            const journals = await Journal.findAll({
+                where: {
+                    societyId: billing.societyId,
+                    referenceId: billing.id,
+                    referenceType: { [Op.in]: ["BILLING", "BILLING_PENALTY"] },
+                    status: "POSTED",
+                },
+                transaction,
+                lock: transaction.LOCK.UPDATE,
+            });
+            if ((billing.journalId || invoice.journalId) && !journals.some((journal) => journal.id === (billing.journalId || invoice.journalId))) {
+                throw new Error("The billing journal could not be found; reconcile this bill before cancellation");
+            }
+            for (const journal of journals) {
+                await journal.update({ status: "REVERSED" }, { transaction });
+            }
+
+            await invoice.update({
+                status: "CANCELLED",
+                outstandingAmount: 0,
+                remarks: [invoice.remarks, `Cancelled with billing ${billing.billNumber}`].filter(Boolean).join("\n"),
+            }, { transaction });
+        }
+
+        await billing.update({
+            status: "CANCELLED",
+            outstandingAmount: 0,
+            remarks: [billing.remarks, `Billing cancelled${invoice ? ` with invoice ${invoice.invoiceNumber}` : ""}`].filter(Boolean).join("\n"),
+        }, { transaction });
+        await transaction.commit();
+        return billing;
+    } catch (error) {
+        if (transaction && !transaction.finished) await transaction.rollback();
+        throw error;
     }
-
-
-    if (
-        billing.status ===
-        "PAID"
-    ) {
-        throw new Error(
-            "Paid billing cannot be cancelled"
-        );
-    }
-
-
-    if (
-        billing.status ===
-        "PARTIALLY_PAID"
-    ) {
-        throw new Error(
-            "Partially paid billing cannot be cancelled"
-        );
-    }
-
-
-    if (
-        billing.status ===
-        "CANCELLED"
-    ) {
-        throw new Error(
-            "Billing is already cancelled"
-        );
-    }
-
-
-    await billing.update({
-        status: "CANCELLED"
-    });
-
-
-    return billing;
 };
 
 
@@ -1632,39 +1731,42 @@ const cancelBilling = async (
 const deleteBilling = async (
     id
 ) => {
-
-    const billing =
-        await repository.findById(
-            id
-        );
-
-
-    if (!billing) {
-        throw new Error(
-            "Billing record not found"
-        );
+    const transaction = await sequelize.transaction();
+    try {
+        const billing = await repository.findById(id, transaction, true);
+        if (!billing) throw new Error("Billing record not found");
+        if (billing.status !== "CANCELLED") throw new Error("Only CANCELLED billing can be deleted");
+        const linkedInvoice = await InvoiceRepository.findByBillingId(id, transaction);
+        if (linkedInvoice) {
+            const InvoiceItem = require("../invoice/invoiceItem.model");
+            const InvoicePreviousBalanceSource = require("../invoice/invoicePreviousBalanceSource.model");
+            const Payment = require("../payment/payment.model");
+            const [payments, postedJournals, dependentBalances] = await Promise.all([
+                Payment.findAll({ where: { invoiceId: linkedInvoice.id }, transaction, lock: transaction.LOCK.UPDATE }),
+                Journal.findAll({
+                    where: { societyId: billing.societyId, referenceType: { [Op.in]: ["BILLING", "BILLING_PENALTY"] }, referenceId: billing.id, status: "POSTED" },
+                    transaction,
+                    lock: transaction.LOCK.UPDATE,
+                }),
+                InvoicePreviousBalanceSource.findOne({ where: { sourceInvoiceId: linkedInvoice.id }, transaction, lock: transaction.LOCK.UPDATE }),
+            ]);
+            if (payments.some((payment) => ["SUCCESS", "VERIFIED", "REFUNDED"].includes(payment.status) || payment.journalId) || Number(linkedInvoice.paidAmount || 0) > 0) {
+                throw new Error("Billing with completed payment history cannot be deleted");
+            }
+            if (postedJournals.length) throw new Error("Billing with posted accounting history cannot be deleted");
+            if (dependentBalances) throw new Error("Invoice is referenced by another invoice balance and cannot be deleted");
+            for (const payment of payments) await payment.update({ invoiceId: null }, { transaction });
+            await InvoicePreviousBalanceSource.destroy({ where: { statementInvoiceId: linkedInvoice.id }, transaction });
+            await InvoiceItem.destroy({ where: { invoiceId: linkedInvoice.id }, transaction });
+            await linkedInvoice.destroy({ transaction });
+        }
+        await repository.deleteById(id, transaction);
+        await transaction.commit();
+        return { message: "Billing deleted successfully" };
+    } catch (error) {
+        if (transaction && !transaction.finished) await transaction.rollback();
+        throw error;
     }
-
-
-    if (
-        billing.status !==
-        "DRAFT"
-    ) {
-        throw new Error(
-            "Only DRAFT billing can be deleted"
-        );
-    }
-
-
-    await repository.deleteById(
-        id
-    );
-
-
-    return {
-        message:
-            "Billing deleted successfully"
-    };
 };
 
 

@@ -65,22 +65,36 @@ const findByBillNumber = async (
 const findIssuedMonthlyMaintenanceDuplicate = async ({
     societyId,
     unitId,
+    memberId,
     billingPeriod,
     billingConfigId,
     excludeBillingId,
     transaction,
-}) => Billing.findOne({
-    where: {
+}) => {
+    const where = {
         societyId,
-        unitId,
+        ...(memberId ? { memberId } : { unitId }),
         billingPeriod,
         billingConfigId,
-        id: { [Op.ne]: excludeBillingId },
-        status: { [Op.in]: ["ISSUED", "PARTIALLY_PAID", "OVERDUE", "PAID"] },
-    },
-    transaction,
-    lock: transaction.LOCK.UPDATE,
-});
+        status: { [Op.in]: ["DRAFT", "ISSUED", "PARTIALLY_PAID", "OVERDUE", "PAID"] },
+    };
+    if (excludeBillingId) where.id = { [Op.ne]: excludeBillingId };
+    return Billing.findOne({
+        where,
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+    });
+};
+
+const lockMonthlyMaintenanceScope = async ({ societyId, memberId, unitId, billingPeriod, billingConfigId, transaction }) => {
+    if (!transaction) throw new Error("A transaction is required to lock a monthly maintenance scope");
+    const scope = `housing-society-monthly-maintenance:${societyId}:${billingConfigId}:${billingPeriod}`;
+    const residentScopeId = memberId || unitId;
+    await Billing.sequelize.query(
+        "SELECT pg_advisory_xact_lock(hashtext(:scope), hashtext(:residentScopeId))",
+        { replacements: { scope, residentScopeId }, transaction }
+    );
+};
 
 
 const findByUnit = async (
@@ -190,13 +204,15 @@ const update = async (
 
 
 const deleteById = async (
-    id
+    id,
+    transaction = null
 ) => {
 
     return Billing.destroy({
         where: {
             id
-        }
+        },
+        ...(transaction ? { transaction } : {})
     });
 };
 
@@ -207,6 +223,7 @@ module.exports = {
     findById,
     findByBillNumber,
     findIssuedMonthlyMaintenanceDuplicate,
+    lockMonthlyMaintenanceScope,
     findByUnit,
     findOutstandingByUnit,
     findOverdueBills,

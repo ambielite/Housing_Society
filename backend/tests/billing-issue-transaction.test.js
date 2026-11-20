@@ -8,6 +8,7 @@ jest.mock('../src/config/database', () => ({
 jest.mock('../src/modules/financial/billing/billing.repository', () => ({
   findById: jest.fn(),
   findIssuedMonthlyMaintenanceDuplicate: jest.fn(),
+  lockMonthlyMaintenanceScope: jest.fn(),
 }));
 jest.mock('../src/modules/financial/billing-config/billingConfig.model', () => ({ findByPk: jest.fn() }));
 jest.mock('../src/modules/financial/ledger-account/ledgerAccount.model', () => ({ findOne: jest.fn() }));
@@ -27,6 +28,7 @@ jest.mock('../src/modules/financial/invoice/invoice.repository', () => ({
   createItem: jest.fn(),
 }));
 jest.mock('../src/modules/financial/invoice/invoice.model', () => ({}));
+jest.mock('../src/modules/financial/invoice/invoiceItem.model', () => ({ destroy: jest.fn() }));
 jest.mock('../src/modules/financial/invoice/previousBalance.service', () => ({ hasSourceTable: jest.fn() }));
 jest.mock('../src/modules/financial/tax/tax.service', () => ({
   calculateInvoiceTax: jest.fn().mockResolvedValue({ totalTax: 0 }),
@@ -122,6 +124,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   InvoiceRepository.findByBillingId.mockResolvedValue(null);
   billingRepository.findIssuedMonthlyMaintenanceDuplicate.mockResolvedValue(null);
+  billingRepository.lockMonthlyMaintenanceScope.mockResolvedValue(undefined);
 });
 
 test('Bill issue creates the shared Invoice, two Journal Lines and commits once', async () => {
@@ -166,6 +169,7 @@ test('first BR-MNT-001 bill issues and checks duplicates after acquiring the uni
   expect(billingRepository.findIssuedMonthlyMaintenanceDuplicate).toHaveBeenCalledWith({
     societyId: billing.societyId,
     unitId: billing.unitId,
+    memberId: billing.memberId,
     billingPeriod: billing.billingPeriod,
     billingConfigId: billing.billingConfigId,
     excludeBillingId: billing.id,
