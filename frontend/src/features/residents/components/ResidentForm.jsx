@@ -302,7 +302,7 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
             return;
         }
 
-        if (["PRIMARY_OWNER", "CO_OWNER", "TENANT"].includes(values.role) && !values.unitId) {
+        if (!resident && ["PRIMARY_OWNER", "CO_OWNER", "TENANT"].includes(values.role) && !values.unitId) {
             setError("Select a vacant unit before creating this resident.");
             return;
         }
@@ -329,6 +329,7 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
         if (resident) {
             delete payload.userId;
             delete payload.accountPassword;
+            delete payload.status;
         } else if (accountMode === "new") {
             delete payload.userId;
             payload.accountPassword = accountPassword;
@@ -344,6 +345,9 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
             setSaving(true);
             if (resident?.id) {
                 await residentApi.update(resident.id, payload);
+                if (values.status !== resident.status) {
+                    await residentApi.updateStatus(resident.id, values.societyId, values.status);
+                }
             } else {
                 if (!residentId) {
                     const result = await residentApi.create(payload, societyConfig);

@@ -10,6 +10,7 @@ const bcrypt = require("bcryptjs");
 const { QueryTypes } = require("sequelize");
 const { saveProfilePicture, removeProfilePicture } = require("../../users/profilePicture.storage");
 const residentDashboardEvents = require("../../resident-dashboard/residentDashboardEvents");
+const authRepository = require("../../auth/auth.repository");
 const Unit = require("../../societies/unit/unit.model");
 const OwnerUnit = require("../owner-unit/ownerUnit.model");
 const Occupancy = require("../../move-InOut/occupancy/occupancy.model");
@@ -577,6 +578,13 @@ const changeResidentStatus = async (
     const statusChanged = resident.status !== status;
     await sequelize.transaction(async (transaction) => {
         await residentRepository.update(resident, { status }, { transaction });
+        if (resident.userId) {
+            const accountStatus = status === "BLACKLISTED" ? "SUSPENDED" : status;
+            await sequelize.query(
+                "UPDATE users SET status = :status, updated_at = now() WHERE id = :userId",
+                { replacements: { status: accountStatus, userId: resident.userId }, transaction }
+            );
+        }
         if (statusChanged && resident.userId) {
             await sequelize.query(
                 `INSERT INTO notifications
@@ -599,6 +607,9 @@ const changeResidentStatus = async (
             );
         }
     });
+    if (statusChanged && resident.userId && status !== "ACTIVE") {
+        await authRepository.revokeAllUserRefreshTokens(resident.userId);
+    }
     if (statusChanged) {
         residentDashboardEvents.publishToUser(resident.userId, "resident-updated");
     }

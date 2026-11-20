@@ -81,7 +81,7 @@ function ConfirmForm({ bookingId, amount, onSubmit, onCancel, saving, error, can
     event.preventDefault();
     onSubmit(paymentId ? { paymentId } : {});
   };
-  const paymentRequired = Number(amount) > 0;
+  const paymentRequired = false;
 
   return (
     <form onSubmit={submit} noValidate>
@@ -266,7 +266,7 @@ export default function BookingDetailPage() {
           <h2 className="section-title">Actions</h2>
           <p className="muted">Actions are shown only when the current user has the corresponding backend permission.</p>
           <div className="assign-row">
-            {canUpdate && b.status === 'PENDING_PAYMENT' && <button className="btn btn-primary" onClick={() => { setError(''); setDialog({ type: 'confirm' }); }}>Confirm payment</button>}
+            {canUpdate && b.status === 'PENDING_PAYMENT' && <button className="btn btn-primary" onClick={() => { setError(''); setDialog({ type: 'confirm' }); }}>Confirm booking</button>}
             {canUpdate && !['CANCELLED', 'EXPIRED'].includes(b.status) && <button className="btn btn-secondary" onClick={() => act(api.cancelBooking)}>Cancel booking</button>}
             {canUpdate && b.status === 'CONFIRMED' && <button className="btn btn-secondary" onClick={() => act(api.markNoShow)}>Mark no-show</button>}
             {hasPermission('AMENITY_BOOKING_CREATE') && <button className="btn btn-secondary" onClick={() => { setError(''); setDialog({ type: 'guest' }); }}><Plus size={18} strokeWidth={2.4} aria-hidden="true" /> Add guest</button>}

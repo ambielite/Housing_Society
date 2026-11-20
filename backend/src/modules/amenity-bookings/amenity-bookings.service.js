@@ -3,12 +3,28 @@ const ApiError = require('../../common/ApiError');
 const repository = require('./amenity-bookings.repository');
 const amenitiesRepository = require('../amenities/amenities.repository');
 const invoiceService = require('../financial/invoice/invoice.service');
-const paymentService = require('../financial/payment/payment.service');
-
-// Baseline from the spec: "Pending-payment window; baseline example is 5 minutes."
-const PENDING_PAYMENT_WINDOW_MINUTES = 5;
 
 const generateBookingNo = () => `BKG-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+
+const issueBookingInvoice = async (booking, slot, amenity) => {
+  if (Number(booking.amount) <= 0) return null;
+  const today = await amenitiesRepository.getCurrentDate();
+  const result = await invoiceService.createInvoice({
+    societyId: amenity.society_id,
+    unitId: booking.unit_id,
+    invoiceNumber: `AMN-${booking.booking_no}`,
+    billingPeriod: `AMENITY-${booking.booking_no}`,
+    invoiceDate: today,
+    dueDate: today,
+    idempotencyKey: `amenity-invoice-${booking.id}`,
+    includePreviousBalance: false,
+    description: `Amenity booking ${booking.booking_no}`,
+    remarks: `Issued automatically for amenity booking on ${slot.slot_date}`,
+    items: [{ description: `Amenity reservation ${booking.booking_no}`, quantity: 1, rate: Number(booking.amount), taxRate: 0 }],
+  });
+  if (result.invoice.status === 'DRAFT') await invoiceService.issueInvoice(result.invoice.id);
+  return result.invoice;
+};
 
 /**
  * Resolves the price to charge: an active amenity_pricing_rules entry
@@ -75,8 +91,6 @@ const createBooking = async ({ amenitySlotId, unitId, bookedBy, guestsCount, mem
     }
 
     // Check-on-read expiry, scoped to this slot, before counting occupancy.
-    await repository.expireStalePendingInTx(client, amenitySlotId, PENDING_PAYMENT_WINDOW_MINUTES);
-
     const currentOccupancy = await repository.countActiveOccupancyForSlot(client, amenitySlotId);
     const requestedOccupancy = (guestsCount || 0) + 1; // +1 for the booker themselves
 
@@ -114,6 +128,7 @@ const createBooking = async ({ amenitySlotId, unitId, bookedBy, guestsCount, mem
     }
 
     await client.query('COMMIT');
+    await issueBookingInvoice(booking, slot, amenity);
     return booking;
   } catch (err) {
     await client.query('ROLLBACK');
@@ -123,13 +138,15 @@ const createBooking = async ({ amenitySlotId, unitId, bookedBy, guestsCount, mem
   }
 };
 
+const syncPaidBookings = async () => repository.syncPaidAmenityInvoices();
+
 const listBookings = async (query) => {
-  await repository.expireStalePending(PENDING_PAYMENT_WINDOW_MINUTES);
+  await syncPaidBookings();
   return repository.listBookings(query);
 };
 
 const getBooking = async (id) => {
-  await repository.expireStalePending(PENDING_PAYMENT_WINDOW_MINUTES);
+  await syncPaidBookings();
   const booking = await repository.findById(id);
   if (!booking) {
     throw new ApiError(404, 'Booking not found');
@@ -179,44 +196,7 @@ const createFinancePayment = async (id, activeSocietyId, { paymentMethod, paymen
     throw new ApiError(400, 'The booking unit does not belong to the amenity society');
   }
 
-  const existingPayments = await repository.listBookingFinancePayments({ bookingId: id, societyId });
-  const activePayment = existingPayments.find((payment) => !['CANCELLED', 'FAILED'].includes(payment.status));
-  if (activePayment) return activePayment;
-
-  const today = await amenitiesRepository.getCurrentDate();
-  const invoiceResult = await invoiceService.createInvoice({
-    societyId,
-    unitId: booking.unit_id,
-    invoiceNumber: `AMN-${booking.booking_no}`,
-    billingPeriod: `AMENITY-${booking.booking_no}`,
-    invoiceDate: today,
-    dueDate: today,
-    idempotencyKey: `amenity-invoice-${id}`,
-    includePreviousBalance: false,
-    description: `Amenity booking ${booking.booking_no}`,
-    remarks: 'Generated from the amenity booking payment flow',
-    items: [{ description: `Amenity reservation ${booking.booking_no}`, quantity: 1, rate: Number(booking.amount), taxRate: 0 }],
-  });
-  const invoice = invoiceResult.invoice;
-  if (invoice.status === 'DRAFT') await invoiceService.issueInvoice(invoice.id);
-  if (invoice.status === 'CANCELLED' || invoice.status === 'PAID') {
-    throw new ApiError(409, `The linked amenity invoice is ${invoice.status.toLowerCase()}`);
-  }
-
-  const attempt = existingPayments.length + 1;
-  const result = await paymentService.createOfflinePayment({
-    societyId,
-    invoiceId: invoice.id,
-    unitId: booking.unit_id,
-    paymentMethod,
-    paymentReference: paymentReference || undefined,
-    amount: Number(booking.amount),
-    paymentDate: today,
-    idempotencyKey: `amenity-payment-${id}-${attempt}`,
-    metadata: { source: 'AMENITY_BOOKING', amenityBookingId: id, bookingNo: booking.booking_no },
-    remarks: `Payment for amenity booking ${booking.booking_no}`,
-  });
-  return result.payment;
+  throw new ApiError(410, 'Amenity invoices are issued automatically when a booking is created. Residents can pay from Maintenance & Payments.');
 };
 
 /** Confirm only against a real, successful payment for this society, unit, and booking amount. */
@@ -232,11 +212,6 @@ const confirmBooking = async (id, paymentId, activeSocietyId) => {
     const bookingSocietyId = await getBookingSocietyId(booking);
     if (activeSocietyId && bookingSocietyId !== activeSocietyId) {
       throw new ApiError(404, 'Booking not found');
-    }
-
-    const amountCents = Math.round(Number(booking.amount) * 100);
-    if (amountCents > 0 && !paymentId) {
-      throw new ApiError(400, 'Select a verified or successful payment before confirming this paid booking');
     }
 
     if (paymentId) {
@@ -288,10 +263,18 @@ const cancelBooking = async (id) => {
   }
   const updated = await repository.updateStatus(id, 'CANCELLED');
 
+  const slot = await amenitiesRepository.findSlotById(booking.amenity_slot_id);
+  const amenity = slot && await amenitiesRepository.findAmenityById(slot.amenity_id);
+  if (amenity) {
+    const invoice = await issueBookingInvoice(booking, slot, amenity);
+    if (invoice && ['ISSUED', 'DRAFT', 'OVERDUE'].includes(invoice.status)) {
+      await invoiceService.cancelInvoice(invoice.id);
+    }
+  }
+
   // Freeing this booking's spot may un-fill the slot; simplest safe
   // approach is to flip a FULL slot back to AVAILABLE and let the next
   // booking attempt's occupancy count decide for itself.
-  const slot = await amenitiesRepository.findSlotById(booking.amenity_slot_id);
   if (slot && slot.status === 'FULL') {
     await amenitiesRepository.updateSlot(slot.id, { status: 'AVAILABLE' });
   }
@@ -336,6 +319,7 @@ const listGuests = async (bookingId) => {
 
 module.exports = {
   createBooking,
+  syncPaidBookings,
   listBookings,
   getBooking,
   listEligiblePayments,
