@@ -126,7 +126,7 @@ const SocietyPage = () => {
                     <span className="society-count">{loading ? "Loading" : `${filteredSocieties.length} ${filteredSocieties.length === 1 ? "society" : "societies"}`}</span>
                 </div>
                 <div className="society-toolbar">
-                    <label className="society-search"><Search size={17} /><input aria-label="Search societies" placeholder="Search by name, registration, or address..." value={search} onChange={(e) => setSearch(e.target.value)} /><kbd>⌕</kbd></label>
+                    <label className="society-search"><Search size={17} /><input aria-label="Search societies" placeholder="Search by name, registration, or address..." value={search} onChange={(e) => setSearch(e.target.value)} /></label>
                     <button className="society-refresh-button" onClick={loadSocieties} disabled={loading}><RefreshCw size={16} className={loading ? "society-spinning" : ""} /> Refresh</button>
                 </div>
 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ClipboardList, Plus, RefreshCw } from 'lucide-react';
+import { Plus, RefreshCw, Search } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
@@ -70,7 +70,7 @@ export default function PurchaseRequestListPage() {
       <section className="society-list-panel purchase-orders-panel">
         <div className="society-list-heading"><div><h2>Purchase requests</h2><p>Review requested dates, estimated amounts, departments, and status.</p></div><span className="society-count">{loading ? 'Loading' : `${rows?.length || 0} requests`}</span></div>
         <div className="society-toolbar purchase-orders-toolbar">
-          <label className="society-search"><ClipboardList size={17} /><input type="search" placeholder="Search by request number or department" aria-label="Search purchase requests" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
+          <label className="society-search"><Search size={17} /><input type="search" placeholder="Search by request number or department" aria-label="Search purchase requests" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
           <select className="input toolbar-select" aria-label="Filter by status" value={status} onChange={(event) => setStatus(event.target.value)}><option value="">All statuses</option>{REQUEST_STATUSES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
         </div>
         {error && !data && <Alert>{getErrorMessage(error)} <button type="button" className="society-workflow-action" onClick={reload}>Try again</button></Alert>}

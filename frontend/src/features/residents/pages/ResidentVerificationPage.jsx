@@ -173,7 +173,6 @@ const ResidentVerificationPage = () => {
                     <label className="society-search">
                         <Search size={17} />
                         <input aria-label="Search verification records" placeholder="Search resident, type or status..." value={search} onChange={(event) => setSearch(event.target.value)} />
-                        <kbd>⌕</kbd>
                     </label>
                     <button className="society-refresh-button" type="button" onClick={loadData} disabled={loading}>
                         <RefreshCw size={16} className={loading ? "society-spinning" : ""} /> Refresh

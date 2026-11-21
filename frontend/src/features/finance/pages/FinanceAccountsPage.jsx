@@ -101,7 +101,7 @@ const FinanceAccountsPage = () => {
                     <span className="society-count">{loading ? "Loading" : `${filtered.length} ${filtered.length === 1 ? "account" : "accounts"}`}</span>
                 </div>
                 <div className="society-toolbar">
-                    <label className="society-search"><Search size={17} /><input aria-label="Search accounts" placeholder="Search by code, name, or type" value={search} onChange={(event) => setSearch(event.target.value)} /><kbd>⌕</kbd></label>
+                    <label className="society-search"><Search size={17} /><input aria-label="Search accounts" placeholder="Search by code, name, or type" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
                 </div>
 
                 {loading ? <div className="society-loading">Loading accounts…</div> : filtered.length === 0 ? (

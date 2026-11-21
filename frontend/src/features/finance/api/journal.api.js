@@ -1,8 +1,13 @@
 import { legacyApi as axiosClient } from "../../../lib/axios";
 
 const journalApi = {
-    getAll: async (societyId) => {
-        const response = await axiosClient.get("/journals", { params: societyId ? { societyId } : {} });
+    getAll: async (societyId, filters = {}) => {
+        const response = await axiosClient.get("/journals", {
+            params: {
+                ...(societyId ? { societyId } : {}),
+                ...(filters.status ? { status: filters.status } : {})
+            }
+        });
         return response.data;
     },
     getById: async (id) => (await axiosClient.get(`/journals/${id}`)).data,

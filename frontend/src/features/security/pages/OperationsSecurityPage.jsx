@@ -618,13 +618,22 @@ export default function SecurityPage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return items.filter((item) => {
-      const matchesSearch = !q || searchableText(item).toLowerCase().includes(q);
+      const attendanceStaff = tab === "attendance"
+        ? staff.find((person) => String(person.id) === String(item.staffId))
+        : null;
+      const searchText = [
+        searchableText(item),
+        attendanceStaff
+          ? `${attendanceStaff.firstName || ""} ${attendanceStaff.lastName || ""}`
+          : "",
+      ].join(" ").toLowerCase();
+      const matchesSearch = !q || searchText.includes(q);
       const matchesStaffStatus = tab !== "staff"
         || staffStatusFilter === "ALL"
         || String(item.status || "UNKNOWN").toUpperCase() === staffStatusFilter;
       return matchesSearch && matchesStaffStatus;
     });
-  }, [items, search, staffStatusFilter, tab]);
+  }, [items, search, staff, staffStatusFilter, tab]);
   const save = async (event) => {
     event.preventDefault();
     const config = configs[form];

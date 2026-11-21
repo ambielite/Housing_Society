@@ -566,9 +566,6 @@ const ResidentListPage = () => {
                             }
                         />
 
-                        <kbd>
-                            ⌕
-                        </kbd>
 
                     </label>
 

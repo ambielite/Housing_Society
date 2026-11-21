@@ -50,7 +50,7 @@ const FinanceDashboardPage = () => {
             const societyId = String(localStorage.getItem("selectedSocietyId") || "").replace(/^:+/, "").trim();
             const [accountResponse, journalResponse, paymentResponse, periodResponse, otherIncomeResponse] = await Promise.all([
                 accountApi.getAll(societyId),
-                journalApi.getAll(societyId),
+                journalApi.getAll(societyId, { status: "POSTED" }),
                 paymentApi.getAll(societyId),
                 accountingPeriodApi.getAll(societyId),
                 otherIncomeApi.list(societyId)
@@ -73,8 +73,9 @@ const FinanceDashboardPage = () => {
     }, []);
 
     const activePeriods = periods.filter((period) => period.status === "OPEN");
-    const totalJournalDebit = journals.reduce((total, item) => total + Number(item.totalDebit || 0), 0);
-    const totalJournalCredit = journals.reduce((total, item) => total + Number(item.totalCredit || 0), 0);
+    const postedJournals = journals.filter((item) => String(item.status || "").toUpperCase() === "POSTED");
+    const totalJournalDebit = postedJournals.reduce((total, item) => total + Number(item.totalDebit || 0), 0);
+    const totalJournalCredit = postedJournals.reduce((total, item) => total + Number(item.totalCredit || 0), 0);
     const totalCollected = payments.filter((item) => ["SUCCESS", "VERIFIED"].includes(String(item.status || "").toUpperCase())).reduce((total, item) => total + Number(item.amount || 0), 0)
         + otherIncome.reduce((total, item) => total + Number(item.amount || 0), 0);
 
@@ -129,7 +130,7 @@ const FinanceDashboardPage = () => {
                             <tbody>
                                 <tr>
                                     <td>Posted journals</td>
-                                    <td>{loading ? "—" : journals.length}</td>
+                                    <td>{loading ? "—" : postedJournals.length}</td>
                                 </tr>
                                 <tr>
                                     <td>Total debit</td>

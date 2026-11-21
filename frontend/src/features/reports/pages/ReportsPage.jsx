@@ -24,12 +24,13 @@ function Metric({ label, value, note, icon: Icon, tone = "blue" }) {
     return <article className="society-stat-card reports-metric"><span className={`society-stat-icon society-stat-icon-${tone}`}><Icon size={18}/></span><div><span className="society-stat-label">{label}</span><strong>{display(value)}</strong>{note && <small className="society-stat-note">{note}</small>}</div></article>;
 }
 
-function DataTable({ title, rows, empty = "No records for this period." }) {
+function DataTable({ title, rows, columns: requestedColumns, empty = "No records for this period." }) {
     const columns = useMemo(() => {
+        if (requestedColumns) return requestedColumns;
         const first = rows.find((row) => row && typeof row === "object");
-        return first ? Object.keys(first).filter((key) => typeof first[key] !== "object" || first[key] == null).slice(0, 7) : [];
-    }, [rows]);
-    return <section className="society-list-panel reports-panel"><div className="society-list-heading"><div><h2>{title}</h2><p>Report details returned by the selected backend report.</p></div><span className="society-count">{rows.length} rows</span></div>{rows.length && columns.length ? <div className="society-table-wrap"><table className="society-table reports-table"><thead><tr>{columns.map((key) => <th key={key}>{titleCase(key)}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={row.id || row.uuid || index}>{columns.map((key) => <td key={key}>{display(row[key])}</td>)}</tr>)}</tbody></table></div> : <div className="reports-empty"><FileText size={20}/><span>{empty}</span></div>}</section>;
+        return first ? Object.keys(first).filter((key) => typeof first[key] !== "object" || first[key] == null).slice(0, 7).map((key) => ({ key, label: titleCase(key) })) : [];
+    }, [requestedColumns, rows]);
+    return <section className="society-list-panel reports-panel"><div className="society-list-heading"><div><h2>{title}</h2><p>Report details returned by the selected backend report.</p></div><span className="society-count">{rows.length} rows</span></div>{rows.length && columns.length ? <div className="society-table-wrap"><table className="society-table reports-table"><thead><tr>{columns.map((column) => <th key={column.key}>{column.label}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={row.id || row.uuid || index}>{columns.map((column) => <td key={column.key}>{display(row[column.key])}</td>)}</tr>)}</tbody></table></div> : <div className="reports-empty"><FileText size={20}/><span>{empty}</span></div>}</section>;
 }
 
 export default function ReportsPage() {
@@ -105,7 +106,14 @@ export default function ReportsPage() {
     const approvals = data.approvals || {};
     const approvalDetails = approvals.sla?.details || [];
     const patrolRows = data.patrols?.records || [];
-    const attendanceRows = data.staff?.records || [];
+    const attendanceRows = (data.staff?.records || []).map((record) => {
+        const employee = record.staff || {};
+        const employeeName = [employee.firstName, employee.lastName].filter(Boolean).join(" ");
+        return {
+            ...record,
+            employeeNameAndCode: [employeeName, employee.employeeCode].filter(Boolean).join(" / ") || record.staffId,
+        };
+    });
     const reportError = Object.entries(errors).map(([key, message]) => `${titleCase(key)}: ${message}`).join(" · ");
 
     return <main className="society-dashboard reports-page">
@@ -145,7 +153,16 @@ export default function ReportsPage() {
         {active === "security" && <>
             <div className="society-stats reports-stats"><Metric label="Staff" value={data.staff?.staff?.total ?? "—"} note={`${data.staff?.staff?.active ?? 0} active`} icon={ShieldCheck}/><Metric label="On leave" value={data.staff?.staff?.onLeave ?? "—"} note={`${data.staff?.staff?.inactive ?? 0} inactive`} icon={CalendarDays} tone="violet"/><Metric label="Patrols" value={data.patrols?.patrols?.total ?? "—"} note={`${data.patrols?.patrols?.completed ?? 0} completed`} icon={Activity} tone="green"/><Metric label="Missed checkpoints" value={data.patrols?.checkpoints?.missed ?? "—"} note={`${data.patrols?.checkpoints?.total ?? 0} checkpoints`} icon={CircleAlert}/></div>
             <div className="reports-grid"><SummaryPanel title="Patrol status" note="Patrol runs in the selected period" items={Object.entries(data.patrols?.patrols || {}).map(([key, value]) => [titleCase(key), value])}/><SummaryPanel title="Checkpoint coverage" note="Checkpoint completion summary" items={[["Total", data.patrols?.checkpoints?.total ?? "—"], ["Completed", data.patrols?.checkpoints?.completed ?? "—"], ["Missed", data.patrols?.checkpoints?.missed ?? "—"]]}/><SummaryPanel title="Staff attendance" note="Attendance record counts" items={Object.entries(data.staff?.attendance?.statusSummary || {}).map(([key, value]) => [titleCase(key), value])}/></div>
-            <DataTable title="Patrol activity" rows={patrolRows}/><DataTable title="Staff attendance records" rows={attendanceRows}/>
+            <DataTable title="Patrol activity" rows={patrolRows}/><DataTable title="Staff attendance records" rows={attendanceRows} columns={[
+                { key: "attendanceDate", label: "Attendance Date" },
+                { key: "employeeNameAndCode", label: "Employee Name / Employee Code" },
+                { key: "checkInTime", label: "Check In Time" },
+                { key: "status", label: "Status" },
+                { key: "overtimeMinutes", label: "Overtime Minutes" },
+                { key: "checkOutTime", label: "Check Out Time" },
+                { key: "workingMinutes", label: "Working Minutes" },
+                { key: "remarks", label: "Remarks" },
+            ]}/>
             <UnavailablePanel report={data.visitors} title="Visitor summary"/><UnavailablePanel report={data.gate} title="Gate summary"/>
         </>}
 

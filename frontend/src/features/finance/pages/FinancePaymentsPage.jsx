@@ -116,7 +116,7 @@ const FinancePaymentsPage = () => {
                     <span className="society-count">{loading ? "Loading" : `${filtered.length} ${filtered.length === 1 ? "payment" : "payments"}`}</span>
                 </div>
                 <div className="society-toolbar">
-                    <label className="society-search"><Search size={17} /><input aria-label="Search payments" placeholder="Search by reference, method, or status" value={search} onChange={(event) => setSearch(event.target.value)} /><kbd>⌕</kbd></label>
+                    <label className="society-search"><Search size={17} /><input aria-label="Search payments" placeholder="Search by reference, method, or status" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
                 </div>
 
                 {loading ? <div className="society-loading">Loading payments…</div> : filtered.length === 0 ? (

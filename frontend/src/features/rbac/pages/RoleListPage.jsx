@@ -1,6 +1,6 @@
 import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
-import { KeyRound, Plus, ShieldCheck, UsersRound } from 'lucide-react';
+import { KeyRound, Plus, Search, ShieldCheck, UsersRound } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useFetch from '../../../utils/useFetch';
@@ -99,14 +99,16 @@ export default function RoleListPage() {
       <section className="role-directory-panel">
       <div className="role-directory-heading"><div><span className="role-directory-kicker">ACCESS DIRECTORY</span><h2>Roles & permissions</h2><p>Review built-in roles or manage custom access profiles.</p></div><span className="role-directory-count">{loading ? 'Loading…' : `${rows?.length ?? 0} shown`}</span></div>
       <div className="toolbar role-directory-toolbar">
-        <input
-          type="search"
-          className="input toolbar-search"
-          placeholder="Search by name or code"
-          aria-label="Search roles"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
+        <label className="society-search toolbar-search">
+          <Search size={17} />
+          <input
+            type="search"
+            placeholder="Search by name or code"
+            aria-label="Search roles"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </label>
         <select className="input toolbar-select" aria-label="Filter by type" value={type} onChange={(event) => setType(event.target.value)}>
           <option value="">All types</option>
           <option value="system">System roles</option>

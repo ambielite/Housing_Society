@@ -26,6 +26,43 @@ test('journals and payments repositories scope list queries to Society A', async
   await scopedList(Payment, () => payments.findAll({ societyId: societyA }));
 });
 
+test('journal lists can filter by status and reject unscoped queries', async () => {
+  const Journal = require('../src/modules/financial/journal/journal.model');
+  const journals = require('../src/modules/financial/journal/journal.repository');
+  const findAll = jest.spyOn(Journal, 'findAll').mockResolvedValue([]);
+
+  await journals.findAll(societyA, 'POSTED');
+  expect(findAll).toHaveBeenCalledWith(expect.objectContaining({
+    where: { societyId: societyA, status: 'POSTED' },
+  }));
+  await expect(journals.findAll()).rejects.toThrow('societyId is required');
+
+  findAll.mockRestore();
+});
+
+test('journal list controller uses the authenticated society and returns 400 without one', async () => {
+  const service = require('../src/modules/financial/journal/journal.service');
+  const controller = require('../src/modules/financial/journal/journal.controller');
+  const getAll = jest.spyOn(service, 'getAll').mockResolvedValue([]);
+  const createResponse = () => ({
+    status: jest.fn().mockReturnThis(),
+    json: jest.fn(),
+  });
+
+  const scopedResponse = createResponse();
+  await controller.getAll({ user: { societyId: societyA }, query: { status: 'POSTED' } }, scopedResponse);
+  expect(getAll).toHaveBeenCalledWith({ societyId: societyA, status: 'POSTED' });
+  expect(scopedResponse.status).toHaveBeenCalledWith(200);
+
+  getAll.mockClear();
+  const unscopedResponse = createResponse();
+  await controller.getAll({ user: {}, query: {} }, unscopedResponse);
+  expect(getAll).not.toHaveBeenCalled();
+  expect(unscopedResponse.status).toHaveBeenCalledWith(400);
+
+  getAll.mockRestore();
+});
+
 test('Other Income list stays scoped to Society A', async () => {
   const OtherIncome = require('../src/modules/financial/other-income/otherIncome.model');
   const service = require('../src/modules/financial/other-income/otherIncome.service');
