@@ -23,6 +23,7 @@ import useUnits from "../../../utils/useUnits";
 import unitLocationLabel from "../../../utils/unitLocation";
 import { recordToSections, RecordDetailsModal } from "../../../components/ui/Modal";
 import GateVisitorAccessPage from "./SecurityPage";
+import { dispatchActionToast } from "../../../lib/actionToastEvents";
 
 const rowsFrom = (response) => {
   let rows = Array.isArray(response)
@@ -661,8 +662,7 @@ export default function SecurityPage() {
       const message =
         err.response?.data?.message ||
         `Could not save ${config.title.toLowerCase()}.`;
-      setError(message);
-      setFormError(message);
+      dispatchActionToast("error", message);
     } finally {
       setBusy(false);
     }
@@ -673,7 +673,8 @@ export default function SecurityPage() {
       await fn(...args);
       await loadData();
     } catch (err) {
-      setError(
+      dispatchActionToast(
+        "error",
         err.response?.data?.message || "That action could not be completed.",
       );
     } finally {
@@ -1158,7 +1159,7 @@ export default function SecurityPage() {
                               title="Delete"
                               onClick={() => {
                                 if (resourceFor === "staff" && item.status === "ACTIVE") {
-                                  setError("Cannot delete active staff.");
+                                  dispatchActionToast("error", "This staff member is active. Deactivate them before deleting.");
                                   return;
                                 }
                                 if (window.confirm(`Delete this ${tabs.find(([key]) => key === tab)?.[1].toLowerCase()} record?`)) {

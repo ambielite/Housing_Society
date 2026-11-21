@@ -125,7 +125,7 @@ export default function VendorDetailPage() {
       {notice && <Alert variant="success">{notice}</Alert>}
       {pageError && <Alert>{pageError}</Alert>}
       {target.status === 'PENDING' && (
-        <Alert variant="success">This vendor is Pending. Only Active vendors can be invited to quotations or receive purchase orders.</Alert>
+        <Alert variant="info">This vendor is Pending. Only Active vendors can be invited to quotations or receive purchase orders.</Alert>
       )}
 
       <nav className="security-tabs vendor-tabs" role="tablist" aria-label="Vendor sections">

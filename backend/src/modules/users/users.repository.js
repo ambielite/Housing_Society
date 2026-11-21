@@ -373,6 +373,28 @@ const deleteInactiveUser = async (id) => {
       error.statusCode = 409;
       throw error;
     }
+
+    const linkedGuards = await client.query(
+      `SELECT staff_member.id, staff_member.status
+         FROM security_guards guard
+         JOIN staff staff_member ON staff_member.id = guard.staff_id
+        WHERE guard.user_id = $1
+        FOR UPDATE OF staff_member`,
+      [id]
+    );
+    if (linkedGuards.rows.some((staff) => String(staff.status).toUpperCase() === 'ACTIVE')) {
+      const error = new Error('Cannot delete this account while an active security guard is linked to it. Deactivate the guard first.');
+      error.statusCode = 409;
+      throw error;
+    }
+    if (linkedGuards.rowCount) {
+      await client.query(
+        `DELETE FROM staff
+          WHERE id = ANY($1::uuid[])`,
+        [linkedGuards.rows.map((staff) => staff.id)]
+      );
+    }
+
     const deleted = await client.query(
       'DELETE FROM users WHERE id = $1 RETURNING id, email, first_name, last_name',
       [id]

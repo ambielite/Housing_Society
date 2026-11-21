@@ -249,7 +249,7 @@ export default function UserDetailPage() {
 
       {notice && <Alert variant="success">{notice}</Alert>}
       {actionError && <Alert>{actionError}</Alert>}
-      {isSelf && <Alert variant="success">This is your own account, so suspend, sign-out and archive are hidden.</Alert>}
+      {isSelf && <Alert variant="info">This is your own account, so suspend, sign-out and archive are hidden.</Alert>}
 
       <div className="card section user-detail-profile-panel">
         <div className="user-detail-panel-heading"><div><span className="user-directory-kicker">ACCOUNT PROFILE</span><h2 className="section-title">Profile</h2><p className="muted">Identity and account activity for this user.</p></div><UserStatusBadge status={target.status} /></div>
@@ -271,7 +271,7 @@ export default function UserDetailPage() {
         </dl>
       </div>
 
-      {isGuard && <Alert variant="success">Role assignments belong to the shared login account and apply to all guards using it. Sign-in history below is filtered to this guard’s employee code.</Alert>}
+      {isGuard && <Alert variant="info">Role assignments belong to the shared login account and apply to all guards using it. Sign-in history below is filtered to this guard’s employee code.</Alert>}
       <UserRolesCard
         userId={accountId}
         roleCodes={target.roles || []}

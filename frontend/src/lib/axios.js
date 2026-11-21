@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { dispatchActionToast } from './actionToastEvents';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
 const LEGACY_BASE_URL = import.meta.env.VITE_LEGACY_API_BASE_URL || BASE_URL.replace(/\/api\/v1\/?$/, '/api');
@@ -41,6 +42,20 @@ export const societyStorage = {
 
 const EXPIRED_MESSAGE = 'Invalid or expired access token';
 const SESSION_LOST_MESSAGES = ['Authentication token missing', 'User account no longer exists'];
+const WRITE_METHODS = new Set(['post', 'put', 'patch', 'delete']);
+
+const isAuthenticatedWrite = (config) => {
+  const method = String(config?.method || '').toLowerCase();
+  const authorization = config?.headers?.Authorization || config?.headers?.get?.('Authorization');
+  return WRITE_METHODS.has(method) && Boolean(authorization);
+};
+
+const responseMessage = (response) => {
+  const message = response?.data?.message;
+  return typeof message === 'string' && message.trim() && !/^success\.?$/i.test(message.trim())
+    ? message.trim()
+    : null;
+};
 
 const endSession = () => {
   tokenStorage.clear();
@@ -77,10 +92,33 @@ const createApiClient = (baseURL, refreshBaseURL = baseURL) => {
     return config;
   });
 
-  client.interceptors.response.use((response) => response, async (error) => {
+  client.interceptors.response.use((response) => {
+    const config = response.config;
+    if (isAuthenticatedWrite(config)) {
+      const method = String(config.method).toLowerCase();
+      const fallback = method === 'delete'
+        ? 'Record deleted successfully.'
+        : method === 'post'
+          ? 'Action completed successfully.'
+          : 'Changes saved successfully.';
+      dispatchActionToast('success', responseMessage(response) || fallback);
+    }
+    return response;
+  }, async (error) => {
     const original = error.config;
     const status = error.response?.status;
     const message = error.response?.data?.message;
+    if (status !== 401 && !error.code?.includes('CANCEL') && isAuthenticatedWrite(original)) {
+      const details = error.response?.data?.details;
+      const readableMessage = Array.isArray(details) && details.length
+        ? details.join(' ')
+        : typeof message === 'string' && message.trim()
+          ? message.trim()
+          : error.response
+            ? 'Your changes could not be saved. Please try again.'
+            : 'Cannot reach the server. Check your connection and try again.';
+      dispatchActionToast('error', readableMessage);
+    }
     if (status === 401 && message === EXPIRED_MESSAGE && original && !original._retried) {
       original._retried = true;
       try {

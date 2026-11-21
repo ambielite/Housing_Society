@@ -489,7 +489,36 @@ const deleteStaff = async (id) => {
         throw new Error("Cannot delete active staff.");
     }
 
-    await StaffRepository.remove(staff);
+    await sequelize.transaction(async (transaction) => {
+        const [linkedGuardAccounts] = await sequelize.query(
+            `SELECT user_id
+               FROM security_guards
+              WHERE staff_id = :staffId
+                AND user_id IS NOT NULL`,
+            { replacements: { staffId: staff.id }, transaction }
+        );
+
+        await StaffRepository.remove(staff, { transaction });
+
+        // A login can be shared by multiple guard profiles. Keep it while any
+        // guard still uses it; once its last profile is removed, delete the
+        // now-orphaned account as part of the same database transaction.
+        for (const { user_id: userId } of linkedGuardAccounts) {
+            const [remainingProfiles] = await sequelize.query(
+                `SELECT 1
+                   FROM security_guards
+                  WHERE user_id = :userId
+                  LIMIT 1`,
+                { replacements: { userId }, transaction }
+            );
+            if (remainingProfiles.length === 0) {
+                await sequelize.query(
+                    "DELETE FROM users WHERE id = :userId",
+                    { replacements: { userId }, transaction }
+                );
+            }
+        }
+    });
     if (staff.photoPath) removeProfilePicture(staff.photoPath);
 
     return {

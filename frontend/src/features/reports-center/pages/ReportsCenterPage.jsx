@@ -9,6 +9,7 @@ import SocietyIdPrompt from '../../../components/ui/SocietyIdPrompt';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
 import { getErrorMessage } from '../../../lib/axios';
+import { dispatchActionToast } from '../../../lib/actionToastEvents';
 import * as reportsApi from '../api/reportsCenter.api';
 import legacyReportsApi from '../../reports/api/reports.api';
 import { REPORT_GROUPS, REPORT_BY_KEY } from '../components/reportOptions';
@@ -414,9 +415,9 @@ export default function ReportsCenterPage() {
 
   const exportReport = async (format) => {
     if (!canExport || !['csv', 'pdf', 'xlsx'].includes(format)) return;
-    if (needsSociety) { setError('Select a society before exporting reports.'); return; }
-    if (fromDate && toDate && fromDate > toDate) { setError('The end date cannot be earlier than the start date.'); return; }
-    if (currentReport.rfqId && !rfqId) { setError('Select an RFQ to compare its quotations.'); return; }
+    if (needsSociety) { dispatchActionToast('error', 'Select a society before exporting reports.'); return; }
+    if (fromDate && toDate && fromDate > toDate) { dispatchActionToast('error', 'The end date cannot be earlier than the start date.'); return; }
+    if (currentReport.rfqId && !rfqId) { dispatchActionToast('error', 'Select an RFQ to compare its quotations.'); return; }
     setExporting(format); setError(''); setNotice('');
     try {
       const response = currentReport.exportKey
@@ -433,19 +434,19 @@ export default function ReportsCenterPage() {
       const anchor = document.createElement('a'); anchor.href = blobUrl; anchor.download = filename;
       document.body.appendChild(anchor); anchor.click(); anchor.remove();
       window.setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
-      setNotice(`${format.toUpperCase()} report downloaded.`);
+      dispatchActionToast('success', `${format.toUpperCase()} report downloaded.`);
     } catch (err) {
       if (err.response?.status === 403) {
-        setError('Your account does not have permission to export reports.');
+        dispatchActionToast('error', 'Your account does not have permission to export reports.');
       } else if (err.response?.data instanceof Blob) {
         try {
           const payload = JSON.parse(await err.response.data.text());
-          setError(payload.message || 'Could not export this report.');
+          dispatchActionToast('error', payload.message || 'Could not export this report.');
         } catch {
-          setError('Could not export this report. Please try again.');
+          dispatchActionToast('error', 'Could not export this report. Please try again.');
         }
       } else {
-        setError(getErrorMessage(err));
+        dispatchActionToast('error', getErrorMessage(err));
       }
     } finally { setExporting(''); }
   };

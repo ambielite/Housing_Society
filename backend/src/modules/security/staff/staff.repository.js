@@ -33,8 +33,8 @@ const update = async (staff, data, options = {}) => {
     return await staff.update(data, options);
 };
 
-const remove = async (staff) => {
-    return await staff.destroy();
+const remove = async (staff, options = {}) => {
+    return await staff.destroy(options);
 };
 
 module.exports = {

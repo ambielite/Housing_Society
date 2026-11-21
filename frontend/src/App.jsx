@@ -3,6 +3,7 @@ import ThemeProvider from './app/providers/ThemeProvider';
 import AuthProvider from './app/providers/AuthProvider';
 import { SocietyProvider, UiProvider } from './app/store/ui.store';
 import AppRoutes from './app/router';
+import ActionToast from './components/ui/ActionToast';
 import './App.css';
 
 export default function App() {
@@ -13,6 +14,7 @@ export default function App() {
           <SocietyProvider>
             <UiProvider>
               <AppRoutes />
+              <ActionToast />
             </UiProvider>
           </SocietyProvider>
         </AuthProvider>

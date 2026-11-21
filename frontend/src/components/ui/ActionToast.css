@@ -1,0 +1,98 @@
+.action-toast-stack {
+  position: fixed;
+  z-index: 3000;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: grid;
+  gap: 12px;
+  width: min(390px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+/* Mutation results now use the global popup instead of legacy page banners. */
+.alert-success,
+.society-success,
+.notices-alert-success,
+.invoice-action-notice,
+.finance-income-notice,
+.notification-success,
+.rc-message-success {
+  display: none !important;
+}
+
+.action-toast {
+  --toast-accent: #15945f;
+  --toast-soft: #eaf8f0;
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  overflow: hidden;
+  padding: 15px 14px 17px;
+  border: 1px solid color-mix(in srgb, var(--toast-accent) 22%, white);
+  border-radius: 14px;
+  background: var(--surface, #fff);
+  color: var(--text-primary, #172033);
+  box-shadow: 0 14px 36px rgba(16, 24, 40, .18), 0 2px 8px rgba(16, 24, 40, .08);
+  pointer-events: auto;
+  animation: action-toast-enter .22s ease-out both;
+}
+
+.action-toast-error {
+  --toast-accent: #d54242;
+  --toast-soft: #fff0ef;
+}
+
+.action-toast-icon {
+  display: grid;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--toast-soft);
+  color: var(--toast-accent);
+}
+
+.action-toast-copy {
+  display: grid;
+  flex: 1;
+  gap: 3px;
+  min-width: 0;
+  padding-top: 1px;
+}
+
+.action-toast-copy strong { font-size: 13px; font-weight: 750; }
+.action-toast-copy > span { color: var(--text-secondary, #58657a); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+
+.action-toast > button {
+  display: grid;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  margin: -3px -3px 0 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary, #58657a);
+}
+
+.action-toast > button:hover { background: var(--toast-soft); color: var(--toast-accent); }
+.action-toast-progress { position: absolute; bottom: 0; left: 0; height: 3px; width: 100%; background: var(--toast-accent); transform-origin: left; animation: action-toast-countdown 4.2s linear forwards; }
+
+@keyframes action-toast-enter {
+  from { opacity: 0; transform: translate3d(18px, -4px, 0) scale(.98); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes action-toast-countdown { to { transform: scaleX(0); } }
+
+@media (max-width: 600px) {
+  .action-toast-stack { top: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .action-toast, .action-toast-progress { animation-duration: .01ms; }
+}

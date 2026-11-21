@@ -278,6 +278,7 @@ textarea.input { resize: vertical; }
 .alert { padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; font-size: 13px; }
 .alert-error { background: var(--danger-bg); color: var(--danger); }
 .alert-success { background: var(--success-bg); color: var(--success); }
+.alert-info { background: var(--surface-2); color: var(--text-secondary); }
 .card { background: var(--surface); border: 1px solid var(--card-border); border-radius: 12px; padding: 24px; box-shadow: var(--shadow); }
 .empty-state { max-width: 520px; margin: 72px auto; text-align: center; color: var(--muted); font-size: 14px; }
 .empty-state h1 { margin-bottom: 8px; color: var(--text-primary); font-size: 22px; }

@@ -144,6 +144,7 @@ const getDashboard = async (user) => {
     resident: resident ? {
       name: resident.display_name,
       photoUrl: resident.profile_photo,
+      role: resident.role,
     } : null,
     unit: unit ? {
       number: unit.unit_number,

@@ -29,7 +29,14 @@ String get _residentApiBaseUrl => _configuredResidentApiBaseUrl.isNotEmpty
     ? 'http://localhost:5000/api/v1'
     : 'http://localhost:5000/api/v1';
 
-enum _ResidentSection { home, amenities, visitors, complaints, profile }
+enum _ResidentSection {
+  home,
+  payments,
+  amenities,
+  visitors,
+  complaints,
+  profile,
+}
 
 class ResidentHomeScreen extends StatefulWidget {
   const ResidentHomeScreen({super.key, required this.user});
@@ -754,10 +761,15 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     });
   }
 
+  void _openPayments() {
+    _selectTab(1);
+  }
+
   void _selectTab(int index) {
     setState(() {
       _selectedTab = index;
       _activeSection = switch (index) {
+        1 => _ResidentSection.payments,
         2 => _ResidentSection.visitors,
         3 => _ResidentSection.complaints,
         4 => _ResidentSection.profile,
@@ -775,9 +787,18 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
         child: Column(
           children: [
             Expanded(
-              child: _selectedTab == 1
-                  ? ResidentFinanceScreen(user: widget.user)
-                  : FutureBuilder<ResidentDashboardData>(
+              child: switch (_activeSection) {
+                _ResidentSection.payments =>
+                  ResidentFinanceScreen(user: widget.user),
+                _ResidentSection.visitors =>
+                  ResidentVisitorsScreen(user: widget.user),
+                _ResidentSection.complaints =>
+                  ResidentComplaintsScreen(user: widget.user),
+                _ResidentSection.amenities => ResidentAmenitiesScreen(
+                  user: widget.user,
+                  onBookingCreated: _addUpcomingBooking,
+                ),
+                _ => FutureBuilder<ResidentDashboardData>(
                 future: _dashboardFuture,
                 builder: (context, snapshot) {
                   if (snapshot.hasError) {
@@ -817,17 +838,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                         child: _topBar(context, dashboard),
                       ),
                       Expanded(
-                        child: switch (_activeSection) {
-                          _ResidentSection.visitors => ResidentVisitorsScreen(
-                            user: widget.user,
-                          ),
-                          _ResidentSection.complaints =>
-                            ResidentComplaintsScreen(user: widget.user),
-                          _ResidentSection.amenities => ResidentAmenitiesScreen(
-                            user: widget.user,
-                            onBookingCreated: _addUpcomingBooking,
-                          ),
-                          _ => RefreshIndicator(
+                        child: RefreshIndicator(
                             color: AppColors.indigo,
                             onRefresh: _refreshDashboard,
                             child: CustomScrollView(
@@ -951,12 +962,12 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                               ],
                             ),
                           ),
-                        },
                       ),
                     ],
                   );
                 },
               ),
+              },
             ),
             _bottomBar(context),
           ],
@@ -2756,7 +2767,12 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
         child: Row(
           children: [
             _tab(Icons.home_rounded, 'Home', 0),
-            _tab(Icons.receipt_long_outlined, 'Payments', 1),
+            _tab(
+              Icons.receipt_long_outlined,
+              'Payments',
+              1,
+              onTap: _openPayments,
+            ),
             _tab(
               Icons.people_alt_outlined,
               'Visitors',
