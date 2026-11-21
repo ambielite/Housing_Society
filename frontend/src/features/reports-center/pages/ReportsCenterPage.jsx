@@ -9,6 +9,7 @@ import SocietyIdPrompt from '../../../components/ui/SocietyIdPrompt';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
 import { getErrorMessage } from '../../../lib/axios';
+import { dispatchActionToast } from '../../../lib/actionToastEvents';
 import * as reportsApi from '../api/reportsCenter.api';
 import legacyReportsApi from '../../reports/api/reports.api';
 import { REPORT_GROUPS, REPORT_BY_KEY } from '../components/reportOptions';
@@ -57,6 +58,7 @@ const REQUESTS = {
 
 const LABELS = {
   generatedAt: 'Generated at', totalVehicles: 'Total vehicles', activeVehicles: 'Active vehicles',
+  employeeNameAndCode: 'Employee Name / Employee Code',
   twoWheelers: 'Two-wheelers', fourWheelers: 'Four-wheelers', otherVehicles: 'Other vehicles',
   totalParkingSlots: 'Total parking slots', activeSlots: 'Active slots', inactiveSlots: 'Inactive slots',
   occupiedSlots: 'Occupied slots', vacantSlots: 'Vacant slots', occupancyPercentage: 'Occupancy',
@@ -125,18 +127,29 @@ function StatusBadge({ value }) {
 }
 
 function ReportTable({ title, rows }) {
+  const displayRows = useMemo(() => rows.map((row) => {
+    const employee = row.staff || row.Staff || row.employee || {};
+    const employeeName = [
+      employee.firstName ?? employee.first_name,
+      employee.lastName ?? employee.last_name,
+    ].filter(Boolean).join(' ');
+    const employeeCode = employee.employeeCode ?? employee.employee_code ?? row.employeeCode ?? row.employee_code;
+    const employeeNameAndCode = [employeeName, employeeCode].filter(Boolean).join(' / ');
+    return employeeNameAndCode ? { ...row, employeeNameAndCode } : row;
+  }), [rows]);
   const columns = useMemo(() => {
     const counts = new Map();
     const order = new Map();
-    rows.slice(0, 100).forEach((row) => Object.entries(row).forEach(([key, value]) => {
+    displayRows.slice(0, 100).forEach((row) => Object.entries(row).forEach(([key, value]) => {
       if (!visibleScalar([key, value])) return;
       if (!order.has(key)) order.set(key, order.size);
       counts.set(key, (counts.get(key) || 0) + 1);
     }));
     return [...counts.keys()]
       .sort((a, b) => counts.get(b) - counts.get(a) || order.get(a) - order.get(b))
-      .slice(0, 8);
-  }, [rows]);
+      .slice(0, 8)
+      .sort((a, b) => a === 'employeeNameAndCode' ? -1 : b === 'employeeNameAndCode' ? 1 : 0);
+  }, [displayRows]);
   if (!rows.length || !columns.length) return null;
   return (
     <section className="rc-data-section">
@@ -144,7 +157,7 @@ function ReportTable({ title, rows }) {
       <div className="rc-table-wrap">
         <table className="table rc-table">
           <thead><tr>{columns.map((column) => <th key={column}>{displayLabel(column)}</th>)}</tr></thead>
-          <tbody>{rows.map((row, index) => (
+          <tbody>{displayRows.map((row, index) => (
             <tr key={`${title}-${index}`}>
               {columns.map((column) => <td key={column}>{/(status|availability)/i.test(column) && row[column] != null && row[column] !== '' ? <StatusBadge value={row[column]} /> : formatValue(row[column], column)}</td>)}
             </tr>
@@ -414,9 +427,9 @@ export default function ReportsCenterPage() {
 
   const exportReport = async (format) => {
     if (!canExport || !['csv', 'pdf', 'xlsx'].includes(format)) return;
-    if (needsSociety) { setError('Select a society before exporting reports.'); return; }
-    if (fromDate && toDate && fromDate > toDate) { setError('The end date cannot be earlier than the start date.'); return; }
-    if (currentReport.rfqId && !rfqId) { setError('Select an RFQ to compare its quotations.'); return; }
+    if (needsSociety) { dispatchActionToast('error', 'Select a society before exporting reports.'); return; }
+    if (fromDate && toDate && fromDate > toDate) { dispatchActionToast('error', 'The end date cannot be earlier than the start date.'); return; }
+    if (currentReport.rfqId && !rfqId) { dispatchActionToast('error', 'Select an RFQ to compare its quotations.'); return; }
     setExporting(format); setError(''); setNotice('');
     try {
       const response = currentReport.exportKey
@@ -433,19 +446,19 @@ export default function ReportsCenterPage() {
       const anchor = document.createElement('a'); anchor.href = blobUrl; anchor.download = filename;
       document.body.appendChild(anchor); anchor.click(); anchor.remove();
       window.setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
-      setNotice(`${format.toUpperCase()} report downloaded.`);
+      dispatchActionToast('success', `${format.toUpperCase()} report downloaded.`);
     } catch (err) {
       if (err.response?.status === 403) {
-        setError('Your account does not have permission to export reports.');
+        dispatchActionToast('error', 'Your account does not have permission to export reports.');
       } else if (err.response?.data instanceof Blob) {
         try {
           const payload = JSON.parse(await err.response.data.text());
-          setError(payload.message || 'Could not export this report.');
+          dispatchActionToast('error', payload.message || 'Could not export this report.');
         } catch {
-          setError('Could not export this report. Please try again.');
+          dispatchActionToast('error', 'Could not export this report. Please try again.');
         }
       } else {
-        setError(getErrorMessage(err));
+        dispatchActionToast('error', getErrorMessage(err));
       }
     } finally { setExporting(''); }
   };

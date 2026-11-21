@@ -27,6 +27,7 @@ class SecurityVisitorRegistration {
     required this.name,
     required this.phone,
     required this.visitorType,
+    this.employeeCode,
     required this.gateId,
     required this.unitId,
     required this.residentId,
@@ -38,6 +39,7 @@ class SecurityVisitorRegistration {
   final String name;
   final String phone;
   final String visitorType;
+  final String? employeeCode;
   final String gateId;
   final String unitId;
   final String residentId;
@@ -69,6 +71,7 @@ class _SecurityRegisterVisitorScreenState
   final _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
   final _phone = TextEditingController();
+  final _employeeCode = TextEditingController();
   final _company = TextEditingController();
   final _vehicleNo = TextEditingController();
   String? _visitorType;
@@ -81,6 +84,7 @@ class _SecurityRegisterVisitorScreenState
   void dispose() {
     _name.dispose();
     _phone.dispose();
+    _employeeCode.dispose();
     _company.dispose();
     _vehicleNo.dispose();
     super.dispose();
@@ -137,6 +141,9 @@ class _SecurityRegisterVisitorScreenState
           name: _name.text.trim(),
           phone: _phone.text.trim(),
           visitorType: _visitorType!,
+          employeeCode: _visitorType == 'MAID'
+              ? _employeeCode.text.trim()
+              : null,
           gateId: _gateId!,
           unitId: _destination!.unitId,
           residentId: _destination!.residentId,
@@ -244,13 +251,16 @@ class _SecurityRegisterVisitorScreenState
                         ],
                         validator: (value) {
                           final phone = value?.trim() ?? '';
+                          if (_visitorType == 'MAID' && phone.isEmpty) {
+                            return 'Enter the Maid phone number.';
+                          }
                           if (phone.isNotEmpty && !RegExp(r'^\d{10}$').hasMatch(phone)) {
                             return 'Enter a valid 10-digit phone number.';
                           }
                           return null;
                         },
                         decoration: _decoration(
-                          'Phone (optional)',
+                          _visitorType == 'MAID' ? 'Phone number' : 'Phone (optional)',
                           Icons.phone_outlined,
                         ),
                       ),
@@ -273,13 +283,29 @@ class _SecurityRegisterVisitorScreenState
                             value: 'SERVICE_PROVIDER',
                             child: Text('Service provider'),
                           ),
+                          DropdownMenuItem(value: 'MAID', child: Text('Maid')),
                           DropdownMenuItem(value: 'OTHER', child: Text('Other')),
                         ],
                         onChanged: (value) => setState(() {
                           _visitorType = value;
                           if (value != 'DELIVERY_PERSON') _company.clear();
+                          if (value != 'MAID') _employeeCode.clear();
                         }),
                       ),
+                      if (_visitorType == 'MAID') ...[
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _employeeCode,
+                          textCapitalization: TextCapitalization.characters,
+                          validator: (value) => value == null || value.trim().isEmpty
+                              ? 'Enter the Maid employee code.'
+                              : null,
+                          decoration: _decoration(
+                            'Maid employee code',
+                            Icons.badge_outlined,
+                          ),
+                        ),
+                      ],
                       if (_visitorType == 'DELIVERY_PERSON') ...[
                         const SizedBox(height: 12),
                         TextFormField(

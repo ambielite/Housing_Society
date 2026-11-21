@@ -159,6 +159,11 @@ class _SecurityHomeState extends State<_SecurityHome>
   bool _deliverySyncRunning = false;
   bool _visitorPassSyncRunning = false;
   bool _shiftSyncRunning = false;
+  Map<String, dynamic>? _guardAttendanceRecord;
+  bool _attendanceLoading = false;
+  bool _attendanceBusy = false;
+  bool _attendanceStaffAvailable = false;
+  String? _attendanceError;
   final ValueNotifier<int> _deliveryRevision = ValueNotifier(0);
   final ValueNotifier<int> _shiftRevision = ValueNotifier(0);
   final ValueNotifier<DateTime> _shiftClock = ValueNotifier(DateTime.now());
@@ -413,8 +418,129 @@ class _SecurityHomeState extends State<_SecurityHome>
     if (mounted) {
       setState(() => _tab = 4);
       unawaited(_refreshShiftAssignments());
+      unawaited(_refreshGuardAttendance());
     }
   }
+
+  Future<void> _refreshGuardAttendance() async {
+    final guard = _loadedSnapshot?.guardProfile;
+    final staffId = (guard?['staff_id'] ?? guard?['staffId'])?.toString();
+    if (staffId == null || staffId.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _attendanceStaffAvailable = false;
+        _attendanceLoading = false;
+        _attendanceError = 'Your login is not linked to an employee record.';
+      });
+      return;
+    }
+
+    setState(() {
+      _attendanceStaffAvailable = true;
+      _attendanceLoading = true;
+      _attendanceError = null;
+    });
+    try {
+      final records = await _GuardApi._get(
+        '/staff-attendance/staff/${Uri.encodeComponent(staffId)}',
+        widget.user.accessToken,
+      );
+      final today = _localAttendanceDate(DateTime.now());
+      Map<String, dynamic>? openRecord;
+      Map<String, dynamic>? todayRecord;
+      for (final record in records) {
+        final date = (record['attendanceDate'] ?? record['attendance_date'])
+            ?.toString();
+        final checkIn = record['checkInTime'] ?? record['check_in_time'];
+        final checkOut = record['checkOutTime'] ?? record['check_out_time'];
+        if (date != null && date.length >= 10 && date.substring(0, 10) == today) {
+          todayRecord = record;
+        }
+        if (checkIn != null && checkOut == null) {
+          if (openRecord == null) {
+            openRecord = record;
+          } else {
+            final currentDate = (openRecord['attendanceDate'] ??
+                    openRecord['attendance_date'])
+                ?.toString() ?? '';
+            if (date != null && date.compareTo(currentDate) > 0) {
+              openRecord = record;
+            }
+          }
+        }
+      }
+      if (!mounted) return;
+      setState(() {
+        _guardAttendanceRecord = openRecord ?? todayRecord;
+        _attendanceLoading = false;
+        _attendanceError = null;
+      });
+    } on _GuardApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _attendanceLoading = false;
+        _attendanceError = error.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _attendanceLoading = false;
+        _attendanceError = 'Could not load your attendance. Try again.';
+      });
+    }
+  }
+
+  Future<void> _changeGuardAttendance(bool checkIn) async {
+    final guard = _loadedSnapshot?.guardProfile;
+    final staffId = (guard?['staff_id'] ?? guard?['staffId'])?.toString();
+    if (staffId == null || staffId.isEmpty || _attendanceBusy) return;
+    final now = DateTime.now();
+    final currentRecord = _guardAttendanceRecord;
+    final storedDate = (currentRecord?['attendanceDate'] ??
+            currentRecord?['attendance_date'])
+        ?.toString();
+    final attendanceDate = checkIn
+        ? _localAttendanceDate(now)
+        : storedDate != null && storedDate.length >= 10
+        ? storedDate.substring(0, 10)
+        : _localAttendanceDate(now);
+
+    setState(() {
+      _attendanceBusy = true;
+      _attendanceError = null;
+    });
+    try {
+      final result = await _GuardApi.post(
+        checkIn ? '/staff-attendance/check-in' : '/staff-attendance/check-out',
+        {
+          'staffId': staffId,
+          'attendanceDate': attendanceDate,
+          if (checkIn) 'checkInTime': now.toIso8601String(),
+          if (!checkIn) 'checkOutTime': now.toIso8601String(),
+        },
+        widget.user.accessToken,
+      );
+      if (!mounted) return;
+      setState(() => _guardAttendanceRecord = result);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            checkIn ? 'Attendance checked in.' : 'Attendance checked out.',
+          ),
+        ),
+      );
+    } on _GuardApiException catch (error) {
+      if (mounted) {
+        _showError(error.message);
+        await _refreshGuardAttendance();
+      }
+    } finally {
+      if (mounted) setState(() => _attendanceBusy = false);
+    }
+  }
+
+  String _localAttendanceDate(DateTime date) =>
+      '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
   Future<void> _cancelAssignedShift(
     SecurityShiftAssignment assignment,
@@ -637,6 +763,7 @@ class _SecurityHomeState extends State<_SecurityHome>
               'societyId': widget.user.societyId,
               'name': registration.name,
               'visitorType': registration.visitorType,
+              'employeeCode': registration.employeeCode,
               'phone': registration.phone,
               'idType': registration.idType,
               'vehicleNo': registration.vehicleNo,
@@ -923,20 +1050,48 @@ class _SecurityHomeState extends State<_SecurityHome>
                   children: List.generate(5, (index) {
                     final selected = _tab == index;
                     final page = index == 4
-                        ? ValueListenableBuilder<int>(
-                            valueListenable: _shiftRevision,
-                            builder: (context, _, _) => SecurityProfileScreen(
-                              user: widget.user,
-                              guardProfile: data.guardProfile,
-                              gateNames: data.gates
-                                  .map((gate) => gate.name)
-                                  .toList(),
-                              profilePhotoUrl: data.accountPhotoUrl,
-                              initialShiftAssignments: data.shiftAssignments,
-                              loadShiftAssignments: () =>
-                                  _GuardApi.loadShiftAssignments(widget.user),
-                              onSignOut: _signOut,
-                            ),
+                        ? ValueListenableBuilder<DateTime>(
+                            valueListenable: _shiftClock,
+                            builder: (context, now, _) =>
+                                ValueListenableBuilder<int>(
+                                  valueListenable: _shiftRevision,
+                                  builder: (context, _, _) {
+                                    final shiftAllowsAttendance =
+                                        _activeAssignedShift(data, now) != null;
+                                    return SecurityProfileScreen(
+                                      user: widget.user,
+                                      guardProfile: data.guardProfile,
+                                      gateNames: data.gates
+                                          .map((gate) => gate.name)
+                                          .toList(),
+                                      profilePhotoUrl: data.accountPhotoUrl,
+                                      initialShiftAssignments:
+                                          data.shiftAssignments,
+                                      loadShiftAssignments: () =>
+                                          _GuardApi.loadShiftAssignments(
+                                            widget.user,
+                                          ),
+                                      attendanceRecord: _guardAttendanceRecord,
+                                      attendanceLoading: _attendanceLoading,
+                                      attendanceBusy: _attendanceBusy,
+                                      canMarkAttendance:
+                                          _attendanceStaffAvailable &&
+                                          _attendanceError == null &&
+                                          shiftAllowsAttendance,
+                                      attendanceAvailabilityMessage:
+                                          _attendanceError != null ||
+                                                  shiftAllowsAttendance
+                                              ? null
+                                              : 'Attendance is available only during your assigned shift.',
+                                      attendanceError: _attendanceError,
+                                      onAttendanceAction:
+                                          _changeGuardAttendance,
+                                      onRefreshAttendance:
+                                          _refreshGuardAttendance,
+                                      onSignOut: _signOut,
+                                    );
+                                  },
+                                ),
                           )
                         : _dashboardTab(data, index);
                     return Positioned.fill(
@@ -1326,20 +1481,6 @@ class _SecurityHomeState extends State<_SecurityHome>
   Widget _overview(_GuardSnapshot data) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      _sectionHeading('Gate activity', '${data.passes.length} passes'),
-      const SizedBox(height: 10),
-      if (data.actionablePasses.isEmpty)
-        _emptyCard('No visitors are waiting at the gate right now.')
-      else
-        ...data.actionablePasses
-            .take(5)
-            .map(
-              (pass) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: this._passCard(pass, data),
-              ),
-            ),
-      const SizedBox(height: 10),
       _sectionHeading('Quick actions', 'Security desk'),
       const SizedBox(height: 10),
       Row(
@@ -1368,6 +1509,19 @@ class _SecurityHomeState extends State<_SecurityHome>
         ],
       ),
       const SizedBox(height: 14),
+      _sectionHeading('Gate activity', '${data.passes.length} passes'),
+      const SizedBox(height: 10),
+      if (data.actionablePasses.isEmpty)
+        _emptyCard('No visitors are waiting at the gate right now.')
+      else
+        ...data.actionablePasses
+            .take(5)
+            .map(
+              (pass) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: this._passCard(pass, data),
+              ),
+            ),
       Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
@@ -1415,6 +1569,23 @@ class _SecurityHomeState extends State<_SecurityHome>
       end = end.add(const Duration(days: 1));
     }
     return end;
+  }
+
+  SecurityShiftAssignment? _activeAssignedShift(
+    _GuardSnapshot data,
+    DateTime now,
+  ) {
+    for (final assignment in data.shiftAssignments) {
+      if (assignment.status == 'CANCELLED' ||
+          assignment.status == 'COMPLETED') {
+        continue;
+      }
+      final start = _shiftDateTime(assignment.rosterDate ?? now, assignment.startTime);
+      if (!now.isBefore(start) && now.isBefore(_shiftEnd(assignment))) {
+        return assignment;
+      }
+    }
+    return null;
   }
 
   String _shiftClockLabel(String value) {
@@ -2958,7 +3129,9 @@ class _GuardApi {
     Map<String, String>? query,
   ]) async {
     try {
-      final useLegacyApi = path == '/shifts' || path.startsWith('/rosters/');
+      final useLegacyApi = path == '/shifts' ||
+          path.startsWith('/rosters/') ||
+          path.startsWith('/staff-attendance');
       final baseUrl = useLegacyApi
           ? _apiBaseUrl.replaceFirst(RegExp(r'/api/v1/?$'), '/api')
           : _apiBaseUrl;
@@ -3057,8 +3230,9 @@ class _GuardApi {
     String token,
   ) async {
     try {
-      final useLegacyApi =
-          path.startsWith('/rosters/') || path.startsWith('/shifts');
+      final useLegacyApi = path.startsWith('/rosters/') ||
+          path.startsWith('/shifts') ||
+          path.startsWith('/staff-attendance');
       final baseUrl = useLegacyApi
           ? _apiBaseUrl.replaceFirst(RegExp(r'/api/v1/?$'), '/api')
           : _apiBaseUrl;
@@ -3363,6 +3537,7 @@ String _visitorTypeLabel(_GuardPass pass, _GuardSnapshot data) =>
       'DELIVERY_PERSON' => 'Delivery',
       'SERVICE_PROVIDER' => 'Service provider',
       'STAFF' => 'Staff',
+      'MAID' => 'Maid',
       'OTHER' => 'Other visitor',
       _ => pass.status == 'OVERSTAY' ? 'Overstay' : 'Visitor',
     };

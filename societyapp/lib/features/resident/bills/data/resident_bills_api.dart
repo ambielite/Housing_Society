@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:housing_society_app/app/session_manager.dart';
 
@@ -9,9 +8,10 @@ const _configuredApiBaseUrl = String.fromEnvironment('API_BASE_URL');
 
 String get _apiBaseUrl => _configuredApiBaseUrl.isNotEmpty
     ? _configuredApiBaseUrl
-    : kIsWeb
-    ? 'http://localhost:5000/api/v1'
-    : 'http://10.0.2.2:5000/api/v1';
+    // The Android emulator-only address (10.0.2.2) does not work on a real
+    // phone. The physical-device debug setup uses `adb reverse`, so localhost
+    // reaches the backend on the development computer just like it does on web.
+    : 'http://localhost:5000/api/v1';
 
 class ResidentDuesSummary {
   const ResidentDuesSummary({

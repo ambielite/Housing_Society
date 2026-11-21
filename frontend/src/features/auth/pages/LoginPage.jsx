@@ -8,7 +8,7 @@ export default function LoginPage() {
 
   return (
     <AuthCard variant="login" title="SIGN IN" subtitle="Sign in to access your society dashboard">
-      {notice && <Alert variant="success">{notice}</Alert>}
+      {notice && <Alert variant="info">{notice}</Alert>}
       <LoginForm />
     </AuthCard>
   );

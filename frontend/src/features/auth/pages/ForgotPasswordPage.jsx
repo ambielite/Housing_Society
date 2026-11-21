@@ -69,7 +69,7 @@ export default function ForgotPasswordPage() {
         </form>
       ) : (
         <form onSubmit={onResetPassword} noValidate>
-          <Alert variant="success">If this email belongs to an admin account, a verification code will be sent.</Alert>
+          <Alert variant="info">If this email belongs to an admin account, a verification code will be sent.</Alert>
           <TextField id="otp" label="6-digit verification code" inputMode="numeric" autoComplete="one-time-code" value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} error={fieldErrors.otp} />
           <TextField id="newPassword" type="password" label="New password" autoComplete="new-password" hint="8 to 128 characters." value={newPassword} onChange={(e) => setNewPassword(e.target.value)} error={fieldErrors.newPassword} />
           <TextField id="confirmPassword" type="password" label="Confirm new password" autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} error={fieldErrors.confirmPassword} />

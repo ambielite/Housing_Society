@@ -457,12 +457,6 @@ class _ResidentProfileScreenState extends State<ResidentProfileScreen> {
             _date(DateTime.tryParse(resident?.dateOfBirth ?? '')),
           ),
           ('Resident type', _label(resident?.role)),
-          ('Emergency contact', _value(resident?.emergencyContactName)),
-          ('Emergency phone', _value(resident?.emergencyContactPhone)),
-          (
-            'Emergency relationship',
-            _label(resident?.emergencyContactRelation),
-          ),
         ]);
     }
   }

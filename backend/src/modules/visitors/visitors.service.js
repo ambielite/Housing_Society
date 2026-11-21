@@ -43,7 +43,31 @@ const requireResidentId = async (user) => {
 
 // --- visitor profiles --------------------------------------------------------
 
-const createProfile = (payload) => repository.createProfile(payload);
+const createProfile = async (payload) => {
+  if (payload.visitorType === 'MAID') {
+    const result = await query(
+      `SELECT id
+         FROM staff
+        WHERE society_id = $1
+          AND staff_type = 'MAID'
+          AND status = 'ACTIVE'
+          AND upper(trim(employee_code)) = upper(trim($2))
+          AND lower(regexp_replace(trim(concat_ws(' ', first_name, last_name)), '\\s+', ' ', 'g'))
+              = lower(regexp_replace(trim($3), '\\s+', ' ', 'g'))
+          AND right(regexp_replace(mobile_number, '\\D', '', 'g'), 10)
+              = right(regexp_replace($4, '\\D', '', 'g'), 10)
+        LIMIT 2`,
+      [payload.societyId, payload.employeeCode, payload.name, payload.phone],
+    );
+    if (result.rowCount !== 1) {
+      throw new ApiError(
+        400,
+        'Maid name, phone number, and employee code must match an active Maid in this society.',
+      );
+    }
+  }
+  return repository.createProfile(payload);
+};
 
 const listProfiles = (query) => repository.listProfiles(query);
 const listDestinations = (societyId) => repository.listDestinations(societyId);
@@ -201,6 +225,81 @@ const recordArrival = async (id) => {
   return updated;
 };
 
+// Link a maid visitor pass to one active staff record using employee code,
+// name, and phone within the gate's society.
+const syncMaidAttendance = async (pass, direction, capturedBy) => {
+  const result = await query(
+    `SELECT pf.name, pf.phone, pf.employee_code, pf.visitor_type, g.society_id
+       FROM visitor_profiles pf
+       JOIN visitor_passes vp ON vp.visitor_profile_id = pf.id
+       JOIN gates g ON g.id = vp.gate_id
+      WHERE vp.id = $1`,
+    [pass.id],
+  );
+  const visitor = result.rows[0];
+  if (!visitor || visitor.visitor_type !== 'MAID') return;
+
+  const matches = await query(
+    `SELECT s.id, s.mobile_number
+       FROM staff s
+      WHERE s.society_id = $1
+        AND s.staff_type = 'MAID'
+        AND s.status = 'ACTIVE'
+        AND upper(trim(s.employee_code)) = upper(trim($2))
+        AND lower(regexp_replace(trim(concat_ws(' ', s.first_name, s.last_name)), '\\s+', ' ', 'g'))
+            = lower(regexp_replace(trim($3), '\\s+', ' ', 'g'))
+        AND right(regexp_replace(s.mobile_number, '\\D', '', 'g'), 10)
+            = right(regexp_replace($4, '\\D', '', 'g'), 10)
+      LIMIT 2`,
+    [visitor.society_id, visitor.employee_code, visitor.name, visitor.phone],
+  );
+  if (matches.rowCount !== 1) return;
+
+  const staffId = matches.rows[0].id;
+  if (direction === 'ENTRY') {
+    await query(
+      `INSERT INTO staff_attendance
+         (staff_id, attendance_date, check_in_time, status, marked_by, remarks, created_at, updated_at)
+       VALUES (
+         $1,
+         (now() AT TIME ZONE 'Asia/Kolkata')::date,
+         now(),
+         'PRESENT',
+         $2,
+         'Check-in recorded from approved maid visitor pass',
+         now(),
+         now()
+       )
+       ON CONFLICT (staff_id, attendance_date) DO UPDATE
+         SET check_in_time = COALESCE(staff_attendance.check_in_time, EXCLUDED.check_in_time),
+             status = CASE WHEN staff_attendance.check_in_time IS NULL THEN 'PRESENT' ELSE staff_attendance.status END,
+             marked_by = COALESCE(staff_attendance.marked_by, EXCLUDED.marked_by),
+             updated_at = now()`,
+      [staffId, capturedBy || null],
+    );
+    return;
+  }
+
+  await query(
+    `WITH active_attendance AS (
+       SELECT id, check_in_time
+         FROM staff_attendance
+        WHERE staff_id = $1
+          AND check_in_time IS NOT NULL
+          AND check_out_time IS NULL
+        ORDER BY attendance_date DESC
+        LIMIT 1
+     )
+     UPDATE staff_attendance attendance
+        SET check_out_time = now(),
+            working_minutes = GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (now() - attendance.check_in_time)) / 60)::integer),
+            updated_at = now()
+       FROM active_attendance
+      WHERE attendance.id = active_attendance.id`,
+    [staffId],
+  );
+};
+
 /** "Entry recorded" + "Inside-premises timer begins" steps. */
 const recordEntry = async (id, { capturedBy }) => {
   const pass = await repository.findPassById(id);
@@ -218,6 +317,8 @@ const recordEntry = async (id, { capturedBy }) => {
         : 'Wait for the resident to approve this visitor before entry',
     );
   }
+
+  await syncMaidAttendance(pass, 'ENTRY', capturedBy);
 
   await repository.createGateEvent({
     societyId: (await gatesRepository.findGateById(pass.gate_id)).society_id,
@@ -272,6 +373,8 @@ const recordExit = async (id, { capturedBy }) => {
   if (pass.status !== 'INSIDE' && pass.status !== 'OVERSTAY') {
     throw new ApiError(400, `Cannot record exit - pass is currently ${pass.status}`);
   }
+
+  await syncMaidAttendance(pass, 'EXIT', capturedBy);
 
   await repository.createGateEvent({
     societyId: (await gatesRepository.findGateById(pass.gate_id)).society_id,

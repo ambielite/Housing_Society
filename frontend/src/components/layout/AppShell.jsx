@@ -19,7 +19,15 @@ export default function AppShell() {
             <span>Help centre</span>
           </nav>
           <span className="footer-status"><i aria-hidden="true" />All systems operational</span>
-          <span className="footer-credit">Powered by <strong>Ambi Elite Pvt Ltd</strong></span>
+          <a
+            className="footer-credit"
+            href="https://ambielite.in/"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Visit Ambi Elite Pvt Ltd website"
+          >
+            Powered by <strong>Ambi Elite Pvt Ltd</strong>
+          </a>
         </footer>
       </div>
     </div>
