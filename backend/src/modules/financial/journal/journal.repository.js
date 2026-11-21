@@ -86,14 +86,16 @@ const findJournalOnly = async (
 
 const findAll = async (
     societyId,
+    status = null,
     transaction = null
 ) => {
 
-    const where = {};
-
-    if (societyId) {
-        where.societyId = societyId;
+    if (!societyId) {
+        throw new Error("societyId is required");
     }
+
+    const where = { societyId };
+    if (status) where.status = status;
 
     return await Journal.findAll({
 

@@ -70,10 +70,16 @@ export default function FinancePeriodsPage() {
             {error && <div className="society-error" role="alert">{error}<button onClick={load}>Try again</button></div>}
             <section className="society-list-panel">
                 <div className="society-list-heading"><div><h2><CalendarDays size={17} /> Create period</h2><p>Define the date range used to validate journal postings.</p></div></div>
-                <form className="society-toolbar" onSubmit={create}>
-                    <input aria-label="Period name" placeholder="Period name" required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
-                    <input aria-label="Start date" type="date" required value={form.startDate} onChange={(event) => setForm({ ...form, startDate: event.target.value })} />
-                    <input aria-label="End date" type="date" required value={form.endDate} onChange={(event) => setForm({ ...form, endDate: event.target.value })} />
+                <form className="society-toolbar finance-period-form" onSubmit={create}>
+                    <input className="finance-period-input" aria-label="Period name" placeholder="Period name" required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+                    <label className={`finance-period-date-field${form.startDate ? " has-value" : ""}`}>
+                        <span>Start date</span>
+                        <input className="finance-period-input" aria-label="Start date" placeholder="Start date" type="date" required value={form.startDate} onChange={(event) => setForm({ ...form, startDate: event.target.value })} />
+                    </label>
+                    <label className={`finance-period-date-field${form.endDate ? " has-value" : ""}`}>
+                        <span>End date</span>
+                        <input className="finance-period-input" aria-label="End date" placeholder="End date" type="date" required value={form.endDate} onChange={(event) => setForm({ ...form, endDate: event.target.value })} />
+                    </label>
                     <button className="society-add-button" disabled={busy}><Plus size={16} /> Create period</button>
                 </form>
             </section>
@@ -82,7 +88,7 @@ export default function FinancePeriodsPage() {
                 {loading ? <div className="society-loading">Loading periods...</div> : <div className="society-table-wrap"><table className="society-table"><thead><tr><th>Name</th><th>Start</th><th>End</th><th>Status</th><th>Controls</th></tr></thead><tbody>
                     {periods.map((period) => {
                         const status = String(period.status || "OPEN").toUpperCase();
-                        return <tr key={period.id}><td>{period.name || "Accounting period"}</td><td>{String(period.startDate || "").slice(0, 10) || "-"}</td><td>{String(period.endDate || "").slice(0, 10) || "-"}</td><td>{status}</td><td><div className="society-row-actions">
+                        return <tr key={period.id}><td>{period.name || "Accounting period"}</td><td>{String(period.startDate || "").slice(0, 10) || "-"}</td><td>{String(period.endDate || "").slice(0, 10) || "-"}</td><td>{status === "OPEN" ? <span className="finance-period-status-open">{status}</span> : status}</td><td><div className="society-row-actions">
                             {status === "OPEN" && <button className="society-workflow-action" disabled={busy} onClick={() => runAction(accountingPeriodApi.close, period.id, "close")}>Close period</button>}
                             {status === "CLOSED" && <button className="society-workflow-action" disabled={busy} onClick={() => runAction(accountingPeriodApi.lock, period.id, "lock")}><LockKeyhole size={15} /> Lock period</button>}
                         </div></td></tr>;

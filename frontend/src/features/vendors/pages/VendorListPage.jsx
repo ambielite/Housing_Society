@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Plus, RefreshCw, Truck, X } from 'lucide-react';
+import { Plus, RefreshCw, Search, X } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
@@ -133,7 +133,7 @@ export default function VendorListPage() {
       <section className="society-list-panel purchase-orders-panel">
         <div className="society-list-heading"><div><h2>Vendors</h2><p>Manage supplier contact details, verification, and status.</p></div><span className="society-count">{loading ? 'Loading' : `${data?.pagination?.total ?? data?.vendors?.length ?? 0} vendors`}</span></div>
         <div className="society-toolbar purchase-orders-toolbar">
-          <label className="society-search"><Truck size={17} /><input type="search" placeholder="Search by vendor name" aria-label="Search vendors" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} /></label>
+          <label className="society-search"><Search size={17} /><input type="search" placeholder="Search by vendor name" aria-label="Search vendors" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} /></label>
           <select className="input toolbar-select" aria-label="Filter by status" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="">All statuses</option>{VENDOR_STATUSES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
         </div>
         {error && !data && <Alert>{getErrorMessage(error)} <button type="button" className="society-workflow-action" onClick={reload}>Try again</button></Alert>}

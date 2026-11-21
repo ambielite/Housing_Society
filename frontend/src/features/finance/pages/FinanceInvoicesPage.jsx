@@ -170,7 +170,7 @@ export default function FinanceInvoicesPage() {
                 </div>
                 <div className="society-toolbar">
                     <label className="society-search"><Search size={17} /><input aria-label="Search invoices" placeholder="Invoice, unit, period, or status" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
-                    <select aria-label="Filter invoice status" value={status} onChange={(event) => setStatus(event.target.value)}>
+                    <select className="invoice-status-filter" aria-label="Filter invoice status" value={status} onChange={(event) => setStatus(event.target.value)}>
                         <option value="">All statuses</option>
                         {["DRAFT", "ISSUED", "PARTIALLY_PAID", "PAID", "OVERDUE", "CANCELLED"].map((value) => <option key={value}>{value}</option>)}
                     </select>

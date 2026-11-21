@@ -237,7 +237,6 @@ const ResidentHierarchyPage = () => {
                     <label className="society-search">
                         <Search size={17} />
                         <input aria-label="Search resident ownership" placeholder="Search resident name or email..." value={search} onChange={(event) => setSearch(event.target.value)} />
-                        <kbd>⌕</kbd>
                     </label>
                     <button className="society-refresh-button" type="button" onClick={loadData} disabled={loading}>Refresh</button>
                 </div>

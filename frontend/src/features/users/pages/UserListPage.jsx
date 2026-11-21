@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, ShieldCheck, Trash2, UserRound, UsersRound } from 'lucide-react';
+import { Plus, Search, ShieldCheck, Trash2, UserRound, UsersRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
@@ -179,17 +179,19 @@ export default function UserListPage() {
       <section className="user-directory-panel">
         <div className="user-directory-heading"><div><span className="user-directory-kicker">ACCOUNT DIRECTORY</span><h2>User accounts</h2><p>Search by name, email, or phone number, then manage each account.</p></div><span className="user-directory-count">{loading ? 'Loading…' : `${data?.pagination?.total ?? data?.users?.length ?? 0} records`}</span></div>
       <div className="toolbar user-directory-toolbar">
-        <input
-          type="search"
-          className="input toolbar-search"
-          placeholder="Search by name, email, or phone"
-          aria-label="Search users"
-          value={search}
-          onChange={(event) => {
-            setSearch(event.target.value);
-            setPage(1);
-          }}
-        />
+        <label className="society-search toolbar-search">
+          <Search size={17} />
+          <input
+            type="search"
+            placeholder="Search by name, email, or phone"
+            aria-label="Search users"
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setPage(1);
+            }}
+          />
+        </label>
         <select
           className="input toolbar-select"
           aria-label="Filter by status"

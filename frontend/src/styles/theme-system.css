@@ -206,10 +206,163 @@ body .society-toolbar {
   border-bottom-color: var(--row-divider);
   background: var(--surface);
 }
+body .finance-period-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.25fr) minmax(150px, 1fr) minmax(150px, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+}
+body .finance-period-form .finance-period-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--field-border);
+  border-radius: 8px;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+}
+body .finance-period-form .finance-period-input::placeholder { color: var(--text-muted); }
+body .finance-period-date-field { position: relative; display: block; min-width: 0; }
+body .finance-period-date-field > span {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 13px;
+  color: var(--text-muted);
+  font-size: 14px;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+body .finance-period-date-field:not(.has-value) .finance-period-input:not(:focus) { color: transparent; }
+body .finance-period-date-field.has-value > span,
+body .finance-period-date-field:focus-within > span { visibility: hidden; }
+body .finance-period-form .finance-period-input:focus {
+  border-color: #000;
+  box-shadow: 0 0 0 2px #0000;
+}
+body .finance-period-form .society-add-button {
+  min-height: 42px;
+  justify-content: center;
+  white-space: nowrap;
+}
+body .finance-period-status-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border: 1px solid #86efac;
+  border-radius: 999px;
+  background: #f0fdf4;
+  color: #047857;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+body .finance-module-page .society-list-panel + .society-list-panel { margin-top: 16px; }
 body .society-search { min-height: 44px; border-radius: 9px; }
 body .society-search input { font-size: 13px; }
 body .society-refresh-button, body .society-icon-action { border-radius: 9px; }
 body .society-icon-action { width: 36px; height: 36px; }
+body .finance-module-page .billing-filter-select,
+body .finance-module-page .billing-run-date {
+  box-sizing: border-box;
+  height: 44px;
+  min-width: 0;
+  padding: 0 12px;
+  border: 1px solid var(--field-border);
+  border-radius: 9px;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+}
+body .finance-module-page .billing-filter-select { flex: 0 1 150px; }
+body .finance-module-page .billing-run-date { flex: 0 1 180px; }
+body .finance-module-page .billing-toolbar-button {
+  box-sizing: border-box;
+  flex: 0 1 120px;
+  min-width: 110px;
+  height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--field-border);
+  border-radius: 9px;
+  background: var(--input-bg);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.2;
+}
+body .finance-module-page .billing-toolbar-button:hover:not(:disabled) { border-color: var(--field-border); }
+body .finance-module-page .billing-filter-select:focus,
+body .finance-module-page .billing-run-date:focus {
+  border-color: black;
+  box-shadow: 0 0 0 2px #0000;
+  outline: none;
+}
+body .finance-module-page .tax-calculator-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.35fr) minmax(140px, .8fr) minmax(140px, .8fr) auto;
+  align-items: center;
+  gap: 14px;
+}
+body .finance-module-page .tax-calculator-field {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--field-border);
+  border-radius: 8px;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+body .finance-module-page .tax-calculator-field::placeholder { color: var(--text-muted); }
+body .finance-module-page .tax-calculator-field:focus {
+  border-color: black;
+  box-shadow: 0 0 0 3px #0000;
+}
+body .finance-module-page .tax-calculator-form .society-workflow-action {
+  min-height: 42px;
+  justify-content: center;
+  white-space: nowrap;
+}
+body .finance-module-page .invoice-status-filter {
+  box-sizing: border-box;
+  flex: 0 0 150px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--field-border);
+  border-radius: 9px;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+}
+body .finance-module-page .invoice-status-filter:focus {
+  border-color: black;
+  box-shadow: 0 0 0 3px #0000;
+  outline: none;
+}
+
+@media (max-width: 900px) {
+  body .finance-period-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  body .finance-module-page .tax-calculator-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  body .finance-period-form .society-add-button { justify-self: end; }
+}
+@media (max-width: 560px) {
+  body .finance-period-form { grid-template-columns: minmax(0, 1fr); }
+  body .finance-module-page .tax-calculator-form { grid-template-columns: minmax(0, 1fr); }
+  body .finance-period-form .society-add-button { justify-self: stretch; }
+}
 
 /* Society directory gets a distinct, polished register layout. */
 body .society-dashboard .society-list-panel:has(.society-region) .society-table {

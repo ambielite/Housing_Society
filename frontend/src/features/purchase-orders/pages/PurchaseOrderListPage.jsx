@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileText, Plus, RefreshCw } from 'lucide-react';
+import { Plus, RefreshCw, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
@@ -50,7 +50,7 @@ export default function PurchaseOrderListPage() {
       <section className="society-list-panel purchase-orders-panel">
         <div className="society-list-heading"><div><h2>Purchase orders</h2><p>Review supplier orders, delivery dates, totals, and status.</p></div><span className="society-count">{loading ? 'Loading' : `${rows?.length || 0} orders`}</span></div>
         <div className="society-toolbar purchase-orders-toolbar">
-          <label className="society-search"><FileText size={17} /><input type="search" placeholder="Search PO number" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search purchase orders" /></label>
+          <label className="society-search"><Search size={17} /><input type="search" placeholder="Search PO number" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search purchase orders" /></label>
           <select className="input toolbar-select" value={vendorId} onChange={(e) => setVendorId(e.target.value)} aria-label="Filter by vendor"><option value="">All vendors</option>{vendors.map((v) => <option key={v.id} value={v.id}>{v.legal_name}</option>)}</select>
           <select className="input toolbar-select" value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter by status"><option value="">All statuses</option>{PO_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}</select>
         </div>

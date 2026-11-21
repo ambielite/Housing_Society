@@ -38,8 +38,16 @@ const getAll = async (req, res) => {
 
     try {
 
+        const societyId = req.user?.societyId || req.query.societyId;
+        if (!societyId) {
+            return res.status(400).json({
+                success: false,
+                message: "societyId is required"
+            });
+        }
+
         const journals =
-            await service.getAll({ societyId: req.query.societyId });
+            await service.getAll({ societyId, status: req.query.status });
 
         return res.status(200).json({
             success: true,

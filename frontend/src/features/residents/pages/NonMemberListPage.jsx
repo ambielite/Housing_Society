@@ -188,7 +188,6 @@ const NonMemberListPage = () => {
                     <label className="society-search">
                         <Search size={17} />
                         <input aria-label="Search non-members" placeholder="Search name, mobile, email, type..." value={search} onChange={(event) => setSearch(event.target.value)} />
-                        <kbd>⌕</kbd>
                     </label>
                     <button className="society-refresh-button" type="button" onClick={loadData} disabled={loading}>
                         <RefreshCw size={16} className={loading ? "society-spinning" : ""} /> Refresh

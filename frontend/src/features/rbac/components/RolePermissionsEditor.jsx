@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Search } from 'lucide-react';
 import Alert from '../../../components/ui/Alert';
 import { getErrorMessage } from '../../../lib/axios';
 import { humanize } from '../../../utils/format';
@@ -76,14 +77,16 @@ export default function RolePermissionsEditor({ roleId, catalog, granted, canEdi
     <div>
       {error && <Alert>{error}</Alert>}
       <div className="perm-toolbar">
-        <input
-          type="search"
-          className="input toolbar-search"
-          placeholder="Search permissions"
-          aria-label="Search permissions"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
+        <label className="society-search toolbar-search">
+          <Search size={17} />
+          <input
+            type="search"
+            placeholder="Search permissions"
+            aria-label="Search permissions"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </label>
         <span className="muted">
           {grantedCodes.size} of {catalog.length} granted
         </span>

@@ -329,8 +329,13 @@ const getAll = async (filters = {}) => {
                 ? filters
                 : { societyId: filters };
 
+        if (!normalizedFilters.societyId) {
+            throw new Error("societyId is required");
+        }
+
         return await repository.findAll(
-            normalizedFilters.societyId || null
+            normalizedFilters.societyId,
+            normalizedFilters.status || null
         );
     } catch (error) {
         if (isSchemaMissingError(error)) {
