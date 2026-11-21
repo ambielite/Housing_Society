@@ -58,6 +58,7 @@ const REQUESTS = {
 
 const LABELS = {
   generatedAt: 'Generated at', totalVehicles: 'Total vehicles', activeVehicles: 'Active vehicles',
+  employeeNameAndCode: 'Employee Name / Employee Code',
   twoWheelers: 'Two-wheelers', fourWheelers: 'Four-wheelers', otherVehicles: 'Other vehicles',
   totalParkingSlots: 'Total parking slots', activeSlots: 'Active slots', inactiveSlots: 'Inactive slots',
   occupiedSlots: 'Occupied slots', vacantSlots: 'Vacant slots', occupancyPercentage: 'Occupancy',
@@ -126,18 +127,29 @@ function StatusBadge({ value }) {
 }
 
 function ReportTable({ title, rows }) {
+  const displayRows = useMemo(() => rows.map((row) => {
+    const employee = row.staff || row.Staff || row.employee || {};
+    const employeeName = [
+      employee.firstName ?? employee.first_name,
+      employee.lastName ?? employee.last_name,
+    ].filter(Boolean).join(' ');
+    const employeeCode = employee.employeeCode ?? employee.employee_code ?? row.employeeCode ?? row.employee_code;
+    const employeeNameAndCode = [employeeName, employeeCode].filter(Boolean).join(' / ');
+    return employeeNameAndCode ? { ...row, employeeNameAndCode } : row;
+  }), [rows]);
   const columns = useMemo(() => {
     const counts = new Map();
     const order = new Map();
-    rows.slice(0, 100).forEach((row) => Object.entries(row).forEach(([key, value]) => {
+    displayRows.slice(0, 100).forEach((row) => Object.entries(row).forEach(([key, value]) => {
       if (!visibleScalar([key, value])) return;
       if (!order.has(key)) order.set(key, order.size);
       counts.set(key, (counts.get(key) || 0) + 1);
     }));
     return [...counts.keys()]
       .sort((a, b) => counts.get(b) - counts.get(a) || order.get(a) - order.get(b))
-      .slice(0, 8);
-  }, [rows]);
+      .slice(0, 8)
+      .sort((a, b) => a === 'employeeNameAndCode' ? -1 : b === 'employeeNameAndCode' ? 1 : 0);
+  }, [displayRows]);
   if (!rows.length || !columns.length) return null;
   return (
     <section className="rc-data-section">
@@ -145,7 +157,7 @@ function ReportTable({ title, rows }) {
       <div className="rc-table-wrap">
         <table className="table rc-table">
           <thead><tr>{columns.map((column) => <th key={column}>{displayLabel(column)}</th>)}</tr></thead>
-          <tbody>{rows.map((row, index) => (
+          <tbody>{displayRows.map((row, index) => (
             <tr key={`${title}-${index}`}>
               {columns.map((column) => <td key={column}>{/(status|availability)/i.test(column) && row[column] != null && row[column] !== '' ? <StatusBadge value={row[column]} /> : formatValue(row[column], column)}</td>)}
             </tr>

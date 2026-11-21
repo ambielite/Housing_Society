@@ -2,12 +2,12 @@ const db = require('../../config/db');
 
 // --- visitor_profiles --------------------------------------------------------
 
-const createProfile = async ({ societyId, name, visitorType, deliveryCompany, phone, idType, idNumberMasked, vehicleNo, photoDocumentId }) => {
+const createProfile = async ({ societyId, name, visitorType, employeeCode, deliveryCompany, phone, idType, idNumberMasked, vehicleNo, photoDocumentId }) => {
   const result = await db.query(
-    `INSERT INTO visitor_profiles (society_id, name, visitor_type, delivery_company, phone, id_type, id_number_masked, vehicle_no, photo_document_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `INSERT INTO visitor_profiles (society_id, name, visitor_type, employee_code, delivery_company, phone, id_type, id_number_masked, vehicle_no, photo_document_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      RETURNING *`,
-    [societyId, name, visitorType || 'GUEST', visitorType === 'DELIVERY_PERSON' ? deliveryCompany || null : null, phone || null, idType || null, idNumberMasked || null, vehicleNo || null, photoDocumentId || null]
+    [societyId, name, visitorType || 'GUEST', employeeCode || null, visitorType === 'DELIVERY_PERSON' ? deliveryCompany || null : null, phone || null, idType || null, idNumberMasked || null, vehicleNo || null, photoDocumentId || null]
   );
   return result.rows[0];
 };
@@ -103,7 +103,7 @@ const destinationBelongsToSociety = async ({ societyId, unitId, residentId }) =>
   return result.rowCount > 0;
 };
 
-const updateProfile = async (id, { name, phone, idType, idNumberMasked, vehicleNo, visitorType, deliveryCompany }) => {
+const updateProfile = async (id, { name, phone, idType, idNumberMasked, vehicleNo, visitorType, deliveryCompany, employeeCode }) => {
   const result = await db.query(
     `UPDATE visitor_profiles SET
        name              = COALESCE($2, name),
@@ -112,6 +112,7 @@ const updateProfile = async (id, { name, phone, idType, idNumberMasked, vehicleN
        id_number_masked  = COALESCE($5, id_number_masked),
        vehicle_no        = COALESCE($6, vehicle_no),
        visitor_type      = COALESCE($7, visitor_type),
+       employee_code     = COALESCE($9, employee_code),
        delivery_company  = CASE
          WHEN $7 IS NULL THEN COALESCE(NULLIF($8, ''), delivery_company)
          WHEN $7 = 'DELIVERY_PERSON' THEN NULLIF($8, '')
@@ -120,7 +121,7 @@ const updateProfile = async (id, { name, phone, idType, idNumberMasked, vehicleN
        updated_at        = now()
      WHERE id = $1
      RETURNING *`,
-    [id, name, phone, idType, idNumberMasked, vehicleNo, visitorType, deliveryCompany]
+    [id, name, phone, idType, idNumberMasked, vehicleNo, visitorType, deliveryCompany, employeeCode]
   );
   return result.rows[0] || null;
 };

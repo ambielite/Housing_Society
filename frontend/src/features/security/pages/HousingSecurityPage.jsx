@@ -484,12 +484,20 @@ export default function SecurityPage() {
   const items = data[sectionKey] || [];
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return items.filter(
-      (item) =>
-        !q ||
-        Object.values(item).map(display).join(" ").toLowerCase().includes(q),
-    );
-  }, [items, search]);
+    return items.filter((item) => {
+      if (!q) return true;
+      const values = Object.values(item).map(display);
+      if (tab === "attendance") {
+        const person = staff.find(
+          (candidate) => String(candidate.id) === String(item.staffId),
+        );
+        if (person) {
+          values.push(`${person.firstName || ""} ${person.lastName || ""}`);
+        }
+      }
+      return values.join(" ").toLowerCase().includes(q);
+    });
+  }, [items, search, staff, tab]);
   const save = async (event) => {
     event.preventDefault();
     const config = configs[form];

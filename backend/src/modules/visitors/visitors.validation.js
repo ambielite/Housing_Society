@@ -8,12 +8,19 @@ const OVERSTAY_STATUSES = ['ACKNOWLEDGED', 'RESOLVED'];
 const createProfileSchema = Joi.object({
   societyId: Joi.string().uuid().required(),
   name: Joi.string().max(150).required(),
-  visitorType: Joi.string().valid('GUEST', 'DELIVERY_PERSON', 'SERVICE_PROVIDER', 'STAFF', 'OTHER').default('GUEST'),
+  visitorType: Joi.string().valid('GUEST', 'DELIVERY_PERSON', 'SERVICE_PROVIDER', 'STAFF', 'MAID', 'OTHER').default('GUEST'),
+  employeeCode: Joi.string().trim().max(50).allow('', null).when('visitorType', {
+    is: 'MAID',
+    then: Joi.string().trim().min(1).max(50).required(),
+  }),
   deliveryCompany: Joi.string().trim().max(100).allow('', null).when('visitorType', {
     is: 'DELIVERY_PERSON',
     then: Joi.string().trim().min(1).max(100).required(),
   }),
-  phone: Joi.string().max(20).allow('', null),
+  phone: Joi.string().max(20).allow('', null).when('visitorType', {
+    is: 'MAID',
+    then: Joi.string().trim().pattern(/^\d{10}$/).required(),
+  }),
   idType: Joi.string().valid(...ID_TYPES).allow(null),
   idNumberMasked: Joi.string().max(50).allow('', null),
   vehicleNo: Joi.string().max(20).allow('', null),
@@ -28,7 +35,11 @@ const listProfilesQuerySchema = Joi.object({
 
 const updateProfileSchema = Joi.object({
   name: Joi.string().max(150),
-  visitorType: Joi.string().valid('GUEST', 'DELIVERY_PERSON', 'SERVICE_PROVIDER', 'STAFF', 'OTHER'),
+  visitorType: Joi.string().valid('GUEST', 'DELIVERY_PERSON', 'SERVICE_PROVIDER', 'STAFF', 'MAID', 'OTHER'),
+  employeeCode: Joi.string().trim().max(50).allow('', null).when('visitorType', {
+    is: 'MAID',
+    then: Joi.string().trim().min(1).max(50).required(),
+  }),
   deliveryCompany: Joi.string().trim().max(100).allow('', null).when('visitorType', {
     is: 'DELIVERY_PERSON',
     then: Joi.string().trim().min(1).max(100).required(),
@@ -56,7 +67,7 @@ const createInviteSchema = Joi.object({
 const createResidentInviteSchema = Joi.object({
   name: Joi.string().trim().min(1).max(150).required(),
   phone: Joi.string().trim().max(20).allow('', null),
-  visitorType: Joi.string().valid('GUEST', 'DELIVERY_PERSON', 'SERVICE_PROVIDER', 'STAFF', 'OTHER').default('GUEST'),
+  visitorType: Joi.string().valid('GUEST', 'DELIVERY_PERSON', 'SERVICE_PROVIDER', 'STAFF', 'MAID', 'OTHER').default('GUEST'),
   expectedFrom: Joi.date().iso().required(),
   expectedUntil: Joi.date().iso().min(Joi.ref('expectedFrom')).allow(null),
   purpose: Joi.string().max(255).allow('', null),

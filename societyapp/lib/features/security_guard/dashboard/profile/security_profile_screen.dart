@@ -21,6 +21,14 @@ class SecurityProfileScreen extends StatefulWidget {
     required this.loadShiftAssignments,
     this.initialShiftAssignments,
     this.profilePhotoUrl,
+    this.attendanceRecord,
+    this.attendanceLoading = false,
+    this.attendanceBusy = false,
+    this.canMarkAttendance = false,
+    this.attendanceAvailabilityMessage,
+    this.attendanceError,
+    this.onAttendanceAction,
+    this.onRefreshAttendance,
     required this.onSignOut,
   });
 
@@ -30,6 +38,14 @@ class SecurityProfileScreen extends StatefulWidget {
   final Future<List<SecurityShiftAssignment>> Function() loadShiftAssignments;
   final List<SecurityShiftAssignment>? initialShiftAssignments;
   final String? profilePhotoUrl;
+  final Map<String, dynamic>? attendanceRecord;
+  final bool attendanceLoading;
+  final bool attendanceBusy;
+  final bool canMarkAttendance;
+  final String? attendanceAvailabilityMessage;
+  final String? attendanceError;
+  final Future<void> Function(bool checkIn)? onAttendanceAction;
+  final VoidCallback? onRefreshAttendance;
   final VoidCallback onSignOut;
 
   @override
@@ -532,6 +548,8 @@ class _SecurityProfileScreenState extends State<SecurityProfileScreen> {
 
     return Column(
       children: [
+        _attendancePanel(),
+        const SizedBox(height: 14),
         _group('Contact', [
           ('Email', _staffValue('email', user.email)),
           ('Phone', _staffValue('mobile_number', user.phone)),
@@ -545,6 +563,132 @@ class _SecurityProfileScreenState extends State<SecurityProfileScreen> {
         ]),
       ],
     );
+  }
+
+  Widget _attendancePanel() {
+    final record = widget.attendanceRecord ?? const <String, dynamic>{};
+    final checkIn = record['checkInTime'] ?? record['check_in_time'];
+    final checkOut = record['checkOutTime'] ?? record['check_out_time'];
+    final checkedIn = checkIn != null && checkOut == null;
+    final attendanceDate = record['attendanceDate'] ?? record['attendance_date'];
+    final attendanceDateText = attendanceDate?.toString() ?? '';
+    final isToday = attendanceDateText.length >= 10 &&
+        attendanceDateText.substring(0, 10) == _todayDate();
+    final completedToday = isToday && checkOut != null;
+    final statusLabel = widget.attendanceLoading
+        ? 'Loading attendance'
+        : widget.attendanceError != null
+        ? 'Attendance unavailable'
+        : checkedIn
+        ? 'On duty'
+        : completedToday
+        ? 'Shift complete'
+        : !widget.canMarkAttendance && widget.attendanceAvailabilityMessage != null
+        ? 'Off duty'
+        : 'Not checked in';
+    final actionLabel = widget.attendanceBusy
+        ? 'Saving…'
+        : checkedIn
+        ? 'Check out'
+        : completedToday
+        ? 'Shift complete'
+        : !widget.canMarkAttendance && widget.attendanceAvailabilityMessage != null
+        ? 'Outside shift'
+        : 'Check in';
+    final actionColor = checkedIn ? const Color(0xFFB54740) : AppColors.indigo;
+
+    return _box(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.schedule_rounded, color: AppColors.indigo, size: 20),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Duty attendance',
+                  style: TextStyle(color: AppColors.ink, fontSize: 15, fontWeight: FontWeight.w700),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                decoration: BoxDecoration(
+                  color: checkedIn ? const Color(0xFFE8F7EF) : const Color(0xFFF0F2F7),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  statusLabel.toUpperCase(),
+                  style: TextStyle(
+                    color: checkedIn ? const Color(0xFF18794E) : _soft,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: .35,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 7),
+          Text(
+            checkedIn
+                ? 'Checked in at ${_attendanceTime(checkIn)}. Check out when your duty ends.'
+                : completedToday
+                ? 'Your attendance for today is complete.'
+                : !widget.canMarkAttendance && widget.attendanceAvailabilityMessage != null
+                ? widget.attendanceAvailabilityMessage!
+                : widget.attendanceError ?? 'Record your attendance for today’s duty.',
+            style: const TextStyle(color: _soft, fontSize: 12, height: 1.4),
+          ),
+          const SizedBox(height: 13),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: widget.attendanceLoading ||
+                      widget.attendanceBusy ||
+                      !widget.canMarkAttendance ||
+                      completedToday
+                  ? null
+                  : () => widget.onAttendanceAction?.call(!checkedIn),
+              icon: Icon(checkedIn ? Icons.logout_rounded : Icons.login_rounded, size: 18),
+              label: Text(actionLabel),
+              style: FilledButton.styleFrom(
+                backgroundColor: actionColor,
+                disabledBackgroundColor: const Color(0xFFE7EAF0),
+                disabledForegroundColor: _soft,
+                foregroundColor: Colors.white,
+                minimumSize: const Size.fromHeight(46),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                textStyle: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+          if (widget.attendanceError != null && widget.onRefreshAttendance != null)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: widget.onRefreshAttendance,
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: const Text('Retry'),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _attendanceTime(dynamic value) {
+    final parsed = DateTime.tryParse(value?.toString() ?? '');
+    if (parsed == null) return '—';
+    final local = parsed.toLocal();
+    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    return '$hour:${local.minute.toString().padLeft(2, '0')} ${local.hour < 12 ? 'AM' : 'PM'}';
+  }
+
+  String _todayDate() {
+    final now = DateTime.now();
+    return '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
   }
 
   Widget _accountTab() {
