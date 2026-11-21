@@ -1,3 +1,5 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
+import { confirmDashboardAction } from '../../../lib/dashboardConfirmation.js';
 import { useState } from 'react';
 import { Plus, ShieldCheck, Trash2, UserRound, UsersRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -56,8 +58,8 @@ export default function UserListPage() {
   const [page, setPage] = useState(1);
   const [showNewUser, setShowNewUser] = useState(false);
   const [creatingUser, setCreatingUser] = useState(false);
-  const [createError, setCreateError] = useState('');
-  const [deleteError, setDeleteError] = useState('');
+  const [createError, setCreateError] = useDashboardFeedback('', 'error');
+  const [deleteError, setDeleteError] = useDashboardFeedback('', 'error');
   const [deletingUserId, setDeletingUserId] = useState('');
   const debouncedSearch = useDebounce(search.trim());
 
@@ -98,7 +100,7 @@ export default function UserListPage() {
     }
     const name = fullName(user);
     const recordType = user.record_type === 'SECURITY_GUARD' ? 'guard staff record' : 'user account';
-    if (!window.confirm(`Permanently delete ${name}'s ${recordType}? This removes the record from the database and cannot be undone.`)) return;
+    if (!await confirmDashboardAction(`Permanently delete ${name}'s ${recordType}? This removes the record from the database and cannot be undone.`)) return;
     setDeleteError('');
     setDeletingUserId(user.id);
     try {

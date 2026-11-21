@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import SelectField from '../../../components/ui/SelectField';
 import Alert from '../../../components/ui/Alert';
@@ -5,7 +6,7 @@ import Alert from '../../../components/ui/Alert';
 /** vendorOptions: [{ value, label }] of ACTIVE vendors that haven't been invited yet. */
 export default function InviteVendorForm({ vendorOptions, onSubmit, onCancel, saving, error }) {
   const [vendorId, setVendorId] = useState('');
-  const [fieldError, setFieldError] = useState('');
+  const [fieldError, setFieldError] = useDashboardFeedback('', 'error');
 
   const handleSubmit = (event) => {
     event.preventDefault();

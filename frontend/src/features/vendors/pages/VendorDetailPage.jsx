@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
@@ -39,9 +40,9 @@ export default function VendorDetailPage() {
   const [showStatus, setShowStatus] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState('');
+  const [saveError, setSaveError] = useDashboardFeedback('', 'error');
   const [notice, setNotice] = useState(location.state?.notice || '');
-  const [pageError, setPageError] = useState('');
+  const [pageError, setPageError] = useDashboardFeedback('', 'error');
 
   const target = vendor.data;
 

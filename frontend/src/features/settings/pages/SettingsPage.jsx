@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useState } from 'react';
 import {
   ArrowLeft,
@@ -150,13 +151,13 @@ function SettingsEditor({ category, societyId }) {
   const [draft, setDraft] = useState(() => draftFromSettings(null));
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  const [error, setError] = useDashboardFeedback('', 'error');
+  const [notice, setNotice] = useDashboardFeedback('', 'success');
   const [society, setSociety] = useState(null);
   const [regionDraft, setRegionDraft] = useState({ currency: 'INR', timezone: 'Asia/Kolkata' });
   const [regionSaving, setRegionSaving] = useState(false);
-  const [regionNotice, setRegionNotice] = useState('');
-  const [regionError, setRegionError] = useState('');
+  const [regionNotice, setRegionNotice] = useDashboardFeedback('', 'success');
+  const [regionError, setRegionError] = useDashboardFeedback('', 'error');
   const canCreate = hasPermission('SOCIETY_SETTING_CREATE');
   const canUpdate = hasPermission('SOCIETY_SETTING_UPDATE');
   const isConfigurable = category.configurable;

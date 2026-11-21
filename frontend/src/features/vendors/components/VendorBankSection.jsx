@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import useAuth from '../../../app/providers/useAuth';
 import useFetch from '../../../utils/useFetch';
@@ -17,9 +18,9 @@ export default function VendorBankSection({ vendorId }) {
 
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState('');
-  const [notice, setNotice] = useState('');
-  const [pageError, setPageError] = useState('');
+  const [saveError, setSaveError] = useDashboardFeedback('', 'error');
+  const [notice, setNotice] = useDashboardFeedback('', 'success');
+  const [pageError, setPageError] = useDashboardFeedback('', 'error');
 
   const add = async (payload) => {
     setSaving(true);

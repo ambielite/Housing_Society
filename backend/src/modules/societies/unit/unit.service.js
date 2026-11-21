@@ -5,9 +5,15 @@ const floorRepository = require("../floor/floor.repository");
 // Create Unit
 const createUnit = async (unitData, societyId) => {
 
-    if (!await floorRepository.findById(unitData.floorId, societyId)) {
+    const floor = await floorRepository.findById(unitData.floorId, societyId);
+    if (!floor) {
         const error = new Error("Floor not found in the selected society");
         error.statusCode = 404;
+        throw error;
+    }
+    if (floor.tower?.status === "INACTIVE") {
+        const error = new Error("This floor belongs to an inactive tower and cannot be used for new units.");
+        error.statusCode = 409;
         throw error;
     }
 
@@ -137,10 +143,18 @@ const updateUnit = async (
         throw error;
     }
 
-    if (unitData.floorId && !await floorRepository.findById(unitData.floorId, societyId)) {
-        const error = new Error("Floor not found in the selected society");
-        error.statusCode = 404;
-        throw error;
+    if (unitData.floorId) {
+        const floor = await floorRepository.findById(unitData.floorId, societyId);
+        if (!floor) {
+            const error = new Error("Floor not found in the selected society");
+            error.statusCode = 404;
+            throw error;
+        }
+        if (floor.tower?.status === "INACTIVE") {
+            const error = new Error("This floor belongs to an inactive tower and cannot be used for new units.");
+            error.statusCode = 409;
+            throw error;
+        }
     }
 
 

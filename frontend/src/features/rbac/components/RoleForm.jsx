@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import TextField from '../../../components/ui/TextField';
@@ -21,7 +22,7 @@ export default function RoleForm({ mode, initialValues, onSubmit, submitting, su
   const isEdit = mode === 'edit';
   const [values, setValues] = useState({ ...EMPTY, ...initialValues });
   const [codeTouched, setCodeTouched] = useState(false);
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useDashboardFeedback({}, 'error');
   const [note, setNote] = useState('');
 
   const onChange = (event) => {

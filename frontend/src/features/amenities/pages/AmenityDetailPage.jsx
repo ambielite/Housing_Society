@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useState } from 'react';
 import { Plus, SquarePen, Trash2 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
@@ -24,8 +25,8 @@ export default function AmenityDetailPage() {
   const { hasPermission } = useAuth();
   const [dialog, setDialog] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  const [error, setError] = useDashboardFeedback('', 'error');
+  const [notice, setNotice] = useDashboardFeedback('', 'success');
   const [deleteTarget, setDeleteTarget] = useState(null);
 
   const amenity = useFetch(() => api.getAmenity(amenityId), [amenityId]);

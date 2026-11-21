@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import TextField from '../../../components/ui/TextField';
@@ -22,7 +23,7 @@ export default function VendorForm({ mode, vendor, userOptions = [], onSubmit, o
     phone: vendor?.phone || '',
     userId: '',
   });
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useDashboardFeedback({}, 'error');
   const [note, setNote] = useState('');
 
   const onChange = (event) => {

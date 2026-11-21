@@ -222,10 +222,14 @@ class AuthApi {
           contentType: MediaType('image', subtype),
         ));
       }
-      final streamedResponse = await request.send().timeout(
-        const Duration(seconds: 20),
-      );
-      final response = await http.Response.fromStream(streamedResponse);
+      // Keep the timeout around both sending the multipart upload and reading
+      // the complete response body. Timing out only send() can leave the UI
+      // waiting forever if the server accepts the upload but never finishes
+      // its response stream.
+      final response = await (() async {
+        final streamedResponse = await request.send();
+        return http.Response.fromStream(streamedResponse);
+      })().timeout(const Duration(seconds: 45));
       final body = response.body.isEmpty
           ? <String, dynamic>{}
           : jsonDecode(response.body) as Map<String, dynamic>;

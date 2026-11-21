@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import useAuth from '../../../app/providers/useAuth';
@@ -30,9 +31,9 @@ export default function AreaListPage({ embedded = false, searchTerm = '', search
   const [dialog, setDialog] = useState(null); // { mode: 'create' } | { mode: 'edit', area }
   const [deleting, setDeleting] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState('');
-  const [notice, setNotice] = useState('');
-  const [pageError, setPageError] = useState('');
+  const [saveError, setSaveError] = useDashboardFeedback('', 'error');
+  const [notice, setNotice] = useDashboardFeedback('', 'success');
+  const [pageError, setPageError] = useDashboardFeedback('', 'error');
 
   const newButton = hasPermission('PARKING_AREA_CREATE') && (
     <button type="button" className="btn btn-primary" onClick={() => openDialog({ mode: 'create' })}>

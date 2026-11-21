@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import TextField from '../../../components/ui/TextField';
 import SelectField from '../../../components/ui/SelectField';
@@ -17,7 +18,7 @@ export default function SlotForm({ mode, slot, areaOptions, defaultAreaId = '', 
     vehicleType: slot?.vehicle_type || '',
     status: slot?.status || 'ACTIVE',
   });
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useDashboardFeedback({}, 'error');
   const [note, setNote] = useState('');
 
   const onChange = (event) => {

@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useMemo, useState } from 'react';
 import { Plus, SquarePen, Trash2 } from 'lucide-react';
 import useAuth from '../../../app/providers/useAuth';
@@ -37,7 +38,7 @@ const initial = (extra = {}) => ({ ...extra });
 
 function GateForm({ societyId, societyName, value, gates = [], onSubmit, onCancel, saving, error }) {
   const [form, setForm] = useState(initial({ societyId, name: value?.name || '', location: value?.location || '', gateType: value?.gate_type || 'MAIN', status: value?.status || 'ACTIVE' }));
-  const [validationError, setValidationError] = useState('');
+  const [validationError, setValidationError] = useDashboardFeedback('', 'error');
   const edit = Boolean(value);
   const set = (k, v) => {
     setValidationError('');
@@ -80,7 +81,7 @@ function GateForm({ societyId, societyName, value, gates = [], onSubmit, onCance
 
 function CardForm({ societyId, value, cards = [], onSubmit, onCancel, saving, error }) {
   const [form, setForm] = useState({ societyId, holderUserId: value?.holder_user_id || '', credentialNo: value?.credential_no || '', credentialType: value?.credential_type || 'CARD', validUntil: value?.valid_until ? String(value.valid_until).slice(0, 16) : '' });
-  const [validationError, setValidationError] = useState('');
+  const [validationError, setValidationError] = useDashboardFeedback('', 'error');
   const set = (k, v) => {
     setValidationError('');
     setForm((f) => ({ ...f, [k]: v }));
@@ -151,8 +152,8 @@ export default function SecurityPage({ embedded = false } = {}) {
   const [dialog, setDialog] = useState(null);
   const [selected, setSelected] = useState(null);
   const [deviceEvents, setDeviceEvents] = useState(null);
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  const [error, setError] = useDashboardFeedback('', 'error');
+  const [notice, setNotice] = useDashboardFeedback('', 'success');
 
   const gates = useFetch(() => societyId ? api.listGates({ societyId }) : Promise.resolve([]), [societyId]);
   const guards = useFetch(() => societyId ? api.listGuards({ societyId }) : Promise.resolve([]), [societyId]);
@@ -235,7 +236,7 @@ function GatesPanel({ societyId, societyName, gates, guards, cards, userNames, v
   const { hasPermission } = useAuth();
   const [gateDevices, setGateDevices] = useState([]);
   const [gateForDevices, setGateForDevices] = useState(null);
-  const [formError, setFormError] = useState('');
+  const [formError, setFormError] = useDashboardFeedback('', 'error');
   const [cardDetail, setCardDetail] = useState(null);
   const [guardDetail, setGuardDetail] = useState(null);
   const [deviceDetail, setDeviceDetail] = useState(null);

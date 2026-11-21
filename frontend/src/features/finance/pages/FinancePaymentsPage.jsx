@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Plus, ReceiptText, Search } from "lucide-react";
 import paymentApi from "../api/payment.api";
@@ -20,11 +21,11 @@ const formatCurrency = (value) => {
 const FinancePaymentsPage = () => {
     const [payments, setPayments] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
     const [search, setSearch] = useState("");
     const [showForm, setShowForm] = useState(false);
     const [editingPayment, setEditingPayment] = useState(null);
-    const [actionError, setActionError] = useState("");
+    const [actionError, setActionError] = useDashboardFeedback('', 'error');
 
     const closeForm = () => {
         setShowForm(false);

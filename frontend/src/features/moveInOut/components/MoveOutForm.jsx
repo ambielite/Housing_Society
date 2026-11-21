@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 
@@ -42,10 +43,10 @@ const MoveOutForm = ({ moveOut, moveOuts = [], onClose, onSuccess }) => {
     const [residents, setResidents] = useState([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [error, setError] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
     const [pendingAmount, setPendingAmount] = useState(null);
     const [pendingAmountLoading, setPendingAmountLoading] = useState(false);
-    const [pendingAmountError, setPendingAmountError] = useState("");
+    const [pendingAmountError, setPendingAmountError] = useDashboardFeedback('', 'error');
     const pendingAmountRequest = useRef(0);
 
     useEffect(() => {

@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import TextField from '../../../components/ui/TextField';
 import Alert from '../../../components/ui/Alert';
@@ -6,7 +7,7 @@ import { PHONE_PATTERN } from './vendorOptions';
 
 export default function ContactForm({ onSubmit, onCancel, saving, error }) {
   const [values, setValues] = useState({ name: '', designation: '', email: '', phone: '', isPrimary: false });
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useDashboardFeedback({}, 'error');
 
   const onChange = (event) => {
     const { name, value, type, checked } = event.target;

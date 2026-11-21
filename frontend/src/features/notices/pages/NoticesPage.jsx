@@ -1,5 +1,8 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
+import { confirmDashboardAction } from '../../../lib/dashboardConfirmation.js';
+import { dispatchActionToast } from '../../../lib/actionToastEvents.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { BellRing, CalendarClock, Check, ChevronDown, CircleAlert, Clock3, Eye, FileText, Megaphone, Plus, Printer, RefreshCw, Search, Send, X } from 'lucide-react';
+import { BellRing, CalendarClock, Check, ChevronDown, CircleAlert, Clock3, Eye, FileText, Megaphone, Plus, Printer, RefreshCw, Search, Send, UserRound, X } from 'lucide-react';
 import noticesApi from '../api/notices.api';
 import notificationsApi from '../../notifications/api/notifications.api';
 import useAuth from '../../../app/providers/useAuth';
@@ -12,6 +15,14 @@ const TABS = [
 ];
 const EMPTY_FORM = { title: '', description: '', scheduledAt: '', expiresAt: '', templateId: '' };
 const value = (row, snake, camel = snake) => row?.[snake] ?? row?.[camel];
+const isExpiredNotice = (notice, activeTab) => {
+  const status = String(value(notice, 'status') || '').trim().toUpperCase();
+  const expiry = value(notice, 'expires_at', 'expiresAt')
+    || value(notice, 'expired_at', 'expiredAt');
+  const expiryTime = expiry ? new Date(expiry).getTime() : Number.NaN;
+  return activeTab === 'expired' || status === 'EXPIRED'
+    || (Number.isFinite(expiryTime) && expiryTime <= Date.now());
+};
 const dateTime = (raw) => raw ? new Date(raw).toLocaleString(undefined, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 const dateOnly = (raw) => raw ? new Date(raw).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 const localInput = (raw) => {
@@ -109,8 +120,8 @@ export default function NoticesPage() {
   const [notificationTemplates, setNotificationTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
+  const [error, setError] = useDashboardFeedback('', 'error');
+  const [message, setMessage] = useDashboardFeedback('', 'success');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [viewing, setViewing] = useState(null);
@@ -182,6 +193,17 @@ export default function NoticesPage() {
     setFormOpen(true);
   };
   const openEdit = (notice) => {
+    setError('');
+    setMessage('');
+    if (isExpiredNotice(notice, tab)) {
+      setViewing(null);
+      setOpenMenu('');
+      setFormOpen(false);
+      setEditing(null);
+      dispatchActionToast('error', 'Expired notices cannot be edited.');
+      return;
+    }
+    setViewing(null);
     setEditing(notice);
     setForm({
       title: value(notice, 'title') || '',
@@ -197,6 +219,12 @@ export default function NoticesPage() {
 
   const submit = async (event) => {
     event.preventDefault();
+    if (editing && isExpiredNotice(editing, tab)) {
+      setFormOpen(false);
+      setEditing(null);
+      dispatchActionToast('error', 'Expired notices cannot be edited.');
+      return;
+    }
     const scheduledAt = toIso(form.scheduledAt);
     const expiresAt = toIso(form.expiresAt);
     if ((form.scheduledAt && !scheduledAt) || (form.expiresAt && !expiresAt)) {
@@ -224,6 +252,7 @@ export default function NoticesPage() {
   const viewNotice = async (notice) => {
     setOpenMenu('');
     setViewing(notice);
+    if (isExpiredNotice(notice, tab)) return;
     try {
       await noticesApi.markRead(value(notice, 'id'));
       await load();
@@ -239,10 +268,10 @@ export default function NoticesPage() {
         const list = await noticesApi.templates(); setTemplates(rowsFrom(list));
         setMessage('Saved as a notice template.');
       } else if (action === 'expire') {
-        if (!window.confirm(`Expire “${value(notice, 'title')}”?`)) return;
+        if (!await confirmDashboardAction(`Expire “${value(notice, 'title')}”?`)) return;
         await noticesApi.expire(id); setMessage('Notice expired.');
       } else if (action === 'renotify') {
-        if (!window.confirm(`Send this notice again to society members?`)) return;
+        if (!await confirmDashboardAction(`Send this notice again to society members?`)) return;
         const result = await noticesApi.renotify(id);
         setMessage(`Notice reminder queued for ${result?.queued_count ?? 'society'} recipients.`);
       }
@@ -308,21 +337,19 @@ export default function NoticesPage() {
             const scheduledAt = value(notice, 'scheduled_at', 'scheduledAt');
             const expiresAt = value(notice, 'expires_at', 'expiresAt');
             const expiredAt = value(notice, 'expired_at', 'expiredAt') || expiresAt;
-            const readCount = Number(value(notice, 'read_count', 'readCount') || 0);
-            const recipientCount = Number(value(notice, 'recipient_count', 'recipientCount') || total);
             const author = value(notice, 'posted_by', 'postedBy') || 'Society management';
-            return <article className={`noticeboard-card noticeboard-card-${tab}`} key={`card-${value(notice, 'id')}`}>
-              <div className="noticeboard-card-top"><span className={`noticeboard-card-icon noticeboard-icon-${tab}`}><Megaphone size={18}/></span><span className={`noticeboard-status noticeboard-status-${tab}`}>{tab === 'current' ? 'Published' : selectedTab?.label}</span><span className="notice-read-count"><Eye size={13}/>{readCount} / {recipientCount} read</span><div className="noticeboard-card-menu">{renderManageMenu(notice)}</div></div>
+            return <article className={`noticeboard-card noticeboard-card-${tab}${openMenu === value(notice, 'id') ? ' noticeboard-card-menu-open' : ''}`} key={`card-${value(notice, 'id')}`}>
+              <div className="noticeboard-card-top"><span className={`noticeboard-card-icon noticeboard-icon-${tab}`}><Megaphone size={18}/></span><span className={`noticeboard-status noticeboard-status-${tab}`}>{tab === 'current' ? 'Published' : selectedTab?.label}</span></div>
               <button type="button" className="noticeboard-card-title" onClick={() => viewNotice(notice)}>{value(notice, 'title')}</button>
-              <p className="noticeboard-card-description">{value(notice, 'description')}</p>
-              <button type="button" className="noticeboard-read-more" onClick={() => viewNotice(notice)}>Read full notice <span>→</span></button>
               <div className="noticeboard-card-meta">
                 <span><CalendarClock size={14}/>{tab === 'upcoming' ? `Scheduled ${dateTime(scheduledAt)}` : tab === 'expired' ? `Expired ${dateTime(expiredAt)}` : `Posted ${dateTime(postedAt || value(notice, 'created_at', 'createdAt'))}`}</span>
-                <span><Eye size={14}/>{tab === 'expired' ? `Expired by ${value(notice, 'expired_by_name', 'expiredByName') || 'System'}` : `${tab === 'upcoming' ? 'Created' : 'Posted'} by ${author}`}</span>
+                <span><UserRound size={14}/>{tab === 'expired' ? `Expired by ${value(notice, 'expired_by_name', 'expiredByName') || 'System'}` : `${tab === 'upcoming' ? 'Created' : 'Posted'} by ${author}`}</span>
                 {tab === 'upcoming' && expiresAt && <span><Clock3 size={14}/>Expires {dateTime(expiresAt)}</span>}
                 {tab === 'current' && expiresAt && <span><Clock3 size={14}/>Expires {dateTime(expiresAt)}</span>}
                 {tab === 'current' && value(notice, 'renotified_at', 'renotifiedAt') && <span><BellRing size={14}/>Reminder sent {dateTime(value(notice, 'renotified_at', 'renotifiedAt'))}</span>}
               </div>
+              <p className="noticeboard-card-description">{value(notice, 'description')}</p>
+              <footer className="noticeboard-card-footer"><button type="button" className="noticeboard-read-more" onClick={() => viewNotice(notice)}>Read full notice <span>→</span></button><div className="noticeboard-card-menu">{renderManageMenu(notice)}</div></footer>
             </article>;
           })}</div>
           <div className="notices-table-wrap"><table className="notices-table">
@@ -361,8 +388,8 @@ export default function NoticesPage() {
 
       {viewing && <div className="notice-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setViewing(null); }}><article className="notice-modal notice-detail-modal" role="dialog" aria-modal="true" aria-labelledby="notice-view-title">
         <header><div><span className="notices-eyebrow"><Eye size={14} /> NOTICE DETAILS</span><h2 id="notice-view-title">{value(viewing, 'title')}</h2><p>Posted {dateTime(value(viewing, 'posted_at', 'postedAt') || value(viewing, 'created_at', 'createdAt'))} by {value(viewing, 'posted_by', 'postedBy') || 'System'}</p></div><button type="button" className="notice-close-button" onClick={() => setViewing(null)} aria-label="Close"><X size={18} /></button></header>
-        <div className="notice-detail-body"><p>{value(viewing, 'description')}</p><div><span><Clock3 size={15} /> Expires {dateTime(value(viewing, 'expires_at', 'expiresAt'))}</span><span><Eye size={15} /> Read by {Number(value(viewing, 'read_count', 'readCount') || 0)} residents</span></div></div>
-        <footer><button type="button" className="notice-cancel-button" onClick={() => setViewing(null)}>Close</button>{canUpdate && <button type="button" className="notices-add-button" onClick={() => { setViewing(null); openEdit(viewing); }}>Edit notice</button>}</footer>
+        <div className="notice-detail-body"><p>{value(viewing, 'description')}</p><div><span><Clock3 size={15} /> Expires {dateTime(value(viewing, 'expires_at', 'expiresAt'))}</span></div></div>
+        <footer><button type="button" className="notice-cancel-button" onClick={() => setViewing(null)}>Close</button>{canUpdate && <button type="button" className="notices-add-button" onClick={() => openEdit(viewing)}>Edit notice</button>}</footer>
       </article></div>}
     </section>
   );

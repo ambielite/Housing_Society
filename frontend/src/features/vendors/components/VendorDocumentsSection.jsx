@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
@@ -24,11 +25,11 @@ export default function VendorDocumentsSection({ vendorId }) {
   const [showForm, setShowForm] = useState(false);
   const [vaultDocuments, setVaultDocuments] = useState([]);
   const [vaultLoading, setVaultLoading] = useState(false);
-  const [vaultError, setVaultError] = useState('');
+  const [vaultError, setVaultError] = useDashboardFeedback('', 'error');
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState('');
-  const [notice, setNotice] = useState('');
-  const [pageError, setPageError] = useState('');
+  const [saveError, setSaveError] = useDashboardFeedback('', 'error');
+  const [notice, setNotice] = useDashboardFeedback('', 'success');
+  const [pageError, setPageError] = useDashboardFeedback('', 'error');
   const [preview, setPreview] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 

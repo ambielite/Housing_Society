@@ -1,6 +1,9 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
+import { confirmDashboardAction } from '../../../lib/dashboardConfirmation.js';
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import useAuth from "../../../app/providers/useAuth";
+import useSociety from "../../../app/store/useSociety";
 import {
   Activity,
   AlertOctagon,
@@ -18,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 import securityApi from "../api/security.legacy.api";
+import societyApi from "../../societies/api/society.api";
 import SecurityBadge from "../components/SecurityBadge";
 import useUnits from "../../../utils/useUnits";
 import unitLocationLabel from "../../../utils/unitLocation";
@@ -33,6 +37,16 @@ const rowsFrom = (response) => {
   return Array.isArray(rows)
     ? rows.filter((row) => row && typeof row === "object")
     : [];
+};
+const searchableText = (value) => {
+  if (value === null || value === undefined) return "";
+  if (Array.isArray(value)) return value.map(searchableText).join(" ");
+  if (typeof value === "object") {
+    return Object.entries(value)
+      .map(([key, nested]) => `${key} ${searchableText(nested)}`)
+      .join(" ");
+  }
+  return String(value);
 };
 const societyId = () =>
   String(localStorage.getItem("selectedSocietyId") || "")
@@ -377,12 +391,14 @@ export default function SecurityPage() {
   const { section } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { societyId: activeSocietyId } = useSociety();
   const [tab, setTab] = useState(section || "overview");
   const [data, setData] = useState({});
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [formError, setFormError] = useState("");
+  const [error, setError] = useDashboardFeedback('', 'error');
+  const [formError, setFormError] = useDashboardFeedback('', 'error');
   const [search, setSearch] = useState("");
+  const [staffStatusFilter, setStaffStatusFilter] = useState("ALL");
   const [form, setForm] = useState("");
   const [selectedStaffType, setSelectedStaffType] = useState("SECURITY_GUARD");
   const [securityHeadAccounts, setSecurityHeadAccounts] = useState([]);
@@ -390,10 +406,11 @@ export default function SecurityPage() {
   const [manualGuardDetails, setManualGuardDetails] = useState(false);
   const [guardIdentity, setGuardIdentity] = useState({ firstName: "", lastName: "", mobileNumber: "" });
   const [securityHeadAccountsLoading, setSecurityHeadAccountsLoading] = useState(false);
-  const [securityHeadAccountsError, setSecurityHeadAccountsError] = useState("");
+  const [securityHeadAccountsError, setSecurityHeadAccountsError] = useDashboardFeedback('', 'error');
   const [busy, setBusy] = useState(false);
   const [editRecord, setEditRecord] = useState(null);
   const [viewingStaff, setViewingStaff] = useState(null);
+  const [activeSocietyName, setActiveSocietyName] = useState("");
   const [workflow, setWorkflow] = useState(null);
   const loadData = async () => {
     setLoading(true);
@@ -452,6 +469,21 @@ export default function SecurityPage() {
   useEffect(() => {
     loadData();
   }, []);
+  useEffect(() => {
+    let cancelled = false;
+    if (!activeSocietyId) {
+      setActiveSocietyName("");
+      return undefined;
+    }
+    societyApi.getById(activeSocietyId).then((result) => {
+      if (cancelled) return;
+      const society = result?.data?.society || result?.data || result?.society || result;
+      setActiveSocietyName(society?.name || society?.society_name || society?.societyName || "");
+    }).catch(() => {
+      if (!cancelled) setActiveSocietyName("");
+    });
+    return () => { cancelled = true; };
+  }, [activeSocietyId]);
   useEffect(() => {
     if (form !== "staff") return undefined;
     let active = true;
@@ -582,14 +614,17 @@ export default function SecurityPage() {
     audit: "audits",
   }[tab];
   const items = data[sectionKey] || [];
+  const staffStatuses = [...new Set((data.staff || []).map((person) => String(person.status || "UNKNOWN").toUpperCase()))].sort();
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return items.filter(
-      (item) =>
-        !q ||
-        Object.values(item).map(display).join(" ").toLowerCase().includes(q),
-    );
-  }, [items, search]);
+    return items.filter((item) => {
+      const matchesSearch = !q || searchableText(item).toLowerCase().includes(q);
+      const matchesStaffStatus = tab !== "staff"
+        || staffStatusFilter === "ALL"
+        || String(item.status || "UNKNOWN").toUpperCase() === staffStatusFilter;
+      return matchesSearch && matchesStaffStatus;
+    });
+  }, [items, search, staffStatusFilter, tab]);
   const save = async (event) => {
     event.preventDefault();
     const config = configs[form];
@@ -932,6 +967,20 @@ export default function SecurityPage() {
                 onChange={(event) => setSearch(event.target.value)}
               />
             </label>
+            {tab === "staff" && (
+              <select
+                aria-label="Filter staff by status"
+                value={staffStatusFilter}
+                onChange={(event) => setStaffStatusFilter(event.target.value)}
+              >
+                <option value="ALL">All statuses</option>
+                <option value="ACTIVE">Active</option>
+                <option value="INACTIVE">Inactive</option>
+                {staffStatuses.filter((status) => !["ACTIVE", "INACTIVE"].includes(status)).map((status) => (
+                  <option key={status} value={status}>{titleCase(status)}</option>
+                ))}
+              </select>
+            )}
             {tab === "attendance" && (
               <>
                 <select id="attendance-staff">
@@ -1052,8 +1101,8 @@ export default function SecurityPage() {
                   </button>
                   <button
                     className="security-shift-action is-delete society-delete-action"
-                    onClick={() =>
-                      window.confirm("Delete this shift?") &&
+                    onClick={async () =>
+                      await confirmDashboardAction("Delete this shift?") &&
                       act(securityApi.deleteShift, shift.id)
                     }
                   >
@@ -1157,12 +1206,12 @@ export default function SecurityPage() {
                               className="security-table-icon-action is-delete"
                               aria-label={`Delete ${tabs.find(([key]) => key === tab)?.[1].toLowerCase()} record`}
                               title="Delete"
-                              onClick={() => {
+                              onClick={async () => {
                                 if (resourceFor === "staff" && item.status === "ACTIVE") {
                                   dispatchActionToast("error", "This staff member is active. Deactivate them before deleting.");
                                   return;
                                 }
-                                if (window.confirm(`Delete this ${tabs.find(([key]) => key === tab)?.[1].toLowerCase()} record?`)) {
+                                if (await confirmDashboardAction(`Delete this ${tabs.find(([key]) => key === tab)?.[1].toLowerCase()} record?`)) {
                                   act(
                                     resourceFor === "staff"
                                       ? securityApi.deleteStaff
@@ -1394,7 +1443,7 @@ export default function SecurityPage() {
           }}
         />
       )}
-      {viewingStaff && <RecordDetailsModal title={`${viewingStaff.firstName || ""} ${viewingStaff.lastName || ""}`.trim() || "Staff profile"} subtitle="Staff member profile and employment information" icon={Users} image={viewingStaff.photoPath ? documentUrl(viewingStaff.photoPath) : undefined} record={viewingStaff} sections={recordToSections(Object.fromEntries(Object.entries(viewingStaff).filter(([key]) => key !== "photoPath")))} onClose={() => setViewingStaff(null)}>{viewingStaff.staffType === "MAID" && <MaidUnitMapping staffId={viewingStaff.id} active={viewingStaff.status === "ACTIVE"} />}</RecordDetailsModal>}
+      {viewingStaff && <RecordDetailsModal title={`${viewingStaff.firstName || ""} ${viewingStaff.lastName || ""}`.trim() || "Staff profile"} subtitle="Staff member profile and employment information" icon={Users} image={viewingStaff.photoPath ? documentUrl(viewingStaff.photoPath) : undefined} sections={recordToSections({ ...Object.fromEntries(Object.entries(viewingStaff).filter(([key]) => key !== "photoPath" && key !== "societyId")), societyName: activeSocietyName || "Society" })} onClose={() => setViewingStaff(null)}>{viewingStaff.staffType === "MAID" && <MaidUnitMapping staffId={viewingStaff.id} active={viewingStaff.status === "ACTIVE"} />}</RecordDetailsModal>}
       {workflow && (
         <SecurityWorkflowDialog
           workflow={workflow}
@@ -1462,7 +1511,7 @@ function RecordEditModal({ record, tab, staff = [], shifts = [], onClose, onSave
     ]),
   ));
   const [profilePicture, setProfilePicture] = useState(null);
-  const [error, setError] = useState("");
+  const [error, setError] = useDashboardFeedback('', 'error');
   const submit = async (event) => {
     event.preventDefault();
     const payload = Object.fromEntries(
@@ -1677,7 +1726,7 @@ function SecurityWorkflowDialog({
           ? ""
           : "acknowledge",
   );
-  const [error, setError] = useState("");
+  const [error, setError] = useDashboardFeedback('', 'error');
   const actionOptions =
     type === "patrols"
       ? [
@@ -1874,7 +1923,7 @@ function MaidUnitMapping({ staffId, active }) {
   const [assignments, setAssignments] = useState([]);
   const [unitId, setUnitId] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useDashboardFeedback('', 'error');
 
   const loadMappings = async () => {
     const assignmentResponse = await securityApi.getStaffAssignments(staffId);

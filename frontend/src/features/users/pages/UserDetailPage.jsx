@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
@@ -108,7 +109,7 @@ export default function UserDetailPage() {
   );
 
   const [notice, setNotice] = useState(location.state?.notice || '');
-  const [actionError, setActionError] = useState('');
+  const [actionError, setActionError] = useDashboardFeedback('', 'error');
   const [pending, setPending] = useState(null); // key of ACTIONS awaiting confirmation
   const [busy, setBusy] = useState(false);
   const [profilePictureFailed, setProfilePictureFailed] = useState(false);

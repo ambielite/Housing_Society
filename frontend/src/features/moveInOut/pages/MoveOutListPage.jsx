@@ -1,3 +1,5 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
+import { confirmDashboardAction } from '../../../lib/dashboardConfirmation.js';
 import { useEffect, useMemo, useState } from "react";
 import { ArrowUpRight, CheckCircle2, Edit, Plus, RefreshCw, Search, Trash2, UserRound, XCircle } from "lucide-react";
 import moveOutApi from "../api/moveOut.api";
@@ -30,7 +32,7 @@ const MoveOutListPage = () => {
     const [units, setUnits] = useState([]);
     const [approverUsers, setApproverUsers] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
     const [search, setSearch] = useState("");
     const [editingMoveOut, setEditingMoveOut] = useState(null);
     const [viewingMoveOut, setViewingMoveOut] = useState(null);
@@ -134,7 +136,7 @@ const MoveOutListPage = () => {
     };
 
     const handleDelete = async (id) => {
-        const confirmed = window.confirm("Are you sure you want to delete this move-out record?");
+        const confirmed = await confirmDashboardAction("Are you sure you want to delete this move-out record?");
         if (!confirmed) return;
 
         try {

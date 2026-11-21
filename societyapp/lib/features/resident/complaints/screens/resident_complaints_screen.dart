@@ -3,14 +3,16 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../widgets/resident_back_button.dart';
 import '../../../auth/data/auth_api.dart';
 import '../data/resident_complaints_api.dart';
 import 'new_complaint_screen.dart';
 
 class ResidentComplaintsScreen extends StatefulWidget {
-  const ResidentComplaintsScreen({super.key, required this.user});
+  const ResidentComplaintsScreen({super.key, required this.user, this.onBack});
 
   final AuthenticatedUser user;
+  final VoidCallback? onBack;
 
   @override
   State<ResidentComplaintsScreen> createState() =>
@@ -243,6 +245,9 @@ class _ResidentComplaintsScreenState extends State<ResidentComplaintsScreen>
         backgroundColor: _pageBackground,
         appBar: AppBar(
           backgroundColor: _pageBackground,
+          leading: ResidentBackButton(
+            onPressed: widget.onBack ?? () => Navigator.of(context).maybePop(),
+          ),
           title: const Text('Help & Complaints'),
           actions: [
             IconButton(

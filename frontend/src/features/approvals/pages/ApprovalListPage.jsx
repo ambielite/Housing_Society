@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import { Plus, RefreshCw } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -24,7 +25,7 @@ export default function ApprovalListPage() {
   const [status, setStatus] = useState('');
   const [dialog, setDialog] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState('');
+  const [saveError, setSaveError] = useDashboardFeedback('', 'error');
 
   const requests = useFetch(
     () => (societyId ? approvalsApi.listRequests({ societyId, entityType, status }) : Promise.resolve(null)),

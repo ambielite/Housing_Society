@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useMemo, useState } from "react";
 import {
     ArrowDownLeft,
@@ -30,7 +31,7 @@ const MoveInOutDashboardPage = () => {
     const [units, setUnits] = useState([]);
     const [residents, setResidents] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
     const [search, setSearch] = useState("");
 
     const loadData = async () => {

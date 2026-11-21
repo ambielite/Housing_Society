@@ -1,3 +1,5 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
+import { confirmDashboardAction } from '../../../lib/dashboardConfirmation.js';
 import { useEffect, useMemo, useState } from "react";
 import { Building2, CheckCircle2,  Home, KeyRound, Plus, Search, SquarePen, Trash2, Users, UserRound } from "lucide-react";
 
@@ -52,7 +54,7 @@ const ResidentHierarchyPage = () => {
     const [ownerUnits, setOwnerUnits] = useState([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [error, setError] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState(null);
     const [form, setForm] = useState(emptyForm());
@@ -182,7 +184,7 @@ const ResidentHierarchyPage = () => {
     };
 
     const handleDelete = async (id) => {
-        if (!window.confirm("Remove this owner-unit relationship?")) return;
+        if (!await confirmDashboardAction("Remove this owner-unit relationship?")) return;
         try {
             await ownerUnitApi.delete(id);
             await loadData();
@@ -404,7 +406,6 @@ const ResidentHierarchyPage = () => {
                             fields: [["Unit", unit?.unitNumber || unit?.name], ["Society", society?.name], ["Ownership type", ownership.ownershipType], ["Ownership share", ownership.ownershipPercentage == null ? null : `${ownership.ownershipPercentage}%`], ["Status", ownership.status], ["Effective from", ownership.effectiveFrom], ["Effective to", ownership.effectiveTo], ["Remarks", ownership.remarks]]
                         };
                     }),
-                    { title: "Resident record", fields: [["Resident ID", viewingResident.id]] }
                 ]}
             />}
         </section>

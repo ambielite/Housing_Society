@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
@@ -18,8 +19,8 @@ export default function ApprovalDetailPage() {
   const location = useLocation();
   const [dialog, setDialog] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState('');
-  const [pageError, setPageError] = useState('');
+  const [saveError, setSaveError] = useDashboardFeedback('', 'error');
+  const [pageError, setPageError] = useDashboardFeedback('', 'error');
 
   const request = useFetch(() => approvalsApi.getRequest(approvalRequestId), [approvalRequestId]);
   const target = request.data;

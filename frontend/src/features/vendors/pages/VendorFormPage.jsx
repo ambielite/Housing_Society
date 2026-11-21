@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
@@ -19,7 +20,7 @@ export default function VendorFormPage() {
   const { hasPermission } = useAuth();
   const { societyId } = useSociety();
   const [saving, setSaving] = useState(false);
-  const [submitError, setSubmitError] = useState('');
+  const [submitError, setSubmitError] = useDashboardFeedback('', 'error');
 
   const existing = useFetch(() => (isEdit ? vendorsApi.getVendor(vendorId) : Promise.resolve(null)), [vendorId]);
 

@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import TextField from '../../../components/ui/TextField';
 import Alert from '../../../components/ui/Alert';
@@ -6,7 +7,7 @@ import { IFSC_PATTERN } from './vendorOptions';
 /** Only the last 4 digits of the account number are collected; the full number is never stored. */
 export default function BankAccountForm({ onSubmit, onCancel, saving, error }) {
   const [values, setValues] = useState({ bankName: '', beneficiaryName: '', last4: '', ifsc: '' });
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useDashboardFeedback({}, 'error');
 
   const onChange = (event) => setValues((v) => ({ ...v, [event.target.name]: event.target.value }));
 

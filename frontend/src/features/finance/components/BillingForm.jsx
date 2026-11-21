@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useMemo, useState } from "react";
 import { Plus, X } from "lucide-react";
 import billingApi from "../api/billing.api";
@@ -25,7 +26,7 @@ const BillingForm = ({ onClose, onSuccess, billingRules = [] }) => {
     const [calculation, setCalculation] = useState(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [error, setError] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
     useEffect(() => {
         let active = true;
         const load = async () => {

@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import useAuth from '../../../app/providers/useAuth';
@@ -90,8 +91,8 @@ export default function DeliveriesPage({ societyId, currentUser, profiles, unitN
   const [dialog, setDialog] = useState(null);
   const [selected, setSelected] = useState(null);
   const [detail, setDetail] = useState(null);
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  const [error, setError] = useDashboardFeedback('', 'error');
+  const [notice, setNotice] = useDashboardFeedback('', 'success');
 
   const deliveries = useFetch(() => api.listDeliveries({ societyId }), [societyId]);
   const parcels = useFetch(() => api.listParcels({ societyId }), [societyId]);

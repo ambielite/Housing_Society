@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../widgets/resident_back_button.dart';
 import '../../../auth/data/auth_api.dart';
 import '../../dashboard/data/resident_dashboard_api.dart';
 import '../data/resident_amenities_api.dart';
@@ -11,10 +12,12 @@ class ResidentAmenitiesScreen extends StatefulWidget {
     super.key,
     required this.user,
     this.onBookingCreated,
+    this.onBack,
   });
 
   final AuthenticatedUser user;
   final ValueChanged<ResidentUpcomingBooking>? onBookingCreated;
+  final VoidCallback? onBack;
 
   @override
   State<ResidentAmenitiesScreen> createState() => _ResidentAmenitiesScreenState();
@@ -36,7 +39,6 @@ class _ResidentAmenitiesScreenState extends State<ResidentAmenitiesScreen> {
   bool _initialLoading = true;
   bool _refreshing = false;
   int _typeTab = 0;
-  ResidentAmenity? _selectedAmenity;
 
   @override
   void initState() {
@@ -80,6 +82,18 @@ class _ResidentAmenitiesScreenState extends State<ResidentAmenitiesScreen> {
     }
   }
 
+  Future<void> _openAmenity(ResidentAmenity amenity) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => ResidentAmenityDetailScreen(
+          user: widget.user,
+          amenity: amenity,
+          onBookingCreated: widget.onBookingCreated,
+        ),
+      ),
+    );
+  }
+
   // Distinct amenity types, in the order they first appear.
   List<String> get _types {
     final types = <String>[];
@@ -99,20 +113,13 @@ class _ResidentAmenitiesScreenState extends State<ResidentAmenitiesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final selectedAmenity = _selectedAmenity;
-    if (selectedAmenity != null) {
-      return ResidentAmenityDetailScreen(
-        user: widget.user,
-        amenity: selectedAmenity,
-        onBookingCreated: widget.onBookingCreated,
-        onClose: () => setState(() => _selectedAmenity = null),
-      );
-    }
-
     return Scaffold(
         backgroundColor: AppColors.canvas,
         appBar: AppBar(
           backgroundColor: AppColors.canvas,
+          leading: ResidentBackButton(
+            onPressed: widget.onBack ?? () => Navigator.of(context).maybePop(),
+          ),
           title: const Text('Amenities'),
           actions: [
             IconButton(
@@ -265,7 +272,7 @@ class _ResidentAmenitiesScreenState extends State<ResidentAmenitiesScreen> {
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: () => setState(() => _selectedAmenity = amenity),
+          onTap: () => _openAmenity(amenity),
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(

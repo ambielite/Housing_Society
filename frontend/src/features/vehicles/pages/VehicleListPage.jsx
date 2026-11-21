@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useState } from 'react';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
@@ -29,7 +30,7 @@ export default function VehicleListPage({ embedded = false, searchTerm = '', sea
   const [showCreate, setShowCreate] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [submitError, setSubmitError] = useState('');
+  const [submitError, setSubmitError] = useDashboardFeedback('', 'error');
 
   useEffect(() => {
     if (openCreateRequest) {

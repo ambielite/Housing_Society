@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import useAuth from '../../../app/providers/useAuth';
 import useFetch from '../../../utils/useFetch';
@@ -19,8 +20,8 @@ export default function VendorContractsSection({ vendorId }) {
 
   const [dialog, setDialog] = useState(null); // { type: 'add' } | { type: 'status', contract }
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState('');
-  const [notice, setNotice] = useState('');
+  const [saveError, setSaveError] = useDashboardFeedback('', 'error');
+  const [notice, setNotice] = useDashboardFeedback('', 'success');
 
   const openDialog = (next) => {
     setSaveError('');

@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import TextField from '../../../components/ui/TextField';
 import SelectField from '../../../components/ui/SelectField';
@@ -5,7 +6,7 @@ import Alert from '../../../components/ui/Alert';
 
 export default function RequestLineForm({ onSubmit, onCancel, saving, error, assetCategories = [] }) {
   const [values, setValues] = useState({ itemDescription: '', quantity: '1', estimatedUnitCost: '', assetCategoryId: '' });
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useDashboardFeedback({}, 'error');
 
   const onChange = (event) => setValues((v) => ({ ...v, [event.target.name]: event.target.value }));
 

@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import useAuth from '../../../app/providers/useAuth';
@@ -35,9 +36,9 @@ export default function AllocationListPage({ embedded = false, searchTerm = '', 
   const [dialog, setDialog] = useState(null); // { type: 'create' } | { type: 'end', allocation }
   const [deleting, setDeleting] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState('');
-  const [notice, setNotice] = useState('');
-  const [pageError, setPageError] = useState('');
+  const [saveError, setSaveError] = useDashboardFeedback('', 'error');
+  const [notice, setNotice] = useDashboardFeedback('', 'success');
+  const [pageError, setPageError] = useDashboardFeedback('', 'error');
 
   function openDialog(next) {
     setSaveError('');

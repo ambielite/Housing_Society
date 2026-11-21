@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useState } from 'react';
 import { Plus, RefreshCw } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -24,7 +25,7 @@ export default function BookingListPage() {
   const [status, setStatus] = useState('');
   const [dialog, setDialog] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useDashboardFeedback('', 'error');
 
   const bookings = useFetch(() => (societyId ? api.listBookings({ status }) : Promise.resolve(null)), [societyId, status]);
   const canReadAmenities = hasPermission('AMENITY_READ');

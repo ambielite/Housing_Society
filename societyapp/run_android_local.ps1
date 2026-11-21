@@ -20,10 +20,26 @@ if (-not (Test-Path -LiteralPath $adb)) {
     throw "ADB was not found at $adb. Install Android platform-tools or update this script path."
 }
 
-$deviceLines = & $adb devices | Select-Object -Skip 1 | Where-Object { $_ -match '^\S+\s+device$' }
-$deviceIds = @($deviceLines | ForEach-Object { ($_ -split '\s+')[0] })
+$null = & $adb start-server
+$deviceOutput = @()
+$deviceIds = @()
+for ($attempt = 0; $attempt -lt 10 -and $deviceIds.Count -eq 0; $attempt++) {
+    $deviceOutput = @(& $adb devices -l)
+    $deviceLines = @(
+        $deviceOutput | Select-Object -Skip 1 | Where-Object {
+            $columns = ($_ -split '\s+')
+            $columns.Count -ge 2 -and $columns[1] -eq 'device'
+        }
+    )
+    $deviceIds = @($deviceLines | ForEach-Object { ($_ -split '\s+')[0] })
+    if ($deviceIds.Count -eq 0 -and $attempt -lt 9) {
+        Start-Sleep -Seconds 1
+    }
+}
 if ($deviceIds.Count -eq 0) {
-    throw 'No authorized Android phone found. Connect the phone, enable USB debugging, and accept its authorization prompt.'
+    $deviceStatus = ($deviceOutput | Select-Object -Skip 1 | Where-Object { $_.Trim() }) -join '; '
+    if ([string]::IsNullOrWhiteSpace($deviceStatus)) { $deviceStatus = 'ADB returned no devices.' }
+    throw "No authorized Android phone found. ADB reports: $deviceStatus Connect the phone, unlock it, and accept the USB debugging prompt if shown."
 }
 if ($deviceIds.Count -gt 1) {
     throw "More than one Android device is connected: $($deviceIds -join ', '). Disconnect the others and run this script again."

@@ -70,7 +70,7 @@ const update = async (societyId, userId, id, data) => {
 const markRead = async (societyId, userId, id) => {
   requireUuid(id, 'notice ID');
   const read = await repository.markRead(societyId, id, userId);
-  if (!read) throw new Error('Notice is not currently available');
+  if (!read) throw new Error('This notice has been expired.');
   return read;
 };
 

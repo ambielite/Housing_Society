@@ -1,3 +1,6 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
+import { dispatchActionToast } from '../../../lib/actionToastEvents.js';
+import { confirmDashboardAction } from '../../../lib/dashboardConfirmation.js';
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Receipt, Search } from "lucide-react";
 import billingApi from "../api/billing.api";
@@ -25,7 +28,7 @@ const FinanceBillingPage = () => {
     const [configs, setConfigs] = useState([]);
     const [units, setUnits] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
     const [search, setSearch] = useState("");
     const [status, setStatus] = useState("");
     const [view, setView] = useState("bills");
@@ -56,7 +59,7 @@ const FinanceBillingPage = () => {
         return items.filter((x) => !q || [x.billNumber, x.billingPeriod, x.unit?.unitNumber, unitNameById.get(x.unitId), x.unitId, x.status, x.billingModel].join(" ").toLowerCase().includes(q));
     }, [items, search, unitNameById]);
     const act = async (entry, action) => {
-        if (action === "cancel" && !window.confirm(`Cancel bill ${entry.billNumber}?`)) return;
+        if (action === "cancel" && !await confirmDashboardAction(`Cancel bill ${entry.billNumber}?`)) return;
         try { setBusy(entry.id); setError(""); await billingApi[action](entry.id); await loadData(); }
         catch (err) { setError(err.response?.data?.message || err.message || `Could not ${action} bill.`); }
         finally { setBusy(""); }
@@ -65,7 +68,7 @@ const FinanceBillingPage = () => {
         try { setBusy("scheduler"); setError(""); const id = society(); if (!id) throw new Error("Select a society first.");
             const result = await axiosClient.post("/billing-scheduler/run", { societyId: id, billingDate });
             const data = result.data?.data || result.data;
-            window.alert(data?.message || `Billing run completed. ${data?.results?.length ?? 0} unit results.`); await loadData();
+            dispatchActionToast("success", data?.message || `Billing run completed. ${data?.results?.length ?? 0} unit results.`); await loadData();
         } catch (err) { setError(err.response?.data?.message || err.message || "Billing run failed."); }
         finally { setBusy(""); }
     };
@@ -105,7 +108,7 @@ const FinanceBillingPage = () => {
             setSavingConfig(false);
         }
     };
-    const deactivateConfig = async (row) => { if (!window.confirm(`Deactivate ${row.name}?`)) return; try { await billingConfigApi.remove(row.id); await loadData(); } catch (err) { setError(err.response?.data?.message || "Could not deactivate configuration."); } };
+    const deactivateConfig = async (row) => { if (!await confirmDashboardAction(`Deactivate ${row.name}?`)) return; try { await billingConfigApi.remove(row.id); await loadData(); } catch (err) { setError(err.response?.data?.message || "Could not deactivate configuration."); } };
     const visibleConfigs = configs.filter((x) => x.configType === configType);
     return <section className="society-dashboard module-shell-page finance-module-page">
         <header className="society-heading"><div><div className="society-eyebrow"><span className="society-eyebrow-dot"/> FINANCE</div><h1>Billing</h1><p>Create bills, manage billing rules, and run scheduled billing.</p></div><div className="society-row-actions"><button className="btn-secondary" onClick={() => setView(view === "bills" ? "setup" : "bills")}>{view === "bills" ? "Billing setup" : "Back to bills"}</button>{view === "bills" && <button className="society-add-button" onClick={() => setShowForm(true)}><Plus size={17}/> Create bill</button>}</div></header>

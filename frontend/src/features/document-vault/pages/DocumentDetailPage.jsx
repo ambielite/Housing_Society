@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { FileText, Plus, Share2 } from 'lucide-react';
@@ -11,7 +12,7 @@ import ConfirmDialog from '../../../components/ui/ConfirmDialog';
 import { FullPageLoader } from '../../../components/ui/Spinner';
 import * as vaultApi from '../api/documentVault.api';
 import { shareDocument as openDocumentShare } from '../utils/shareDocument';
-import { DOCUMENT_STATUSES, DOCUMENT_TYPES, ENTITY_TYPES, LINK_TYPES, PERMISSION_TYPES, SENSITIVITIES, VISIBILITIES, formatBytes, formatDate, pretty, visibilityHelp } from '../components/documentVaultOptions';
+import { DOCUMENT_STATUSES, DOCUMENT_TYPES, PERMISSION_TYPES, SENSITIVITIES, VISIBILITIES, formatBytes, formatDate, pretty, visibilityHelp } from '../components/documentVaultOptions';
 
 const rows = (data, key) => Array.isArray(data) ? data : (data?.[key] || []);
 const dateOnly = (value) => value ? String(value).slice(0, 10) : '';
@@ -22,8 +23,8 @@ export default function DocumentDetailPage() {
   const { hasPermission } = useAuth();
   const doc = useFetch(() => vaultApi.getDocument(documentId), [documentId]);
   const [active, setActive] = useState('details');
-  const [notice, setNotice] = useState('');
-  const [error, setError] = useState('');
+  const [notice, setNotice] = useDashboardFeedback('', 'success');
+  const [error, setError] = useDashboardFeedback('', 'error');
   const [saving, setSaving] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [showVersion, setShowVersion] = useState(false);
@@ -34,13 +35,11 @@ export default function DocumentDetailPage() {
   const [permissions, setPermissions] = useState([]);
   const [history, setHistory] = useState([]);
   const [versions, setVersions] = useState([]);
-  const [links, setLinks] = useState([]);
-  const [detailError, setDetailError] = useState('');
+  const [detailError, setDetailError] = useDashboardFeedback('', 'error');
   const [userList, setUserList] = useState([]);
   const [roleList, setRoleList] = useState([]);
   const [refreshedTarget, setRefreshedTarget] = useState(null);
   const [grant, setGrant] = useState({ targetType: 'user', targetId: '', permissionType: 'READ', expiresAt: '' });
-  const [link, setLink] = useState({ entityType: 'OTHER', entityId: '', linkType: 'ATTACHMENT' });
 
   const target = refreshedTarget || doc.data?.document || doc.data;
   const refreshDetails = async () => {
@@ -48,9 +47,8 @@ export default function DocumentDetailPage() {
       vaultApi.listVersions(documentId),
       vaultApi.listDownloadHistory(documentId),
       vaultApi.listPermissions(documentId),
-      vaultApi.listDocumentLinks(documentId),
     ]);
-    const setters = [setVersions, setHistory, setPermissions, setLinks];
+    const setters = [setVersions, setHistory, setPermissions];
     requests.forEach((result, index) => {
       if (result.status === 'fulfilled') setters[index](result.value);
     });
@@ -86,11 +84,10 @@ export default function DocumentDetailPage() {
   if (doc.error && !target) return <PageContainer title="Document details"><Alert variant="error">{getErrorMessage(doc.error)}</Alert><p className="back-link"><Link to="/document-vault">← Document Vault</Link></p></PageContainer>;
   if (!target) return null;
 
-  const run = async (fn, message) => {
+  const run = async (fn) => {
     setSaving(true); setError(''); setNotice('');
     try {
       const result = await fn();
-      setNotice(message);
       await doc.reload();
       // Fetch the persisted document after edits so the detail view reflects server values immediately.
       const latest = await vaultApi.getDocument(documentId);
@@ -116,15 +113,15 @@ export default function DocumentDetailPage() {
   };
   const saveEdit = async (event) => {
     event.preventDefault();
-    if (await run(() => vaultApi.updateDocument(documentId, { ...edit, effectiveDate: edit.effectiveDate || null, expiryDate: edit.expiryDate || null }), 'Document details updated.')) setShowEdit(false);
+    if (await run(() => vaultApi.updateDocument(documentId, { ...edit, effectiveDate: edit.effectiveDate || null, expiryDate: edit.expiryDate || null }))) setShowEdit(false);
   };
   const uploadVersion = async (event) => {
     event.preventDefault();
     if (!file) return;
-    if (await run(() => vaultApi.addVersion(documentId, file, changeNote), 'New version uploaded.')) { setShowVersion(false); setFile(null); setChangeNote(''); }
+    if (await run(() => vaultApi.addVersion(documentId, file, changeNote))) { setShowVersion(false); setFile(null); setChangeNote(''); }
   };
   const removeDocument = async () => {
-    if (await run(() => vaultApi.deleteDocument(documentId), 'Document deleted.')) navigate('/document-vault', { replace: true, state: { notice: 'Document deleted successfully.' } });
+    if (await run(() => vaultApi.deleteDocument(documentId))) navigate('/document-vault', { replace: true, state: { notice: 'Document deleted successfully.' } });
   };
   const shareDocument = async () => {
     setError('');
@@ -136,18 +133,13 @@ export default function DocumentDetailPage() {
   const grantAccess = async (event) => {
     event.preventDefault();
     const payload = { documentId, permissionType: grant.permissionType, expiresAt: grant.expiresAt ? new Date(grant.expiresAt).toISOString() : null, ...(grant.targetType === 'user' ? { userId: grant.targetId } : { roleId: grant.targetId }) };
-    if (await run(() => vaultApi.grantPermission(payload), 'Access permission granted.')) setGrant({ targetType: 'user', targetId: '', permissionType: 'READ', expiresAt: '' });
-  };
-  const createLink = async (event) => {
-    event.preventDefault();
-    if (await run(() => vaultApi.createDocumentLink({ documentId, entityType: link.entityType, entityId: link.entityId.trim(), linkType: link.linkType }), 'Document linked successfully.')) setLink({ entityType: 'OTHER', entityId: '', linkType: 'ATTACHMENT' });
+    if (await run(() => vaultApi.grantPermission(payload))) setGrant({ targetType: 'user', targetId: '', permissionType: 'READ', expiresAt: '' });
   };
   const sections = [
     ['details', 'Details'],
     ...(hasPermission('DOCUMENT_VERSION_READ') ? [['versions', 'Versions']] : []),
     ...(hasPermission('DOCUMENT_READ') ? [['downloads', 'Download history']] : []),
     ...(hasPermission('DOCUMENT_PERMISSION_READ') || hasPermission('DOCUMENT_PERMISSION_MANAGE') ? [['access', 'Access permissions']] : []),
-    ...(hasPermission('DOCUMENT_LINK_READ') || hasPermission('DOCUMENT_LINK_CREATE') ? [['links', 'Linked records']] : []),
   ];
   const userName = (id) => {
     if (!id) return 'Unknown user';
@@ -207,14 +199,23 @@ export default function DocumentDetailPage() {
       </form>}
       {rows(permissions, 'permissions').length ? <div className="stack-form section">{rows(permissions, 'permissions').map((p) => <div className="perm-group" key={p.id}><strong>{p.user_id ? userName(p.user_id) : p.role_id ? roleName(p.role_id) : 'Unassigned target'}</strong><p>{p.permission_type} · Expires {p.expires_at ? formatDate(p.expires_at) : 'Never'}</p>{hasPermission('DOCUMENT_PERMISSION_MANAGE') && <button className="btn btn-secondary btn-sm" disabled={saving} onClick={() => run(() => vaultApi.revokePermission(p.id), 'Access permission revoked.')}>Revoke</button>}</div>)}</div> : <p className="muted">No explicit permissions granted.</p>}</section>}
 
-      {active === 'links' && <section className="card section"><h2 className="section-title">Linked records</h2>{hasPermission('DOCUMENT_LINK_CREATE') && <form className="stack-form section" onSubmit={createLink}><h3>Link to a record</h3><div className="form-grid"><label className="field">Record type<select className="input" value={link.entityType} onChange={(e) => setLink({ ...link, entityType: e.target.value })}>{ENTITY_TYPES.map((v) => <option key={v}>{v}</option>)}</select></label><label className="field">Record ID<input className="input" required value={link.entityId} onChange={(e) => setLink({ ...link, entityId: e.target.value.trim() })} placeholder="Paste an existing record ID" /></label><label className="field">Link type<select className="input" value={link.linkType} onChange={(e) => setLink({ ...link, linkType: e.target.value })}>{LINK_TYPES.map((v) => <option key={v}>{v}</option>)}</select></label></div><p className="field-hint">Choose an existing record ID from the related module. The API requires a valid UUID.</p><button className="btn btn-primary" disabled={saving || !link.entityId}><Plus size={18} strokeWidth={2.4} aria-hidden="true" /> Create link</button></form>}
-      {rows(links, 'links').length ? <div className="stack-form section">{rows(links, 'links').map((item) => <div className="perm-group" key={item.id}><strong>{pretty(item.entity_type)} · {pretty(item.link_type)}</strong><p className="mono break-word">{item.entity_id}</p>{hasPermission('DOCUMENT_LINK_CREATE') && <button className="btn btn-secondary btn-sm" disabled={saving} onClick={() => run(() => vaultApi.deleteDocumentLink(item.id), 'Document link removed.')}>Remove link</button>}</div>)}</div> : <p className="muted">No records linked to this document.</p>}</section>}
 
-      {showEdit && <Modal title="Edit document details" onClose={() => !saving && setShowEdit(false)} busy={saving}><form className="stack-form" onSubmit={saveEdit}>
+      {showEdit && <Modal className="document-vault-dialog" title="Edit document details" onClose={() => !saving && setShowEdit(false)} busy={saving}><form className="stack-form document-vault-form document-edit-form" onSubmit={saveEdit}>
         {error && <Alert variant="error">{error}</Alert>}
-        <label className="field">Title<input className="input" required maxLength={255} value={edit.title || ''} onChange={(e) => setEdit({ ...edit, title: e.target.value })} /></label>
-        <div className="form-grid"><label className="field">Document type<select className="input" value={edit.documentType} onChange={(e) => setEdit({ ...edit, documentType: e.target.value })}>{DOCUMENT_TYPES.map((v) => <option key={v}>{v}</option>)}</select></label><label className="field">Sensitivity<select className="input" value={edit.sensitivity} onChange={(e) => setEdit({ ...edit, sensitivity: e.target.value })}>{SENSITIVITIES.map((v) => <option key={v}>{v}</option>)}</select></label><label className="field">Visibility<select className="input" value={edit.visibility} onChange={(e) => setEdit({ ...edit, visibility: e.target.value })}>{VISIBILITIES.map((v) => <option key={v}>{v}</option>)}</select><span className="field-hint">{visibilityHelp(edit.visibility)}</span></label><label className="field">Status<select className="input" value={edit.status} onChange={(e) => setEdit({ ...edit, status: e.target.value })}>{DOCUMENT_STATUSES.map((v) => <option key={v}>{v}</option>)}</select></label><label className="field">Effective date<input className="input" type="date" value={edit.effectiveDate || ''} onChange={(e) => setEdit({ ...edit, effectiveDate: e.target.value })} /></label><label className="field">Expiry date<input className="input" type="date" min={edit.effectiveDate || undefined} value={edit.expiryDate || ''} onChange={(e) => setEdit({ ...edit, expiryDate: e.target.value })} /></label></div>
-        <div className="form-actions"><button className="btn btn-primary" disabled={saving || !edit.title?.trim()}>Save changes</button><button type="button" className="btn btn-secondary" onClick={() => setShowEdit(false)}>Cancel</button></div>
+        <p className="document-upload-intro">Update the document title, access settings and validity dates.</p>
+        <section className="document-upload-section">
+          <header className="document-upload-section-title"><h3>Document information</h3><span>Review the document details before saving</span></header>
+          <div className="document-upload-grid">
+            <label className="field document-upload-wide">Document title<input className="input" required maxLength={255} value={edit.title || ''} onChange={(e) => setEdit({ ...edit, title: e.target.value })} /></label>
+            <label className="field">Document type<select className="input" value={edit.documentType} onChange={(e) => setEdit({ ...edit, documentType: e.target.value })}>{DOCUMENT_TYPES.map((v) => <option key={v} value={v}>{pretty(v)}</option>)}</select></label>
+            <label className="field">Sensitivity<select className="input" value={edit.sensitivity} onChange={(e) => setEdit({ ...edit, sensitivity: e.target.value })}>{SENSITIVITIES.map((v) => <option key={v} value={v}>{pretty(v)}</option>)}</select></label>
+            <label className="field">Visibility<select className="input" value={edit.visibility} onChange={(e) => setEdit({ ...edit, visibility: e.target.value })}>{VISIBILITIES.map((v) => <option key={v} value={v}>{pretty(v)}</option>)}</select><span className="field-hint">{visibilityHelp(edit.visibility)}</span></label>
+            <label className="field">Status<select className="input" value={edit.status} onChange={(e) => setEdit({ ...edit, status: e.target.value })}>{DOCUMENT_STATUSES.map((v) => <option key={v} value={v}>{pretty(v)}</option>)}</select></label>
+            <label className="field">Effective date<input className="input" type="date" value={edit.effectiveDate || ''} onChange={(e) => setEdit({ ...edit, effectiveDate: e.target.value })} /></label>
+            <label className="field">Expiry date<input className="input" type="date" min={edit.effectiveDate || undefined} value={edit.expiryDate || ''} onChange={(e) => setEdit({ ...edit, expiryDate: e.target.value })} /></label>
+          </div>
+        </section>
+        <div className="form-actions document-upload-actions"><button type="button" className="btn btn-secondary" onClick={() => setShowEdit(false)} disabled={saving}>Cancel</button><button className="btn btn-primary" disabled={saving || !edit.title?.trim()}>{saving ? 'Saving…' : 'Save changes'}</button></div>
       </form></Modal>}
       {showVersion && <Modal title="Upload new version" onClose={() => !saving && setShowVersion(false)} busy={saving}><form className="stack-form" onSubmit={uploadVersion}>
         {error && <Alert variant="error">{error}</Alert>}

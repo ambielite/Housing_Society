@@ -1,26 +1,45 @@
 import 'dart:async';
-import 'dart:js' as js;
+import 'dart:js_interop';
+import 'dart:js_interop_unsafe';
+
+@JS('Razorpay')
+extension type _Razorpay._(JSObject _) implements JSObject {
+  external factory _Razorpay(JSAny options);
+  external void open();
+  external void on(String event, JSFunction callback);
+}
 
 class RazorpayCheckout {
   Future<Map<String, String>?> open(Map<String, Object?> options) {
     final completer = Completer<Map<String, String>?>();
-    options['handler'] = js.allowInterop((dynamic response) {
-      if (!completer.isCompleted) {
-        completer.complete({
-          'razorpay_payment_id': '${response.razorpay_payment_id}',
-          'razorpay_order_id': '${response.razorpay_order_id}',
-          'razorpay_signature': '${response.razorpay_signature}',
-        });
-      }
-    });
-    options['modal'] = {'ondismiss': js.allowInterop(() {
-      if (!completer.isCompleted) completer.complete(null);
-    })};
-    final checkout = js.JsObject(js.context['Razorpay'], [js.JsObject.jsify(options)]);
-    checkout.callMethod('on', ['payment.failed', js.allowInterop((dynamic _) {
-      if (!completer.isCompleted) completer.complete(null);
-    })]);
-    checkout.callMethod('open');
+
+    options['handler'] = (JSAny? response) {
+      if (completer.isCompleted) return;
+      final payment = response! as JSObject;
+      completer.complete({
+        'razorpay_payment_id':
+            (payment['razorpay_payment_id'] as JSString).toDart,
+        'razorpay_order_id':
+            (payment['razorpay_order_id'] as JSString).toDart,
+        'razorpay_signature':
+            (payment['razorpay_signature'] as JSString).toDart,
+      });
+    }.toJS;
+
+    options['modal'] = {
+      'ondismiss': (() {
+        if (!completer.isCompleted) completer.complete(null);
+      }).toJS,
+    };
+
+    final checkout = _Razorpay(options.jsify()!);
+    checkout.on(
+      'payment.failed',
+      ((JSAny? _) {
+        if (!completer.isCompleted) completer.complete(null);
+      }).toJS,
+    );
+    checkout.open();
     return completer.future;
   }
 

@@ -5,9 +5,15 @@ const towerRepository = require("../tower/tower.repository");
 // Create Floor
 const createFloor = async (floorData, societyId) => {
 
-    if (!await towerRepository.findById(floorData.towerId, societyId)) {
+    const tower = await towerRepository.findById(floorData.towerId, societyId);
+    if (!tower) {
         const error = new Error("Tower not found in the selected society");
         error.statusCode = 404;
+        throw error;
+    }
+    if (tower.status === "INACTIVE") {
+        const error = new Error("This tower is inactive. Activate it before adding floors.");
+        error.statusCode = 409;
         throw error;
     }
 
@@ -106,10 +112,18 @@ const updateFloor = async (
         throw error;
     }
 
-    if (floorData.towerId && !await towerRepository.findById(floorData.towerId, societyId)) {
-        const error = new Error("Tower not found in the selected society");
-        error.statusCode = 404;
-        throw error;
+    if (floorData.towerId) {
+        const tower = await towerRepository.findById(floorData.towerId, societyId);
+        if (!tower) {
+            const error = new Error("Tower not found in the selected society");
+            error.statusCode = 404;
+            throw error;
+        }
+        if (tower.status === "INACTIVE") {
+            const error = new Error("This tower is inactive. Activate it before assigning floors.");
+            error.statusCode = 409;
+            throw error;
+        }
     }
 
 

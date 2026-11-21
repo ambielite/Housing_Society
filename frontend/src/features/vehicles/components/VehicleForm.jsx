@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import TextField from '../../../components/ui/TextField';
@@ -26,7 +27,7 @@ export default function VehicleForm({ mode, vehicle, onSubmit, cancelTo, onCance
     model: vehicle?.model || '',
     color: vehicle?.color || '',
   });
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useDashboardFeedback({}, 'error');
   const [note, setNote] = useState('');
   const [invalidRegistrationAttempt, setInvalidRegistrationAttempt] = useState(false);
 

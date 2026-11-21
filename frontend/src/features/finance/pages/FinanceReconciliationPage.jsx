@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useState } from "react";
 import { ArrowLeftRight, Search } from "lucide-react";
 import reconciliationApi from "../api/reconciliation.api";
@@ -10,7 +11,7 @@ const rowsFrom = (response) => {
 const FinanceReconciliationPage = () => {
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
     const [search, setSearch] = useState("");
 
     const loadData = async () => {

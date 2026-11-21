@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useMemo, useState } from "react";
 import { FileSpreadsheet, Search } from "lucide-react";
 import generalLedgerApi from "../api/generalLedger.api";
@@ -11,7 +12,7 @@ export default function FinanceLedgersPage() {
     const [entries, setEntries] = useState([]);
     const [accounts, setAccounts] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
     const [search, setSearch] = useState("");
     const loadData = async () => {
         try {

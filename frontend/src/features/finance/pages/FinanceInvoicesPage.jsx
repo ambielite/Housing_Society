@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useMemo, useState } from "react";
 import { Download, FileText, Plus, Printer, Search, Share2 } from "lucide-react";
 import invoiceApi from "../api/invoice.api";
@@ -24,8 +25,8 @@ export default function FinanceInvoicesPage() {
     const [items, setItems] = useState([]);
     const [units, setUnits] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
-    const [notice, setNotice] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
+    const [notice, setNotice] = useDashboardFeedback('', 'success');
     const [search, setSearch] = useState("");
     const [status, setStatus] = useState("");
     const [showForm, setShowForm] = useState(false);

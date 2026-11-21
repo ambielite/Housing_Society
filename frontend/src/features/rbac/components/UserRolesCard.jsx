@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import useAuth from '../../../app/providers/useAuth';
 import useFetch from '../../../utils/useFetch';
@@ -22,7 +23,7 @@ export default function UserRolesCard({ userId, roleCodes, societyId, isSelf, on
   const roles = useFetch(() => (canListRoles ? rbacApi.listRoles() : Promise.resolve(null)), [canListRoles]);
   const [selected, setSelected] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useDashboardFeedback('', 'error');
   const [removing, setRemoving] = useState(null); // role code waiting for confirmation
 
   const allRoles = roles.data || [];

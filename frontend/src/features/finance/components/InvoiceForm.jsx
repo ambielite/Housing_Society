@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useState } from "react";
 import { Plus, Trash2, X } from "lucide-react";
 import invoiceApi from "../api/invoice.api";
@@ -13,7 +14,7 @@ const line = () => ({ description: "", quantity: "1", rate: "", taxRate: "0" });
 
 export default function InvoiceForm({ onClose, onSuccess }) {
     const [form, setForm] = useState({ societyId: society(), unitId: "", invoiceNumber: "", billingPeriod: today().slice(0,7), invoiceDate: today(), dueDate: today(), billingId: "", penaltyAmount: "0", idempotencyKey: `invoice-${crypto.randomUUID()}`, description: "", remarks: "", items: [line()] });
-    const [units, setUnits] = useState([]); const [unitsLoading, setUnitsLoading] = useState(false); const [saving, setSaving] = useState(false); const [error, setError] = useState("");
+    const [units, setUnits] = useState([]); const [unitsLoading, setUnitsLoading] = useState(false); const [saving, setSaving] = useState(false); const [error, setError] = useDashboardFeedback('', 'error');
     useEffect(() => {
         let active = true;
         if (!form.societyId) { setUnits([]); return () => { active = false; }; }

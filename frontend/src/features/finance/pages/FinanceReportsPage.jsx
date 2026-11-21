@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useState } from "react";
 import { BarChart3, TrendingUp } from "lucide-react";
 import financialReportApi from "../api/financialReport.api";
@@ -25,7 +26,7 @@ const FinanceReportsPage = () => {
         trialBalance: []
     });
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
 
     const loadData = async () => {
         try {

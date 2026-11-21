@@ -1,3 +1,5 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
+import { confirmDashboardAction } from '../../../lib/dashboardConfirmation.js';
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { CalendarDays, Check, ChevronRight, CircleAlert, FileText, MessageSquare, RefreshCw, Search, Shield, Users, X } from "lucide-react";
@@ -106,7 +108,7 @@ export default function CommunityPage() {
   const navigate = useNavigate();
   const { section = "dashboard" } = useParams();
   const [tab, setTab] = useState(section === "overview" ? "dashboard" : section); const [data, setData] = useState({}); const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(""); const [notice, setNotice] = useState(""); const [search, setSearch] = useState(""); const [dialog, setDialog] = useState(null);
+  const [error, setError] = useDashboardFeedback('', 'error'); const [notice, setNotice] = useDashboardFeedback('', 'success'); const [search, setSearch] = useState(""); const [dialog, setDialog] = useState(null);
   const [form, setForm] = useState({}); const [busy, setBusy] = useState(false);
   const [memberGroup, setMemberGroup] = useState(null);
   const [cancellationTarget, setCancellationTarget] = useState(null);
@@ -183,7 +185,7 @@ export default function CommunityPage() {
       payload.approvedBy = approverId;
     }
     await communityApi.post(`${configs[key].base}/${idOf(row)}/${action}`, payload); });
-  const remove = (key, row) => { if (!window.confirm("Delete this record permanently?")) return; const endpoint = key === "comments" ? `/community/posts/${row.postId || idOf(dialog?.parent)}/comments/${idOf(row)}` : `${configs[key].base}/${idOf(row)}`; run(() => communityApi.delete(endpoint)); };
+  const remove = async (key, row) => { if (!await confirmDashboardAction("Delete this record permanently?")) return; const endpoint = key === "comments" ? `/community/posts/${row.postId || idOf(dialog?.parent)}/comments/${idOf(row)}` : `${configs[key].base}/${idOf(row)}`; run(() => communityApi.delete(endpoint)); };
   const saveDialog = async () => {
     const key = dialog.key; const payload = { ...form }; let endpoint = configs[key].base;
     Object.keys(payload).forEach((name) => { if (payload[name] === "") delete payload[name]; else if (["price", "ticketPrice", "capacity", "totalTickets", "guestCount", "agendaOrder", "noticePeriodDays", "quorumRequired"].includes(name)) payload[name] = Number(payload[name]); else if (["isFree", "isNegotiable", "isActive", "discussionRequired", "decisionRequired", "candidateApprovalRequired", "identityVerificationRequired", "otpRequired"].includes(name)) payload[name] = payload[name] === "true"; });

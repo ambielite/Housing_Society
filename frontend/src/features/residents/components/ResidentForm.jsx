@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useState } from "react";
 import { Camera, Eye, EyeOff, X } from "lucide-react";
 
@@ -79,7 +80,7 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
     const [loadingTowerFloors, setLoadingTowerFloors] = useState(false);
     const [loadingResidentRoleUsers, setLoadingResidentRoleUsers] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [error, setError] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
     const [createdResidentId, setCreatedResidentId] = useState("");
     const [profilePicture, setProfilePicture] = useState(null);
     const [picturePreview, setPicturePreview] = useState(profileImageUrl(resident?.profilePhoto));
@@ -346,7 +347,9 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
             if (resident?.id) {
                 await residentApi.update(resident.id, payload);
                 if (values.status !== resident.status) {
-                    await residentApi.updateStatus(resident.id, values.societyId, values.status);
+                    await residentApi.updateStatus(resident.id, values.societyId, values.status, {
+                        suppressSuccessToast: true
+                    });
                 }
             } else {
                 if (!residentId) {

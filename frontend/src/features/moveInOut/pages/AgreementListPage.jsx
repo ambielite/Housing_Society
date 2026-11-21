@@ -1,3 +1,5 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
+import { confirmDashboardAction } from '../../../lib/dashboardConfirmation.js';
 import { useEffect, useMemo, useState } from "react";
 import { BadgeCheck, Ban, CheckCircle2, SquarePen, FileText, Plus, RefreshCw, Search, Trash2, X, XCircle } from "lucide-react";
 import agreementApi from "../api/agreement.api";
@@ -22,7 +24,7 @@ const AgreementListPage = () => {
     const [residents, setResidents] = useState([]);
     const [units, setUnits] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
     const [search, setSearch] = useState("");
     const [showForm, setShowForm] = useState(false);
     const [editingAgreement, setEditingAgreement] = useState(null);
@@ -105,7 +107,7 @@ const AgreementListPage = () => {
     };
 
     const handleDelete = async (id) => {
-        const confirmed = window.confirm("Are you sure you want to delete this agreement?");
+        const confirmed = await confirmDashboardAction("Are you sure you want to delete this agreement?");
         if (!confirmed) return;
 
         try {

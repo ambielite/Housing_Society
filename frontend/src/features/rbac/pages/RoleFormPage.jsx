@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import useFetch from '../../../utils/useFetch';
@@ -13,7 +14,7 @@ export default function RoleFormPage() {
   const isEdit = Boolean(roleId);
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState('');
+  const [submitError, setSubmitError] = useDashboardFeedback('', 'error');
 
   // No "get one role" endpoint, so edit mode looks the role up in the list.
   const roles = useFetch(() => (isEdit ? rbacApi.listRoles() : Promise.resolve(null)), [roleId]);

@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as authApi from '../api/auth.api';
@@ -19,8 +20,8 @@ export default function RegisterPage() {
     password: '',
     confirmPassword: '',
   });
-  const [errors, setErrors] = useState({});
-  const [submitError, setSubmitError] = useState('');
+  const [errors, setErrors] = useDashboardFeedback({}, 'error');
+  const [submitError, setSubmitError] = useDashboardFeedback('', 'error');
   const [submitting, setSubmitting] = useState(false);
 
   const onChange = (event) => setValues((v) => ({ ...v, [event.target.name]: event.target.value }));

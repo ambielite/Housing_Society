@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 
@@ -21,7 +22,7 @@ const createInitialForm = (payment) => ({
 const PaymentForm = ({ payment, onClose, onSuccess }) => {
     const [formData, setFormData] = useState(() => createInitialForm(payment));
     const [saving, setSaving] = useState(false);
-    const [error, setError] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
     const [invoices, setInvoices] = useState([]);
 
     useEffect(() => {

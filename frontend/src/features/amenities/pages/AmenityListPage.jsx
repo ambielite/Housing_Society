@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import { Plus, RefreshCw, SquarePen, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -23,8 +24,8 @@ export default function AmenityListPage() {
   const [dialog, setDialog] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  const [error, setError] = useDashboardFeedback('', 'error');
+  const [notice, setNotice] = useDashboardFeedback('', 'success');
 
   const amenities = useFetch(
     () => (societyId ? api.listAmenities({ societyId, status }) : Promise.resolve(null)),

@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
@@ -26,7 +27,7 @@ export default function PurchaseOrderDetailPage() {
   const [showStatus, setShowStatus] = useState(false);
   const [selectedReceiptId, setSelectedReceiptId] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useDashboardFeedback('', 'error');
   const [notice, setNotice] = useState(location.state?.notice || '');
   const { nameOf } = useVendorDirectory(po.data?.society_id);
   const assetCategoryResult = useFetch(() => assetsApi.getCategories(), [po.data?.society_id]);

@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useState } from 'react';
 import TextField from '../../../components/ui/TextField';
 import SelectField from '../../../components/ui/SelectField';
@@ -14,7 +15,7 @@ export default function AmenityForm({ amenity, onSubmit, onCancel, saving, error
     bookingRequired: amenity?.booking_required ?? true,
     status: amenity?.status || 'ACTIVE',
   });
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useDashboardFeedback({}, 'error');
 
   useEffect(() => {
     setValues({

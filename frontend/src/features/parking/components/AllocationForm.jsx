@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import TextField from '../../../components/ui/TextField';
 import SelectField from '../../../components/ui/SelectField';
@@ -18,7 +19,7 @@ export default function AllocationForm({ slotOptions, defaultSlotId = '', onSubm
     endDate: '',
     fee: '',
   });
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useDashboardFeedback({}, 'error');
 
   const onChange = (event) => setValues((v) => ({ ...v, [event.target.name]: event.target.value }));
 

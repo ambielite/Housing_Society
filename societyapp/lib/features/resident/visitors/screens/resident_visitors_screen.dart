@@ -4,13 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../widgets/resident_back_button.dart';
 import '../../../auth/data/auth_api.dart';
 import '../data/resident_visitors_api.dart';
 
 class ResidentVisitorsScreen extends StatefulWidget {
-  const ResidentVisitorsScreen({super.key, required this.user});
+  const ResidentVisitorsScreen({super.key, required this.user, this.onBack});
 
   final AuthenticatedUser user;
+  final VoidCallback? onBack;
 
   @override
   State<ResidentVisitorsScreen> createState() => _ResidentVisitorsScreenState();
@@ -130,6 +132,9 @@ class _ResidentVisitorsScreenState extends State<ResidentVisitorsScreen>
           backgroundColor: _pageBackground,
           foregroundColor: AppColors.ink,
           elevation: 0,
+          leading: ResidentBackButton(
+            onPressed: widget.onBack ?? () => Navigator.of(context).maybePop(),
+          ),
           title: const Text('Visitors'),
           actions: [
             IconButton(tooltip: 'Pre-approve visitor', onPressed: _preApproveVisitor, icon: const Icon(Icons.person_add_alt_1_rounded)),

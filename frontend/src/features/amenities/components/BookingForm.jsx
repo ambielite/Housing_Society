@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useState } from 'react';
 import SelectField from '../../../components/ui/SelectField';
 import TextField from '../../../components/ui/TextField';
@@ -20,10 +21,10 @@ export default function BookingForm({ userId, societyId, amenities, onSubmit, on
   const [slotDate, setSlotDate] = useState(todayISO());
   const [slotOptions, setSlotOptions] = useState([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
-  const [slotError, setSlotError] = useState('');
+  const [slotError, setSlotError] = useDashboardFeedback('', 'error');
   const [unitOptions, setUnitOptions] = useState([]);
   const [loadingUnits, setLoadingUnits] = useState(false);
-  const [unitLoadError, setUnitLoadError] = useState('');
+  const [unitLoadError, setUnitLoadError] = useDashboardFeedback('', 'error');
   const [values, setValues] = useState({
     amenitySlotId: '',
     unitId: '',
@@ -61,7 +62,7 @@ export default function BookingForm({ userId, societyId, amenities, onSubmit, on
     return () => { active = false; };
   }, [societyId]);
   const [guests, setGuests] = useState([]);
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useDashboardFeedback({}, 'error');
 
   useEffect(() => {
     if (!amenityId || !slotDate) {

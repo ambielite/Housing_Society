@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useState } from "react";
 import { Download, FileDown } from "lucide-react";
 import accountingExportApi from "../api/accountingExport.api";
@@ -21,7 +22,7 @@ const createDownload = (response, defaultName) => {
 
 const FinanceExportsPage = () => {
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
     const [downloadBusy, setDownloadBusy] = useState(false);
 
     const handleExport = async (type) => {

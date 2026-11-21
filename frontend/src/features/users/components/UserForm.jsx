@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { isValidEmail, passwordError } from '../../../utils/validators';
@@ -22,7 +23,7 @@ export default function UserForm({ mode, initialValues, societyId, onSubmit, sub
   const [values, setValues] = useState({ ...EMPTY, ...initialValues });
   const [profilePicture, setProfilePicture] = useState(null);
   const [picturePreview, setPicturePreview] = useState(() => imageUrl(initialValues.profilePictureUrl));
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useDashboardFeedback({}, 'error');
   const [phoneTouched, setPhoneTouched] = useState(false);
   const [note, setNote] = useState('');
 

@@ -1,3 +1,6 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
+import { dispatchActionToast } from '../../../lib/actionToastEvents.js';
+import { confirmDashboardAction } from '../../../lib/dashboardConfirmation.js';
 import {
     useCallback,
     useEffect,
@@ -24,7 +27,6 @@ import unitApi from "../../units/api/unit.api";
 import floorApi from "../../floors/api/floor.api";
 import towerApi from "../../towers/api/tower.api";
 import ResidentForm from "../components/ResidentForm";
-import residentKycApi from "../api/residentKyc.api";
 import { RecordDetailsModal } from "../../../components/ui/Modal";
 
 
@@ -64,8 +66,7 @@ const ResidentListPage = () => {
     const [loading, setLoading] =
         useState(true);
 
-    const [error, setError] =
-        useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
 
     const [search, setSearch] =
         useState("");
@@ -76,52 +77,6 @@ const ResidentListPage = () => {
     const [editingResident, setEditingResident] =
         useState(null);
     const [viewingResident, setViewingResident] = useState(null);
-    const [residentDocuments, setResidentDocuments] = useState([]);
-    const [loadingResidentDocuments, setLoadingResidentDocuments] = useState(false);
-    const [residentDocumentsError, setResidentDocumentsError] = useState("");
-
-    useEffect(() => {
-        if (!viewingResident?.id) {
-            setResidentDocuments([]);
-            setResidentDocumentsError("");
-            return undefined;
-        }
-        let cancelled = false;
-        setLoadingResidentDocuments(true);
-        setResidentDocumentsError("");
-        residentKycApi.getByResident(viewingResident.id)
-            .then((response) => {
-                if (!cancelled) setResidentDocuments(rowsFrom(response));
-            })
-            .catch((err) => {
-                if (!cancelled) setResidentDocumentsError(err.response?.data?.message || "Could not load resident documents.");
-            })
-            .finally(() => {
-                if (!cancelled) setLoadingResidentDocuments(false);
-            });
-        return () => { cancelled = true; };
-    }, [viewingResident?.id]);
-
-    const openResidentDocument = async (kycDocument) => {
-        const previewTab = window.open("about:blank", "_blank");
-        try {
-            const blob = await residentKycApi.getFile(kycDocument.id);
-            const objectUrl = URL.createObjectURL(blob);
-            if (previewTab) {
-                previewTab.location = objectUrl;
-                previewTab.document.title = kycDocument.documentName || kycDocument.fileName || "Resident document";
-            } else {
-                const link = globalThis.document.createElement("a");
-                link.href = objectUrl;
-                link.download = kycDocument.fileName || kycDocument.documentName || "resident-document";
-                link.click();
-            }
-            window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
-        } catch (err) {
-            previewTab?.close();
-            setResidentDocumentsError(err.response?.data?.message || "Could not open this resident document.");
-        }
-    };
 
     useEffect(() => {
         if (searchParams.get("new") !== "1") return;
@@ -337,7 +292,7 @@ const ResidentListPage = () => {
     const handleDelete = async (resident) => {
 
         if (
-            !window.confirm(
+            !await confirmDashboardAction(
                 `Are you sure you want to delete ${resident.displayName || resident.firstName}?`
             )
         ) {
@@ -356,7 +311,7 @@ const ResidentListPage = () => {
 
         } catch (err) {
 
-            window.alert(
+            dispatchActionToast("error",
                 err.response?.data?.message ||
                 "Failed to delete resident."
             );
@@ -840,17 +795,11 @@ const ResidentListPage = () => {
 
                                                 <td>
 
-                                                    <span
-                                                        className={`badge badge-${String(resident.status || "PENDING").toLowerCase()}`}
-                                                    >
-
-                                                        {(resident.status ||
-                                                            "PENDING")
-                                                            .replaceAll(
-                                                                "_",
-                                                                " "
-                                                            )}
-
+                                                    <span className={`badge badge-${String(resident.status || "PENDING").toLowerCase().replaceAll("_", "-")}`}>
+                                                        {(resident.status || "PENDING")
+                                                            .toLowerCase()
+                                                            .replaceAll("_", " ")
+                                                            .replace(/\b\w/g, (letter) => letter.toUpperCase())}
                                                     </span>
 
                                                 </td>
@@ -962,19 +911,8 @@ const ResidentListPage = () => {
                     return [[`Family member ${index + 1}`, memberName], [`Contact ${index + 1}`, member.mobile || member.email || "No contact details"]];
                 }) }] : []),
                 { title: "Contact", fields: [["Email", viewingResident.email], ["Mobile", viewingResident.mobile], ["Alternate mobile", viewingResident.alternateMobile], ["Address", viewingResident.address]] },
-                { title: "Home and emergency contact", fields: [["Units", (residentUnits[viewingResident.id] || []).map((assignment) => `${assignment.towerName ? `${assignment.towerName} · ` : ""}Unit ${assignment.unitNumber || "—"}`).join(", ") || null], ["Emergency contact", viewingResident.emergencyContactName], ["Emergency phone", viewingResident.emergencyContactMobile], ["Resident ID", viewingResident.id]] }
-            ]}>
-                <section className="record-details-section resident-documents-section">
-                    <h3>Uploaded documents</h3>
-                    {loadingResidentDocuments ? <p>Loading documents…</p>
-                        : residentDocumentsError ? <p role="alert">{residentDocumentsError}</p>
-                            : residentDocuments.length === 0 ? <p>No documents uploaded for this resident.</p>
-                                : <ul>{residentDocuments.map((document) => <li key={document.id}>
-                                    <span><strong>{document.documentName || document.documentType}</strong><small>{document.fileName || "File not attached"}{document.verificationStatus ? ` · ${document.verificationStatus.replaceAll("_", " ")}` : ""}</small></span>
-                                    {document.fileName && <button type="button" className="btn btn-secondary btn-sm" onClick={() => openResidentDocument(document)}>View</button>}
-                                </li>)}</ul>}
-                </section>
-            </RecordDetailsModal>}
+                { title: "Home and emergency contact", fields: [["Units", (residentUnits[viewingResident.id] || []).map((assignment) => `${assignment.towerName ? `${assignment.towerName} · ` : ""}Unit ${assignment.unitNumber || "—"}`).join(", ") || null], ["Emergency contact", viewingResident.emergencyContactName], ["Emergency phone", viewingResident.emergencyContactMobile]] }
+            ]} />}
 
         </section>
 

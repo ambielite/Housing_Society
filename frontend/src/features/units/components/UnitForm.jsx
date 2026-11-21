@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from "react";
 import { X } from "lucide-react";
 import unitApi from "../api/unit.api";
@@ -14,7 +15,7 @@ const UnitForm = ({ unit, floors, towers = [], onClose, onSuccess }) => {
         status: unit?.status || "VACANT"
     });
     const [saving, setSaving] = useState(false);
-    const [error, setError] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
 
     const update = (event) => setValues((current) => ({ ...current, [event.target.name]: event.target.value }));
     const floorLabel = (floor) => {
@@ -71,7 +72,7 @@ const UnitForm = ({ unit, floors, towers = [], onClose, onSuccess }) => {
                         <header className="form-section-title"><h3>Unit information</h3><span>Area changes require an effective date</span></header>
                         <div className="form-grid">
                             <div className="form-group form-group-full">
-                                <label htmlFor="unit-floor">Floor{!unit && <span className="required">*</span>}</label>
+                                <label htmlFor="unit-floor">Floor</label>
                                 {unit ? <input id="unit-floor" value={floorLabel(floors.find((item) => item.id === unit.floorId) || {})} disabled /> : (
                                     <select id="unit-floor" name="floorId" value={values.floorId} onChange={update} required>
                                         <option value="">Select a floor</option>
@@ -79,7 +80,7 @@ const UnitForm = ({ unit, floors, towers = [], onClose, onSuccess }) => {
                                     </select>
                                 )}
                             </div>
-                            <div className="form-group"><label htmlFor="unit-number">Unit number<span className="required">*</span></label><input id="unit-number" name="unitNumber" value={values.unitNumber} onChange={update} maxLength={50} required placeholder="e.g. A-101" /></div>
+                            <div className="form-group"><label htmlFor="unit-number">Unit number</label><input id="unit-number" name="unitNumber" value={values.unitNumber} onChange={update} maxLength={50} required placeholder="e.g. A-101" /></div>
                             <div className="form-group"><label htmlFor="unit-bhk">Configuration</label><input id="unit-bhk" name="bhk" value={values.bhk} onChange={update} maxLength={20} placeholder="e.g. 2 BHK" /></div>
                             <div className="form-group"><label htmlFor="unit-type">Property type</label><select id="unit-type" name="propertyType" value={values.propertyType} onChange={update}><option value="RESIDENTIAL">Residential</option><option value="COMMERCIAL">Commercial</option></select></div>
                             <div className="form-group"><label htmlFor="unit-status">Status</label><select id="unit-status" name="status" value={values.status} onChange={update}><option value="VACANT">Vacant</option><option value="OCCUPIED">Occupied</option><option value="UNDER_MOVE_IN">Under move in</option><option value="UNDER_MOVE_OUT">Under move out</option>{unit?.status === "INACTIVE" && <option value="INACTIVE">Inactive</option>}</select></div>

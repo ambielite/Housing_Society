@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import Alert from '../../../components/ui/Alert';
 import { getErrorMessage } from '../../../lib/axios';
@@ -21,7 +22,7 @@ const groupByModule = (rows) => {
 export default function RolePermissionsEditor({ roleId, catalog, granted, canEdit, onGrantedChange }) {
   const [search, setSearch] = useState('');
   const [pending, setPending] = useState(() => new Set());
-  const [error, setError] = useState('');
+  const [error, setError] = useDashboardFeedback('', 'error');
 
   const grantedCodes = new Set(granted.map((p) => p.code));
   const term = search.trim().toLowerCase();

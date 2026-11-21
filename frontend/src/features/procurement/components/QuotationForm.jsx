@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import TextField from '../../../components/ui/TextField';
 import SelectField from '../../../components/ui/SelectField';
@@ -9,7 +10,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 /** Records a quotation on a vendor's behalf. vendorOptions: invited vendors that haven't quoted yet. */
 export default function QuotationForm({ vendorOptions, onSubmit, onCancel, saving, error }) {
   const [values, setValues] = useState({ vendorId: '', quotationNo: suggestNumber('QT'), quotationDate: today(), validUntil: '', document: null });
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useDashboardFeedback({}, 'error');
 
   const onChange = (event) => setValues((v) => ({ ...v, [event.target.name]: event.target.value }));
 

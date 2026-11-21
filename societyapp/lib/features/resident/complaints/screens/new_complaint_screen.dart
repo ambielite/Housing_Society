@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../widgets/resident_back_button.dart';
 import '../../../../core/widgets/styled_dropdown_field.dart';
 import '../../../auth/data/auth_api.dart';
 import '../data/resident_complaints_api.dart';
@@ -71,6 +72,9 @@ class _NewComplaintScreenState extends State<NewComplaintScreen> {
         backgroundColor: AppColors.canvas,
         appBar: AppBar(
           backgroundColor: AppColors.canvas,
+          leading: ResidentBackButton(
+            onPressed: () => Navigator.of(context).maybePop(),
+          ),
           title: const Text('New complaint'),
         ),
         body: SafeArea(

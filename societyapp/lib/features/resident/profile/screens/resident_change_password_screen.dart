@@ -3,11 +3,17 @@ import 'package:flutter/material.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../auth/data/auth_api.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
+import '../../widgets/resident_back_button.dart';
 
 class ResidentChangePasswordScreen extends StatefulWidget {
-  const ResidentChangePasswordScreen({super.key, required this.accessToken});
+  const ResidentChangePasswordScreen({
+    super.key,
+    required this.accessToken,
+    this.header,
+  });
 
   final String accessToken;
+  final Widget? header;
 
   @override
   State<ResidentChangePasswordScreen> createState() =>
@@ -80,48 +86,77 @@ class _ResidentChangePasswordScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.canvas,
-      appBar: AppBar(
-        title: const Text('Change password'),
-        backgroundColor: AppColors.canvas,
-        foregroundColor: AppColors.ink,
-        elevation: 0,
-      ),
+      appBar: widget.header == null
+          ? AppBar(
+              title: const Text('Change password'),
+              backgroundColor: AppColors.canvas,
+              foregroundColor: AppColors.ink,
+              elevation: 0,
+            )
+          : null,
       body: SafeArea(
-        top: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(20, 22, 20, 32),
-              children: [
-                FadeTransition(
-                  opacity: CurvedAnimation(
-                    parent: _entryController,
-                    curve: const Interval(0, 1, curve: Curves.easeOut),
-                  ),
-                  child: SlideTransition(
-                    position:
-                        CurvedAnimation(
+        top: widget.header != null,
+        child: Column(
+          children: [
+            if (widget.header != null) ...[
+              widget.header!,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 0, 20, 0),
+                child: Row(
+                  children: [
+                    ResidentBackButton(
+                      onPressed: () => Navigator.of(context).maybePop(),
+                    ),
+                    const Text(
+                      'Change password',
+                      style: TextStyle(
+                        color: AppColors.ink,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            Expanded(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 560),
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 40, 20, 32),
+                    children: [
+                      FadeTransition(
+                        opacity: CurvedAnimation(
                           parent: _entryController,
-                          curve: const Interval(
-                            .08,
-                            1,
-                            curve: Curves.easeOutCubic,
-                          ),
-                        ).drive(
-                          Tween<Offset>(
-                            begin: const Offset(0, .14),
-                            end: Offset.zero,
-                          ),
+                          curve: const Interval(0, 1, curve: Curves.easeOut),
                         ),
-                    child: _passwordChanged
-                        ? _successContent()
-                        : _passwordForm(),
+                        child: SlideTransition(
+                          position:
+                              CurvedAnimation(
+                                parent: _entryController,
+                                curve: const Interval(
+                                  .08,
+                                  1,
+                                  curve: Curves.easeOutCubic,
+                                ),
+                              ).drive(
+                                Tween<Offset>(
+                                  begin: const Offset(0, .14),
+                                  end: Offset.zero,
+                                ),
+                              ),
+                          child: _passwordChanged
+                              ? _successContent()
+                              : _passwordForm(),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -136,7 +171,7 @@ class _ResidentChangePasswordScreenState
         description:
             'Choose a new password to keep your resident account secure.',
       ),
-      const SizedBox(height: 24),
+      const SizedBox(height: 32),
       Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(

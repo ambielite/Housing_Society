@@ -1,3 +1,5 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
+import { confirmDashboardAction } from '../../../lib/dashboardConfirmation.js';
 import { useEffect, useMemo, useState } from "react";
 import { Building2, Plus, RefreshCw, Search, ShieldAlert, UserRound, SquarePen, Check, Trash2 } from "lucide-react";
 
@@ -45,7 +47,7 @@ const NonMemberListPage = () => {
     const [societies, setSocieties] = useState([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [error, setError] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
     const [search, setSearch] = useState("");
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState(null);
@@ -133,7 +135,7 @@ const NonMemberListPage = () => {
     };
 
     const handleDelete = async (id) => {
-        if (!window.confirm("Delete this non-member record?")) return;
+        if (!await confirmDashboardAction("Delete this non-member record?")) return;
         try {
             await nonMemberApi.delete(id);
             await loadData();

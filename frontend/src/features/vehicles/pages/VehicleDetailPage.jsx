@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
@@ -28,9 +29,9 @@ export default function VehicleDetailPage() {
   const [dialog, setDialog] = useState(null); // 'status' | 'credential'
   const [revoking, setRevoking] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState('');
+  const [saveError, setSaveError] = useDashboardFeedback('', 'error');
   const [notice, setNotice] = useState(location.state?.notice || '');
-  const [pageError, setPageError] = useState('');
+  const [pageError, setPageError] = useDashboardFeedback('', 'error');
 
   const target = vehicle.data;
 

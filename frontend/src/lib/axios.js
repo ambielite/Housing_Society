@@ -94,7 +94,7 @@ const createApiClient = (baseURL, refreshBaseURL = baseURL) => {
 
   client.interceptors.response.use((response) => {
     const config = response.config;
-    if (isAuthenticatedWrite(config)) {
+    if (isAuthenticatedWrite(config) && !config.suppressSuccessToast) {
       const method = String(config.method).toLowerCase();
       const fallback = method === 'delete'
         ? 'Record deleted successfully.'

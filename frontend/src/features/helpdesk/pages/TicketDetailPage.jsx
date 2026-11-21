@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import useAuth from '../../../app/providers/useAuth';
@@ -33,8 +34,8 @@ export default function TicketDetailPage() {
   const { ticketId } = useParams();
   const { hasPermission } = useAuth();
   const { societyId } = useSociety();
-  const [notice, setNotice] = useState('');
-  const [error, setError] = useState('');
+  const [notice, setNotice] = useDashboardFeedback('', 'success');
+  const [error, setError] = useDashboardFeedback('', 'error');
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
   const [remarks, setRemarks] = useState('');
@@ -44,7 +45,7 @@ export default function TicketDetailPage() {
   const [vendors, setVendors] = useState([]);
   const [categories, setCategories] = useState([]);
   const [unitNames, setUnitNames] = useState(new Map());
-  const [directoryError, setDirectoryError] = useState('');
+  const [directoryError, setDirectoryError] = useDashboardFeedback('', 'error');
   const [comment, setComment] = useState('');
   const [internal, setInternal] = useState(false);
   const [rating, setRating] = useState('5');

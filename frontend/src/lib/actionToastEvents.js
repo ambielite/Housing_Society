@@ -25,7 +25,9 @@ export function dispatchActionToast(type, message) {
 
   const normalizedType = type === 'error' ? 'error' : 'success';
   const now = Date.now();
-  if (previousToast?.type === normalizedType && previousToast.message === text && now - previousToast.at < 750) return;
+  // Avoid repeating the same feedback when both the request layer and the
+  // page-level handler report the result of one action.
+  if (previousToast?.type === normalizedType && previousToast.message === text && now - previousToast.at < 1200) return;
   previousToast = { type: normalizedType, message: text, at: now };
   recentActionToasts.set(normalizedType, Date.now());
   window.dispatchEvent(new CustomEvent(ACTION_TOAST_EVENT, {

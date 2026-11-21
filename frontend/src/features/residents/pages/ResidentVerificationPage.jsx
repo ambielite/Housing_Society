@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useMemo, useState } from "react";
 import { AlarmClockCheck, CheckCircle2, CircleDashed, Plus, RefreshCw, Search, UserRound, XCircle } from "lucide-react";
 
@@ -54,7 +55,7 @@ const ResidentVerificationPage = () => {
     const [societies, setSocieties] = useState([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [error, setError] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
     const [search, setSearch] = useState("");
     const [showForm, setShowForm] = useState(false);
     const [form, setForm] = useState(emptyForm());

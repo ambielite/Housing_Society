@@ -366,6 +366,27 @@ a.cell-title:hover { color: var(--action); }
 .badge-occupied, .badge-under-move-in, .badge-under-move-out { background: var(--action-soft); color: var(--action); }
 [data-theme='dark'] .badge-system { color: #9db7ff; }
 
+/* Dashboard feedback is shown by the global popup stack, not inline banners. */
+.society-dashboard [role='alert'],
+.society-error,
+.society-success,
+.notices-alert,
+.form-error,
+.field-error,
+.committee-form-error,
+.notice-form-error,
+.security-form-error,
+.finance-income-notice,
+.invoice-action-notice,
+.multi-society-notice,
+.notification-success,
+.rc-message-error,
+.rc-message-success,
+.reports-partial-error,
+.reports-inline-error {
+  display: none !important;
+}
+
 .details { display: grid; grid-template-columns: 140px 1fr; gap: 12px 16px; margin: 0; font-size: 14px; }
 .details dt { color: var(--muted); }
 .details dd { margin: 0; }
@@ -2055,7 +2076,7 @@ button.tab.active { border-bottom-color: var(--action); }
 .rc-export-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   flex-wrap: wrap;
   gap: 12px;
   padding: 0 0 17px;

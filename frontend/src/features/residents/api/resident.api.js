@@ -62,13 +62,14 @@ const residentApi = {
         return response.data;
     },
 
-    updateStatus: async (id, societyId, status) => {
+    updateStatus: async (id, societyId, status, requestConfig = {}) => {
         const response = await axiosClient.patch(
             `/residents/${id}/status`,
             {
                 societyId,
                 status
-            }
+            },
+            requestConfig
         );
 
         return response.data;

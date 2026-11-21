@@ -20,6 +20,7 @@ import '../../visitors/data/resident_visitors_api.dart';
 import '../../visitors/screens/resident_visitors_screen.dart';
 import '../data/resident_dashboard_api.dart';
 import '../../profile/screens/resident_profile_screen.dart';
+import '../../widgets/resident_back_button.dart';
 
 const _configuredResidentApiBaseUrl = String.fromEnvironment('API_BASE_URL');
 
@@ -51,6 +52,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     with WidgetsBindingObserver {
   int _selectedTab = 0;
   _ResidentSection _activeSection = _ResidentSection.home;
+  final List<_ResidentSection> _sectionHistory = [];
   late Future<ResidentDashboardData> _dashboardFuture;
   late Future<List<ResidentComplaint>> _complaintsFuture;
   ResidentDashboardData? _dashboardData;
@@ -755,10 +757,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
   }
 
   void _openProfile() {
-    setState(() {
-      _selectedTab = 4;
-      _activeSection = _ResidentSection.profile;
-    });
+    _navigateTo(_ResidentSection.profile, 4);
   }
 
   void _openPayments() {
@@ -766,37 +765,77 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
   }
 
   void _selectTab(int index) {
-    setState(() {
-      _selectedTab = index;
-      _activeSection = switch (index) {
+    _navigateTo(
+      switch (index) {
         1 => _ResidentSection.payments,
         2 => _ResidentSection.visitors,
         3 => _ResidentSection.complaints,
         4 => _ResidentSection.profile,
         _ => _ResidentSection.home,
+      },
+      index,
+    );
+  }
+
+  void _navigateTo(_ResidentSection section, int tab) {
+    if (_activeSection == section) return;
+    setState(() {
+      _sectionHistory.add(_activeSection);
+      _activeSection = section;
+      _selectedTab = tab;
+    });
+  }
+
+  void _handleBack() {
+    if (_activeSection == _ResidentSection.home && _sectionHistory.isEmpty) {
+      return;
+    }
+    setState(() {
+      final previous = _sectionHistory.isNotEmpty
+          ? _sectionHistory.removeLast()
+          : _ResidentSection.home;
+      _activeSection = previous;
+      _selectedTab = switch (previous) {
+        _ResidentSection.payments => 1,
+        _ResidentSection.visitors => 2,
+        _ResidentSection.complaints => 3,
+        _ResidentSection.profile => 4,
+        _ => 0,
       };
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope<Object?>(
+      canPop:
+          _activeSection == _ResidentSection.home && _sectionHistory.isEmpty,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _handleBack();
+      },
+      child: Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
       body: SafeArea(
         bottom: false,
         child: Column(
           children: [
+            if (_activeSection != _ResidentSection.profile)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
+                child: _topBar(context, _dashboardData),
+              ),
             Expanded(
               child: switch (_activeSection) {
                 _ResidentSection.payments =>
-                  ResidentFinanceScreen(user: widget.user),
+                  ResidentFinanceScreen(user: widget.user, onBack: _handleBack),
                 _ResidentSection.visitors =>
-                  ResidentVisitorsScreen(user: widget.user),
+                  ResidentVisitorsScreen(user: widget.user, onBack: _handleBack),
                 _ResidentSection.complaints =>
-                  ResidentComplaintsScreen(user: widget.user),
+                  ResidentComplaintsScreen(user: widget.user, onBack: _handleBack),
                 _ResidentSection.amenities => ResidentAmenitiesScreen(
                   user: widget.user,
                   onBookingCreated: _addUpcomingBooking,
+                  onBack: _handleBack,
                 ),
                 _ => FutureBuilder<ResidentDashboardData>(
                 future: _dashboardFuture,
@@ -821,6 +860,11 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                       user: _updatedUser ?? widget.user,
                       dashboard: dashboard,
                       header: const SizedBox.shrink(),
+                      onBack: _handleBack,
+                      changePasswordHeader: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
+                        child: _topBar(context, dashboard),
+                      ),
                       onProfileUpdated: (user) {
                         if (!mounted) return;
                         setState(() {
@@ -833,10 +877,6 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                   }
                   return Column(
                     children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
-                        child: _topBar(context, dashboard),
-                      ),
                       Expanded(
                         child: RefreshIndicator(
                             color: AppColors.indigo,
@@ -973,10 +1013,11 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           ],
         ),
       ),
+      ),
     );
   }
 
-  Widget _topBar(BuildContext context, ResidentDashboardData dashboard) => Row(
+  Widget _topBar(BuildContext context, ResidentDashboardData? dashboard) => Row(
     children: [
       Container(
         width: 44,
@@ -1053,8 +1094,11 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     ],
   );
 
-  Widget _residentAvatar(ResidentDashboardData dashboard) {
-    final photoPath = _updatedUser?.profilePictureUrl ?? dashboard.residentPhotoUrl;
+  Widget _residentAvatar(ResidentDashboardData? dashboard) {
+    final photoPath =
+        _updatedUser?.profilePictureUrl ??
+        dashboard?.residentPhotoUrl ??
+        widget.user.profilePictureUrl;
     final photoUrl = photoPath == null || photoPath.isEmpty
         ? null
         : Uri.tryParse(photoPath)?.hasScheme == true
@@ -1791,10 +1835,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
   }
 
   void _openAmenities() {
-    setState(() {
-      _selectedTab = 0;
-      _activeSection = _ResidentSection.amenities;
-    });
+    _navigateTo(_ResidentSection.amenities, 0);
   }
 
   Widget _maintenanceCard(ResidentDashboardData dashboard) {

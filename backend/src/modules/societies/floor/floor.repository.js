@@ -23,7 +23,7 @@ const findAll = async (societyId) => {
 const findById = async (id, societyId) => {
     return await Floor.findOne({
         where: { id },
-        include: [{ model: Tower, as: "tower", attributes: [], where: { societyId }, required: true }],
+        include: [{ model: Tower, as: "tower", attributes: ["status"], where: { societyId }, required: true }],
     });
 };
 

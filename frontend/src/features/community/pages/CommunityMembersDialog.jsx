@@ -1,3 +1,5 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
+import { confirmDashboardAction } from '../../../lib/dashboardConfirmation.js';
 import { useEffect, useState } from "react";
 import { Plus, Users, X } from "lucide-react";
 import communityApi from "../api/community.api";
@@ -7,12 +9,12 @@ const idOf = (value) => value?.id ?? value?.uuid ?? value?._id;
 
 export default function CommunityMembersDialog({ group, residents = [], onClose, onChanged }) {
     const [members, setMembers] = useState([]); const [form, setForm] = useState({ userId: "", role: "MEMBER" });
-    const [editing, setEditing] = useState(null); const [loading, setLoading] = useState(true); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
+    const [editing, setEditing] = useState(null); const [loading, setLoading] = useState(true); const [busy, setBusy] = useState(false); const [error, setError] = useDashboardFeedback('', 'error');
     const base = `/community-groups/${idOf(group)}/members`;
     const load = async () => { setLoading(true); try { setMembers(rowsFrom(await communityApi.get(base))); setError(""); } catch (e) { setError(e.response?.data?.message || "Could not load this group's members."); } finally { setLoading(false); } };
     useEffect(() => { load(); }, [group?.id]);
     const save = async (event) => { event.preventDefault(); setBusy(true); setError(""); try { if (editing) await communityApi.put(`${base}/${idOf(editing)}`, form); else await communityApi.post(base, form); setForm({ userId: "", role: "MEMBER" }); setEditing(null); await load(); onChanged?.(); } catch (e) { setError(e.response?.data?.message || "Could not save the group member."); } finally { setBusy(false); } };
-    const remove = async (member) => { if (!window.confirm("Remove this member from the group?")) return; setBusy(true); try { await communityApi.post(`${base}/${idOf(member)}/remove`); await load(); onChanged?.(); } catch (e) { setError(e.response?.data?.message || "Could not remove this member."); } finally { setBusy(false); } };
+    const remove = async (member) => { if (!await confirmDashboardAction("Remove this member from the group?")) return; setBusy(true); try { await communityApi.post(`${base}/${idOf(member)}/remove`); await load(); onChanged?.(); } catch (e) { setError(e.response?.data?.message || "Could not remove this member."); } finally { setBusy(false); } };
 
     return <div className="society-modal-layer" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section className="society-form-modal security-record-modal" role="dialog" aria-modal="true" aria-labelledby="community-members-title"><header className="security-modal-header"><div><h2 id="community-members-title">{group?.name || "Group"} members</h2><p>Manage membership and roles for this resident group.</p></div><button type="button" aria-label="Close members" onClick={onClose}><X size={19}/></button></header>
         {error && <div className="society-error" role="alert">{error}</div>}

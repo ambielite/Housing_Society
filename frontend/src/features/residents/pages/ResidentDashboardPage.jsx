@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useMemo, useState } from "react";
 import {
     AlertTriangle,
@@ -33,7 +34,7 @@ const ResidentDashboardPage = () => {
     const [verificationQueue, setVerificationQueue] = useState([]);
     const [nonMembers, setNonMembers] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
 
     const loadDashboard = async () => {
         try {

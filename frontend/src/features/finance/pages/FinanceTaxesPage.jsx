@@ -1,3 +1,5 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
+import { confirmDashboardAction } from '../../../lib/dashboardConfirmation.js';
 import { useEffect, useMemo, useState } from "react";
 import { Calculator, SquarePen, Percent, Plus, Search, XCircle } from "lucide-react";
 import taxApi from "../api/tax.api";
@@ -8,14 +10,14 @@ const societyId = () => String(localStorage.getItem("selectedSocietyId") || "").
 const money = (value) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(Number(value || 0));
 
 export default function FinanceTaxesPage() {
-    const [items, setItems] = useState([]); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
+    const [items, setItems] = useState([]); const [loading, setLoading] = useState(true); const [error, setError] = useDashboardFeedback('', 'error');
     const [search, setSearch] = useState(""); const [showForm, setShowForm] = useState(false); const [editing, setEditing] = useState(null);
-    const [baseAmount, setBaseAmount] = useState(""); const [taxRate, setTaxRate] = useState(""); const [method, setMethod] = useState("PERCENTAGE"); const [fixedAmount, setFixedAmount] = useState(""); const [result, setResult] = useState(null); const [calcError, setCalcError] = useState(""); const [busyId, setBusyId] = useState("");
+    const [baseAmount, setBaseAmount] = useState(""); const [taxRate, setTaxRate] = useState(""); const [method, setMethod] = useState("PERCENTAGE"); const [fixedAmount, setFixedAmount] = useState(""); const [result, setResult] = useState(null); const [calcError, setCalcError] = useDashboardFeedback('', 'error'); const [busyId, setBusyId] = useState("");
     const loadData = async () => { try { setLoading(true); setError(""); setItems(rowsFrom(await taxApi.getAll(societyId()))); } catch (e) { setError(e.response?.data?.message || "Could not load tax rules."); } finally { setLoading(false); } };
     useEffect(() => { loadData(); }, []);
     const filtered = useMemo(() => { const q=search.trim().toLowerCase(); return items.filter((tax)=>!q||[tax.taxCode,tax.taxName,tax.taxType,tax.applicableOn,tax.componentGroup].join(" ").toLowerCase().includes(q)); },[items,search]);
     const saveSuccess = async () => { setShowForm(false); setEditing(null); await loadData(); };
-    const deactivate = async (tax) => { if (!window.confirm(`Deactivate ${tax.taxName}?`)) return; try { setBusyId(tax.id); await taxApi.deactivate(tax.id); await loadData(); } catch(e) { setError(e.response?.data?.message || "Could not deactivate tax."); } finally { setBusyId(""); } };
+    const deactivate = async (tax) => { if (!await confirmDashboardAction(`Deactivate ${tax.taxName}?`)) return; try { setBusyId(tax.id); await taxApi.deactivate(tax.id); await loadData(); } catch(e) { setError(e.response?.data?.message || "Could not deactivate tax."); } finally { setBusyId(""); } };
     const calculate = async (e) => { e.preventDefault(); try { setCalcError(""); const response=await taxApi.calculate({baseAmount:Number(baseAmount),taxRate:Number(taxRate||0),calculationMethod:method,fixedAmount:method==="FIXED"?Number(fixedAmount||0):null}); setResult(response?.data || response); } catch(err) { setCalcError(err.response?.data?.message || "Could not calculate tax."); } };
     return <section className="society-dashboard module-shell-page finance-module-page">
         <header className="society-heading"><div><div className="society-eyebrow"><span className="society-eyebrow-dot"/> FINANCE</div><h1>Taxes</h1><p>Manage configurable tax rules and calculate invoice tax amounts.</p></div><button className="society-add-button" onClick={()=>{setEditing(null);setShowForm(true);}}><Plus size={18}/> Add tax rule</button></header>

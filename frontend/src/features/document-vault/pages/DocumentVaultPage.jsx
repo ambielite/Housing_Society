@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useMemo, useState } from 'react';
 import { Download, FileText, FolderClosed, FolderOpen, Plus, Printer, Share2, ShieldCheck } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
@@ -31,9 +32,9 @@ export default function DocumentVaultPage() {
   const [editingFolder, setEditingFolder] = useState(null);
   const [deletingFolder, setDeletingFolder] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useState('');
+  const [formError, setFormError] = useDashboardFeedback('', 'error');
   const [pageNotice, setPageNotice] = useState(notice || '');
-  const [pageError, setPageError] = useState('');
+  const [pageError, setPageError] = useDashboardFeedback('', 'error');
 
   const canReadFolders = hasPermission('DOCUMENT_FOLDER_READ');
   const folders = useFetch(() => (societyId && canReadFolders ? vaultApi.listFolders({ societyId }) : Promise.resolve([])), [societyId, canReadFolders]);
@@ -168,17 +169,19 @@ export default function DocumentVaultPage() {
         {folders.error && <Alert variant="error">{getErrorMessage(folders.error)}</Alert>}
         {folders.loading ? <p className="muted">Loading folders…</p> : folderList.length ? (
           <div className="folder-grid">
-            {folderList.map((folder) => (
-              <div className={`folder-tile document-vault-folder${folderFilter === folder.id ? ' selected' : ''}`} key={folder.id}>
+            {folderList.map((folder) => {
+              const folderStatus = String(folder.status || 'ACTIVE').toUpperCase();
+              const fileCount = documentList.filter((doc) => doc.folder_id === folder.id).length;
+              return <div className={`folder-tile document-vault-folder${folderFilter === folder.id ? ' selected' : ''}`} key={folder.id}>
                 <button type="button" className="folder-select" onClick={() => setFolderFilter(folderFilter === folder.id ? '' : folder.id)} aria-pressed={folderFilter === folder.id}>
-                  <span className="document-vault-folder-icon"><FolderClosed size={21} /></span><span className="document-vault-folder-title"><strong>{folder.name}</strong><span className="document-vault-folder-count">{documentList.filter((doc) => doc.folder_id === folder.id).length} files</span></span><span className="cell-sub">{pretty(folder.folder_type)} · {pretty(folder.status)}</span>
+                  <span className="document-vault-folder-topline"><span className="document-vault-folder-icon"><FolderClosed size={21} /></span><span className={`document-vault-folder-status badge badge-${folderStatus.toLowerCase()}`}>{pretty(folderStatus)}</span></span><span className="document-vault-folder-title"><strong>{folder.name}</strong><span className="document-vault-folder-count">{fileCount} {fileCount === 1 ? 'file' : 'files'}</span></span><span className="document-vault-folder-meta"><span className="document-vault-folder-type">FOLDER TYPE: {String(folder.folder_type || '').replaceAll('_', ' ').toUpperCase()}</span></span>
                 </button>
                 <div className="folder-actions">
-                  {hasPermission('DOCUMENT_FOLDER_UPDATE') && <button className="btn btn-ghost btn-sm" onClick={() => { setFormError(''); setEditingFolder(folder); }}>Edit</button>}
-                  {hasPermission('DOCUMENT_FOLDER_DELETE') && <button className="btn btn-ghost btn-sm" onClick={() => setDeletingFolder(folder)}>Delete</button>}
+                  {hasPermission('DOCUMENT_FOLDER_UPDATE') && <button className="btn btn-ghost btn-sm document-vault-folder-edit" onClick={() => { setFormError(''); setEditingFolder(folder); }}>Edit</button>}
+                  {hasPermission('DOCUMENT_FOLDER_DELETE') && <button className="btn btn-ghost btn-sm document-vault-folder-delete" onClick={() => setDeletingFolder(folder)}>Delete</button>}
                 </div>
-              </div>
-            ))}
+              </div>;
+            })}
           </div>
         ) : <div className="empty-state compact"><h3>No folders yet</h3><p>Create a folder to organize uploaded documents.</p></div>}
       </section>}

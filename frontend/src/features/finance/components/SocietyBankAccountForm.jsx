@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import societyBankAccountApi from '../api/societyBankAccount.api';
 
@@ -16,7 +17,7 @@ export default function SocietyBankAccountForm({ account, onClose, onSuccess }) 
     isPrimary: account?.isPrimary ?? false,
     remarks: account?.remarks || '',
   });
-  const [error, setError] = useState('');
+  const [error, setError] = useDashboardFeedback('', 'error');
   const [saving, setSaving] = useState(false);
   const update = (field) => (event) => setForm((current) => ({ ...current, [field]: event.target.type === 'checkbox' ? event.target.checked : event.target.value }));
 

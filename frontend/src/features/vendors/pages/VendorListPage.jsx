@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useCallback, useEffect, useState } from 'react';
 import { Plus, RefreshCw, Truck, X } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
@@ -25,7 +26,7 @@ export default function VendorListPage() {
   const [notice, setNotice] = useState(location.state?.notice || '');
   const [showCreate, setShowCreate] = useState(false);
   const [createSaving, setCreateSaving] = useState(false);
-  const [createError, setCreateError] = useState('');
+  const [createError, setCreateError] = useDashboardFeedback('', 'error');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);

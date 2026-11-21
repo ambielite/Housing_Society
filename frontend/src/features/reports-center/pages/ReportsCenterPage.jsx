@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
@@ -294,14 +295,14 @@ export default function ReportsCenterPage() {
   const [rfqId, setRfqId] = useState('');
   const [rfqOptions, setRfqOptions] = useState([]);
   const [rfqOptionsLoading, setRfqOptionsLoading] = useState(false);
-  const [rfqOptionsError, setRfqOptionsError] = useState('');
+  const [rfqOptionsError, setRfqOptionsError] = useDashboardFeedback('', 'error');
   const [expiringInDays, setExpiringInDays] = useState('30');
   const [data, setData] = useState(null);
   const requestRef = useRef(0);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState('');
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  const [error, setError] = useDashboardFeedback('', 'error');
+  const [notice, setNotice] = useDashboardFeedback('', 'success');
 
   const currentGroup = visibleGroups.find((group) => group.key === activeGroup) || visibleGroups[0];
   const currentReport = REPORT_BY_KEY[reportKey] || currentGroup?.reports[0];
@@ -494,7 +495,7 @@ export default function ReportsCenterPage() {
           <button type="button" className="btn btn-primary rc-run-button" onClick={() => runReport()} disabled={loading || exporting !== ''}><Activity size={15} /> {loading ? 'Loading…' : 'Run report'}</button>
         </div>
 
-        {canExport && <div className="rc-export-row"><span><Download size={15} /> Export report details</span><div>
+        {canExport && <div className="rc-export-row"><div>
           {/* CSV export button is intentionally hidden; uncomment to restore it.
           <button type="button" className="btn btn-secondary btn-sm" onClick={() => exportReport('csv')} disabled={Boolean(exporting)}><FileText size={14} /> {exporting === 'csv' ? 'Preparing…' : 'CSV'}</button>
           */}

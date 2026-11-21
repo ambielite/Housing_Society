@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from "react";
 import { X } from "lucide-react";
 
@@ -16,7 +17,7 @@ const createInitialForm = (account) => ({
 const AccountForm = ({ account, onClose, onSuccess }) => {
     const [formData, setFormData] = useState(() => createInitialForm(account));
     const [saving, setSaving] = useState(false);
-    const [error, setError] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
 
     const handleChange = (event) => {
         const { name, value, type, checked } = event.target;

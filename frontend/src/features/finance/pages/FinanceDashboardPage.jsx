@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useState } from "react";
 import { ArrowDownLeft, ArrowUpRight, BookOpen, ReceiptText, Wallet } from "lucide-react";
 import accountApi from "../api/account.api";
@@ -39,7 +40,7 @@ const FinanceDashboardPage = () => {
     const [otherIncome, setOtherIncome] = useState([]);
     const [periods, setPeriods] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
 
     const loadData = async () => {
         try {

@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import SelectField from '../../../components/ui/SelectField';
 import Alert from '../../../components/ui/Alert';
@@ -6,7 +7,7 @@ import Alert from '../../../components/ui/Alert';
 export default function LogEntryForm({ vehicleOptions, visitorOptions, slotOptions, onSubmit, onCancel, saving, error }) {
   const [who, setWho] = useState('resident'); // 'resident' | 'visitor'
   const [values, setValues] = useState({ vehicleId: '', visitorId: '', slotId: '' });
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useDashboardFeedback({}, 'error');
   const availableSlotOptions = who === 'visitor'
     ? slotOptions.filter((slot) => slot.slotType === 'VISITOR')
     : slotOptions.filter((slot) => slot.slotType !== 'VISITOR');

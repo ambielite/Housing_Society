@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useCallback, useEffect, useState } from 'react';
 import { Check, RefreshCw, UserPlus, Users, X } from 'lucide-react';
 import communityApi from '../api/community.api';
@@ -20,7 +21,7 @@ export default function VotingManagementDialog({ voting, onClose, onChanged }) {
   const [voterForm, setVoterForm] = useState({ userId: '', memberType: 'OWNER' });
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useDashboardFeedback('', 'error');
   const isElection = String(voting.votingType).toUpperCase() === 'ELECTION';
   const base = `/community-voting/${votingId}`;
 

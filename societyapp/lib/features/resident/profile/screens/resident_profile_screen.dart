@@ -7,6 +7,7 @@ import '../../../auth/presentation/screens/login_screen.dart';
 import '../../dashboard/data/resident_dashboard_api.dart';
 import 'resident_change_password_screen.dart';
 import 'resident_edit_profile_screen.dart';
+import '../../widgets/resident_back_button.dart';
 
 /// Resident profile – clean, document-style layout.
 ///
@@ -19,12 +20,16 @@ class ResidentProfileScreen extends StatefulWidget {
     required this.user,
     required this.dashboard,
     required this.header,
+    this.onBack,
+    this.changePasswordHeader,
     this.onProfileUpdated,
   });
 
   final AuthenticatedUser user;
   final ResidentDashboardData dashboard;
   final Widget header;
+  final VoidCallback? onBack;
+  final Widget? changePasswordHeader;
   final ValueChanged<AuthenticatedUser>? onProfileUpdated;
 
   @override
@@ -84,7 +89,10 @@ class _ResidentProfileScreenState extends State<ResidentProfileScreen> {
     Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) =>
-            ResidentChangePasswordScreen(accessToken: _user.accessToken),
+            ResidentChangePasswordScreen(
+              accessToken: _user.accessToken,
+              header: widget.changePasswordHeader,
+            ),
       ),
     );
   }
@@ -112,10 +120,15 @@ class _ResidentProfileScreenState extends State<ResidentProfileScreen> {
           color: Color(0xFF1E5631),
           fontWeight: FontWeight.w600,
         ),
-        actions: const [],
+        actions: [
+          TextButton(
+            onPressed: messenger.hideCurrentMaterialBanner,
+            child: const Text('OK'),
+          ),
+        ],
       ),
     );
-    Future<void>.delayed(const Duration(milliseconds: 1200), () {
+    Future<void>.delayed(const Duration(seconds: 2), () {
       if (mounted) messenger.hideCurrentMaterialBanner();
     });
   }
@@ -143,6 +156,23 @@ class _ResidentProfileScreenState extends State<ResidentProfileScreen> {
               padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
               child: widget.header,
             ),
+            if (widget.onBack != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 0, 20, 4),
+                child: Row(
+                  children: [
+                    ResidentBackButton(onPressed: widget.onBack!),
+                    const Text(
+                      'Profile',
+                      style: TextStyle(
+                        color: AppColors.ink,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             Expanded(
               child: Center(
                 child: ConstrainedBox(

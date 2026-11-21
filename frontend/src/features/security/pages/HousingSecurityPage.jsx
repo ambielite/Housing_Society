@@ -1,3 +1,5 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
+import { confirmDashboardAction } from '../../../lib/dashboardConfirmation.js';
 ﻿import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
@@ -308,8 +310,8 @@ export default function SecurityPage() {
   const [tab, setTab] = useState(section || "overview");
   const [data, setData] = useState({});
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [formError, setFormError] = useState("");
+  const [error, setError] = useDashboardFeedback('', 'error');
+  const [formError, setFormError] = useDashboardFeedback('', 'error');
   const [search, setSearch] = useState("");
   const [form, setForm] = useState("");
   const [selectedStaffType, setSelectedStaffType] = useState("SECURITY_GUARD");
@@ -318,7 +320,7 @@ export default function SecurityPage() {
   const [manualGuardDetails, setManualGuardDetails] = useState(false);
   const [guardIdentity, setGuardIdentity] = useState({ firstName: "", lastName: "", mobileNumber: "" });
   const [securityHeadAccountsLoading, setSecurityHeadAccountsLoading] = useState(false);
-  const [securityHeadAccountsError, setSecurityHeadAccountsError] = useState("");
+  const [securityHeadAccountsError, setSecurityHeadAccountsError] = useDashboardFeedback('', 'error');
   const [busy, setBusy] = useState(false);
   const [editRecord, setEditRecord] = useState(null);
   const [workflow, setWorkflow] = useState(null);
@@ -946,8 +948,8 @@ export default function SecurityPage() {
                     Edit
                   </button>
                   <button
-                    onClick={() =>
-                      window.confirm("Delete this shift?") &&
+                    onClick={async () =>
+                      await confirmDashboardAction("Delete this shift?") &&
                       act(securityApi.deleteShift, shift.id)
                     }
                   >
@@ -997,8 +999,8 @@ export default function SecurityPage() {
                     Edit
                   </button>
                   <button
-                    onClick={() =>
-                      window.confirm("Delete this checkpoint?") &&
+                    onClick={async () =>
+                      await confirmDashboardAction("Delete this checkpoint?") &&
                       act(securityApi.deleteCheckpoint, checkpoint.id)
                     }
                   >
@@ -1056,12 +1058,12 @@ export default function SecurityPage() {
                               className="security-table-icon-action is-delete"
                               aria-label={`Delete ${tabs.find(([key]) => key === tab)?.[1].toLowerCase()} record`}
                               title="Delete"
-                              onClick={() => {
+                              onClick={async () => {
                                 if (resourceFor === "staff" && item.status === "ACTIVE") {
                                   dispatchActionToast("error", "This staff member is active. Deactivate them before deleting.");
                                   return;
                                 }
-                                if (window.confirm(`Delete this ${tabs.find(([key]) => key === tab)?.[1].toLowerCase()} record?`)) {
+                                if (await confirmDashboardAction(`Delete this ${tabs.find(([key]) => key === tab)?.[1].toLowerCase()} record?`)) {
                                   act(
                                     resourceFor === "staff"
                                       ? securityApi.deleteStaff
@@ -1358,7 +1360,7 @@ function RecordEditModal({ record, tab, onClose, onSave }) {
     ]),
   ));
   const [profilePicture, setProfilePicture] = useState(null);
-  const [error, setError] = useState("");
+  const [error, setError] = useDashboardFeedback('', 'error');
   const submit = async (event) => {
     event.preventDefault();
     const payload = Object.fromEntries(
@@ -1515,7 +1517,7 @@ function SecurityWorkflowDialog({
           : "acknowledge",
   );
   const [gps, setGps] = useState(null);
-  const [error, setError] = useState("");
+  const [error, setError] = useDashboardFeedback('', 'error');
   const checkpointLabel = (stop) => {
     const checkpointId = stop.checkpointId || stop.id;
     const checkpoint = checkpoints.find((item) => String(item.id) === String(checkpointId));

@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import TextField from '../../../components/ui/TextField';
 import Alert from '../../../components/ui/Alert';
@@ -5,7 +6,7 @@ import { formatCurrency } from '../../../utils/format';
 
 export default function QuotationLineForm({ onSubmit, onCancel, saving, error }) {
   const [values, setValues] = useState({ description: '', quantity: '1', unitPrice: '', tax: '' });
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useDashboardFeedback({}, 'error');
 
   const onChange = (event) => setValues((v) => ({ ...v, [event.target.name]: event.target.value }));
 

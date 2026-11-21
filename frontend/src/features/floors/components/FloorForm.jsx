@@ -1,15 +1,17 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from "react";
 import { X } from "lucide-react";
 import floorApi from "../api/floor.api";
 
-const FloorForm = ({ floor, towers, onClose, onSuccess }) => {
+const FloorForm = ({ floor, towers, activeTowers = towers.filter((tower) => tower.status !== "INACTIVE"), onClose, onSuccess }) => {
     const [values, setValues] = useState({
         towerId: floor?.towerId || "",
         floorNumber: floor?.floorNumber ?? "",
-        name: floor?.name || ""
+        name: floor?.name || "",
+        status: floor?.status || "ACTIVE"
     });
     const [saving, setSaving] = useState(false);
-    const [error, setError] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
 
     const update = (event) => setValues((current) => ({ ...current, [event.target.name]: event.target.value }));
 
@@ -18,10 +20,12 @@ const FloorForm = ({ floor, towers, onClose, onSuccess }) => {
         setSaving(true);
         setError("");
         const payload = { floorNumber: Number(values.floorNumber), name: values.name.trim() || null };
+        if (floor) payload.status = values.status;
 
         try {
             if (floor) await floorApi.update(floor.id, payload);
             else await floorApi.create({ ...payload, towerId: values.towerId });
+            window.dispatchEvent(new Event("property:hierarchy-updated"));
             await onSuccess();
         } catch (err) {
             setError(err.response?.data?.message || "Could not save floor. Please try again.");
@@ -43,20 +47,21 @@ const FloorForm = ({ floor, towers, onClose, onSuccess }) => {
                         <header className="form-section-title"><h3>Floor information</h3><span>Floor numbers start at ground floor 0</span></header>
                         <div className="form-grid">
                             <div className="form-group form-group-full">
-                                <label htmlFor="floor-tower">Tower{!floor && <span className="required">*</span>}</label>
+                                <label htmlFor="floor-tower">Tower</label>
                                 {floor ? <input id="floor-tower" value={towers.find((item) => item.id === floor.towerId)?.name || "Selected tower"} disabled /> : (
                                     <select id="floor-tower" name="towerId" value={values.towerId} onChange={update} required>
                                         <option value="">Select a tower</option>
-                                        {towers.map((tower) => <option key={tower.id} value={tower.id}>{tower.name}</option>)}
+                                        {activeTowers.map((tower) => <option key={tower.id} value={tower.id}>{tower.name}</option>)}
                                     </select>
                                 )}
                             </div>
-                            <div className="form-group"><label htmlFor="floor-number">Floor number<span className="required">*</span></label><input id="floor-number" name="floorNumber" type="number" min="0" step="1" value={values.floorNumber} onChange={update} required placeholder="0 for ground floor" /></div>
-                            <div className="form-group"><label htmlFor="floor-name">Floor label</label><input id="floor-name" name="name" value={values.name} onChange={update} maxLength={100} placeholder="e.g. Ground Floor" /></div>
+                            <div className="form-group"><label htmlFor="floor-number">Floor number</label><input className="floor-number-input" id="floor-number" name="floorNumber" type="number" min="0" step="1" value={values.floorNumber} onChange={update} required placeholder="0 for ground floor" /></div>
+                            <div className="form-group"><label htmlFor="floor-name">Floor name</label><input id="floor-name" name="name" value={values.name} onChange={update} maxLength={100} placeholder="e.g. Ground Floor" /></div>
+                            {floor && <div className="form-group"><label htmlFor="floor-status">Status</label><select id="floor-status" name="status" value={values.status} onChange={update}><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option></select></div>}
                         </div>
                     </section>
                 </div>
-                <footer className="society-form-footer"><button type="button" className="btn-secondary" onClick={onClose} disabled={saving}>Cancel</button><button type="submit" className="btn-primary" disabled={saving || (!floor && towers.length === 0)}>{saving ? "Saving…" : floor ? "Save changes" : "Create floor"}</button></footer>
+                <footer className="society-form-footer"><button type="button" className="btn-secondary" onClick={onClose} disabled={saving}>Cancel</button><button type="submit" className="btn-primary" disabled={saving || (!floor && activeTowers.length === 0)}>{saving ? "Saving…" : floor ? "Save changes" : "Create floor"}</button></footer>
             </form>
         </section>
     );

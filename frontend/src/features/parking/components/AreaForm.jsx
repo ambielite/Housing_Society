@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import TextField from '../../../components/ui/TextField';
 import SelectField from '../../../components/ui/SelectField';
@@ -13,7 +14,7 @@ export default function AreaForm({ mode, area, onSubmit, onCancel, saving, error
     zone: area?.zone || '',
     status: area?.status || 'ACTIVE',
   });
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useDashboardFeedback({}, 'error');
   const [note, setNote] = useState('');
 
   const onChange = (event) => {

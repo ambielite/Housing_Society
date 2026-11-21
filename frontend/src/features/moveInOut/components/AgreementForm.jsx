@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 
@@ -42,7 +43,7 @@ const AgreementForm = ({ agreement, onClose, onSuccess }) => {
     const [documents, setDocuments] = useState({ agreementDocument: null, signedAgreementCopy: null });
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [error, setError] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
 
     useEffect(() => {
         let isMounted = true;
@@ -161,10 +162,10 @@ const AgreementForm = ({ agreement, onClose, onSuccess }) => {
                     {error && <div className="form-error" role="alert">{error}</div>}
 
                     <section className="form-section">
-                        <header className="form-section-title"><h3>Agreement details</h3><span>Required fields are marked *</span></header>
+                        <header className="form-section-title"><h3>Agreement details</h3></header>
                         <div className="form-grid">
                             <div className="form-group">
-                                <label htmlFor="agreement-society">Society<span className="required">*</span></label>
+                                <label htmlFor="agreement-society">Society</label>
                                 <select id="agreement-society" name="societyId" value={values.societyId} onChange={updateField} required disabled={loading || societies.length === 0}>
                                     <option value="">{loading ? "Loading societies…" : "Select a society"}</option>
                                     {societies.map((society) => (
@@ -174,7 +175,7 @@ const AgreementForm = ({ agreement, onClose, onSuccess }) => {
                             </div>
 
                             <div className="form-group">
-                                <label htmlFor="agreement-unit">Unit<span className="required">*</span></label>
+                                <label htmlFor="agreement-unit">Unit</label>
                                 <select id="agreement-unit" name="unitId" value={values.unitId} onChange={updateField} required disabled={loading || units.length === 0}>
                                     <option value="">{loading ? "Loading units…" : "Select a unit"}</option>
                                     {units.map((unit) => (
@@ -184,12 +185,12 @@ const AgreementForm = ({ agreement, onClose, onSuccess }) => {
                             </div>
 
                             <div className="form-group">
-                                <label htmlFor="agreement-reference">Agreement reference<span className="required">*</span></label>
+                                <label htmlFor="agreement-reference">Agreement reference</label>
                                 <input id="agreement-reference" name="agreementReference" type="text" value={values.agreementReference} onChange={updateField} placeholder="AG-2026-001" required />
                             </div>
 
                             <div className="form-group">
-                                <label htmlFor="agreement-type">Agreement type<span className="required">*</span></label>
+                                <label htmlFor="agreement-type">Agreement type</label>
                                 <select id="agreement-type" name="agreementType" value={values.agreementType} onChange={updateField} required>
                                     <option value="RENTAL">RENTAL</option>
                                     <option value="LEASE">LEASE</option>
@@ -220,12 +221,12 @@ const AgreementForm = ({ agreement, onClose, onSuccess }) => {
                             </div>
 
                             <div className="form-group">
-                                <label htmlFor="agreement-start-date">Start date<span className="required">*</span></label>
+                                <label htmlFor="agreement-start-date">Start date</label>
                                 <input id="agreement-start-date" type="date" name="startDate" value={values.startDate} onChange={updateField} required />
                             </div>
 
                             <div className="form-group">
-                                <label htmlFor="agreement-expiry-date">Expiry date<span className="required">*</span></label>
+                                <label htmlFor="agreement-expiry-date">Expiry date</label>
                                 <input id="agreement-expiry-date" type="date" name="expiryDate" value={values.expiryDate} onChange={updateField} required />
                             </div>
 

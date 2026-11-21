@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import TextField from '../../../components/ui/TextField';
 import SelectField from '../../../components/ui/SelectField';
@@ -13,7 +14,7 @@ export default function PricingRuleForm({ rule, amenityId, onSubmit, onCancel, s
     effectiveFrom: rule?.effective_from ? String(rule.effective_from).slice(0, 10) : '',
     effectiveTo: rule?.effective_to ? String(rule.effective_to).slice(0, 10) : '',
   });
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useDashboardFeedback({}, 'error');
 
   const change = (event) => setValues((current) => ({ ...current, [event.target.name]: event.target.value }));
 

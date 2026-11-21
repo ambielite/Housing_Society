@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import TextField from '../../../components/ui/TextField';
@@ -14,7 +15,7 @@ export default function PurchaseRequestForm({ onSubmit, cancelTo, saving, error 
     estimatedAmount: '',
     justification: '',
   });
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useDashboardFeedback({}, 'error');
 
   const onChange = (event) => setValues((v) => ({ ...v, [event.target.name]: event.target.value }));
 

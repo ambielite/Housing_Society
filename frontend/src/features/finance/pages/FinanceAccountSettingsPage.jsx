@@ -1,3 +1,5 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
+import { confirmDashboardAction } from '../../../lib/dashboardConfirmation.js';
 import { useEffect, useState } from 'react';
 import { Landmark, Plus, Search, SquarePen, Trash2 } from 'lucide-react';
 import useAuth from '../../../app/providers/useAuth';
@@ -14,7 +16,7 @@ export default function FinanceAccountSettingsPage() {
   const { hasPermission } = useAuth();
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useDashboardFeedback('', 'error');
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState(null);
   const [busyId, setBusyId] = useState('');
@@ -47,7 +49,7 @@ export default function FinanceAccountSettingsPage() {
   const filtered = accounts.filter((account) => !query || [account.bankName, account.accountHolderName, account.accountNumberMasked, account.accountType, account.ifsc, account.branchName].join(' ').toLowerCase().includes(query));
 
   const deactivate = async (account) => {
-    if (!window.confirm(`Deactivate the ${account.bankName} account ending ${account.accountNumberMasked?.slice(-4) || '••••'}?`)) return;
+    if (!await confirmDashboardAction(`Deactivate the ${account.bankName} account ending ${account.accountNumberMasked?.slice(-4) || '••••'}?`)) return;
     try {
       setBusyId(account.id);
       setError('');

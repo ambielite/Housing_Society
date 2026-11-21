@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useState } from "react";
 import { CalendarDays, LockKeyhole, Plus } from "lucide-react";
 import accountingPeriodApi from "../api/accountingPeriod.api";
@@ -14,7 +15,7 @@ export default function FinancePeriodsPage() {
     const [form, setForm] = useState(initial);
     const [busy, setBusy] = useState(false);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
 
     const load = async () => {
         try {

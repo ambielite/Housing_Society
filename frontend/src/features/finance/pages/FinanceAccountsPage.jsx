@@ -1,3 +1,6 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
+import { dispatchActionToast } from '../../../lib/actionToastEvents.js';
+import { confirmDashboardAction } from '../../../lib/dashboardConfirmation.js';
 import { useEffect, useMemo, useState } from "react";
 import { BookOpen, SquarePen, Plus, Search, Trash2 } from "lucide-react";
 import accountApi from "../api/account.api";
@@ -11,7 +14,7 @@ const rowsFrom = (response) => {
 const FinanceAccountsPage = () => {
     const [accounts, setAccounts] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
     const [search, setSearch] = useState("");
     const [showForm, setShowForm] = useState(false);
     const [editingAccount, setEditingAccount] = useState(null);
@@ -65,12 +68,12 @@ const FinanceAccountsPage = () => {
     }, [accounts, search]);
 
     const handleDelete = async (id) => {
-        if (!window.confirm("Delete this account?")) return;
+        if (!await confirmDashboardAction("Delete this account?")) return;
         try {
             await accountApi.remove(id);
             await loadData();
         } catch (err) {
-            window.alert(err.response?.data?.message || "Failed to delete account.");
+            dispatchActionToast("error", err.response?.data?.message || "Failed to delete account.");
         }
     };
 

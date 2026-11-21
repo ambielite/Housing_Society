@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from "react";
 import { X } from "lucide-react";
 import taxApi from "../api/tax.api";
@@ -15,7 +16,7 @@ const makeForm = (tax) => ({
 export default function TaxForm({ tax, onClose, onSuccess }) {
     const [form, setForm] = useState(() => makeForm(tax));
     const [saving, setSaving] = useState(false);
-    const [error, setError] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
     const set = (key, value) => setForm((current) => ({ ...current, [key]: value }));
     const submit = async (event) => {
         event.preventDefault(); setError("");

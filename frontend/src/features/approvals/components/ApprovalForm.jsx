@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useState } from 'react';
 import useSociety from '../../../app/store/useSociety';
 import * as procurementApi from '../../procurement/api/procurement.api';
@@ -20,7 +21,7 @@ export default function ApprovalForm({ onSubmit, onCancel, saving = false, error
   const [approvalType, setApprovalType] = useState('STANDARD');
   const [entities, setEntities] = useState([]);
   const [loadingEntities, setLoadingEntities] = useState(false);
-  const [entityError, setEntityError] = useState('');
+  const [entityError, setEntityError] = useDashboardFeedback('', 'error');
 
   useEffect(() => {
     let active = true;

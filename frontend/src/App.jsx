@@ -4,6 +4,7 @@ import AuthProvider from './app/providers/AuthProvider';
 import { SocietyProvider, UiProvider } from './app/store/ui.store';
 import AppRoutes from './app/router';
 import ActionToast from './components/ui/ActionToast';
+import DashboardConfirmation from './components/ui/DashboardConfirmation';
 import './App.css';
 
 export default function App() {
@@ -15,6 +16,7 @@ export default function App() {
             <UiProvider>
               <AppRoutes />
               <ActionToast />
+              <DashboardConfirmation />
             </UiProvider>
           </SocietyProvider>
         </AuthProvider>

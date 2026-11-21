@@ -1,3 +1,6 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
+import { confirmDashboardAction } from '../../../lib/dashboardConfirmation.js';
+import { dispatchActionToast } from '../../../lib/actionToastEvents.js';
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { SquarePen, Home, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
@@ -28,7 +31,7 @@ const UnitListPage = () => {
     const [moveIns, setMoveIns] = useState([]);
     const [moveOuts, setMoveOuts] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
     const [search, setSearch] = useState("");
     const [showForm, setShowForm] = useState(false);
     const [editingUnit, setEditingUnit] = useState(null);
@@ -52,6 +55,12 @@ const UnitListPage = () => {
             .catch((err) => { if (mounted) setError(err.response?.data?.message || "Could not load units."); })
             .finally(() => { if (mounted) setLoading(false); });
         return () => { mounted = false; };
+    }, []);
+
+    useEffect(() => {
+        const refreshPropertyHierarchy = () => { void reload(); };
+        window.addEventListener("property:hierarchy-updated", refreshPropertyHierarchy);
+        return () => window.removeEventListener("property:hierarchy-updated", refreshPropertyHierarchy);
     }, []);
 
     useEffect(() => {
@@ -91,23 +100,27 @@ const UnitListPage = () => {
         });
     }, [floors, search, towers, units]);
 
+    const activeTowerIds = new Set(towers.filter((tower) => tower.status !== "INACTIVE").map((tower) => String(tower.id)));
+    const availableFloors = floors.filter((floor) =>
+        floor.status !== "INACTIVE" && activeTowerIds.has(String(floor.towerId))
+    );
+
     const saveComplete = async () => { closeForm(); await reload(); };
     const deactivate = async (unit) => {
-        if (!window.confirm(`Deactivate unit ${unit.unitNumber}?`)) return;
+        if (!await confirmDashboardAction(`Deactivate unit ${unit.unitNumber}?`)) return;
         try { await unitApi.deactivate(unit.id); await reload(); }
         catch (err) { setError(err.response?.data?.message || "Could not deactivate unit."); }
     };
 
     return (
         <section className="society-dashboard">
-            <header className="society-heading"><div><div className="society-eyebrow"><span className="society-eyebrow-dot" /> PROPERTY MANAGEMENT</div><h1>Units</h1><p>Manage homes and commercial units across your floors.</p></div><button className="society-add-button" onClick={() => { setEditingUnit(null); setShowForm(true); }} disabled={!floors.length}><Plus size={18} /> Add unit</button></header>
+            <header className="society-heading"><div><div className="society-eyebrow"><span className="society-eyebrow-dot" /> PROPERTY MANAGEMENT</div><h1>Units</h1><p>Manage homes and commercial units across your floors.</p></div><button className="society-add-button" onClick={() => { if (!availableFloors.length) { dispatchActionToast("error", "Add an active floor under an active tower before adding units."); return; } setEditingUnit(null); setShowForm(true); }}><Plus size={18} /> Add unit</button></header>
             {error && <div className="society-error" role="alert">{error}<button onClick={reload}>Try again</button></div>}
             <div className="society-stats">
                 <article className="society-stat-card"><span className="society-stat-icon society-stat-icon-blue"><Home size={19} /></span><div><span className="society-stat-label">Total units</span><strong>{loading ? "—" : units.length}</strong></div><span className="society-stat-note">Across all floors</span></article>
                 <article className="society-stat-card"><span className="society-stat-icon society-stat-icon-green"><Home size={19} /></span><div><span className="society-stat-label">Occupied</span><strong>{loading ? "—" : units.filter((unit) => unit.status === "OCCUPIED").length}</strong></div><span className="society-stat-note">Currently occupied</span></article>
                 <article className="society-stat-card"><span className="society-stat-icon society-stat-icon-violet"><Home size={19} /></span><div><span className="society-stat-label">Vacant</span><strong>{loading ? "—" : units.filter((unit) => unit.status === "VACANT").length}</strong></div><span className="society-stat-note">Available units</span></article>
             </div>
-            {!loading && floors.length === 0 && <div className="society-error">Create a floor before adding units.</div>}
             <section className="society-list-panel">
                 <div className="society-list-heading"><div><h2>Your units</h2><p>Review each unit’s tower, floor, configuration, and occupancy status.</p></div><span className="society-count">{filtered.length} {filtered.length === 1 ? "unit" : "units"}</span></div>
                 <div className="society-toolbar"><label className="society-search"><Search size={17} /><input aria-label="Search units" placeholder="Search unit, tower, floor, or status..." value={search} onChange={(event) => setSearch(event.target.value)} /></label><button className="society-refresh-button" onClick={reload} disabled={loading}><RefreshCw size={16} className={loading ? "society-spinning" : ""} /> Refresh</button></div>
@@ -122,7 +135,7 @@ const UnitListPage = () => {
                     </tbody></table></div>
                 )}
             </section>
-            {showForm && <div className="society-modal-layer" onMouseDown={(event) => { if (event.target === event.currentTarget) closeForm(); }}><UnitForm key={editingUnit?.id || "new-unit"} unit={editingUnit} floors={floors} towers={towers} onClose={closeForm} onSuccess={saveComplete} /></div>}
+            {showForm && <div className="society-modal-layer" onMouseDown={(event) => { if (event.target === event.currentTarget) closeForm(); }}><UnitForm key={editingUnit?.id || "new-unit"} unit={editingUnit} floors={editingUnit ? floors : availableFloors} towers={towers} onClose={closeForm} onSuccess={saveComplete} /></div>}
             {viewingUnit && (() => {
                 const floor = floors.find((item) => item.id === viewingUnit.floorId);
                 const tower = floor && towers.find((item) => item.id === floor.towerId);
@@ -144,9 +157,9 @@ const UnitListPage = () => {
                 const latestMoveOut = unitMoveOuts.find((item) => !["REJECTED", "CANCELLED"].includes(item.status));
                 const displayedUnitStatus = unitMoveIns.length ? "OCCUPIED" : completedMoveOuts.length ? "VACANT" : viewingUnit.status || "VACANT";
                 return <RecordDetailsModal title={`Unit ${viewingUnit.unitNumber || "details"}`} subtitle="Home profile and property assignment" icon={Home} onClose={() => setViewingUnit(null)} sections={[
-                { title: "Unit information", fields: [["Unit number", viewingUnit.unitNumber], ["Configuration", viewingUnit.bhk], ["Property type", viewingUnit.propertyType], ["Status", displayedUnitStatus], ["Unit ID", viewingUnit.id]] },
+                { title: "Unit information", fields: [["Unit number", viewingUnit.unitNumber], ["Configuration", viewingUnit.bhk], ["Property type", viewingUnit.propertyType], ["Status", displayedUnitStatus]] },
                 { title: "Area details", fields: [["Carpet area", viewingUnit.carpetArea == null ? null : `${viewingUnit.carpetArea} sq. ft.`], ["Built-up area", viewingUnit.builtUpArea == null ? null : `${viewingUnit.builtUpArea} sq. ft.`]] },
-                { title: "Location", fields: [["Floor", floor?.name || (floor ? `Floor ${floor.floorNumber}` : null)], ["Tower", tower?.name], ["Society", society?.name], ["Society ID", society?.id]] },
+                { title: "Location", fields: [["Floor", floor?.name || (floor ? `Floor ${floor.floorNumber}` : null)], ["Tower", tower?.name], ["Society", society?.name]] },
                 { title: "Society contact", fields: [["Email", society?.email], ["Phone", society?.phone], ["Address", society?.address]] },
                 ...((owners.length ? owners : [null]).map((owner, index) => {
                     const resident = owner && residents.find((item) => item.id === owner.ownerId);

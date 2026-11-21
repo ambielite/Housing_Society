@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import { Download } from 'lucide-react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -58,9 +59,9 @@ export default function RfqDetailPage() {
   const [dialog, setDialog] = useState(null); // 'invite' | 'quote' | 'score'
   const [confirmClose, setConfirmClose] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState('');
+  const [saveError, setSaveError] = useDashboardFeedback('', 'error');
   const [notice, setNotice] = useState(location.state?.notice || '');
-  const [pageError, setPageError] = useState('');
+  const [pageError, setPageError] = useDashboardFeedback('', 'error');
   const [downloadingQuoteId, setDownloadingQuoteId] = useState('');
 
   if (page.loading && !page.data) return <FullPageLoader />;

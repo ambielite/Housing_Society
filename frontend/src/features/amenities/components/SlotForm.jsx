@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useState } from 'react';
 import TextField from '../../../components/ui/TextField';
 import SelectField from '../../../components/ui/SelectField';
@@ -33,7 +34,7 @@ export default function SlotForm({ slot, amenityOptions, defaultAmenityId = '', 
     price: slot?.price ?? '',
     status: slot?.status || 'AVAILABLE',
   });
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useDashboardFeedback({}, 'error');
 
   useEffect(() => {
     setValues({

@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useMemo, useState } from 'react';
 import useAuth from '../../../app/providers/useAuth';
 import useFetch from '../../../utils/useFetch';
@@ -47,8 +48,8 @@ const candidates = useFetch(
 
   const [selectedUserId, setSelectedUserId] = useState('');
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  const [error, setError] = useDashboardFeedback('', 'error');
+  const [notice, setNotice] = useDashboardFeedback('', 'success');
   const [removeTarget, setRemoveTarget] = useState(null);
 
   const linkedRows = extractUsers(linked.data);

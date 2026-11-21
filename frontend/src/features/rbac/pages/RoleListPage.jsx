@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import { KeyRound, Plus, ShieldCheck, UsersRound } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
@@ -20,8 +21,8 @@ export default function RoleListPage() {
   const [status, setStatus] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState('');
-  const [successNotice, setSuccessNotice] = useState('');
+  const [createError, setCreateError] = useDashboardFeedback('', 'error');
+  const [successNotice, setSuccessNotice] = useDashboardFeedback('', 'success');
 
   const { data, loading, error, reload } = useFetch(() => rbacApi.listRoles(), []);
 

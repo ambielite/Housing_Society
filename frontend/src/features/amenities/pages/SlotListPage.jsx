@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useState } from 'react';
 import { Plus, RefreshCw, SquarePen, Trash2 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
@@ -35,8 +36,8 @@ export default function SlotListPage() {
   const [dialog, setDialog] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  const [error, setError] = useDashboardFeedback('', 'error');
+  const [notice, setNotice] = useDashboardFeedback('', 'success');
 
   const amenities = useFetch(() => (societyId ? api.listAmenities({ societyId }) : Promise.resolve(null)), [societyId]);
   const slots = useFetch(

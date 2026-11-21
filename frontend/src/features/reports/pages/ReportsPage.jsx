@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Activity, BarChart3, CalendarDays, CheckCircle2, ChevronRight, CircleAlert, Download, FileText, RefreshCw, ShieldCheck, Wallet } from "lucide-react";
@@ -41,7 +42,7 @@ export default function ReportsPage() {
     const [fromDate, setFromDate] = useState(localDate(new Date(now.getFullYear(), now.getMonth(), 1)));
     const [toDate, setToDate] = useState(localDate(now));
     const [data, setData] = useState({});
-    const [errors, setErrors] = useState({});
+    const [errors, setErrors] = useDashboardFeedback({}, 'error');
     const [loading, setLoading] = useState(false);
     const requestSerial = useRef(0);
 

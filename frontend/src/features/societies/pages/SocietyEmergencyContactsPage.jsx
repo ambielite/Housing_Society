@@ -1,3 +1,5 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
+import { confirmDashboardAction } from '../../../lib/dashboardConfirmation.js';
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -84,8 +86,8 @@ export default function SocietyEmergencyContactsPage() {
   const [society, setSociety] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
+  const [error, setError] = useDashboardFeedback('', 'error');
+  const [message, setMessage] = useDashboardFeedback('', 'success');
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [formOpen, setFormOpen] = useState(false);
@@ -157,7 +159,7 @@ export default function SocietyEmergencyContactsPage() {
     }
   };
   const remove = async (contact) => {
-    if (!window.confirm(`Remove ${contact.name} from the emergency contacts?`))
+    if (!await confirmDashboardAction(`Remove ${contact.name} from the emergency contacts?`))
       return;
     setError("");
     setMessage("");

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../widgets/resident_back_button.dart';
 import '../../../auth/data/auth_api.dart';
 import '../data/profile_photo_picker.dart';
 
@@ -135,6 +136,13 @@ class _ResidentEditProfileScreenState extends State<ResidentEditProfileScreen> {
           _saving = false;
         });
       }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _error = 'We could not save your profile. Please try again.';
+          _saving = false;
+        });
+      }
     } finally {
       if (mounted && _saving) setState(() => _saving = false);
     }
@@ -252,6 +260,9 @@ class _ResidentEditProfileScreenState extends State<ResidentEditProfileScreen> {
     return Scaffold(
       backgroundColor: _cream,
       appBar: AppBar(
+        leading: ResidentBackButton(
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
         title: const Text(
           'Edit profile',
           style: TextStyle(fontWeight: FontWeight.w700, color: _teal),

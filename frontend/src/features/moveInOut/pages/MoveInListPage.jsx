@@ -1,3 +1,5 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
+import { confirmDashboardAction } from '../../../lib/dashboardConfirmation.js';
 import { useEffect, useMemo, useState } from "react";
 import { ArrowDownLeft, CheckCircle2, SquarePen, FileText, Plus, RefreshCw, Search, Trash2, UserRound, X, XCircle } from "lucide-react";
 import moveInApi from "../api/moveIn.api";
@@ -37,7 +39,7 @@ const MoveInListPage = () => {
     const [units, setUnits] = useState([]);
     const [approverUsers, setApproverUsers] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
     const [search, setSearch] = useState("");
     const [editingMoveIn, setEditingMoveIn] = useState(null);
     const [viewingDocuments, setViewingDocuments] = useState(null);
@@ -145,7 +147,7 @@ const MoveInListPage = () => {
     };
 
     const handleDelete = async (id) => {
-        const confirmed = window.confirm("Are you sure you want to delete this move-in record?");
+        const confirmed = await confirmDashboardAction("Are you sure you want to delete this move-in record?");
         if (!confirmed) return;
 
         try {

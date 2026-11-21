@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useMemo, useState } from 'react';
 import { LogIn, LogOut, Plus, SquarePen } from 'lucide-react';
 import useAuth from '../../../app/providers/useAuth';
@@ -53,7 +54,7 @@ function ProfileForm({ societyId, societyName, value, onSubmit, onCancel, saving
     otherDeliveryCompany: currentCompany && !listedCompany ? currentCompany : '',
   });
   const edit = Boolean(value);
-  const [phoneError, setPhoneError] = useState('');
+  const [phoneError, setPhoneError] = useDashboardFeedback('', 'error');
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const submit = (e) => {
     e.preventDefault();
@@ -125,8 +126,8 @@ export default function VisitorsPage({ societyId, societyName, currentUser, gate
   const [tab, setTab] = useState('profiles');
   const [dialog, setDialog] = useState(null);
   const [selected, setSelected] = useState(null);
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  const [error, setError] = useDashboardFeedback('', 'error');
+  const [notice, setNotice] = useDashboardFeedback('', 'success');
 
   const profiles = useFetch(() => api.listVisitorProfiles({ societyId }), [societyId]);
   const invites = useFetch(() => api.listVisitorInvites({ societyId }), [societyId]);

@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 
 import { useEffect, useState } from "react";
 import { ImagePlus, Trash2, X } from "lucide-react";
@@ -26,7 +27,7 @@ const SocietyForm = ({ society, onClose, onSuccess }) => {
     const [logoPreview, setLogoPreview] = useState(existingLogo);
     const [removeLogo, setRemoveLogo] = useState(false);
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
 
     useEffect(() => () => {
         if (logoPreview.startsWith("blob:")) URL.revokeObjectURL(logoPreview);
@@ -293,6 +294,7 @@ const SocietyForm = ({ society, onClose, onSuccess }) => {
                                     <div className="input-with-suffix">
                                         <input
                                             type="number"
+                                            className="structural-area-input"
                                             name="structuralArea"
                                             value={formData.structuralArea}
                                             onChange={handleChange}

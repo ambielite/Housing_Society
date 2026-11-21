@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../widgets/resident_back_button.dart';
 import '../../../auth/data/auth_api.dart';
 import '../../dashboard/data/resident_dashboard_api.dart';
 import '../data/resident_amenities_api.dart';
@@ -219,13 +220,10 @@ class _ResidentAmenityDetailScreenState
         backgroundColor: AppColors.canvas,
         appBar: AppBar(
           backgroundColor: AppColors.canvas,
-          leading: widget.onClose == null
-              ? null
-              : IconButton(
-                  tooltip: 'Back to amenities',
-                  onPressed: widget.onClose,
-                  icon: const Icon(Icons.arrow_back_rounded),
-                ),
+          leading: ResidentBackButton(
+            onPressed:
+                widget.onClose ?? () => Navigator.of(context).maybePop(),
+          ),
           title: Text(widget.amenity.name),
           actions: [
             IconButton(

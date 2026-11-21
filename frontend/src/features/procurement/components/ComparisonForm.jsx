@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import TextField from '../../../components/ui/TextField';
 import SelectField from '../../../components/ui/SelectField';
@@ -8,7 +9,7 @@ const CRITERIA = ['Price', 'Delivery time', 'Warranty', 'Service level', 'Reputa
 /** vendorOptions: vendors that were invited to this RFQ. */
 export default function ComparisonForm({ vendorOptions, onSubmit, onCancel, saving, error }) {
   const [values, setValues] = useState({ vendorId: '', criterion: '', score: '', remarks: '' });
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useDashboardFeedback({}, 'error');
 
   const onChange = (event) => setValues((v) => ({ ...v, [event.target.name]: event.target.value }));
 

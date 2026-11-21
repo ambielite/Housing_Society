@@ -1,3 +1,5 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
+import { confirmDashboardAction } from '../../../lib/dashboardConfirmation.js';
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import communityApi from "../api/community.api";
@@ -12,7 +14,7 @@ export default function CommunityMembersDialog({ group, residents = [], onClose,
     const [editing, setEditing] = useState(null);
     const [loading, setLoading] = useState(true);
     const [busy, setBusy] = useState(false);
-    const [error, setError] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
     const base = `/community-groups/${idOf(group)}/members`;
 
     const load = async () => {
@@ -33,7 +35,7 @@ export default function CommunityMembersDialog({ group, residents = [], onClose,
         finally { setBusy(false); }
     };
     const remove = async (member) => {
-        if (!window.confirm("Remove this member from the group?")) return;
+        if (!await confirmDashboardAction("Remove this member from the group?")) return;
         setBusy(true);
         try { await communityApi.post(`${base}/${idOf(member)}/remove`); await load(); onChanged?.(); }
         catch (requestError) { setError(requestError.response?.data?.message || "Could not remove the group member."); }

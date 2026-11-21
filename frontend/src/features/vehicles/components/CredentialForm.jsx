@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import TextField from '../../../components/ui/TextField';
 import SelectField from '../../../components/ui/SelectField';
@@ -6,7 +7,7 @@ import { CREDENTIAL_TYPES } from './vehicleOptions';
 
 export default function CredentialForm({ onSubmit, onCancel, saving, error }) {
   const [values, setValues] = useState({ credentialType: '', credentialValue: '', expiresAt: '' });
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useDashboardFeedback({}, 'error');
 
   const onChange = (event) => setValues((v) => ({ ...v, [event.target.name]: event.target.value }));
 

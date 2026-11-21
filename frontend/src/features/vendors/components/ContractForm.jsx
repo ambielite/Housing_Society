@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import TextField from '../../../components/ui/TextField';
 import Alert from '../../../components/ui/Alert';
@@ -6,7 +7,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 export default function ContractForm({ onSubmit, onCancel, saving, error }) {
   const [values, setValues] = useState({ contractNo: '', startDate: today(), endDate: '', value: '', paymentTerms: '' });
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useDashboardFeedback({}, 'error');
 
   const onChange = (event) => setValues((v) => ({ ...v, [event.target.name]: event.target.value }));
 

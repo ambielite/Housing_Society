@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import useSociety from '../../../app/store/useSociety';
@@ -16,7 +17,7 @@ export default function VehicleFormPage() {
   const navigate = useNavigate();
   const { societyId } = useSociety();
   const [saving, setSaving] = useState(false);
-  const [submitError, setSubmitError] = useState('');
+  const [submitError, setSubmitError] = useDashboardFeedback('', 'error');
 
   const existing = useFetch(() => (isEdit ? vehiclesApi.getVehicle(vehicleId) : Promise.resolve(null)), [vehicleId]);
 

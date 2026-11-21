@@ -15,9 +15,9 @@ export default function FolderForm({ folders = [], initial = null, societyId, on
       {error && <Alert variant="error">{error}</Alert>}
       <p className="document-upload-intro">{initial ? 'Update the folder details and availability.' : 'Create a folder to organize society documents.'}</p>
       <section className="document-upload-section">
-        <header className="document-upload-section-title"><h3>Folder information</h3><span>Fields marked with * are required</span></header>
+        <header className="document-upload-section-title"><h3>Folder information</h3></header>
         <div className="document-upload-grid">
-          <label className="field document-upload-wide">Folder name <span className="required">*</span><input className="input" required maxLength={150} value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Society Bylaws" /></label>
+          <label className="field document-upload-wide">Folder name<input className="input" required maxLength={150} value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Society Bylaws" /></label>
           <label className="field">Folder type<select className="input" value={folderType} onChange={(event) => setFolderType(event.target.value)}>{FOLDER_TYPES.map((type) => <option key={type} value={type}>{type.replaceAll('_', ' ')}</option>)}</select></label>
           {!initial && <label className="field">Parent folder (optional)<select className="input" value={parentFolderId} onChange={(event) => setParentFolderId(event.target.value)}><option value="">Top-level folder</option>{folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label>}
           {initial && <label className="field">Status<select className="input" value={status} onChange={(event) => setStatus(event.target.value)}>{['ACTIVE', 'INACTIVE'].map((value) => <option key={value}>{value}</option>)}</select></label>}

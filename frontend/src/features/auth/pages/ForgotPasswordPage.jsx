@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as authApi from '../api/auth.api';
@@ -13,8 +14,8 @@ export default function ForgotPasswordPage() {
   const [otp, setOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [error, setError] = useState('');
-  const [fieldErrors, setFieldErrors] = useState({});
+  const [error, setError] = useDashboardFeedback('', 'error');
+  const [fieldErrors, setFieldErrors] = useDashboardFeedback({}, 'error');
   const [requested, setRequested] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 

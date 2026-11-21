@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ShieldCheck } from 'lucide-react';
@@ -29,7 +30,7 @@ export default function RoleDetailPage() {
   // After each tick the API returns the fresh list; keep it here (tagged with the role it belongs to).
   const [override, setOverride] = useState(null);
   const [notice, setNotice] = useState(location.state?.notice || '');
-  const [actionError, setActionError] = useState('');
+  const [actionError, setActionError] = useDashboardFeedback('', 'error');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
 

@@ -1,3 +1,6 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
+import { dispatchActionToast } from '../../../lib/actionToastEvents.js';
+import { confirmDashboardAction } from '../../../lib/dashboardConfirmation.js';
 import { useEffect, useMemo, useState } from "react";
 import { FileText, Plus, Search, Trash2 } from "lucide-react";
 import journalApi from "../api/journal.api";
@@ -9,7 +12,7 @@ const money = (value) => new Intl.NumberFormat("en-IN", { style: "currency", cur
 export default function FinanceJournalsPage() {
     const [journals, setJournals] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
     const [search, setSearch] = useState("");
     const [showForm, setShowForm] = useState(false);
 
@@ -29,9 +32,9 @@ export default function FinanceJournalsPage() {
         return !query ? journals : journals.filter((row) => [row.journalNumber, row.referenceType, row.referenceId, row.status, row.description].join(" ").toLowerCase().includes(query));
     }, [journals, search]);
     const removeDraft = async (id) => {
-        if (!window.confirm("Delete this draft journal?")) return;
+        if (!await confirmDashboardAction("Delete this draft journal?")) return;
         try { await journalApi.removeDraft(id); await loadData(); }
-        catch (err) { window.alert(err.response?.data?.message || "Only draft journals can be deleted."); }
+        catch (err) { dispatchActionToast("error", err.response?.data?.message || "Only draft journals can be deleted."); }
     };
 
     return <section className="society-dashboard module-shell-page finance-module-page">

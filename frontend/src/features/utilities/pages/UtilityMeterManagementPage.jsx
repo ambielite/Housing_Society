@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Activity, AlertTriangle, Droplets, Gauge, Plus, RefreshCw, Search, SquarePen, Trash2, Zap } from 'lucide-react';
 import PageContainer from '../../../components/layout/PageContainer';
@@ -141,7 +142,7 @@ export default function UtilityMeterManagementPage() {
   const [types, setTypes] = useState([]);
   const [unitOptions, setUnitOptions] = useState([]);
   const [unitOptionsLoading, setUnitOptionsLoading] = useState(false);
-  const [unitOptionsError, setUnitOptionsError] = useState('');
+  const [unitOptionsError, setUnitOptionsError] = useDashboardFeedback('', 'error');
   const [meters, setMeters] = useState([]);
   const [readings, setReadings] = useState([]);
   const [tariffs, setTariffs] = useState([]);
@@ -153,8 +154,8 @@ export default function UtilityMeterManagementPage() {
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  const [error, setError] = useDashboardFeedback('', 'error');
+  const [notice, setNotice] = useDashboardFeedback('', 'success');
   const [modal, setModal] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [detail, setDetail] = useState(null);

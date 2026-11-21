@@ -1,3 +1,5 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
+import { confirmDashboardAction } from '../../../lib/dashboardConfirmation.js';
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Building2, CalendarDays, Camera, Edit2, ImagePlus, Mail, Phone, Plus, RefreshCw, Search, ShieldCheck, Trash2, UsersRound, X } from "lucide-react";
 import { legacyApi } from "../../../lib/axios";
@@ -26,8 +28,8 @@ export default function SocietyManagementCommitteePage() {
   const [society, setSociety] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
+  const [error, setError] = useDashboardFeedback('', 'error');
+  const [message, setMessage] = useDashboardFeedback('', 'success');
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("ACTIVE");
   const [formOpen, setFormOpen] = useState(false);
@@ -102,7 +104,7 @@ export default function SocietyManagementCommitteePage() {
     finally { setSaving(false); }
   };
   const remove = async (member) => {
-    if (!window.confirm(`Remove ${member.memberName} from the management committee?`)) return;
+    if (!await confirmDashboardAction(`Remove ${member.memberName} from the management committee?`)) return;
     setError(""); setMessage("");
     try { await legacyApi.delete(`/society-management-committee/${member.id}`); setMessage("Committee member removed."); await load(); }
     catch (requestError) { setError(errorMessage(requestError)); }

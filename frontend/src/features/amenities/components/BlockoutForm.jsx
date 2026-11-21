@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import TextField from '../../../components/ui/TextField';
 import Alert from '../../../components/ui/Alert';
@@ -10,7 +11,7 @@ const toLocalInput = (date) => {
 
 export default function BlockoutForm({ amenityId, onSubmit, onCancel, saving, error }) {
   const [values, setValues] = useState({ startAt: '', endAt: '', reason: '' });
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useDashboardFeedback({}, 'error');
 
   const change = (event) => setValues((current) => ({ ...current, [event.target.name]: event.target.value }));
 

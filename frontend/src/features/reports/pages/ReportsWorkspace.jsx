@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Activity, BarChart3, CalendarDays, CheckCircle2, ChevronRight, CircleAlert, Download, FileText, RefreshCw, ShieldCheck, Wallet } from "lucide-react";
@@ -66,7 +67,7 @@ export default function ReportsWorkspace() {
     const [selectedReport, setSelectedReport] = useState(defaultReport[active]);
     const [societies, setSocieties] = useState([]); const [societyId, setSocietyId] = useState(societyIdValue(localStorage.getItem("selectedSocietyId")));
     const today = new Date(); const [fromDate, setFromDate] = useState(localDate(new Date(today.getFullYear(), today.getMonth(), 1))); const [toDate, setToDate] = useState(localDate(today));
-    const [reportData, setReportData] = useState(null); const [error, setError] = useState(""); const [loading, setLoading] = useState(false); const serialRef = useRef(0);
+    const [reportData, setReportData] = useState(null); const [error, setError] = useDashboardFeedback('', 'error'); const [loading, setLoading] = useState(false); const serialRef = useRef(0);
     const definition = reports.find((item) => item.key === selectedReport) || reports[0];
 
     useEffect(() => { reportsApi.societies().then((result) => setSocieties(responseRows(result))).catch(() => setSocieties([])); }, []);

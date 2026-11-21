@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import useAuth from '../../../app/providers/useAuth';
 import useSociety from '../../../app/store/useSociety';
@@ -64,9 +65,9 @@ export default function GateLogPage({ embedded = false, searchTerm = '', searchV
   const [showEntry, setShowEntry] = useState(false);
   const [exiting, setExiting] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState('');
-  const [notice, setNotice] = useState('');
-  const [pageError, setPageError] = useState('');
+  const [saveError, setSaveError] = useDashboardFeedback('', 'error');
+  const [notice, setNotice] = useDashboardFeedback('', 'success');
+  const [pageError, setPageError] = useDashboardFeedback('', 'error');
 
   const canLogEntry = hasPermission('PARKING_VISIT_CREATE');
   const entryButton = canLogEntry && (

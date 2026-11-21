@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useState } from 'react';
 import { Plus, RefreshCw } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
@@ -25,9 +26,9 @@ const rowsFrom = (response, key) => {
 export default function TicketListPage(){
  const {hasPermission,user}=useAuth(); const {societyId}=useSociety(); const location=useLocation();
  const [status,setStatus]=useState(''); const [priority,setPriority]=useState(''); const [categoryId,setCategoryId]=useState('');
- const [show,setShow]=useState(false); const [saving,setSaving]=useState(false); const [error,setError]=useState('');
+ const [show,setShow]=useState(false); const [saving,setSaving]=useState(false); const [error, setError] = useDashboardFeedback('', 'error');
  const [form,setForm]=useState({categoryId:'',raisedBy:user?.id||user?.userId||'',unitId:'',subject:'',description:'',priority:''});
- const [units,setUnits]=useState([]); const [unitsLoading,setUnitsLoading]=useState(false); const [unitsError,setUnitsError]=useState('');
+ const [units,setUnits]=useState([]); const [unitsLoading,setUnitsLoading]=useState(false); const [unitsError, setUnitsError] = useDashboardFeedback('', 'error');
  const cats=useFetch(()=>societyId?api.listCategories({societyId}):Promise.resolve(null),[societyId]);
  const tickets=useFetch(()=>societyId?api.listTickets({societyId,status,priority,categoryId}):Promise.resolve(null),[societyId,status,priority,categoryId]);
  useEffect(()=>{

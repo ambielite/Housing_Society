@@ -1,3 +1,6 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
+import { dispatchActionToast } from '../../../lib/actionToastEvents.js';
+import { confirmDashboardAction } from '../../../lib/dashboardConfirmation.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Building2, CheckCircle2, SquarePen, MapPin, Plus,
@@ -14,7 +17,7 @@ const SocietyPage = () => {
     const canCreateSociety = hasPermission("SOCIETY_CREATE");
     const [societies, setSocieties] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
     const [search, setSearch] = useState("");
     const [showForm, setShowForm] = useState(false);
     const [editingSociety, setEditingSociety] = useState(null);
@@ -72,12 +75,12 @@ const SocietyPage = () => {
     const openEdit = (society) => { setEditingSociety(society); setShowForm(true); };
 
     const handleDelete = async (id) => {
-        if (!window.confirm("Are you sure you want to delete this society?")) return;
+        if (!await confirmDashboardAction("Are you sure you want to delete this society?")) return;
         try {
             await societyApi.delete(id);
             await loadSocieties();
         } catch (err) {
-            window.alert(err.response?.data?.message || "Failed to delete society.");
+            dispatchActionToast("error", err.response?.data?.message || "Failed to delete society.");
         }
     };
 
@@ -135,8 +138,13 @@ const SocietyPage = () => {
                             <td><span className="society-logo-table-preview">{(society.logoUrl || society.logo_url) ? <img src={societyLogoUrl(society.logoUrl || society.logo_url)} alt={`${society.name || "Society"} logo`} /> : <Building2 size={19} />}</span></td>
                             <td><div className="society-name-cell"><span><button type="button" className="record-details-trigger" onClick={() => setViewingSociety(society)}>{society.name || "Unnamed society"}</button><small>{society.address || "Address not added"}</small></span></div></td>
                             <td>{society.reraNumber ? <span className="society-registration"><CheckCircle2 size={14} /> {society.reraNumber}</span> : <span className="society-muted">Not provided</span>}</td>
-                            <td><span className="society-tax-label">PAN:-</span> {society.pan || "—"}<br /><span className="society-tax-label">GSTIN:-</span> {society.gstin || "—"}</td>
-                            <td><span className="society-region"><span className="society-region-dot" />{society.currency || "INR"}<small>{society.timezone || "Asia/Kolkata"}</small></span></td>
+                            <td>
+                                <div className="society-tax-details">
+                                    <span><strong className="society-tax-label">PAN</strong><span>{society.pan || "—"}</span></span>
+                                    <span><strong className="society-tax-label">GSTIN</strong><span>{society.gstin || "—"}</span></span>
+                                </div>
+                            </td>
+                            <td><span className="society-region"><small>{society.timezone || "Asia/Kolkata"}</small></span></td>
                             <td><div className="society-row-actions"><button className="society-icon-action" title="Edit society" aria-label={`Edit ${society.name}`} onClick={() => openEdit(society)}><SquarePen size={16} /></button><button className="society-icon-action society-delete-action" title="Delete society" aria-label={`Delete ${society.name}`} onClick={() => handleDelete(society.id)}><Trash2 size={16} /></button></div></td>
                         </tr>)}</tbody>
                     </table></div>
@@ -147,7 +155,7 @@ const SocietyPage = () => {
             {viewingSociety && <RecordDetailsModal title={viewingSociety.name || "Society details"} subtitle="Society profile and registered information" icon={Building2} onClose={() => setViewingSociety(null)} sections={[
                 { title: "Contact information", fields: [["Email", viewingSociety.email], ["Phone", viewingSociety.phone], ["Address", viewingSociety.address]] },
                 { title: "Registration and tax", fields: [["RERA number", viewingSociety.reraNumber], ["PAN", viewingSociety.pan], ["GSTIN", viewingSociety.gstin]] },
-                { title: "Property and region", fields: [["Structural area", viewingSociety.structuralArea == null ? null : `${viewingSociety.structuralArea} sq. ft.`], ["Currency", viewingSociety.currency], ["Timezone", viewingSociety.timezone], ["Society ID", viewingSociety.id]] }
+                { title: "Property and region", fields: [["Structural area", viewingSociety.structuralArea == null ? null : `${viewingSociety.structuralArea} sq. ft.`], ["Currency", viewingSociety.currency], ["Timezone", viewingSociety.timezone]] }
             ]} />}
         </section>
     );

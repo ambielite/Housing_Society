@@ -1,15 +1,15 @@
-import { hasRecentActionToast } from '../../lib/actionToastEvents';
+import { useEffect } from 'react';
+import { dispatchActionToast } from '../../lib/actionToastEvents';
 
 export default function Alert({ variant = 'error', children }) {
-  // Authenticated create/update/delete requests already show these results in
-  // the global popup. Keep non-action and validation errors inline, but hide
-  // the duplicate banner shown immediately after a failed write.
-  if (variant === 'success') return null;
-  if (variant === 'error' && hasRecentActionToast('error')) return null;
+  useEffect(() => {
+    if (variant !== 'error' && variant !== 'success') return;
+    const message = typeof children === 'string' || typeof children === 'number'
+      ? String(children)
+      : '';
+    if (message) dispatchActionToast(variant, message);
+  }, [children, variant]);
 
-  return (
-    <div className={`alert alert-${variant}`} role={variant === 'error' ? 'alert' : 'status'}>
-      {children}
-    </div>
-  );
+  if (variant === 'error' || variant === 'success') return null;
+  return <div className={`alert alert-${variant}`} role="status">{children}</div>;
 }

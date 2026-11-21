@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useState } from "react";
 import { BellRing, CalendarClock, Check, Plus, RefreshCw, Trash2 } from "lucide-react";
 import agreementApi from "../api/agreement.api";
@@ -29,8 +30,8 @@ const AgreementLifecyclePage = () => {
     const [configs, setConfigs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [busy, setBusy] = useState(false);
-    const [error, setError] = useState("");
-    const [notice, setNotice] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
+    const [notice, setNotice] = useDashboardFeedback('', 'success');
     const [showRenewalForm, setShowRenewalForm] = useState(false);
     const [showConfigForm, setShowConfigForm] = useState(false);
     const [renewalValues, setRenewalValues] = useState({ agreementId: "", proposedStartDate: "", proposedExpiryDate: "" });

@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import useSociety from '../../../app/store/useSociety';
@@ -19,7 +20,7 @@ export default function UserFormPage() {
   const { societyId } = useSociety();
   const { user, refreshProfile } = useAuth();
   const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState('');
+  const [submitError, setSubmitError] = useDashboardFeedback('', 'error');
 
   const existing = useFetch(() => (isEdit && !isGuardEdit ? userApi.getUser(userId) : Promise.resolve(null)), [userId, isGuardEdit]);
   const guardProfile = useFetch(() => (isGuardEdit ? securityApi.getStaffById(staffId) : Promise.resolve(null)), [staffId]);

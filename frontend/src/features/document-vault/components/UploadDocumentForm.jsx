@@ -23,17 +23,17 @@ export default function UploadDocumentForm({ folders, societyId, onSubmit, onCan
       <p className="document-upload-intro">Add a file to the society vault and set who can access it.</p>
 
       <section className="document-upload-section">
-        <header className="document-upload-section-title"><h3>Document information</h3><span>Fields marked with * are required</span></header>
+        <header className="document-upload-section-title"><h3>Document information</h3></header>
         <div className="document-upload-grid">
-          <label className="field document-upload-wide">Document title <span className="required">*</span><input className="input" required maxLength={255} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="e.g. Society Bylaws 2026 Edition" /></label>
-          <label className="field">Folder <span className="required">*</span><select className="input" required value={folderId} onChange={(event) => setFolderId(event.target.value)}><option value="">Select folder</option>{folders.filter((folder) => folder.status === 'ACTIVE').map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label>
+          <label className="field document-upload-wide">Document title<input className="input" required maxLength={255} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="e.g. Society Bylaws 2026 Edition" /></label>
+          <label className="field">Folder<select className="input" required value={folderId} onChange={(event) => setFolderId(event.target.value)}><option value="">Select folder</option>{folders.filter((folder) => folder.status === 'ACTIVE').map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label>
           <label className="field">Document type<select className="input" value={documentType} onChange={(event) => setDocumentType(event.target.value)}>{DOCUMENT_TYPES.map((type) => <option key={type}>{type}</option>)}</select></label>
         </div>
       </section>
 
       <section className="document-upload-section">
         <header className="document-upload-section-title"><h3>Upload file</h3><span>PDF, PNG, JPEG, Word or Excel; maximum 20 MB</span></header>
-        <label className="field document-upload-file">Choose a file <span className="required">*</span><input className="input" type="file" required accept={allowed} onChange={(event) => setFile(event.target.files?.[0] || null)} /></label>
+        <label className="field document-upload-file">Choose a file<input className="input" type="file" required accept={allowed} onChange={(event) => setFile(event.target.files?.[0] || null)} /></label>
         {file && <p className="document-upload-selected">Selected: {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)</p>}
       </section>
 

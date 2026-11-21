@@ -1,3 +1,5 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
+import { confirmDashboardAction } from '../../../lib/dashboardConfirmation.js';
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Activity, Bell, CheckCheck, ChevronRight, CircleAlert, FileText, Mail, Megaphone, MessageSquare, Plus, RefreshCw, Search, Settings2, Smartphone, Trash2 } from "lucide-react";
@@ -34,8 +36,8 @@ export default function NotificationsPage() {
     const [data, setData] = useState({ notifications: [], templates: [], preferences: [], broadcasts: [], residents: [], towers: [] });
     const [loading, setLoading] = useState(true);
     const [busy, setBusy] = useState(false);
-    const [error, setError] = useState("");
-    const [notice, setNotice] = useState("");
+    const [error, setError] = useDashboardFeedback('', 'error');
+    const [notice, setNotice] = useDashboardFeedback('', 'success');
     const [search, setSearch] = useState("");
     const [filter, setFilter] = useState("ALL");
     const [form, setForm] = useState("");
@@ -241,7 +243,7 @@ export default function NotificationsPage() {
         {item.status === "FAILED" && <button className="notification-row-action" disabled={busy} onClick={() => act(() => forEachRecipient((recipient) => notificationsApi.updateNotification(recipient.id, { status: "PENDING", errorMessage: null })), "Notification queued for retry.")}>Retry</button>}
         {item.status === "FAILED" && <button className="notification-row-action" disabled={busy} onClick={() => act(() => forEachRecipient((recipient) => notificationsApi.markFailed(recipient.id, recipient.errorMessage || "Retry failed")), "Failure recorded.")}>Record retry failure</button>}
         {item.status !== "DELIVERED" && item.status !== "CANCELLED" && <button className="notification-row-action" disabled={busy} onClick={() => act(() => forEachRecipient((recipient) => notificationsApi.cancelNotification(recipient.id)), "Notification cancelled.")}>Cancel</button>}
-        {!["SENT", "DELIVERED"].includes(item.status) && <button className="notification-icon-action danger" title="Delete notification" aria-label="Delete notification" disabled={busy} onClick={() => window.confirm("Delete this notification?") && act(() => notificationsApi.deleteNotification(item.id), "Notification deleted.")}><Trash2 size={15}/></button>}
+        {!["SENT", "DELIVERED"].includes(item.status) && <button className="notification-icon-action danger" title="Delete notification" aria-label="Delete notification" disabled={busy} onClick={async () => await confirmDashboardAction("Delete this notification?") && act(() => notificationsApi.deleteNotification(item.id), "Notification deleted.")}><Trash2 size={15}/></button>}
     </div>;
 
     };
@@ -249,13 +251,13 @@ export default function NotificationsPage() {
     const templateActions = (item) => <div className="society-row-actions">
         <button className="notification-row-action" disabled={busy} onClick={() => openForm("template", item)}>Edit</button>
         <button className="notification-row-action" disabled={busy} onClick={() => act(() => item.status === "ACTIVE" ? notificationsApi.deactivateTemplate(item.id) : notificationsApi.activateTemplate(item.id), item.status === "ACTIVE" ? "Template deactivated." : "Template activated.")}>{item.status === "ACTIVE" ? "Deactivate" : "Activate"}</button>
-        {item.status !== "ACTIVE" && <button className="notification-icon-action danger" title="Delete template" aria-label="Delete template" disabled={busy} onClick={() => window.confirm("Delete this template?") && act(() => notificationsApi.deleteTemplate(item.id), "Template deleted.")}><Trash2 size={15}/></button>}
+        {item.status !== "ACTIVE" && <button className="notification-icon-action danger" title="Delete template" aria-label="Delete template" disabled={busy} onClick={async () => await confirmDashboardAction("Delete this template?") && act(() => notificationsApi.deleteTemplate(item.id), "Template deleted.")}><Trash2 size={15}/></button>}
     </div>;
 
     const preferenceActions = (item) => <div className="society-row-actions notification-preference-actions">
         {[["allowOperational", "Operational"], ["allowMarketing", "Marketing"], ["allowEmergency", "Emergency"]].map(([key, label]) => <button key={key} className={`notification-toggle${item[key] ? " enabled" : ""}`} disabled={busy} onClick={() => act(() => notificationsApi.updatePreference(item.id, { [key]: !item[key] }))}>{label} {item[key] ? "On" : "Off"}</button>)}
         <button className="notification-row-action" disabled={busy} onClick={() => act(() => item.enabled ? notificationsApi.disablePreference(item.id) : notificationsApi.enablePreference(item.id), item.enabled ? "Preference disabled." : "Preference enabled.")}>{item.enabled ? "Disable" : "Enable"}</button>
-        <button className="notification-icon-action danger" title="Delete preference" aria-label="Delete preference" disabled={busy} onClick={() => window.confirm("Delete this preference?") && act(() => notificationsApi.deletePreference(item.id), "Preference deleted.")}><Trash2 size={15}/></button>
+        <button className="notification-icon-action danger" title="Delete preference" aria-label="Delete preference" disabled={busy} onClick={async () => await confirmDashboardAction("Delete this preference?") && act(() => notificationsApi.deletePreference(item.id), "Preference deleted.")}><Trash2 size={15}/></button>
     </div>;
 
     const broadcastActions = (item) => <div className="society-row-actions">
@@ -264,7 +266,7 @@ export default function NotificationsPage() {
         {["DRAFT", "SCHEDULED", "FAILED"].includes(item.status) && <button className="notification-row-action" disabled={busy} onClick={() => act(() => notificationsApi.startBroadcast(item.id), "Broadcast marked as sending.")}>Start</button>}
         {item.status === "SENDING" && <button className="notification-row-action" disabled={busy} onClick={() => { const count = window.prompt("Number of recipients reached", String(item.recipientCount || 0)); if (count !== null) act(() => notificationsApi.markBroadcastSent(item.id, Number(count)), "Broadcast marked sent."); }}>Mark sent</button>}
         {!(["SENT", "CANCELLED"].includes(item.status)) && <button className="notification-row-action" disabled={busy} onClick={() => act(() => notificationsApi.cancelBroadcast(item.id), "Broadcast cancelled.")}>Cancel</button>}
-        {!["SENDING", "SENT"].includes(item.status) && <button className="notification-icon-action danger" title="Delete broadcast" aria-label="Delete broadcast" disabled={busy} onClick={() => window.confirm("Delete this broadcast?") && act(() => notificationsApi.deleteBroadcast(item.id), "Broadcast deleted.")}><Trash2 size={15}/></button>}
+        {!["SENDING", "SENT"].includes(item.status) && <button className="notification-icon-action danger" title="Delete broadcast" aria-label="Delete broadcast" disabled={busy} onClick={async () => await confirmDashboardAction("Delete this broadcast?") && act(() => notificationsApi.deleteBroadcast(item.id), "Broadcast deleted.")}><Trash2 size={15}/></button>}
     </div>;
 
     const tableRows = () => {
@@ -274,7 +276,7 @@ export default function NotificationsPage() {
         return filteredRows.map((item) => {
             const message = String(item.message || "");
             const isExpanded = expandedMessages.has(item.id);
-            return <tr key={item.id}><td><strong>{item.title || item.subject || titleCase(item.notificationType)}</strong><small>{dateTime(item.created_at)}</small></td><td>{titleCase(item.channel)}</td><td>{titleCase(item.notificationType)}</td><td className="notification-message-cell"><div className={`notification-message-content${isExpanded ? " expanded" : ""}`}>{message || "—"}</div>{message.length > 100 && <button type="button" className="notification-message-toggle" aria-expanded={isExpanded} onClick={() => setExpandedMessages((current) => { const next = new Set(current); if (next.has(item.id)) next.delete(item.id); else next.add(item.id); return next; })}>{isExpanded ? "Show less" : "Show more"}</button>}</td><td><span className={`notification-status ${String(item.status).toLowerCase()}`}>{titleCase(item.status)}</span></td><td>{item.isRead ? dateTime(item.readAt) : "Unread"}</td><td>{item.retryCount || 0}{item.errorMessage ? <small className="notification-error-detail">{item.errorMessage}</small> : null}</td><td>{notificationActions(item)}</td></tr>;
+            return <tr key={item.id}><td><strong>{item.title || item.subject || titleCase(item.notificationType)}</strong><small className="notification-created-at">{dateTime(item.created_at)}</small></td><td>{titleCase(item.channel)}</td><td>{titleCase(item.notificationType)}</td><td className="notification-message-cell"><div className={`notification-message-content${isExpanded ? " expanded" : ""}`}>{message || "—"}</div>{message.length > 100 && <button type="button" className="notification-message-toggle" aria-expanded={isExpanded} onClick={() => setExpandedMessages((current) => { const next = new Set(current); if (next.has(item.id)) next.delete(item.id); else next.add(item.id); return next; })}>{isExpanded ? "Show less" : "Show more"}</button>}</td><td><span className={`notification-status ${String(item.status).toLowerCase()}`}>{titleCase(item.status)}</span></td><td className="notification-read-status">{item.isRead ? dateTime(item.readAt) : "Unread"}</td><td>{item.retryCount || 0}{item.errorMessage ? <small className="notification-error-detail">{item.errorMessage}</small> : null}</td><td>{notificationActions(item)}</td></tr>;
         });
     };
 

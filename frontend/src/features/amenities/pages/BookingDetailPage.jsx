@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -28,12 +29,12 @@ function ConfirmForm({ bookingId, amount, onSubmit, onCancel, saving, error, can
   const [paymentId, setPaymentId] = useState('');
   const [payments, setPayments] = useState([]);
   const [loadingPayments, setLoadingPayments] = useState(Number(amount) > 0);
-  const [paymentLoadError, setPaymentLoadError] = useState('');
+  const [paymentLoadError, setPaymentLoadError] = useDashboardFeedback('', 'error');
   const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [paymentReference, setPaymentReference] = useState('');
   const [recordingPayment, setRecordingPayment] = useState(false);
-  const [recordPaymentError, setRecordPaymentError] = useState('');
-  const [recordPaymentNotice, setRecordPaymentNotice] = useState('');
+  const [recordPaymentError, setRecordPaymentError] = useDashboardFeedback('', 'error');
+  const [recordPaymentNotice, setRecordPaymentNotice] = useDashboardFeedback('', 'success');
 
   const loadPayments = async () => {
     setLoadingPayments(true);
@@ -144,7 +145,7 @@ export default function BookingDetailPage() {
   const location = useLocation();
   const [dialog, setDialog] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useDashboardFeedback('', 'error');
   const [notice, setNotice] = useState(location.state?.notice || '');
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [relatedLabels, setRelatedLabels] = useState({ unit: '', bookedBy: '', slot: '' });

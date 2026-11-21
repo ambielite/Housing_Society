@@ -1,3 +1,4 @@
+import { useDashboardFeedback } from '../../../lib/useDashboardFeedback.js';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import useSociety from '../../../app/store/useSociety';
@@ -19,7 +20,7 @@ export default function PurchaseOrderFormPage() {
     [societyId]
   );
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useDashboardFeedback('', 'error');
 
   if (!societyId) return <section className="society-dashboard purchase-orders-page"><header className="society-heading"><div><div className="society-eyebrow"><span className="society-eyebrow-dot" /> PROCUREMENT</div><h1>New Purchase Order</h1></div></header><SocietyIdPrompt /></section>;
 
