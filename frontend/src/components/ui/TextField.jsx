@@ -19,11 +19,24 @@ export default function TextField({ label, id, type = 'text', error, hint, ...in
         {isPassword && (
           <button
             type="button"
-            className="input-toggle"
+            className="input-toggle input-toggle--icon"
             onClick={() => setVisible((v) => !v)}
             aria-label={visible ? 'Hide password' : 'Show password'}
           >
-            {visible ? 'Hide' : 'Show'}
+            <svg viewBox="0 0 32 24" fill="none" aria-hidden="true">
+              {visible ? (
+                <>
+                  <path d="M3 12s4.7-8 13-8 13 8 13 8-4.7 8-13 8S3 12 3 12Z" />
+                  <circle cx="16" cy="12" r="4" />
+                  <path d="m5 22 22-20" />
+                </>
+              ) : (
+                <>
+                  <path d="M3 12s4.7-8 13-8 13 8 13 8-4.7 8-13 8S3 12 3 12Z" />
+                  <circle cx="16" cy="12" r="4" />
+                </>
+              )}
+            </svg>
           </button>
         )}
       </div>

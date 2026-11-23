@@ -102,7 +102,14 @@ const isInternalField = (key) => isIdentifierField(key) || ['createdAt', 'update
 const isReportMetadata = (key) => ['generated_at', 'currency', 'available', 'period', 'response_time_definition', 'from_date', 'to_date', 'message'].includes(normalizedField(key));
 const asRows = (value) => Array.isArray(value) ? value.filter((item) => item && typeof item === 'object') : [];
 
-const visibleScalar = ([key, value]) => isScalar(value) && value !== null && value !== '' && !isInternalField(key) && !isReportMetadata(key) && !isUuid(value);
+const visibleScalar = ([key, value]) => isScalar(value)
+  && value !== null
+  && value !== ''
+  && !(typeof value === 'number' && value === 0)
+  && !(typeof value === 'string' && /^-?0+(?:\.0+)?\s*%?$/.test(value.trim()))
+  && !isInternalField(key)
+  && !isReportMetadata(key)
+  && !isUuid(value);
 const isMetricValue = (value, key = '') => typeof value === 'number' && Number.isFinite(value)
   || typeof value === 'string' && /(total|count|amount|rate|percent|occupancy|balance|income|expense|paid|booked|capacity|revenue|outstanding|overdue|consumption|utilization|average|avg|open|closed|active|pending|available|vacant|occupied|collection|arrears|meter|sla|breach|tickets|vehicles|slots|visitors|entries|exits)/i.test(key)
     && /^-?\d+(?:\.\d+)?\s*%?$/.test(value.trim());

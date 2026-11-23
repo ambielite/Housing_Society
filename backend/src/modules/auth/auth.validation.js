@@ -12,6 +12,7 @@ const registerSchema = Joi.object({
 const loginSchema = Joi.object({
   email: Joi.string().email().required(),
   password: Joi.string().required(),
+  clientType: Joi.string().valid('web', 'resident_app').default('web'),
   securityCode: Joi.string().trim().max(50),
   selfieMimeType: Joi.string().valid('image/jpeg', 'image/png').when('securityCode', {
     is: Joi.exist(),

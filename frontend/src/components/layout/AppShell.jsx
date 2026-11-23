@@ -12,7 +12,7 @@ export default function AppShell() {
           <Outlet />
         </main>
         <footer className="admin-footer" aria-label="Site information">
-          <span className="footer-copyright">© {new Date().getFullYear()} Housing Society Management Platform</span>
+          <span className="footer-copyright">© Housing Society Management Platform</span>
           <nav className="footer-links" aria-label="Footer links">
             <span>Privacy</span>
             <span>Terms</span>

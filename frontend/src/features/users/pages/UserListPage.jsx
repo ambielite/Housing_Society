@@ -133,7 +133,6 @@ export default function UserListPage() {
         </div>
       ),
     },
-    { key: 'employee_code', header: 'Employee code', render: (user) => user.employee_code || '—' },
     { key: 'phone', header: 'Phone', render: (user) => user.phone || '-' },
     {
       key: 'roles',

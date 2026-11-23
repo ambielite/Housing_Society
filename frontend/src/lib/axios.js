@@ -101,7 +101,7 @@ const createApiClient = (baseURL, refreshBaseURL = baseURL) => {
         : method === 'post'
           ? 'Action completed successfully.'
           : 'Changes saved successfully.';
-      dispatchActionToast('success', responseMessage(response) || fallback);
+      dispatchActionToast('success', responseMessage(response) || fallback, { source: 'api' });
     }
     return response;
   }, async (error) => {
@@ -117,7 +117,7 @@ const createApiClient = (baseURL, refreshBaseURL = baseURL) => {
           : error.response
             ? 'Your changes could not be saved. Please try again.'
             : 'Cannot reach the server. Check your connection and try again.';
-      dispatchActionToast('error', readableMessage);
+      dispatchActionToast('error', readableMessage, { source: 'api' });
     }
     if (status === 401 && message === EXPIRED_MESSAGE && original && !original._retried) {
       original._retried = true;

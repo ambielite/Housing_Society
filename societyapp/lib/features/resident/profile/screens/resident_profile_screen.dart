@@ -150,6 +150,10 @@ class _ResidentProfileScreenState extends State<ResidentProfileScreen> {
       backgroundColor: AppColors.canvas,
       body: SafeArea(
         top: false,
+        // The resident shell already handles the device safe areas. Keeping
+        // another bottom inset here leaves a dead strip above its bottom bar
+        // and reduces the space available to the profile actions card.
+        bottom: false,
         child: Column(
           children: [
             Padding(
@@ -178,7 +182,7 @@ class _ResidentProfileScreenState extends State<ResidentProfileScreen> {
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 560),
                   child: ListView(
-                    padding: const EdgeInsets.fromLTRB(18, 8, 18, 32),
+                    padding: const EdgeInsets.fromLTRB(18, 8, 18, 12),
                     children: [
                       _identityCard(tower, flat),
                       const SizedBox(height: 16),

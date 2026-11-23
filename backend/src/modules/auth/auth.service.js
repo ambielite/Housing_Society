@@ -16,6 +16,9 @@ const {
 } = require('./securityFaceVerification');
 
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
+const RESIDENT_ROLE_CODES = new Set(['RESIDENT_APP', 'RESIDENT']);
+const isResidentOnly = (roles) => roles.length > 0
+  && roles.every((role) => RESIDENT_ROLE_CODES.has(role.code));
 const hashPasswordResetOtp = (userId, otp) => crypto
   .createHmac('sha256', env.jwt.accessSecret)
   .update(`${userId}:${otp}`)
@@ -102,19 +105,18 @@ const issueTokens = async (user, meta = {}) => {
     userId: user.id,
     tokenHash,
     expiresAt,
-    deviceInfo: user.guard_employee_code
-      ? JSON.stringify({
-        userAgent: String(meta.deviceInfo || '').slice(0, 140) || null,
-        guardEmployeeCode: user.guard_employee_code,
-      })
-      : meta.deviceInfo,
+    deviceInfo: JSON.stringify({
+      userAgent: String(meta.deviceInfo || '').slice(0, 140) || null,
+      clientType: meta.clientType || 'web',
+      ...(user.guard_employee_code ? { guardEmployeeCode: user.guard_employee_code } : {}),
+    }),
     ipAddress: meta.ipAddress,
   });
 
   return { accessToken, refreshToken };
 };
 
-const login = async ({ email, password, securityCode, selfieData, selfieMimeType }, meta = {}) => {
+const login = async ({ email, password, securityCode, selfieData, selfieMimeType, clientType = 'web' }, meta = {}) => {
   const user = await usersRepository.findByEmail(email.toLowerCase());
 
   if (!user) {
@@ -288,7 +290,19 @@ const login = async ({ email, password, securityCode, selfieData, selfieMimeType
     );
   }
 
-  const tokens = await issueTokens(authenticatedUser, meta);
+  const roles = await rbacRepository.getUserRoles(authenticatedUser.id, authenticatedUser.society_id);
+  if (clientType !== 'resident_app' && isResidentOnly(roles)) {
+    await authRepository.createLoginHistory({
+      userId: authenticatedUser.id,
+      ipAddress: meta.ipAddress,
+      userAgent: meta.deviceInfo,
+      success: false,
+      failureReason: 'RESIDENT_WEB_LOGIN_BLOCKED',
+    });
+    throw new ApiError(403, 'Resident accounts can sign in only through the resident app.');
+  }
+
+  const tokens = await issueTokens(authenticatedUser, { ...meta, clientType });
   await usersRepository.updateLastLogin(authenticatedUser.id);
   await authRepository.createLoginHistory({
     userId: authenticatedUser.id,
@@ -299,10 +313,7 @@ const login = async ({ email, password, securityCode, selfieData, selfieMimeType
     employeeCode: authenticatedUser.guard_employee_code,
   });
 
-  const [roles, permissions] = await Promise.all([
-    rbacRepository.getUserRoles(authenticatedUser.id, authenticatedUser.society_id),
-    rbacRepository.getUserPermissions(authenticatedUser.id, authenticatedUser.society_id),
-  ]);
+  const permissions = await rbacRepository.getUserPermissions(authenticatedUser.id, authenticatedUser.society_id);
 
   return {
     ...tokens,
@@ -355,12 +366,20 @@ const refresh = async ({ refreshToken }) => {
     user = { ...user, guard_employee_code: guardResult.rows[0].guard_employee_code };
   }
 
+  const clientType = refreshContext.clientType || 'web';
+  const roles = await rbacRepository.getUserRoles(user.id, user.society_id);
+  if (clientType !== 'resident_app' && isResidentOnly(roles)) {
+    await authRepository.revokeRefreshToken(tokenHash);
+    throw new ApiError(403, 'Resident accounts can sign in only through the resident app.');
+  }
+
   // Rotation: revoke the used token, then issue a brand new pair.
   await authRepository.revokeRefreshToken(tokenHash);
   return issueTokens(user, {
     deviceInfo: refreshContext.guardEmployeeCode
       ? refreshContext.userAgent
       : existing.device_info,
+    clientType,
   });
 };
 

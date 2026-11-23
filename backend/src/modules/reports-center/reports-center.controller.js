@@ -95,7 +95,22 @@ const exportRowsFromData = (data) => {
     });
   };
   walk(data);
-  return rows;
+  if (rows.length) return rows;
+
+  // Some reports (such as occupancy and residents) contain summary metrics
+  // rather than a detail-row array. Keep those values in CSV exports too.
+  const summaryRows = [];
+  const collectSummary = (value, path = '') => {
+    if (!value || typeof value !== 'object' || value instanceof Date || Array.isArray(value)) return;
+    Object.entries(value).forEach(([key, child]) => {
+      if (['society', 'period'].includes(key)) return;
+      const label = path ? `${path} / ${titleCase(key)}` : titleCase(key);
+      if (child && typeof child === 'object' && !(child instanceof Date)) collectSummary(child, label);
+      else if (child !== undefined && child !== null) summaryRows.push({ Metric: label, Value: child });
+    });
+  };
+  collectSummary(data);
+  return summaryRows;
 };
 
 
@@ -179,6 +194,23 @@ const compactPdfData = (data, maxRecords = 5000) => {
       });
     };
     collectArrays(data);
+
+    // Aggregate-only reports have no arrays. Render their scalar metrics as
+    // one summary record instead of producing an empty report document.
+    if (!sections.length) {
+      const summary = {};
+      const collectSummary = (value, prefix = '') => {
+        if (!value || typeof value !== 'object' || value instanceof Date || Array.isArray(value)) return;
+        Object.entries(value).forEach(([key, child]) => {
+          if (['society', 'period'].includes(key)) return;
+          const label = prefix ? `${prefix} / ${titleCase(key)}` : titleCase(key);
+          if (child && typeof child === 'object' && !(child instanceof Date)) collectSummary(child, label);
+          else if (child !== undefined && child !== null) summary[label] = child;
+        });
+      };
+      collectSummary(data);
+      if (Object.keys(summary).length) sections.push({ title: 'Summary', total: 1, records: [summary] });
+    }
   }
   return { sections: sections.map((section) => ({
     ...section,
