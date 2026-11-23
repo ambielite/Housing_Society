@@ -7,6 +7,7 @@ const AUTO_DISMISS_MS = 4200;
 export default function ActionToast() {
   const [toasts, setToasts] = useState([]);
   const timers = useRef(new Map());
+  const recentToasts = useRef(new Map());
 
   useEffect(() => {
     const dismiss = (id) => {
@@ -17,13 +18,30 @@ export default function ActionToast() {
     };
 
     const onToast = (event) => {
+      const type = event.detail?.type === 'error' ? 'error' : 'success';
+      const source = event.detail?.source === 'api' ? 'api' : 'ui';
+      const now = Date.now();
+      const recent = recentToasts.current.get(type);
+      const isSameActionBurst = recent && (
+        now - recent.at < 1200
+        || (recent.source === 'api' && source !== 'api' && now - recent.at < 8000)
+      );
+      if (isSameActionBurst) {
+        const timer = timers.current.get(recent.id);
+        if (timer) clearTimeout(timer);
+        timers.current.delete(recent.id);
+        setToasts((current) => current.filter((toast) => toast.id !== recent.id));
+      }
+
       const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const toast = {
         id,
-        type: event.detail?.type === 'error' ? 'error' : 'success',
+        type,
+        source,
         message: String(event.detail?.message || ''),
       };
       if (!toast.message) return;
+      recentToasts.current.set(type, { id, source, at: now });
       setToasts((current) => [...current, toast].slice(-3));
       timers.current.set(id, setTimeout(() => dismiss(id), AUTO_DISMISS_MS));
     };
@@ -33,6 +51,7 @@ export default function ActionToast() {
       window.removeEventListener('dashboard:action-toast', onToast);
       timers.current.forEach(clearTimeout);
       timers.current.clear();
+      recentToasts.current.clear();
     };
   }, []);
 

@@ -19,19 +19,20 @@ function makeMessageEasyToUnderstand(message) {
   return text;
 }
 
-export function dispatchActionToast(type, message) {
+export function dispatchActionToast(type, message, options = {}) {
   const text = makeMessageEasyToUnderstand(message);
   if (typeof window === 'undefined' || !text) return;
 
   const normalizedType = type === 'error' ? 'error' : 'success';
+  const source = options.source === 'api' ? 'api' : 'ui';
   const now = Date.now();
   // Avoid repeating the same feedback when both the request layer and the
   // page-level handler report the result of one action.
   if (previousToast?.type === normalizedType && previousToast.message === text && now - previousToast.at < 1200) return;
-  previousToast = { type: normalizedType, message: text, at: now };
+  previousToast = { type: normalizedType, message: text, source, at: now };
   recentActionToasts.set(normalizedType, Date.now());
   window.dispatchEvent(new CustomEvent(ACTION_TOAST_EVENT, {
-    detail: { type: normalizedType, message: text },
+    detail: { type: normalizedType, message: text, source },
   }));
 }
 

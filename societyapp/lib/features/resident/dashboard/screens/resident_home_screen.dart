@@ -578,7 +578,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                       const SizedBox(height: 7),
                       if (notification.scheduledAt != null)
                         Text(
-                          'Meeting: ${_formatDateTime(notification.scheduledAt!)}',
+                          'From: ${_formatDateTime(notification.scheduledAt!)}',
                           style: const TextStyle(
                             color: Colors.black,
                             fontSize: 10,
@@ -587,7 +587,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                         ),
                       if (notification.expiresAt != null)
                         Text(
-                          'Ends: ${_formatDateTime(notification.expiresAt!)}',
+                          'To: ${_formatDateTime(notification.expiresAt!)}',
                           style: const TextStyle(
                             color: Colors.black,
                             fontSize: 10,
@@ -2582,7 +2582,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                     const SizedBox(height: 8),
                     if (notice.scheduledAt != null)
                       Text(
-                        'Meeting: ${_formatDateTime(notice.scheduledAt!)}',
+                        'From: ${_formatDateTime(notice.scheduledAt!)}',
                         style: const TextStyle(
                           fontSize: 10,
                           color: Colors.black,
@@ -2591,7 +2591,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                       ),
                     if (notice.expiresAt != null)
                       Text(
-                        'Ends: ${_formatDateTime(notice.expiresAt!)}',
+                        'To: ${_formatDateTime(notice.expiresAt!)}',
                         style: const TextStyle(
                           fontSize: 10,
                           color: Colors.black,
@@ -2669,14 +2669,14 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
               if (notice.scheduledAt != null) ...[
                 const SizedBox(height: 7),
                 Text(
-                  'Meeting: ${_formatDateTime(notice.scheduledAt!)}',
+                  'From: ${_formatDateTime(notice.scheduledAt!)}',
                   style: const TextStyle(color: Colors.black, fontSize: 12),
                 ),
               ],
               if (notice.expiresAt != null) ...[
                 const SizedBox(height: 5),
                 Text(
-                  'Ends: ${_formatDateTime(notice.expiresAt!)}',
+                  'To: ${_formatDateTime(notice.expiresAt!)}',
                   style: const TextStyle(color: Colors.black, fontSize: 12),
                 ),
               ],

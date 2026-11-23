@@ -55,15 +55,16 @@ a { text-decoration: none; color: inherit; }
 .admin-footer {
   position: fixed; z-index: 45; left: 250px; right: 0; bottom: 0;
   display: flex; align-items: center; justify-content: space-between; gap: 20px;
-  min-height: 54px; padding: 10px 28px; border-top: 1px solid var(--border-color);
-  background: var(--surface); color: var(--text-primary); font-size: 10px;
-  letter-spacing: .01em; box-shadow: 0 -4px 16px rgba(15, 23, 42, .035);
+  min-height: 54px; padding: 10px 28px; border-top: 1px solid var(--sidebar-border);
+  background: var(--sidebar-bg); color: var(--sidebar-text); font-size: 10px;
+  letter-spacing: .01em;
+  transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease;
 }
 .footer-copyright, .footer-credit { white-space: nowrap; }
-.footer-links { display: flex; align-items: center; justify-content: center; gap: 20px; color: var(--text-secondary); }
-.footer-status { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; color: var(--text-secondary); }
+.footer-links { display: flex; align-items: center; justify-content: center; gap: 20px; color: var(--sidebar-muted); }
+.footer-status { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; color: var(--sidebar-muted); }
 .footer-status i { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; }
-.footer-credit strong { margin-left: 3px; color: var(--text-primary); font-size: 10px; font-weight: 750; }
+.footer-credit strong { margin-left: 3px; color: var(--sidebar-text); font-size: 10px; font-weight: 750; }
 
 /* =========================
    TOPBAR

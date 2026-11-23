@@ -107,14 +107,19 @@ const createFromTemplate = async (societyId, userId, templateId, data = {}) => {
 };
 
 const processSchedule = async () => {
+  const upcoming = await repository.queueUpcomingNoticeNotifications();
   const result = await repository.publishDue();
-  if (Number(result?.published_count) > 0 || Number(result?.expired_count) > 0) {
+  const notifiedUserIds = [...new Set([
+    ...(upcoming?.notified_user_ids || []),
+    ...(result?.notified_user_ids || []),
+  ])];
+  if (notifiedUserIds.length > 0) {
     residentDashboardEvents.publishToUsers(
-      result.notified_user_ids,
+      notifiedUserIds,
       'notice-published',
     );
   }
-  return result;
+  return { ...result, upcoming_queued_count: Number(upcoming?.queued_count || 0) };
 };
 
 module.exports = { list, getById, create, update, markRead, expire, renotify, saveTemplate, templates, createFromTemplate, processSchedule };
