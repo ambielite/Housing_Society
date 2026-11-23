@@ -13,6 +13,17 @@ const TABS = [
   { key: 'upcoming', label: 'Upcoming', icon: CalendarClock },
   { key: 'expired', label: 'Expired', icon: Clock3 },
 ];
+const NOTICE_CARD_ACCENTS = [
+  '#c43d4b', // red
+  '#292d35', // black
+  '#c08a00', // yellow
+  '#3678cc', // blue
+  '#697586', // grey
+  '#7752c9', // violet
+  '#30845b', // green
+  '#c45c94', // pink
+];
+const noticeCardAccent = (index) => NOTICE_CARD_ACCENTS[index % NOTICE_CARD_ACCENTS.length];
 const EMPTY_FORM = { title: '', description: '', scheduledAt: '', expiresAt: '', templateId: '' };
 const value = (row, snake, camel = snake) => row?.[snake] ?? row?.[camel];
 const isExpiredNotice = (notice, activeTab) => {
@@ -332,13 +343,13 @@ export default function NoticesPage() {
           <div className="notices-toolbar-actions"><span>{loading ? 'Loading notices…' : `${total} ${total === 1 ? 'notice' : 'notices'}`}</span></div>
         </div>
         {loading ? <div className="notices-empty"><span className="notices-loader" />Loading {selectedTab?.label.toLowerCase()} notices…</div> : rows.length ? <>
-          <div className="noticeboard-grid">{rows.map((notice) => {
+          <div className="noticeboard-grid">{rows.map((notice, index) => {
             const postedAt = value(notice, 'posted_at', 'postedAt');
             const scheduledAt = value(notice, 'scheduled_at', 'scheduledAt');
             const expiresAt = value(notice, 'expires_at', 'expiresAt');
             const expiredAt = value(notice, 'expired_at', 'expiredAt') || expiresAt;
             const author = value(notice, 'posted_by', 'postedBy') || 'Society management';
-            return <article className={`noticeboard-card noticeboard-card-${tab}${openMenu === value(notice, 'id') ? ' noticeboard-card-menu-open' : ''}`} key={`card-${value(notice, 'id')}`}>
+            return <article className={`noticeboard-card noticeboard-card-${tab}${openMenu === value(notice, 'id') ? ' noticeboard-card-menu-open' : ''}`} style={{ '--notice-card-accent': noticeCardAccent(index) }} key={`card-${value(notice, 'id')}`}>
               <div className="noticeboard-card-top"><span className={`noticeboard-card-icon noticeboard-icon-${tab}`}><Megaphone size={18}/></span><span className={`noticeboard-status noticeboard-status-${tab}`}>{tab === 'current' ? 'Published' : selectedTab?.label}</span></div>
               <button type="button" className="noticeboard-card-title" onClick={() => viewNotice(notice)}>{value(notice, 'title')}</button>
               <div className="noticeboard-card-meta">

@@ -28,6 +28,7 @@ const startNotificationJob =
     require("./jobs/notification.job").startNotificationJob;
 const startCommunityVotingJob = require("./jobs/communityVoting.job").startCommunityVotingJob;
 const startNoticesJob = require("./jobs/notices.job").startNoticesJob;
+const startStaffRosterCompletionJob = require("./jobs/staffRosterCompletion.job").startStaffRosterCompletionJob;
 
 const PORT =
     process.env.PORT || 5000;
@@ -84,6 +85,7 @@ const startServer = async () => {
                 startNotificationJob();
                 startCommunityVotingJob();
                 startNoticesJob();
+                startStaffRosterCompletionJob();
 
             }
         );

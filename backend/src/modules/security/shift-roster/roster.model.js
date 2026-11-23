@@ -48,6 +48,12 @@ const Roster = sequelize.define(
             field: "roster_date"
         },
 
+        rosterEndDate: {
+            type: DataTypes.DATEONLY,
+            allowNull: true,
+            field: "roster_end_date"
+        },
+
         rosterType: {
             type: DataTypes.ENUM(
                 "DAILY",

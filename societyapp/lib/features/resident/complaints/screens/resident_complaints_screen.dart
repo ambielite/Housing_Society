@@ -446,13 +446,19 @@ class _ResidentComplaintsScreenState extends State<ResidentComplaintsScreen>
                                 const SizedBox(width: 10),
                               ],
                               Expanded(
-                                child: Text(
-                                  complaint.ticketNumber,
-                                  textAlign: TextAlign.end,
-                                  style: const TextStyle(
-                                    color: _soft,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerRight,
+                                  child: Text(
+                                    complaint.ticketNumber,
+                                    maxLines: 1,
+                                    softWrap: false,
+                                    textAlign: TextAlign.end,
+                                    style: const TextStyle(
+                                      color: _soft,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ),
                               ),

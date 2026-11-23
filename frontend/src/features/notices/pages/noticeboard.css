@@ -118,10 +118,13 @@
 .notices-search button { display:grid; flex:0 0 25px; width:25px; height:25px; place-items:center; border:0; border-radius:6px; color:var(--text-muted); background:transparent; cursor:pointer; }.notices-search button:hover { color:var(--text-primary); background:var(--surface-2); }
 .notices-toolbar-actions { color:var(--text-muted); font-size:11px; white-space:nowrap; }
 .noticeboard-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:13px; padding:17px; }
-.noticeboard-card { position:relative; min-width:0; display:flex; flex-direction:column; gap:12px; padding:18px; border:1px solid var(--card-border); border-left:3px solid color-mix(in srgb,var(--notice-accent) 78%,var(--card-border)); border-radius:15px; background:var(--surface); transition:transform .16s ease,box-shadow .16s ease; }
+.noticeboard-card { position:relative; min-width:0; display:flex; flex-direction:column; gap:11px; padding:16px; border:1px solid var(--card-border); border-left:3px solid var(--notice-card-accent,var(--notice-accent)); border-radius:15px; background:linear-gradient(115deg,color-mix(in srgb,var(--notice-card-accent,var(--notice-accent)) 3%,var(--surface)),var(--surface) 58%); box-shadow:0 5px 16px rgba(31,47,78,.045); transition:transform .16s ease,box-shadow .16s ease; }
 .noticeboard-card-menu-open { z-index:10; }
 .noticeboard-card:hover { transform:translateY(-1px); box-shadow:0 8px 22px rgba(31,47,78,.065); }
-.noticeboard-card-upcoming { border-left-color:#d58a32; }.noticeboard-card-expired { border-left-color:#d85c68; }
+.noticeboard-card-upcoming,.noticeboard-card-expired { border-left-color:var(--notice-card-accent,var(--notice-accent)); }
+.noticeboard-card .noticeboard-card-icon { background:color-mix(in srgb,var(--notice-card-accent,var(--notice-accent)) 11%,var(--surface)); color:var(--notice-card-accent,var(--notice-accent)); }
+.noticeboard-card .noticeboard-card-meta svg,.noticeboard-card .noticeboard-read-more { color:var(--notice-card-accent,var(--notice-accent)); }
+.noticeboard-card .noticeboard-card-title:hover { color:var(--notice-card-accent,var(--notice-accent)); }
 .noticeboard-card-icon { background:color-mix(in srgb,var(--notice-accent) 10%,var(--surface)); color:var(--notice-accent); }
 .noticeboard-status { background:color-mix(in srgb,var(--notice-accent) 9%,var(--surface)); color:var(--notice-accent); }
 .noticeboard-status-current { color:#147a52; background:#e8f6ee; }

@@ -26,21 +26,26 @@ const resolveGuardStaffAndCheckShift = async (req, requestedStaffId) => {
     }
 
     const shiftResult = await query(
-        `SELECT r.roster_date
+        `SELECT occurrence.shift_date AS attendance_date
            FROM staff_rosters r
            JOIN shifts s ON s.id = r.shift_id AND s.society_id = r.society_id
+           JOIN societies society ON society.id = r.society_id
+           CROSS JOIN LATERAL (
+               VALUES ((now() AT TIME ZONE COALESCE(society.timezone, 'Asia/Kolkata'))::date),
+                      ((now() AT TIME ZONE COALESCE(society.timezone, 'Asia/Kolkata'))::date - 1)
+           ) AS occurrence(shift_date)
           WHERE r.staff_id = $1
             AND r.society_id = $2
             AND r.status IN ('SCHEDULED', 'CONFIRMED')
             AND s.status = 'ACTIVE'
-            AND r.roster_date BETWEEN
-                ((now() AT TIME ZONE 'Asia/Kolkata')::date - 1)
-                AND (now() AT TIME ZONE 'Asia/Kolkata')::date
-            AND now() >= ((r.roster_date + s.start_time) AT TIME ZONE 'Asia/Kolkata')
-            AND now() < ((r.roster_date + s.end_time +
+            AND occurrence.shift_date BETWEEN r.roster_date
+                                          AND COALESCE(r.roster_end_date, 'infinity'::date)
+            AND now() >= ((occurrence.shift_date + s.start_time)
+                AT TIME ZONE COALESCE(society.timezone, 'Asia/Kolkata'))
+            AND now() < ((occurrence.shift_date + s.end_time +
                 CASE WHEN s.is_overnight OR s.end_time <= s.start_time
                      THEN interval '1 day' ELSE interval '0 day' END)
-                AT TIME ZONE 'Asia/Kolkata')
+                AT TIME ZONE COALESCE(society.timezone, 'Asia/Kolkata'))
           LIMIT 1`,
         [staff.id, req.user.societyId]
     );
@@ -49,7 +54,7 @@ const resolveGuardStaffAndCheckShift = async (req, requestedStaffId) => {
         error.statusCode = 403;
         throw error;
     }
-    return { staffId: staff.id, attendanceDate: shiftResult.rows[0].roster_date };
+    return { staffId: staff.id, attendanceDate: shiftResult.rows[0].attendance_date };
 };
 
 

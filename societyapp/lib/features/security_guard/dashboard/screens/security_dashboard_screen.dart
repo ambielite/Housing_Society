@@ -1156,8 +1156,6 @@ class _SecurityHomeState extends State<_SecurityHome>
                       ),
                     ),
                     const SizedBox(height: 14),
-                    _securitySummaryCard(data),
-                    const SizedBox(height: 20),
                   ],
                   content,
                 ],
@@ -1563,6 +1561,13 @@ class _SecurityHomeState extends State<_SecurityHome>
 
   DateTime _shiftEnd(SecurityShiftAssignment assignment) {
     final date = assignment.rosterDate ?? DateTime.now();
+    return _shiftEndOnDate(assignment, date);
+  }
+
+  DateTime _shiftEndOnDate(
+    SecurityShiftAssignment assignment,
+    DateTime date,
+  ) {
     final start = _shiftDateTime(date, assignment.startTime);
     var end = _shiftDateTime(date, assignment.endTime);
     if (assignment.isOvernight || !end.isAfter(start)) {
@@ -1575,15 +1580,55 @@ class _SecurityHomeState extends State<_SecurityHome>
     _GuardSnapshot data,
     DateTime now,
   ) {
+    final today = DateTime(now.year, now.month, now.day);
     for (final assignment in data.shiftAssignments) {
       if (assignment.status == 'CANCELLED' ||
           assignment.status == 'COMPLETED') {
         continue;
       }
-      final start = _shiftDateTime(assignment.rosterDate ?? now, assignment.startTime);
-      if (!now.isBefore(start) && now.isBefore(_shiftEnd(assignment))) {
-        return assignment;
+      final periodStart = assignment.rosterDate;
+      final periodEnd = assignment.rosterEndDate ??
+          (assignment.scheduleType == 'DAILY' ? DateTime(9999, 12, 31) : periodStart);
+      if (periodStart == null || periodEnd == null) continue;
+      for (final occurrenceDate in <DateTime>[
+        today,
+        today.subtract(const Duration(days: 1)),
+      ]) {
+        final date = DateTime(
+          occurrenceDate.year,
+          occurrenceDate.month,
+          occurrenceDate.day,
+        );
+        final firstDate = DateTime(periodStart.year, periodStart.month, periodStart.day);
+        final lastDate = DateTime(periodEnd.year, periodEnd.month, periodEnd.day);
+        if (date.isBefore(firstDate) || date.isAfter(lastDate)) continue;
+        final start = _shiftDateTime(date, assignment.startTime);
+        if (!now.isBefore(start) &&
+            now.isBefore(_shiftEndOnDate(assignment, date))) {
+          return assignment;
+        }
       }
+    }
+    return null;
+  }
+
+  DateTime? _nextRosterOccurrenceStart(
+    SecurityShiftAssignment assignment,
+    DateTime now,
+  ) {
+    final periodStart = assignment.rosterDate;
+    final periodEnd = assignment.rosterEndDate ??
+        (assignment.scheduleType == 'DAILY' ? DateTime(9999, 12, 31) : periodStart);
+    if (periodStart == null || periodEnd == null) return null;
+    final first = DateTime(periodStart.year, periodStart.month, periodStart.day);
+    final last = DateTime(periodEnd.year, periodEnd.month, periodEnd.day);
+    var date = DateTime(now.year, now.month, now.day)
+        .subtract(const Duration(days: 1));
+    if (date.isBefore(first)) date = first;
+    while (!date.isAfter(last)) {
+      final start = _shiftDateTime(date, assignment.startTime);
+      if (_shiftEndOnDate(assignment, date).isAfter(now)) return start;
+      date = date.add(const Duration(days: 1));
     }
     return null;
   }
@@ -1603,19 +1648,16 @@ class _SecurityHomeState extends State<_SecurityHome>
               assignment.status == 'COMPLETED') {
             return false;
           }
-          return _shiftEnd(assignment).isAfter(now);
+          return _nextRosterOccurrenceStart(assignment, now) != null;
         }).toList()..sort(
-          (a, b) => _shiftDateTime(
-            a.rosterDate ?? now,
-            a.startTime,
-          ).compareTo(_shiftDateTime(b.rosterDate ?? now, b.startTime)),
+          (a, b) => _nextRosterOccurrenceStart(a, now)!
+              .compareTo(_nextRosterOccurrenceStart(b, now)!),
         );
     final active = upcomingOrActive.where((assignment) {
-      final start = _shiftDateTime(
-        assignment.rosterDate ?? now,
-        assignment.startTime,
-      );
-      return !now.isBefore(start) && now.isBefore(_shiftEnd(assignment));
+      final start = _nextRosterOccurrenceStart(assignment, now);
+      return start != null &&
+          !now.isBefore(start) &&
+          now.isBefore(_shiftEndOnDate(assignment, start));
     });
     final cancelledToday = data.shiftAssignments.where((assignment) {
       final date = assignment.rosterDate;
@@ -1635,7 +1677,7 @@ class _SecurityHomeState extends State<_SecurityHome>
               !_shiftEnd(assignment).isAfter(now));
     });
     final upcomingToday = upcomingOrActive.where((assignment) {
-      final date = assignment.rosterDate;
+      final date = _nextRosterOccurrenceStart(assignment, now);
       return date != null &&
           date.year == now.year &&
           date.month == now.month &&
@@ -1673,9 +1715,10 @@ class _SecurityHomeState extends State<_SecurityHome>
       );
     }
 
-    final date = assignment.rosterDate ?? now;
-    final start = _shiftDateTime(date, assignment.startTime);
-    final end = _shiftEnd(assignment);
+    final scheduledStart = _nextRosterOccurrenceStart(assignment, now);
+    final date = scheduledStart ?? assignment.rosterDate ?? now;
+    final start = scheduledStart ?? _shiftDateTime(date, assignment.startTime);
+    final end = _shiftEndOnDate(assignment, start);
     final isCancelled = assignment.status == 'CANCELLED';
     final isEnded = assignment.status == 'COMPLETED' || !now.isBefore(end);
     final isInProgress = !isCancelled && !isEnded && !now.isBefore(start);
@@ -3016,12 +3059,22 @@ class _GuardApi {
           ? null
           : DateTime.tryParse(dateValue);
       final status = (roster['status'] ?? '').toString().toUpperCase();
+      final scheduleType =
+          (roster['rosterType'] ?? roster['roster_type'] ?? 'DAILY')
+              .toString()
+              .toUpperCase();
+      final rosterEndValue =
+          (roster['rosterEndDate'] ?? roster['roster_end_date'])
+          ?.toString();
+      final rosterEndDate = rosterEndValue == null
+          ? scheduleType == 'DAILY'
+                ? null
+                : rosterDate
+          : DateTime.tryParse(rosterEndValue);
       if (rosterDate == null ||
-          DateTime(
-            rosterDate.year,
-            rosterDate.month,
-            rosterDate.day,
-          ).isBefore(todayDate.subtract(const Duration(days: 1)))) {
+          (rosterEndDate != null &&
+              DateTime(rosterEndDate.year, rosterEndDate.month, rosterEndDate.day)
+                  .isBefore(todayDate.subtract(const Duration(days: 1))))) {
         continue;
       }
       final shiftId = (roster['shiftId'] ?? roster['shift_id'])?.toString();
@@ -3061,7 +3114,8 @@ class _GuardApi {
         rosterDate.month,
         rosterDate.day,
       ).isBefore(todayDate);
-      if (isYesterdayRoster &&
+      if (scheduleType == 'DAILY' &&
+          isYesterdayRoster &&
           (status == 'CANCELLED' || !DateTime.now().isBefore(scheduleEnd))) {
         continue;
       }
@@ -3072,9 +3126,7 @@ class _GuardApi {
               .toString(),
           shiftType: (shift['shiftType'] ?? shift['shift_type'] ?? '')
               .toString(),
-          scheduleType:
-              (roster['rosterType'] ?? roster['roster_type'] ?? 'DAILY')
-                  .toString(),
+          scheduleType: scheduleType,
           startTime: startValue,
           endTime: endValue,
           breakMinutes:
@@ -3083,6 +3135,7 @@ class _GuardApi {
               ) ??
               0,
           rosterDate: rosterDate,
+          rosterEndDate: rosterEndDate,
           status: status.isEmpty ? 'SCHEDULED' : status,
           isOvernight: isOvernightShift,
           cancellationReason: _optionalString(
@@ -3101,7 +3154,7 @@ class _GuardApi {
       );
     }
     assignments.sort((a, b) => a.rosterDate!.compareTo(b.rosterDate!));
-    return assignments.take(5).toList(growable: false);
+    return assignments.take(20).toList(growable: false);
   }
 
   static Future<List<_GuardNotification>> loadNotifications(

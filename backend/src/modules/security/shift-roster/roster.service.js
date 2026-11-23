@@ -36,6 +36,29 @@ const actorDisplayName = (actor) => {
     return `${name} (${role})`;
 };
 
+const rosterPeriodEndDate = (startDate, rosterType) => {
+    const [year, month, day] = String(startDate).slice(0, 10).split("-").map(Number);
+    if (rosterType === "DAILY") return null;
+    if (rosterType === "WEEKLY") {
+        return new Date(Date.UTC(year, month - 1, day + 6)).toISOString().slice(0, 10);
+    }
+    if (rosterType === "MONTHLY") {
+        const targetMonthStart = new Date(Date.UTC(year, month, 1));
+        const targetMonthLastDay = new Date(Date.UTC(
+            targetMonthStart.getUTCFullYear(),
+            targetMonthStart.getUTCMonth() + 1,
+            0
+        )).getUTCDate();
+        const clampedDay = Math.min(day, targetMonthLastDay);
+        return new Date(Date.UTC(
+            targetMonthStart.getUTCFullYear(),
+            targetMonthStart.getUTCMonth(),
+            clampedDay - 1
+        )).toISOString().slice(0, 10);
+    }
+    return null;
+};
+
 const notifyGuardOfRoster = async (roster, title, message, actor) => {
     const [guardRows] = await sequelize.query(
         `SELECT user_id FROM security_guards
@@ -61,6 +84,7 @@ const notifyGuardOfRoster = async (roster, title, message, actor) => {
             staffId: roster.staffId,
             shiftId: roster.shiftId,
             rosterDate: roster.rosterDate,
+            rosterEndDate: roster.rosterEndDate,
         },
         referenceType: "STAFF_ROSTER",
         referenceId: roster.id,
@@ -90,13 +114,17 @@ const findOverlappingRoster = async ({
            FROM staff_rosters roster
            JOIN shifts assigned_shift ON assigned_shift.id = roster.shift_id
            CROSS JOIN candidate
+           CROSS JOIN LATERAL (
+               VALUES (CAST(:rosterDate AS date)),
+                      (CAST(:rosterDate AS date) - 1)
+           ) AS occurrence(shift_date)
           WHERE roster.staff_id = :staffId
             AND roster.status NOT IN ('CANCELLED', 'COMPLETED')
-            AND roster.roster_date BETWEEN CAST(:rosterDate AS date) - 1
-                                       AND CAST(:rosterDate AS date) + 1
+            AND occurrence.shift_date BETWEEN roster.roster_date
+                                          AND COALESCE(roster.roster_end_date, 'infinity'::date)
             AND (:excludeRosterId IS NULL OR roster.id <> :excludeRosterId)
-            AND roster.roster_date + assigned_shift.start_time < candidate.ends_at
-            AND roster.roster_date + assigned_shift.end_time
+            AND occurrence.shift_date + assigned_shift.start_time < candidate.ends_at
+            AND occurrence.shift_date + assigned_shift.end_time
                 + CASE WHEN assigned_shift.is_overnight
                              OR assigned_shift.end_time <= assigned_shift.start_time
                        THEN INTERVAL '1 day' ELSE INTERVAL '0 days' END > candidate.starts_at
@@ -113,6 +141,41 @@ const findOverlappingRoster = async ({
         }
     );
     return rows[0] || null;
+};
+
+const findOverlappingRosterPeriod = async ({
+    staffId,
+    startDate,
+    endDate,
+    shift,
+    excludeRosterId,
+}) => {
+    const current = new Date(`${startDate}T00:00:00.000Z`);
+    let finalDate = endDate;
+    if (!finalDate) {
+        const [rows] = await sequelize.query(
+            `SELECT MAX(COALESCE(roster_end_date, roster_date)) AS last_date
+               FROM staff_rosters
+              WHERE staff_id = :staffId
+                AND status NOT IN ('CANCELLED', 'COMPLETED')`,
+            { replacements: { staffId } }
+        );
+        const lastDate = rows[0]?.last_date;
+        if (lastDate && String(lastDate) > startDate) finalDate = String(lastDate).slice(0, 10);
+    }
+    const end = new Date(`${(finalDate || startDate)}T00:00:00.000Z`);
+    while (current <= end) {
+        const rosterDate = current.toISOString().slice(0, 10);
+        const conflict = await findOverlappingRoster({
+            staffId,
+            rosterDate,
+            shift,
+            excludeRosterId,
+        });
+        if (conflict) return conflict;
+        current.setUTCDate(current.getUTCDate() + 1);
+    }
+    return null;
 };
 
 
@@ -181,9 +244,12 @@ const createRoster = async (
     }
 
     if (!['CANCELLED', 'COMPLETED'].includes(data.status)) {
-        const conflict = await findOverlappingRoster({
+        const rosterType = data.rosterType || "DAILY";
+        const rosterEndDate = rosterPeriodEndDate(data.rosterDate, rosterType);
+        const conflict = await findOverlappingRosterPeriod({
             staffId: data.staffId,
-            rosterDate: data.rosterDate,
+            startDate: data.rosterDate,
+            endDate: rosterEndDate,
             shift,
         });
         if (conflict) {
@@ -193,11 +259,18 @@ const createRoster = async (
         }
     }
 
-    const roster = await RosterRepository.create(data);
+    const rosterType = data.rosterType || "DAILY";
+    const roster = await RosterRepository.create({
+        ...data,
+        rosterType,
+        rosterEndDate: rosterPeriodEndDate(data.rosterDate, rosterType),
+    });
     await notifyGuardOfRoster(
         roster,
         "New shift assigned",
-        `Your ${shift.shiftName} shift is scheduled for ${roster.rosterDate}.`,
+        roster.rosterEndDate
+            ? `Your ${shift.shiftName} shift repeats daily from ${roster.rosterDate} through ${roster.rosterEndDate}.`
+            : `Your ${shift.shiftName} shift repeats daily from ${roster.rosterDate} until an administrator completes the assignment.`,
         actor
     );
     return roster;
@@ -377,16 +450,19 @@ const updateRoster = async (
     const targetStaffId = data.staffId || roster.staffId;
     const targetShiftId = data.shiftId || roster.shiftId;
     const targetRosterDate = data.rosterDate || roster.rosterDate;
+    const targetRosterType = data.rosterType || roster.rosterType;
     const targetStatus = data.status || roster.status;
     const scheduleChanged = Boolean(
-        data.staffId || data.shiftId || data.rosterDate ||
+        data.staffId || data.shiftId || data.rosterDate || data.rosterType ||
         (data.status && data.status !== roster.status)
     );
     if (scheduleChanged && !["CANCELLED", "COMPLETED"].includes(targetStatus)) {
         const targetShift = await Shift.findByPk(targetShiftId);
-        const conflict = await findOverlappingRoster({
+        const targetEndDate = rosterPeriodEndDate(targetRosterDate, targetRosterType);
+        const conflict = await findOverlappingRosterPeriod({
             staffId: targetStaffId,
-            rosterDate: targetRosterDate,
+            startDate: targetRosterDate,
+            endDate: targetEndDate,
             shift: targetShift,
             excludeRosterId: roster.id,
         });
@@ -397,13 +473,19 @@ const updateRoster = async (
         }
     }
 
-    const updatedRoster = await RosterRepository.update(roster, data);
-    if (data.staffId || data.shiftId || data.rosterDate) {
+    const updateData = { ...data };
+    if (data.rosterDate || data.rosterType) {
+        updateData.rosterEndDate = rosterPeriodEndDate(targetRosterDate, targetRosterType);
+    }
+    const updatedRoster = await RosterRepository.update(roster, updateData);
+    if (data.staffId || data.shiftId || data.rosterDate || data.rosterType) {
         const assignedShift = await Shift.findByPk(updatedRoster.shiftId);
         await notifyGuardOfRoster(
             updatedRoster,
             "Shift schedule updated",
-            `Your ${assignedShift?.shiftName || "shift"} schedule was updated for ${updatedRoster.rosterDate}.`,
+            updatedRoster.rosterEndDate
+                ? `Your ${assignedShift?.shiftName || "shift"} repeats daily from ${updatedRoster.rosterDate} through ${updatedRoster.rosterEndDate}.`
+                : `Your ${assignedShift?.shiftName || "shift"} repeats daily from ${updatedRoster.rosterDate} until an administrator completes the assignment.`,
             actor
         );
     }

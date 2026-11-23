@@ -785,7 +785,7 @@ export default function SecurityPage() {
   const headings = {
     staff: ["Employee", "Employee code", "Type", "Contact", "Joined", "Status"],
     attendance: ["Staff", "Date", "Check in", "Check out", "Status"],
-    rosters: ["Staff", "Shift", "Schedule date", "Schedule type", "Status", "Cancellation details"],
+    rosters: ["Staff", "Shift", "Schedule period", "Schedule type", "Status", "Cancellation details"],
     tasks: ["Title", "Staff", "Type", "Due", "Priority", "Status"],
     patrols: ["Patrol", "Staff", "Gate", "Date", "Window", "Status"],
     incidents: ["Number", "Incident", "Severity", "Location", "Status"],
@@ -812,7 +812,11 @@ export default function SecurityPage() {
       rosters: [
         staffName(item.staffId),
         shiftName(item.shiftId),
-        item.rosterDate?.slice(0, 10),
+        item.rosterType === "DAILY" && !item.rosterEndDate
+          ? `Every day from ${item.rosterDate?.slice(0, 10)}`
+          : item.rosterEndDate && item.rosterEndDate.slice(0, 10) !== item.rosterDate?.slice(0, 10)
+          ? `${item.rosterDate?.slice(0, 10)} – ${item.rosterEndDate.slice(0, 10)}`
+          : item.rosterDate?.slice(0, 10),
         titleCase(item.rosterType),
         <SecurityBadge value={item.status} />,
         item.status === "CANCELLED" ? (
@@ -1429,8 +1433,11 @@ export default function SecurityPage() {
         <RecordEditModal
           record={editRecord.item}
           tab={editRecord.tab}
+          fields={configs[{ shifts: "shift", rosters: "roster", tasks: "task", patrols: "patrol", incidents: "incident", emergencies: "emergency" }[editRecord.tab] || editRecord.tab]?.fields || []}
           staff={staff}
           shifts={data.shifts || []}
+          gates={data.gates || []}
+          securityHeadAccounts={securityHeadAccounts}
           onClose={() => setEditRecord(null)}
           onSave={async (id, sectionName, patchData) => {
             const resource = {
@@ -1484,7 +1491,7 @@ export default function SecurityPage() {
   );
 }
 
-function RecordEditModal({ record, tab, staff = [], shifts = [], onClose, onSave }) {
+function RecordEditModal({ record, tab, fields = [], staff = [], shifts = [], gates = [], securityHeadAccounts = [], onClose, onSave }) {
   const { units } = useUnits();
   const fieldToken = (key) => String(key).replace(/[^a-z0-9]/gi, "").toLowerCase();
   const rosterCanonicalKey = (key) => ({
@@ -1494,6 +1501,7 @@ function RecordEditModal({ record, tab, staff = [], shifts = [], onClose, onSave
     rostertype: "rosterType",
     remarks: "remarks",
   })[fieldToken(key)] || key;
+  const schemaField = (key) => fields.find((field) => fieldToken(field[0]) === fieldToken(key));
   const normalizeDate = (value) => {
     if (!value || value === "Invalid date") return "";
     const date = String(value).match(/^\d{4}-\d{2}-\d{2}/)?.[0];
@@ -1649,6 +1657,38 @@ function RecordEditModal({ record, tab, staff = [], shifts = [], onClose, onSave
                       <option key={shift.id} value={shift.id}>
                         {shift.shiftName || "Shift"} · {formatTime(shift.startTime)}–{formatTime(shift.endTime)} · {formatBreakTime(shift.breakMinutes)}
                       </option>
+                    ))}
+                  </select>
+                ) : ["staff", "shift", "gate", "securityHead"].includes(schemaField(key)?.[2]) ? (
+                  <select
+                    required={schemaField(key)?.[2] === "staff" || schemaField(key)?.[2] === "shift"}
+                    value={value ?? ""}
+                    onChange={(event) => setValues((current) => ({ ...current, [key]: event.target.value }))}
+                  >
+                    <option value="">Select {{ staff: "staff member", shift: "shift", gate: "gate", securityHead: "Security Head account" }[schemaField(key)[2]]}</option>
+                    {(schemaField(key)[2] === "staff" ? staff : schemaField(key)[2] === "shift" ? shifts : schemaField(key)[2] === "gate" ? gates : securityHeadAccounts).map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {schemaField(key)[2] === "staff"
+                          ? `${item.firstName || ""} ${item.lastName || ""} · ${item.employeeCode || ""}`.trim()
+                          : schemaField(key)[2] === "shift"
+                            ? `${item.shiftName || "Shift"} · ${formatTime(item.startTime)}–${formatTime(item.endTime)}`
+                            : schemaField(key)[2] === "gate"
+                              ? item.name || item.gateName || item.gateCode || "Gate"
+                              : `${item.first_name || item.firstName || ""} ${item.last_name || item.lastName || ""} · ${item.email || ""}`.trim()}
+                      </option>
+                    ))}
+                  </select>
+                ) : schemaField(key)?.[2] === "select" ? (
+                  <select
+                    value={value ?? ""}
+                    onChange={(event) => setValues((current) => ({ ...current, [key]: event.target.value }))}
+                  >
+                    {!schemaField(key)[3].some((option) => String(option) === String(value)) && value != null && value !== "" && (
+                      <option value={value}>{titleCase(value)}</option>
+                    )}
+                    <option value="">Select {String(schemaField(key)[1] || titleCase(key)).toLowerCase()}</option>
+                    {schemaField(key)[3].map((option) => (
+                      <option key={option} value={option}>{titleCase(option)}</option>
                     ))}
                   </select>
                 ) : tab === "shifts" && key === "status" ? (

@@ -62,6 +62,7 @@ class SecurityShiftAssignment {
     required this.endTime,
     required this.breakMinutes,
     required this.rosterDate,
+    this.rosterEndDate,
     required this.status,
     this.isOvernight = false,
     this.cancellationReason,
@@ -79,6 +80,7 @@ class SecurityShiftAssignment {
   final String endTime;
   final int breakMinutes;
   final DateTime? rosterDate;
+  final DateTime? rosterEndDate;
   final String status;
   final bool isOvernight;
   final String? cancellationReason;
@@ -102,6 +104,7 @@ class SecurityShiftAssignment {
     endTime: endTime,
     breakMinutes: breakMinutes,
     rosterDate: rosterDate,
+    rosterEndDate: rosterEndDate,
     status: status ?? this.status,
     isOvernight: isOvernight,
     cancellationReason: cancellationReason ?? this.cancellationReason,
@@ -192,6 +195,17 @@ class _SecurityProfileScreenState extends State<SecurityProfileScreen> {
 
   String _staffValue(String key, String? fallback) =>
       _value(widget.guardProfile?[key]?.toString() ?? fallback);
+
+  String _staffDateValue(String key) {
+    final value = widget.guardProfile?[key]?.toString().trim();
+    if (value == null || value.isEmpty) return 'Not provided';
+    final match = RegExp(r'^(\d{4})-(\d{2})-(\d{2})').firstMatch(value);
+    if (match != null) {
+      return '${match.group(3)}/${match.group(2)}/${match.group(1)}';
+    }
+    final parsed = DateTime.tryParse(value);
+    return parsed == null ? _value(value.split(RegExp(r'[T ]')).first) : _date(parsed);
+  }
 
   String get _profileName {
     final first = widget.guardProfile?['first_name']?.toString().trim() ?? '';
@@ -553,7 +567,7 @@ class _SecurityProfileScreenState extends State<SecurityProfileScreen> {
         _group('Contact', [
           ('Email', _staffValue('email', user.email)),
           ('Phone', _staffValue('mobile_number', user.phone)),
-          ('Date of birth', _staffValue('date_of_birth', null)),
+          ('Date of birth', _staffDateValue('date_of_birth')),
         ]),
         const SizedBox(height: 14),
         _group('Assignment', [
@@ -825,7 +839,13 @@ class _SecurityProfileScreenState extends State<SecurityProfileScreen> {
 
   Widget _shiftCard(SecurityShiftAssignment a) {
     final date = a.rosterDate;
-    final dateText = date == null ? 'Date unavailable' : _date(date);
+    final dateText = date == null
+        ? 'Date unavailable'
+        : a.scheduleType.toUpperCase() == 'DAILY' && a.rosterEndDate == null
+        ? 'Every day from ${_date(date)}'
+        : a.rosterEndDate == null || a.rosterEndDate == date
+        ? _date(date)
+        : '${_date(date)} – ${_date(a.rosterEndDate!)}';
     final breakText = a.breakMinutes <= 0
         ? 'No break'
         : a.breakMinutes % 60 == 0
