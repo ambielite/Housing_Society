@@ -257,6 +257,11 @@ a { text-decoration: none; color: inherit; }
 select.input { appearance: auto; }
 textarea.input { resize: vertical; }
 .input-toggle { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: none; border: 0; padding: 4px 8px; color: var(--action); font-weight: 600; font-size: 12px; }
+.input-toggle--icon { display: grid; place-items: center; width: 32px; height: 32px; padding: 4px; color: #1263eb; cursor: pointer; }
+.input-toggle--icon svg { display: block; width: 22px; height: 18px; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.input-wrap:has(.input-toggle--icon) .input { padding-right: 44px; }
+.input-toggle--icon:hover { color: #0f4fc4; }
+.input-toggle--icon:focus-visible { outline: 2px solid #1263eb; outline-offset: 1px; border-radius: 6px; }
 .field-hint { margin-top: 6px; color: var(--muted); font-size: 12px; }
 .phone-guidance { display: block; margin-top: 4px; color: #dc2626; font-size: 11px; font-weight: 500; }
 .field-error { margin-top: 6px; color: var(--danger); font-size: 12px; }
@@ -498,10 +503,9 @@ a.cell-title:hover { color: var(--action); }
 .auth-card--login .input { min-height: 56px; padding: 0 18px; border: 1px solid #d5deec; border-radius: 13px; background: rgba(255,255,255,.88); color: #1c3358; font-size: 16px; box-shadow: inset 0 1px 2px rgba(20,44,82,.025); }
 .auth-card--login .input::placeholder { color: #71809c; opacity: 1; }
 .auth-card--login .input:focus { border-color: #5286e7; box-shadow: 0 0 0 3px rgba(62,118,226,.13); outline: none; }
-.auth-card--login .input[type='password'], .auth-card--login .input-wrap:has(.input-toggle) .input { padding-right: 82px; }
-.auth-card--login .input-toggle { right: 14px; color: #315177; font-size: 0; }
-.auth-card--login .input-toggle::after { content: 'Show'; font-size: 13px; }
-.auth-card--login .input-toggle[aria-label='Hide password']::after { content: 'Hide'; }
+.auth-card--login .input[type='password'], .auth-card--login .input-wrap:has(.input-toggle) .input { padding-right: 48px; }
+.auth-card--login .input-toggle--icon { right: 12px; color: #1263eb; }
+.auth-card--login .input-toggle--icon:hover { color: #0f4fc4; }
 .login-form-options { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: -2px 0 24px; color: #1e3559; font-size: 14px; font-weight: 600; }
 .login-form-options > a { color: #1263eb; }
 .remember-me { display: inline-flex; align-items: center; gap: 9px; cursor: pointer; }

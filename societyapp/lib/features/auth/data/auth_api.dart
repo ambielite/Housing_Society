@@ -97,6 +97,7 @@ class AuthApi {
             body: jsonEncode({
               'email': email,
               'password': password,
+              'clientType': 'resident_app',
               ...?securityCode == null ? null : {'securityCode': securityCode},
               ...?selfieBytes == null
                   ? null

@@ -3,7 +3,7 @@ import api from '../../../lib/axios';
 // Every backend response is { success, message, data } - return just `data`.
 const unwrap = (response) => response.data.data;
 
-export const login = (email, password) => api.post('/auth/login', { email, password }).then(unwrap);
+export const login = (email, password) => api.post('/auth/login', { email, password, clientType: 'web' }).then(unwrap);
 export const fetchProfile = () => api.get('/auth/me').then(unwrap);
 export const logout = (refreshToken) => api.post('/auth/logout', { refreshToken }).then(unwrap);
 export const logoutAll = () => api.post('/auth/logout-all').then(unwrap);
