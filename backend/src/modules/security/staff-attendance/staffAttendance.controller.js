@@ -46,7 +46,10 @@ const resolveGuardStaffAndCheckShift = async (
             AND r.status IN ('SCHEDULED', 'CONFIRMED')
             AND s.status = 'ACTIVE'
             AND CAST($3 AS date) BETWEEN r.roster_date
-                                     AND COALESCE(r.roster_end_date, 'infinity'::date)
+                                     AND CASE WHEN r.roster_type = 'DAILY'
+                                              THEN 'infinity'::date
+                                              ELSE COALESCE(r.roster_end_date, r.roster_date)
+                                         END
             AND now() >= ((CAST($3 AS date) + s.start_time)
                 AT TIME ZONE COALESCE(society.timezone, 'Asia/Kolkata'))
             AND attendance.check_in_time >= ((CAST($3 AS date) + s.start_time)
@@ -73,7 +76,10 @@ const resolveGuardStaffAndCheckShift = async (
             AND r.status IN ('SCHEDULED', 'CONFIRMED')
             AND s.status = 'ACTIVE'
             AND occurrence.shift_date BETWEEN r.roster_date
-                                          AND COALESCE(r.roster_end_date, 'infinity'::date)
+                                          AND CASE WHEN r.roster_type = 'DAILY'
+                                                   THEN 'infinity'::date
+                                                   ELSE COALESCE(r.roster_end_date, r.roster_date)
+                                              END
             AND now() >= ((occurrence.shift_date + s.start_time)
                 AT TIME ZONE COALESCE(society.timezone, 'Asia/Kolkata'))
             AND now() < ((occurrence.shift_date + s.end_time +

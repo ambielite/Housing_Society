@@ -3072,10 +3072,12 @@ class _GuardApi {
       final rosterEndValue =
           (roster['rosterEndDate'] ?? roster['roster_end_date'])
           ?.toString();
-      final rosterEndDate = rosterEndValue == null
-          ? scheduleType == 'DAILY'
-                ? null
-                : rosterDate
+      // Daily assignments repeat until an administrator cancels or completes
+      // them. Ignore legacy finite end dates left by older roster migrations.
+      final rosterEndDate = scheduleType == 'DAILY'
+          ? null
+          : rosterEndValue == null
+          ? rosterDate
           : DateTime.tryParse(rosterEndValue);
       if (rosterDate == null ||
           (rosterEndDate != null &&
@@ -3122,7 +3124,7 @@ class _GuardApi {
       ).isBefore(todayDate);
       if (scheduleType == 'DAILY' &&
           isYesterdayRoster &&
-          (status == 'CANCELLED' || !DateTime.now().isBefore(scheduleEnd))) {
+          (status == 'CANCELLED' || status == 'COMPLETED')) {
         continue;
       }
       assignments.add(
