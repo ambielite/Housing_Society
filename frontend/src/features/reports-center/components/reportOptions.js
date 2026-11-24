@@ -69,13 +69,16 @@ export const REPORT_GROUPS = [
   },
   {
     key: 'amenities', label: 'Amenities', permission: 'REPORT_AMENITY_READ', reports: [
-      { key: 'amenity-utilization', label: 'Utilization & revenue', title: 'Amenity utilization report', permission: 'REPORT_AMENITY_READ', exportKey: 'amenity-utilization', dates: true },
-      { key: 'amenity-bookings', label: 'Bookings', title: 'Amenity bookings report', permission: 'REPORT_AMENITY_READ', exportKey: 'amenity-bookings', dates: true },
+      { key: 'amenity-details', label: 'Amenity details', title: 'Amenity details report', permission: 'REPORT_AMENITY_READ', dates: true },
+      { key: 'amenity-utilization', label: 'Utilization & revenue', title: 'Amenity utilization report', permission: 'REPORT_AMENITY_READ', dates: true },
+      { key: 'amenity-bookings', label: 'Bookings', title: 'Amenity bookings report', permission: 'REPORT_AMENITY_READ', dates: true },
     ],
   },
   {
     key: 'utilities', label: 'Utilities', permission: 'REPORT_UTILITY_READ', reports: [
-      { key: 'utility-summary', label: 'Consumption & bills', title: 'Utility consumption and billing', permission: 'REPORT_UTILITY_READ', exportKey: 'utility-bills', dates: true },
+      { key: 'utility-meters', label: 'Meters', title: 'Utility meter details', permission: 'REPORT_UTILITY_READ', dates: false },
+      { key: 'utility-readings', label: 'Meter readings', title: 'Meter reading details', permission: 'REPORT_UTILITY_READ', dates: true },
+      { key: 'utility-summary', label: 'Consumption & bills', title: 'Utility consumption and billing', permission: 'REPORT_UTILITY_READ', dates: true },
     ],
   },
 ];

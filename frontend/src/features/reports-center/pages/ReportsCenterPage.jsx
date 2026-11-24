@@ -34,8 +34,11 @@ const REQUESTS = {
   'quotation-comparison': reportsApi.getQuotationComparison,
   'purchase-orders': reportsApi.getPurchaseOrderReport,
   'vendor-bills': reportsApi.getVendorBillReport,
+  'amenity-details': reportsApi.getAmenityUtilization,
   'amenity-utilization': reportsApi.getAmenityUtilization,
   'amenity-bookings': reportsApi.getAmenityBookings,
+  'utility-meters': reportsApi.getUtilitySummary,
+  'utility-readings': reportsApi.getUtilitySummary,
   'utility-summary': reportsApi.getUtilitySummary,
   'legacy-executive': legacyReportsApi.executive,
   'finance-dashboard': legacyReportsApi.finance,
@@ -237,11 +240,32 @@ function ReportResults({ data, report }) {
     </>;
   }
 
+  const reportData = report.key === 'amenity-details'
+    ? { byAmenity: data.byAmenity }
+    : report.key === 'amenity-utilization'
+      ? {
+        totalCapacity: data.totalCapacity,
+        totalBooked: data.totalBooked,
+        overallUtilizationPercentage: data.overallUtilizationPercentage,
+        totalRevenue: data.totalRevenue,
+        totalCancellations: data.totalCancellations,
+        totalExpired: data.totalExpired,
+        totalNoShows: data.totalNoShows,
+        cancellationRate: data.cancellationRate,
+        peakDemandByWeekday: data.peakDemandByWeekday,
+      }
+      : report.key === 'utility-meters'
+    ? { totalMeters: data.totalMeters, metersByTypeAndStatus: data.metersByTypeAndStatus, meterDetails: data.meterDetails }
+    : report.key === 'utility-readings'
+      ? { readingsByStatus: data.readingsByStatus, meterReadingDetails: data.meterReadingDetails }
+      : report.key === 'utility-summary'
+        ? { billing: data.billing, rows: data.rows }
+        : data;
   const scalarData = {};
   const nestedSections = [];
   const arrays = [];
   const seenRowSets = new Set();
-  Object.entries(data).forEach(([key, value]) => {
+  Object.entries(reportData).forEach(([key, value]) => {
     if (key === 'society' || isReportMetadata(key)) return;
     if (visibleScalar([key, value])) scalarData[key] = value;
     else if (Array.isArray(value)) {
@@ -273,7 +297,7 @@ function ReportResults({ data, report }) {
   const chartKeys = new Set(chartArrays.map((item) => item.key));
   const reportNotes = Object.entries(scalarData).filter(([key, value]) => /note|description|explanation/i.test(key) && typeof value === 'string' && !isMetricValue(value, key));
   return <>
-    {data.responseTimeDefinition && <p className="rc-explainer">{data.responseTimeDefinition}</p>}
+    {reportData.responseTimeDefinition && <p className="rc-explainer">{reportData.responseTimeDefinition}</p>}
     <MetricCards data={scalarData} />
     {reportNotes.map(([key, value]) => <div className="rc-report-note" key={key}><strong>{displayLabel(key)}</strong><p>{value}</p></div>)}
     {nestedSections.map((section) => <section className="rc-nested-section" key={section.key}>
@@ -282,7 +306,7 @@ function ReportResults({ data, report }) {
     </section>)}
     {chartArrays.map((item) => <MiniBars key={`chart-${item.key}`} title={`${item.title} overview`} rows={item.rows} />)}
     {arrays.filter((item) => !chartKeys.has(item.key)).map((item) => <ReportTable key={item.key} title={item.title} rows={item.rows} />)}
-    {!Object.entries(scalarData).some(([key, value]) => isMetricValue(value, key)) && !reportNotes.length && !nestedSections.length && !arrays.some((item) => item.rows.length) && !data.responseTimeDefinition && <div className="rc-empty">No records match the selected filters.</div>}
+    {!Object.entries(scalarData).some(([key, value]) => isMetricValue(value, key)) && !reportNotes.length && !nestedSections.length && !arrays.some((item) => item.rows.length) && !reportData.responseTimeDefinition && <div className="rc-empty">No records match the selected filters.</div>}
   </>;
 }
 
@@ -291,7 +315,6 @@ export default function ReportsCenterPage() {
   const { societyId } = useSociety();
   const { pathname } = useLocation();
   const isSuperAdmin = hasRole('SUPER_ADMIN');
-  const [emptyReportKeys, setEmptyReportKeys] = useState([]);
   const routeSection = pathname.startsWith('/reports/') ? pathname.split('/')[2] : '';
   const initialGroup = ({ finance: 'finance', operations: 'operations', security: 'security', approvals: 'approvals' })[routeSection] || 'dashboard';
   const initialReport = ({
@@ -302,8 +325,8 @@ export default function ReportsCenterPage() {
   })[routeSection] || 'dashboard';
   const visibleGroups = useMemo(() => REPORT_GROUPS.map((group) => ({
     ...group,
-    reports: group.reports.filter((report) => hasPermission(report.permission) && !emptyReportKeys.includes(report.key)),
-  })).filter((group) => group.reports.length > 0), [hasPermission, emptyReportKeys]);
+    reports: group.reports.filter((report) => hasPermission(report.permission)),
+  })).filter((group) => group.reports.length > 0), [hasPermission]);
 
   const [activeGroup, setActiveGroup] = useState(initialGroup);
   const [reportKey, setReportKey] = useState(initialReport);
@@ -364,10 +387,6 @@ export default function ReportsCenterPage() {
     if (!group.reports.some((report) => report.key === reportKey)) setReportKey(group.reports[0].key);
   }, [visibleGroups, activeGroup, reportKey]);
 
-  useEffect(() => {
-    setEmptyReportKeys([]);
-  }, [societyId]);
-
   const makeParams = useCallback((report) => {
     const params = {};
     if (isSuperAdmin && societyId) params.societyId = societyId;
@@ -402,10 +421,11 @@ export default function ReportsCenterPage() {
       if (requestId === requestRef.current) {
         if (hasReportData(result)) {
           setData(result || {});
-          setEmptyReportKeys((current) => current.filter((item) => item !== key));
         } else {
-          setData(null);
-          setEmptyReportKeys((current) => current.includes(key) ? current : [...current, key]);
+          // Keep the selected report available even when this filter returns
+          // no populated values. Empty data should affect its results only,
+          // never remove the report from its section or selector.
+          setData(result || {});
         }
       }
     } catch (err) {
@@ -471,7 +491,7 @@ export default function ReportsCenterPage() {
     } finally { setExporting(''); }
   };
 
-  if (!visibleGroups.length) return <PageContainer className="reports-center-page" eyebrow="REPORTING & ANALYTICS" title="Reports Center" subtitle="Reports available to your account">{emptyReportKeys.length ? <div className="rc-empty"><strong>No report data was returned</strong><span>No accessible report returned usable data for the current selection.</span><button type="button" className="btn btn-secondary" onClick={() => setEmptyReportKeys([])}>Show all reports</button></div> : <div className="rc-empty">Your account does not have access to any reports in this module.</div>}</PageContainer>;
+  if (!visibleGroups.length) return <PageContainer className="reports-center-page" eyebrow="REPORTING & ANALYTICS" title="Reports Center" subtitle="Reports available to your account"><div className="rc-empty">Your account does not have access to any reports in this module.</div></PageContainer>;
   if (needsSociety) return <PageContainer className="reports-center-page" eyebrow="REPORTING & ANALYTICS" title="Reports Center" subtitle="Choose a society to view its reporting data"><SocietyIdPrompt /></PageContainer>;
 
   const selectedGroup = visibleGroups.find((group) => group.key === activeGroup) || currentGroup;
@@ -493,8 +513,6 @@ export default function ReportsCenterPage() {
       <div className="rc-group-tabs" role="tablist" aria-label="Report categories">
         {visibleGroups.map((group) => <button type="button" key={group.key} role="tab" aria-selected={activeGroup === group.key} className={`rc-group-tab${activeGroup === group.key ? ' active' : ''}`} onClick={() => chooseGroup(group)}>{group.label}<ChevronRight size={14} /></button>)}
       </div>
-      {emptyReportKeys.length > 0 && <div className="rc-hidden-reports-note"><span>Reports that returned no data are hidden for this selection.</span><button type="button" onClick={() => setEmptyReportKeys([])}>Show all reports</button></div>}
-
       <section className="rc-workspace">
         <div className="rc-report-heading">
           <div><p className="rc-eyebrow">{selectedGroup?.label || 'Reports'}</p><h2>{currentReport?.title || 'Select a report'}</h2><p>{currentReport?.description || 'Choose a report and apply filters.'}</p></div>
@@ -504,13 +522,13 @@ export default function ReportsCenterPage() {
         <div className="rc-controls">
           <div className="rc-control rc-report-select"><label htmlFor="rc-report">Report</label><select id="rc-report" className="input" value={reportKey} onChange={(event) => chooseReport(event.target.value)}>{selectedGroup?.reports.map((report) => <option key={report.key} value={report.key}>{report.label}</option>)}</select></div>
           {showFilters && currentReport?.dates && <>
-            <div className="rc-control"><label htmlFor="rc-from">From date</label><input id="rc-from" className="input" type="date" value={fromDate} onChange={(event) => { setFromDate(event.target.value); setEmptyReportKeys([]); }} /></div>
-            <div className="rc-control"><label htmlFor="rc-to">To date</label><input id="rc-to" className="input" type="date" min={fromDate || undefined} value={toDate} onChange={(event) => { setToDate(event.target.value); setEmptyReportKeys([]); }} /></div>
+            <div className="rc-control"><label htmlFor="rc-from">From date</label><input id="rc-from" className="input" type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} /></div>
+            <div className="rc-control"><label htmlFor="rc-to">To date</label><input id="rc-to" className="input" type="date" min={fromDate || undefined} value={toDate} onChange={(event) => setToDate(event.target.value)} /></div>
           </>}
-          {currentReport?.expiringDays && <div className="rc-control"><label htmlFor="rc-expiry">Expiring within</label><select id="rc-expiry" className="input" value={expiringInDays} onChange={(event) => { setExpiringInDays(event.target.value); setEmptyReportKeys([]); }}>{[7, 15, 30, 60, 90, 180, 365].map((days) => <option key={days} value={days}>{days} days</option>)}</select></div>}
-          {currentReport?.rfqId && <div className="rc-control rc-rfq-control"><label htmlFor="rc-rfq">RFQ</label><select id="rc-rfq" className="input" value={rfqId} onChange={(event) => { setRfqId(event.target.value); setEmptyReportKeys([]); }} disabled={rfqOptionsLoading || Boolean(rfqOptionsError)}><option value="">{rfqOptionsLoading ? 'Loading RFQs...' : rfqOptionsError ? 'RFQs could not be loaded' : rfqOptions.length ? 'Select an RFQ' : 'No RFQs found for this society'}</option>{rfqOptions.map((rfq) => <option key={rfq.id} value={rfq.id}>{rfq.rfq_no} · {rfq.request_no} · {String(rfq.status || '').replaceAll('_', ' ')}</option>)}</select>{rfqOptionsError && <p className="field-hint">{rfqOptionsError}</p>}</div>}
-          {!currentReport?.rfqId && !currentReport?.expiringDays && currentReport?.key !== 'dashboard' && <div className="rc-control rc-limit-control"><label htmlFor="rc-limit">Detail row limit</label><select id="rc-limit" className="input" value={limit} onChange={(event) => { setLimit(event.target.value); setEmptyReportKeys([]); }}>{[100, 250, 500, 1000, 2500, 5000].map((count) => <option key={count} value={count}>{count.toLocaleString('en-IN')} rows</option>)}</select></div>}
-          {currentReport?.key !== 'dashboard' && !currentReport?.rfqId && !currentReport?.expiringDays && <label className="rc-include-rows"><input type="checkbox" checked={includeRows} onChange={(event) => { setIncludeRows(event.target.checked); setEmptyReportKeys([]); }} /> Include detail rows</label>}
+          {currentReport?.expiringDays && <div className="rc-control"><label htmlFor="rc-expiry">Expiring within</label><select id="rc-expiry" className="input" value={expiringInDays} onChange={(event) => setExpiringInDays(event.target.value)}>{[7, 15, 30, 60, 90, 180, 365].map((days) => <option key={days} value={days}>{days} days</option>)}</select></div>}
+          {currentReport?.rfqId && <div className="rc-control rc-rfq-control"><label htmlFor="rc-rfq">RFQ</label><select id="rc-rfq" className="input" value={rfqId} onChange={(event) => setRfqId(event.target.value)} disabled={rfqOptionsLoading || Boolean(rfqOptionsError)}><option value="">{rfqOptionsLoading ? 'Loading RFQs...' : rfqOptionsError ? 'RFQs could not be loaded' : rfqOptions.length ? 'Select an RFQ' : 'No RFQs found for this society'}</option>{rfqOptions.map((rfq) => <option key={rfq.id} value={rfq.id}>{rfq.rfq_no} · {rfq.request_no} · {String(rfq.status || '').replaceAll('_', ' ')}</option>)}</select>{rfqOptionsError && <p className="field-hint">{rfqOptionsError}</p>}</div>}
+          {!currentReport?.rfqId && !currentReport?.expiringDays && currentReport?.key !== 'dashboard' && <div className="rc-control rc-limit-control"><label htmlFor="rc-limit">Detail row limit</label><select id="rc-limit" className="input" value={limit} onChange={(event) => setLimit(event.target.value)}>{[100, 250, 500, 1000, 2500, 5000].map((count) => <option key={count} value={count}>{count.toLocaleString('en-IN')} rows</option>)}</select></div>}
+          {currentReport?.key !== 'dashboard' && !currentReport?.rfqId && !currentReport?.expiringDays && <label className="rc-include-rows"><input type="checkbox" checked={includeRows} onChange={(event) => setIncludeRows(event.target.checked)} /> Include detail rows</label>}
           <button type="button" className="btn btn-primary rc-run-button" onClick={() => runReport()} disabled={loading || exporting !== ''}><Activity size={15} /> {loading ? 'Loading…' : 'Run report'}</button>
         </div>
 

@@ -371,17 +371,21 @@ const getAmenityBookings = async (p) => {
 
 const getUtilitySummary = async (p) => {
   const { societyId, fromDate, toDate } = p;
-  const [meters, bills, readings, rows] = await Promise.all([
+  const [meters, meterRows, bills, readings, readingRows, rows] = await Promise.all([
     repo.metersByTypeStatus(societyId),
+    wantRows(p) ? repo.meterDetails(societyId, p.limit) : [],
     repo.utilityBills(societyId, fromDate, toDate),
     repo.readingsByStatus(societyId, fromDate, toDate),
+    wantRows(p) ? repo.meterReadingDetails(societyId, fromDate, toDate, p.limit) : [],
     wantRows(p) ? repo.utilityBillRows(societyId, fromDate, toDate, p.limit) : [],
   ]);
   return {
     period: period(p),
     totalMeters: sum(meters),
     metersByTypeAndStatus: meters,
+    meterDetails: meterRows,
     readingsByStatus: readings,
+    meterReadingDetails: readingRows,
     billing: {
       totalBills: sum(bills, 'bills'),
       totalConsumption: Number(sum(bills, 'consumption').toFixed(2)),

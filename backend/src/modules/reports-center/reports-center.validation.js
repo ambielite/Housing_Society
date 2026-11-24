@@ -33,6 +33,8 @@ const reportDataExportSchema = Joi.object({
     'dashboard', 'parking', 'procurement-summary', 'legacy-executive',
     'finance-dashboard', 'bank-balance', 'collection', 'arrears', 'income-expense',
     'society-operations', 'occupancy', 'residents', 'society-vehicles',
+    'amenity-details', 'amenity-utilization', 'amenity-bookings',
+    'utility-meters', 'utility-readings', 'utility-summary',
     'legacy-visitors', 'gate-summary', 'staff-summary', 'patrol-summary',
     'approvals-dashboard', 'approval-details', 'approval-status', 'approval-sla', 'approval-payments'
   ).required(),
