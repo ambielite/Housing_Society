@@ -642,6 +642,19 @@ const metersByTypeStatus = (societyId) =>
     [societyId]
   );
 
+const meterDetails = (societyId, limit) =>
+  many(
+    `SELECT m.meter_no, ut.name AS utility, ut.unit_of_measure,
+            u.unit_number, m.installation_date, m.status
+     FROM meters m
+     JOIN utility_types ut ON ut.id = m.utility_type_id
+     LEFT JOIN units u ON u.id = m.unit_id
+     WHERE m.society_id = $1
+     ORDER BY m.created_at DESC, m.meter_no
+     LIMIT $2::int`,
+    [societyId, limit]
+  );
+
 const utilityBills = (s, f, t) =>
   many(
     `SELECT ut.name AS utility, ut.unit_of_measure, b.status, COUNT(*)::int AS bills,
@@ -656,6 +669,20 @@ const readingsByStatus = (s, f, t) =>
     `SELECT r.status, COUNT(*)::int AS count FROM meter_readings r JOIN meters m ON m.id = r.meter_id
      WHERE m.society_id = $1 AND ${D('r.reading_date')} GROUP BY r.status ORDER BY r.status`,
     rng(s, f, t)
+  );
+
+const meterReadingDetails = (s, f, t, limit) =>
+  many(
+    `SELECT m.meter_no, ut.name AS utility, u.unit_number, r.reading_date,
+            r.reading_value::float8 AS reading_value, r.source, r.status
+     FROM meter_readings r
+     JOIN meters m ON m.id = r.meter_id
+     JOIN utility_types ut ON ut.id = m.utility_type_id
+     LEFT JOIN units u ON u.id = m.unit_id
+     WHERE m.society_id = $1 AND ${D('r.reading_date')}
+     ORDER BY r.reading_date DESC, r.created_at DESC
+     LIMIT $4::int`,
+    [...rng(s, f, t), limit]
   );
 
 const utilityBillRows = (s, f, t, limit) =>
@@ -682,5 +709,5 @@ module.exports = {
   prByStatus, rfqByStatus, quotationByStatus, poByStatus, vendorInvoiceByStatus, goodsReceiptByStatus,
   poRows, vendorBillRows, findRfqForSociety, rfqsForSociety, rfqQuotations, rfqScores,
   amenityUtilization, amenityWeekday, amenityBookingRows,
-  metersByTypeStatus, utilityBills, readingsByStatus, utilityBillRows,
+  metersByTypeStatus, meterDetails, utilityBills, readingsByStatus, meterReadingDetails, utilityBillRows,
 };

@@ -36,6 +36,52 @@ const assertExportAllowed = (req) => {
 
 const exportTasks = {
   dashboard: { permission: 'REPORT_DASHBOARD_READ', run: service.getDashboard },
+  'amenity-details': {
+    permission: 'REPORT_AMENITY_READ',
+    run: async (params) => {
+      const report = await service.getAmenityUtilization(params);
+      return { period: report.period, rows: report.byAmenity || [] };
+    },
+  },
+  'amenity-utilization': { permission: 'REPORT_AMENITY_READ', run: service.getAmenityUtilization },
+  'amenity-bookings': { permission: 'REPORT_AMENITY_READ', run: service.getAmenityBookings },
+  'utility-meters': {
+    permission: 'REPORT_UTILITY_READ',
+    run: async (params) => {
+      const report = await service.getUtilitySummary(params);
+      return { period: report.period, reportSummary: { totalMeters: report.totalMeters }, rows: report.meterDetails || [] };
+    },
+  },
+  'utility-readings': {
+    permission: 'REPORT_UTILITY_READ',
+    run: async (params) => {
+      const report = await service.getUtilitySummary(params);
+      const readings = report.readingsByStatus || [];
+      return {
+        period: report.period,
+        reportSummary: {
+          totalReadings: readings.reduce((total, item) => total + Number(item.count || 0), 0),
+          ...Object.fromEntries(readings.map((item) => [`${item.status || 'unknown'}Readings`, item.count])),
+        },
+        rows: report.meterReadingDetails || [],
+      };
+    },
+  },
+  'utility-summary': {
+    permission: 'REPORT_UTILITY_READ',
+    run: async (params) => {
+      const report = await service.getUtilitySummary(params);
+      return {
+        period: report.period,
+        reportSummary: {
+          totalBills: report.billing?.totalBills,
+          totalConsumption: report.billing?.totalConsumption,
+          totalAmount: report.billing?.totalAmount,
+        },
+        rows: report.rows || [],
+      };
+    },
+  },
   parking: { permission: 'REPORT_OPERATIONS_READ', run: service.getParkingReport },
   'procurement-summary': { permission: 'REPORT_PROCUREMENT_READ', run: service.getProcurementSummary },
   'legacy-executive': { permission: 'REPORT_DASHBOARD_READ', run: dashboardReports.getExecutiveDashboard },
@@ -183,6 +229,10 @@ const compactPdfData = (data, maxRecords = 5000) => {
     return fields;
   };
 
+  if (data?.reportSummary && typeof data.reportSummary === 'object') {
+    sections.push({ title: 'Summary', total: 1, records: [data.reportSummary] });
+  }
+
   if (Array.isArray(data?.rows)) {
     sections.push({ title: 'Report records', total: data.rows.length, records: data.rows.slice(0, maxRecords) });
   } else {
@@ -262,7 +312,22 @@ const reportDescriptions = {
 };
 
 const sendCompactPdf = (res, name, data, period, society) => {
-  const { sections } = compactPdfData(data);
+  const pdfData = name === 'amenity-utilization'
+    ? {
+      ...data,
+      reportSummary: {
+        totalCapacity: data.totalCapacity,
+        totalBookings: data.totalBooked,
+        utilizationPercentage: data.overallUtilizationPercentage,
+        totalRevenue: data.totalRevenue,
+        cancellations: data.totalCancellations,
+        expiredBookings: data.totalExpired,
+        noShows: data.totalNoShows,
+        cancellationRate: data.cancellationRate,
+      },
+    }
+    : data;
+  const { sections } = compactPdfData(pdfData);
   const reportTitle = readableLabel(name);
   const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 36, bufferPages: true });
   res.setHeader('Content-Type', 'application/pdf');
