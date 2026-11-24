@@ -165,7 +165,8 @@ const checkIn = async (
 const checkOut = async (
     staffId,
     attendanceDate,
-    checkOutTime
+    checkOutTime,
+    scheduledShiftEnd
 ) => {
 
     const attendance =
@@ -221,13 +222,24 @@ const checkOut = async (
             milliseconds / 60000
         );
 
+    const overtimeMinutes = scheduledShiftEnd
+        ? Math.max(
+            0,
+            Math.floor(
+                (checkOut.getTime() - new Date(scheduledShiftEnd).getTime()) /
+                    60000
+            )
+        )
+        : undefined;
+
     return await StaffAttendanceRepository
         .update(
             attendance,
             {
                 checkOutTime:
                     finalCheckOut,
-                workingMinutes
+                workingMinutes,
+                ...(overtimeMinutes !== undefined ? { overtimeMinutes } : {})
             }
         );
 };

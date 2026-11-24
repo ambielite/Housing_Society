@@ -495,6 +495,12 @@ class _SecurityHomeState extends State<_SecurityHome>
     final staffId = (guard?['staff_id'] ?? guard?['staffId'])?.toString();
     if (staffId == null || staffId.isEmpty || _attendanceBusy) return;
     final now = DateTime.now();
+    final snapshot = _loadedSnapshot;
+    if (checkIn &&
+        (snapshot == null || _activeAssignedShift(snapshot, now) == null)) {
+      _showError('Attendance actions are available only during your assigned shift.');
+      return;
+    }
     final currentRecord = _guardAttendanceRecord;
     final storedDate = (currentRecord?['attendanceDate'] ??
             currentRecord?['attendance_date'])

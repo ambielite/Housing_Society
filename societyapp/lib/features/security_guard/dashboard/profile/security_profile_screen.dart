@@ -589,10 +589,13 @@ class _SecurityProfileScreenState extends State<SecurityProfileScreen> {
     final isToday = attendanceDateText.length >= 10 &&
         attendanceDateText.substring(0, 10) == _todayDate();
     final completedToday = isToday && checkOut != null;
+    final shiftEndedWhileCheckedIn = checkedIn && !widget.canMarkAttendance;
     final statusLabel = widget.attendanceLoading
         ? 'Loading attendance'
         : widget.attendanceError != null
         ? 'Attendance unavailable'
+        : shiftEndedWhileCheckedIn
+        ? 'Shift ended'
         : checkedIn
         ? 'On duty'
         : completedToday
@@ -646,7 +649,9 @@ class _SecurityProfileScreenState extends State<SecurityProfileScreen> {
           ),
           const SizedBox(height: 7),
           Text(
-            checkedIn
+            shiftEndedWhileCheckedIn
+                ? 'Your assigned shift has ended. Check out to record your end time and overtime.'
+                : checkedIn
                 ? 'Checked in at ${_attendanceTime(checkIn)}. Check out when your duty ends.'
                 : completedToday
                 ? 'Your attendance for today is complete.'
@@ -661,7 +666,7 @@ class _SecurityProfileScreenState extends State<SecurityProfileScreen> {
             child: FilledButton.icon(
               onPressed: widget.attendanceLoading ||
                       widget.attendanceBusy ||
-                      !widget.canMarkAttendance ||
+                      (!widget.canMarkAttendance && !checkedIn) ||
                       completedToday
                   ? null
                   : () => widget.onAttendanceAction?.call(!checkedIn),

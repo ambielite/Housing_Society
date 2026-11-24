@@ -388,7 +388,16 @@ body .society-dashboard .society-list-panel .society-table tbody tr { background
 body .society-dashboard .society-list-panel .society-table tbody tr:hover { background: var(--row-hover); }
 body .society-dashboard .society-list-panel .society-name-cell { gap: 12px; }
 body .society-dashboard .society-list-panel .society-name-cell strong { font-size: 14px; font-weight: 700; }
-body .society-dashboard .society-list-panel .society-name-cell small { margin-top: 3px; font-size: 12px; }
+body .society-dashboard .society-list-panel .society-name-cell > span { min-width: 0; }
+body .society-dashboard .society-list-panel .society-name-cell small {
+  display: block;
+  max-width: 100%;
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 body .society-dashboard .society-list-panel .society-avatar {
   width: 40px;
   height: 40px;

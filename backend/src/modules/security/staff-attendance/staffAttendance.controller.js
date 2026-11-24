@@ -4,7 +4,11 @@ const { query } = require("../../../config/db");
 
 // Guard tokens are bound to one verified employee code. Admin attendance
 // actions remain available through the existing attendance workflow.
-const resolveGuardStaffAndCheckShift = async (req, requestedStaffId) => {
+const resolveGuardStaffAndCheckShift = async (
+    req,
+    requestedStaffId,
+    { allowAfterShiftEnd = false, attendanceDate } = {}
+) => {
     const employeeCode = req.user?.guardEmployeeCode;
     if (!employeeCode) return { staffId: requestedStaffId, attendanceDate: null };
 
@@ -25,7 +29,37 @@ const resolveGuardStaffAndCheckShift = async (req, requestedStaffId) => {
         throw error;
     }
 
-    const shiftResult = await query(
+    const shiftResult = allowAfterShiftEnd
+        ? await query(
+        `SELECT ((CAST($3 AS date) + s.end_time +
+                    CASE WHEN s.is_overnight OR s.end_time <= s.start_time
+                         THEN interval '1 day' ELSE interval '0 day' END)
+                    AT TIME ZONE COALESCE(society.timezone, 'Asia/Kolkata')) AS scheduled_shift_end
+           FROM staff_rosters r
+           JOIN shifts s ON s.id = r.shift_id AND s.society_id = r.society_id
+           JOIN societies society ON society.id = r.society_id
+           JOIN staff_attendance attendance
+             ON attendance.staff_id = r.staff_id
+            AND attendance.attendance_date = CAST($3 AS date)
+          WHERE r.staff_id = $1
+            AND r.society_id = $2
+            AND r.status IN ('SCHEDULED', 'CONFIRMED')
+            AND s.status = 'ACTIVE'
+            AND CAST($3 AS date) BETWEEN r.roster_date
+                                     AND COALESCE(r.roster_end_date, 'infinity'::date)
+            AND now() >= ((CAST($3 AS date) + s.start_time)
+                AT TIME ZONE COALESCE(society.timezone, 'Asia/Kolkata'))
+            AND attendance.check_in_time >= ((CAST($3 AS date) + s.start_time)
+                AT TIME ZONE COALESCE(society.timezone, 'Asia/Kolkata'))
+            AND attendance.check_in_time < ((CAST($3 AS date) + s.end_time +
+                CASE WHEN s.is_overnight OR s.end_time <= s.start_time
+                     THEN interval '1 day' ELSE interval '0 day' END)
+                AT TIME ZONE COALESCE(society.timezone, 'Asia/Kolkata'))
+          ORDER BY scheduled_shift_end DESC
+          LIMIT 1`,
+        [staff.id, req.user.societyId, attendanceDate]
+    )
+        : await query(
         `SELECT occurrence.shift_date AS attendance_date
            FROM staff_rosters r
            JOIN shifts s ON s.id = r.shift_id AND s.society_id = r.society_id
@@ -54,7 +88,15 @@ const resolveGuardStaffAndCheckShift = async (req, requestedStaffId) => {
         error.statusCode = 403;
         throw error;
     }
-    return { staffId: staff.id, attendanceDate: shiftResult.rows[0].attendance_date };
+    return {
+        staffId: staff.id,
+        attendanceDate: allowAfterShiftEnd
+            ? attendanceDate
+            : shiftResult.rows[0].attendance_date,
+        scheduledShiftEnd: allowAfterShiftEnd
+            ? shiftResult.rows[0].scheduled_shift_end
+            : undefined
+    };
 };
 
 
@@ -264,13 +306,17 @@ const checkOut = async (
             });
         }
 
-        const guardAttendance = await resolveGuardStaffAndCheckShift(req, staffId);
+        const guardAttendance = await resolveGuardStaffAndCheckShift(req, staffId, {
+            allowAfterShiftEnd: Boolean(req.user?.guardEmployeeCode),
+            attendanceDate
+        });
         const result =
             await StaffAttendanceService
                 .checkOut(
                     guardAttendance.staffId,
                     guardAttendance.attendanceDate || attendanceDate,
-                    req.user?.guardEmployeeCode ? undefined : checkOutTime
+                    req.user?.guardEmployeeCode ? undefined : checkOutTime,
+                    guardAttendance.scheduledShiftEnd
                 );
 
         return res.status(200).json({
