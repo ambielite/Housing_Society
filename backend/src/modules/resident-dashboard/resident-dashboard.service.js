@@ -3,6 +3,8 @@ const noticesService = require('../notices/notices.service');
 const { resolveResidentUnits } = require('../resident-context/residentUnitContext.service');
 const ApiError = require('../../common/ApiError');
 const amenityBookingsService = require('../amenity-bookings/amenity-bookings.service');
+const kidsActivitiesService = require('../kids-activities/kids-activities.service');
+const advertisementsService = require('../advertisements/advertisements.service');
 
 const listSocietyStaff = async (user) => {
   if (!user?.societyId) return [];
@@ -147,6 +149,8 @@ const getDashboard = async (user) => {
     ).getTime();
     return rightDate - leftDate;
   });
+  const kidsActivities = await kidsActivitiesService.listResident(user);
+  const advertisements = await advertisementsService.listForResident(user);
 
   return {
     account: { photoUrl: accountResult.rows[0]?.photo_url || null },
@@ -172,6 +176,8 @@ const getDashboard = async (user) => {
     maintenance,
     upcomingBookings,
     notices,
+    kidsActivities,
+    advertisements,
   };
 };
 

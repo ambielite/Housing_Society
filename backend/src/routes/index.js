@@ -34,6 +34,8 @@ const residentDashboardRoutes = require('../modules/resident-dashboard/resident-
 const residentComplaintsRoutes = require('../modules/resident-complaints/resident-complaints.routes');
 const residentAmenitiesRoutes = require('../modules/resident-amenities/resident-amenities.routes');
 const residentBillsRoutes = require('../modules/resident-bills/resident-bills.routes');
+const kidsActivitiesRoutes = require('../modules/kids-activities/kids-activities.routes');
+const advertisementsRoutes = require('../modules/advertisements/advertisements.routes');
 
 const router = express.Router();
 
@@ -72,5 +74,7 @@ router.use('/resident-dashboard', residentDashboardRoutes);
 router.use('/resident-complaints', residentComplaintsRoutes);
 router.use('/resident-amenities', residentAmenitiesRoutes);
 router.use('/resident-bills', residentBillsRoutes);
+router.use('/kids-activities', kidsActivitiesRoutes);
+router.use('/advertisements', advertisementsRoutes);
 
 module.exports = router;

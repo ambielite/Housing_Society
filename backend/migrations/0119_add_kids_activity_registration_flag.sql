@@ -1,0 +1,2 @@
+ALTER TABLE kids_activities
+  ADD COLUMN IF NOT EXISTS registration_required BOOLEAN NOT NULL DEFAULT TRUE;

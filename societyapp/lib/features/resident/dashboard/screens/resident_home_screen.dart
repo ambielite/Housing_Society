@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
@@ -74,6 +75,10 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
   bool _refreshingDeliveryNotifications = false;
   bool _refreshingNotifications = false;
   final Set<String> _decidingVisitorRequestIds = {};
+  final Set<String> _submittingKidsActivityIds = {};
+  final Set<String> _recordedAdvertisementImpressions = {};
+  final Set<String> _dismissedAdvertisementIds = {};
+  final Set<String> _expandedKidsActivityNotificationIds = {};
   List<ResidentVisitorRequest> _visitorRequests = const [];
   List<ResidentDeliveryNotification> _deliveryNotifications = const [];
   List<ResidentAppNotification> _notifications = const [];
@@ -90,6 +95,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
         .then((data) {
           _dashboardData = data;
           _scheduleNoticeExpiry(data);
+          _recordAdvertisementImpressions(data);
           return data;
         });
     _complaintsFuture = ResidentComplaintsApi.listComplaints(
@@ -185,7 +191,9 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                 final event = jsonDecode(line.substring(5).trim());
                 if (event is Map &&
                     (event['type'] == 'resident-updated' ||
-                        event['type'] == 'notice-published')) {
+                        event['type'] == 'notice-published' ||
+                        event['type'] == 'kids-activity-published' ||
+                        event['type'] == 'advertisement-updated')) {
                   unawaited(_refreshNotifications());
                   unawaited(_refreshDashboard().catchError((_) {}));
                 }
@@ -238,6 +246,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
       if (mounted) {
         final refreshedData = _mergeLocalBookings(data);
         _scheduleNoticeExpiry(refreshedData);
+        _recordAdvertisementImpressions(refreshedData);
         setState(() {
           _dashboardData = refreshedData;
           _dashboardFuture = Future.value(refreshedData);
@@ -255,20 +264,169 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
   void _scheduleNoticeExpiry(ResidentDashboardData dashboard) {
     _noticeExpiryTimer?.cancel();
     final now = DateTime.now();
-    final upcomingExpiries = dashboard.notices
+    final upcomingExpiries = <DateTime>[
+      ...dashboard.notices
         .map((notice) => notice.expiresAt)
         .whereType<DateTime>()
-        .where((expiry) => expiry.isAfter(now))
-        .toList()
-      ..sort();
+        .where((expiry) => expiry.isAfter(now)),
+      ...dashboard.advertisements
+          .map((advertisement) => advertisement.startsOn)
+          .whereType<DateTime>()
+          .where((start) => DateTime(start.year, start.month, start.day).isAfter(DateTime(now.year, now.month, now.day))),
+      ...dashboard.advertisements
+          .map((advertisement) => advertisement.endsOn)
+          .whereType<DateTime>()
+          .map((end) => DateTime(end.year, end.month, end.day + 1))
+          .where((expiry) => expiry.isAfter(now)),
+      ...dashboard.kidsActivities.expand((activity) {
+        final deadline = activity.registrationDeadline;
+        final end = _kidsActivityEndDateTime(activity);
+        return [
+          if (deadline != null && deadline.isAfter(now)) deadline,
+          if (end != null && end.isAfter(now)) end,
+        ];
+      }),
+    ]..sort();
     if (upcomingExpiries.isEmpty) return;
 
     final delay = upcomingExpiries.first.difference(now);
     _noticeExpiryTimer = Timer(delay, () {
       if (!mounted) return;
       setState(() {});
+      unawaited(_refreshDashboard().catchError((_) {}));
       _scheduleNoticeExpiry(dashboard);
     });
+  }
+
+  void _recordAdvertisementImpressions(ResidentDashboardData dashboard) {
+    final today = DateTime.now();
+    for (final advertisement in dashboard.advertisements) {
+      if (!_isAdvertisementInDateWindow(advertisement, today) ||
+          advertisement.id.isEmpty ||
+          !_recordedAdvertisementImpressions.add(advertisement.id)) continue;
+      unawaited(ResidentDashboardApi.recordAdvertisementImpression(
+        widget.user.accessToken,
+        advertisement.id,
+      ).catchError((_) {
+        _recordedAdvertisementImpressions.remove(advertisement.id);
+      }));
+    }
+  }
+
+  bool _isAdvertisementInDateWindow(ResidentAdvertisement advertisement, DateTime now) {
+    final today = DateTime(now.year, now.month, now.day);
+    final start = advertisement.startsOn == null
+        ? null
+        : DateTime(advertisement.startsOn!.year, advertisement.startsOn!.month, advertisement.startsOn!.day);
+    final end = advertisement.endsOn == null
+        ? null
+        : DateTime(advertisement.endsOn!.year, advertisement.endsOn!.month, advertisement.endsOn!.day);
+    return (start == null || !start.isAfter(today)) && (end == null || !end.isBefore(today));
+  }
+
+  List<ResidentAdvertisement> _visibleAdvertisements(ResidentDashboardData dashboard) {
+    final now = DateTime.now();
+    return dashboard.advertisements
+        .where((advertisement) =>
+            !_dismissedAdvertisementIds.contains(advertisement.id) &&
+            _isAdvertisementInDateWindow(advertisement, now))
+        .toList(growable: false);
+  }
+
+  void _dismissAdvertisement(ResidentAdvertisement advertisement) {
+    setState(() => _dismissedAdvertisementIds.add(advertisement.id));
+    unawaited(ResidentDashboardApi.dismissAdvertisement(
+      widget.user.accessToken,
+      advertisement.id,
+    ).catchError((_) {
+      // Keep it dismissed locally for this login; the backend persists on success.
+    }));
+  }
+
+  Widget _advertisementCard(ResidentAdvertisement advertisement) => Card(
+    elevation: 0,
+    color: Colors.white,
+    clipBehavior: Clip.antiAlias,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(18),
+      side: const BorderSide(color: Color(0xFFE5EAF3)),
+    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Stack(children: [
+        SizedBox(
+          width: double.infinity,
+          height: 190,
+          child: Image.network(
+            advertisement.imageUrl,
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => Container(
+              color: const Color(0xFFF1F4FA),
+              alignment: Alignment.center,
+              child: const Icon(Icons.image_not_supported_outlined, color: AppColors.muted, size: 34),
+            ),
+          ),
+        ),
+        Positioned(
+          top: 10,
+          right: 10,
+          child: IconButton.filledTonal(
+            tooltip: 'Dismiss advertisement',
+            onPressed: () => _dismissAdvertisement(advertisement),
+            style: IconButton.styleFrom(backgroundColor: Colors.white.withValues(alpha: .94), foregroundColor: AppColors.ink),
+            icon: const Icon(Icons.close_rounded, size: 20),
+          ),
+        ),
+        Positioned(
+          left: 12,
+          top: 12,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+            decoration: BoxDecoration(color: Colors.white.withValues(alpha: .94), borderRadius: BorderRadius.circular(99)),
+            child: const Text('ADVERTISEMENT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: .5, color: AppColors.muted)),
+          ),
+        ),
+      ]),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(15, 12, 15, 15),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(advertisement.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.ink)),
+          if (advertisement.description.isNotEmpty) ...[
+            const SizedBox(height: 5),
+            Text(advertisement.description, style: const TextStyle(fontSize: 13, height: 1.4, color: Color(0xFF526078))),
+          ],
+        ]),
+      ),
+    ]),
+  );
+
+  DateTime? _kidsActivityEndDateTime(ResidentKidsActivity activity) {
+    final date = activity.activityDate;
+    final time = RegExp(r'^(\d{1,2}):(\d{2})\s*(AM|PM)$', caseSensitive: false)
+        .firstMatch(activity.activityEndTime.trim());
+    if (date == null || time == null) return null;
+    var hour = int.tryParse(time.group(1)!) ?? 0;
+    final minute = int.tryParse(time.group(2)!) ?? 0;
+    final isPm = time.group(3)!.toUpperCase() == 'PM';
+    if (hour == 12) hour = 0;
+    if (isPm) hour += 12;
+    return DateTime(date.year, date.month, date.day, hour, minute);
+  }
+
+  bool _isKidsActivityRegistrationOpen(ResidentKidsActivity activity) {
+    final deadline = activity.registrationDeadline;
+    return activity.registrationRequired &&
+        activity.registrationOpen &&
+        (deadline == null || deadline.isAfter(DateTime.now()));
+  }
+
+  List<ResidentKidsActivity> _visibleKidsActivities(ResidentDashboardData dashboard) {
+    final now = DateTime.now();
+    return dashboard.kidsActivities.where((activity) {
+      final end = _kidsActivityEndDateTime(activity);
+      final deadline = activity.registrationDeadline;
+      return (end != null && end.isAfter(now)) ||
+          (activity.registrationRequired && deadline != null && deadline.isAfter(now));
+    }).toList(growable: false);
   }
 
   List<ResidentNotice> _visibleNotices(ResidentDashboardData dashboard) {
@@ -481,6 +639,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                       final notification = _notifications[index];
                       return _notificationTile(
                         notification,
+                        allowActivityExpansion: false,
                         onTap: () {
                           Navigator.of(sheetContext).pop();
                           unawaited(_markNotificationRead(notification));
@@ -502,16 +661,20 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     ResidentAppNotification notification, {
     required VoidCallback onTap,
     VoidCallback? onMarkRead,
+    bool allowActivityExpansion = true,
   }) {
     final isUrgent =
         notification.priority == 'HIGH' || notification.priority == 'CRITICAL';
+    final canExpandActivity = allowActivityExpansion &&
+        notification.referenceType == 'KIDS_ACTIVITY' &&
+        notification.message.length > 100;
+    final activityDescriptionExpanded =
+        allowActivityExpansion &&
+        _expandedKidsActivityNotificationIds.contains(notification.id);
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: Padding(
+      child: Padding(
           padding: const EdgeInsets.all(14),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -536,6 +699,12 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: onTap,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                     Row(
                       children: [
                         Expanded(
@@ -565,14 +734,44 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                     const SizedBox(height: 5),
                     Text(
                       notification.message,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                      maxLines: activityDescriptionExpanded ? null : 2,
+                      overflow: activityDescriptionExpanded
+                          ? TextOverflow.visible
+                          : TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.black,
                         height: 1.4,
                         fontSize: 11,
                       ),
                     ),
+                        ],
+                      ),
+                    ),
+                    if (canExpandActivity)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton(
+                          onPressed: () => setState(() {
+                            if (activityDescriptionExpanded) {
+                              _expandedKidsActivityNotificationIds
+                                  .remove(notification.id);
+                            } else {
+                              _expandedKidsActivityNotificationIds
+                                  .add(notification.id);
+                            }
+                          }),
+                          style: TextButton.styleFrom(
+                            minimumSize: Size.zero,
+                            padding: const EdgeInsets.only(top: 3, bottom: 0),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          child: Text(
+                            activityDescriptionExpanded ? 'Show less' : 'Show more',
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                        ),
+                      ),
                     if (notification.referenceType == 'NOTICE' &&
                         (notification.scheduledAt != null ||
                             notification.expiresAt != null)) ...[
@@ -635,8 +834,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                 ),
             ],
           ),
-        ),
-      ),
+          ),
     );
   }
 
@@ -937,6 +1135,12 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                                         _deliveryAttentionSection(),
                                       ],
                                       const SizedBox(height: 25),
+                                      if (_visibleAdvertisements(dashboard).isNotEmpty) ...[
+                                        ..._visibleAdvertisements(dashboard).expand((advertisement) => [
+                                          _advertisementCard(advertisement),
+                                          const SizedBox(height: 16),
+                                        ]),
+                                      ],
                                       _sectionTitle(
                                         'Quick actions',
                                         trailing: '',
@@ -996,6 +1200,18 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                                         _emptyCard(
                                           'There are no current notices.',
                                         ),
+                                      if (_visibleKidsActivities(dashboard).isNotEmpty) ...[
+                                        const SizedBox(height: 18),
+                                        _sectionTitle(
+                                          'Kids activities',
+                                          trailing: '${_visibleKidsActivities(dashboard).length} activities',
+                                        ),
+                                        const SizedBox(height: 13),
+                                        ..._visibleKidsActivities(dashboard).map((activity) => Padding(
+                                          padding: const EdgeInsets.only(bottom: 10),
+                                          child: _kidsActivityCard(activity),
+                                        )),
+                                      ],
                                       const SizedBox(height: 16),
                                     ],
                                   ),
@@ -1016,6 +1232,219 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
       ),
       ),
     );
+  }
+
+  Widget _kidsActivityCard(ResidentKidsActivity activity) {
+    final date = activity.activityDate;
+    final dateLabel = date == null
+        ? activity.activityDay
+        : '${activity.activityDay}, ${date.day} ${_monthName(date.month)} ${date.year}';
+    return Card(
+      elevation: 0,
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: const BorderSide(color: Color(0xFFE5EAF3)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(child: Text(activity.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.ink))),
+            if (activity.registrationRequired && activity.registrationDeadline != null) ...[
+              const SizedBox(width: 8),
+              Container(
+                constraints: const BoxConstraints(maxWidth: 142),
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                decoration: BoxDecoration(color: const Color(0xFFFFF5E8), borderRadius: BorderRadius.circular(10)),
+                child: Text(
+                  '${_isKidsActivityRegistrationOpen(activity) ? 'Register by' : 'Registration closed'}\n${_formatDateTime(activity.registrationDeadline!.toLocal())}',
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(color: Color(0xFF8A4B08), fontSize: 10, fontWeight: FontWeight.w700, height: 1.25),
+                ),
+              ),
+            ],
+          ]),
+          if (activity.description.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(activity.description, style: const TextStyle(color: Color(0xFF526078))),
+          ],
+          const SizedBox(height: 7),
+          Text(dateLabel, style: const TextStyle(color: Color(0xFF526078), fontWeight: FontWeight.w600)),
+          const SizedBox(height: 5),
+          Text('From ${activity.activityTime} · To ${activity.activityEndTime}', style: const TextStyle(color: Color(0xFF526078), fontWeight: FontWeight.w600)),
+          const SizedBox(height: 5),
+          Row(children: [
+            const Text('Age limit :', style: TextStyle(color: Color(0xFF526078), fontWeight: FontWeight.w600)),
+            const SizedBox(width: 6),
+            Text('${activity.minimumAge}–${activity.maximumAge} years', style: const TextStyle(color: Color(0xFF526078), fontWeight: FontWeight.w700)),
+          ]),
+          if ((activity.winnerPrize ?? '').isNotEmpty) ...[
+            const SizedBox(height: 5),
+            Text('Winner prize: ${activity.winnerPrize}', style: const TextStyle(color: AppColors.ink, fontWeight: FontWeight.w600)),
+          ],
+          if (_isKidsActivityRegistrationOpen(activity)) ...[
+            const SizedBox(height: 12),
+            SizedBox(width: double.infinity, child: FilledButton(
+              onPressed: _submittingKidsActivityIds.contains(activity.id)
+                  ? null
+                  : () => _openKidsActivityRegistration(activity),
+              child: Text(_submittingKidsActivityIds.contains(activity.id)
+                  ? 'Submitting…'
+                  : 'Register children'),
+            )),
+          ],
+        ]),
+      ),
+    );
+  }
+
+  Future<void> _openKidsActivityRegistration(ResidentKidsActivity activity) async {
+    final countController = TextEditingController(text: '1');
+    final children = <({TextEditingController name, TextEditingController age})>[
+      (name: TextEditingController(), age: TextEditingController()),
+    ];
+    var submitting = false;
+    String? formError;
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        builder: (sheetContext) => StatefulBuilder(builder: (context, setSheetState) => Padding(
+          padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 20),
+          child: SingleChildScrollView(child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Expanded(child: Text('Register for ${activity.name}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800))),
+                IconButton(
+                  tooltip: 'Close registration form',
+                  onPressed: () {
+                    unawaited(SystemChannels.textInput.invokeMethod<void>('TextInput.hide'));
+                    Navigator.of(sheetContext).pop();
+                  },
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ]),
+              const SizedBox(height: 8),
+              Text('Add each participating child. Eligible ages: ${activity.minimumAge} to ${activity.maximumAge}.', style: const TextStyle(color: AppColors.muted)),
+              const SizedBox(height: 14),
+              TextField(
+                controller: countController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Total participating kids', helperText: 'Enter a number from 1 to 12'),
+                onChanged: (value) {
+                  final count = int.tryParse(value);
+                  if (count == null || count < 1 || count > 12) {
+                    setSheetState(() => formError = 'Enter a total from 1 to 12 children.');
+                    return;
+                  }
+                  setSheetState(() {
+                    formError = null;
+                    while (children.length < count) children.add((name: TextEditingController(), age: TextEditingController()));
+                    while (children.length > count) {
+                      final removed = children.removeLast();
+                      removed.name.dispose();
+                      removed.age.dispose();
+                    }
+                  });
+                },
+              ),
+              const SizedBox(height: 12),
+              ...children.asMap().entries.map((entry) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(children: [
+                  Expanded(child: TextField(controller: entry.value.name, textCapitalization: TextCapitalization.words, decoration: InputDecoration(labelText: 'Child ${entry.key + 1} name'))),
+                  const SizedBox(width: 10),
+                  SizedBox(width: 92, child: TextField(
+                    controller: entry.value.age,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Age'),
+                  )),
+                  if (children.length > 1) IconButton(onPressed: submitting ? null : () => setSheetState(() {
+                    final removed = children.removeAt(entry.key);
+                    removed.name.dispose();
+                    removed.age.dispose();
+                    countController.text = '${children.length}';
+                  }), icon: const Icon(Icons.remove_circle_outline)),
+                ]),
+              )),
+              Align(alignment: Alignment.centerLeft, child: TextButton.icon(
+                onPressed: submitting || children.length >= 12 ? null : () => setSheetState(() {
+                  children.add((name: TextEditingController(), age: TextEditingController()));
+                  countController.text = '${children.length}';
+                }),
+                icon: const Icon(Icons.add), label: const Text('Add another child'),
+              )),
+              if (formError != null) Padding(padding: const EdgeInsets.only(bottom: 10), child: Text(formError!, style: const TextStyle(color: Colors.red))),
+              SizedBox(width: double.infinity, child: FilledButton(
+                onPressed: submitting ? null : () async {
+                  final totalChildren = int.tryParse(countController.text.trim());
+                  if (totalChildren == null || totalChildren != children.length || totalChildren < 1 || totalChildren > 12) {
+                    setSheetState(() => formError = 'Enter a total from 1 to 12 children.');
+                    return;
+                  }
+                  final parsed = <Map<String, dynamic>>[];
+                  for (final child in children) {
+                    final age = int.tryParse(child.age.text.trim());
+                    if (child.name.text.trim().isEmpty || age == null || age < 0) {
+                      setSheetState(() => formError = 'Enter a name and valid age for every child.');
+                      return;
+                    }
+                    if (age < activity.minimumAge || age > activity.maximumAge) {
+                      setSheetState(() => formError = 'Age must be between ${activity.minimumAge} and ${activity.maximumAge} for this activity.');
+                      return;
+                    }
+                    parsed.add({'name': child.name.text.trim(), 'age': age});
+                  }
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  unawaited(SystemChannels.textInput.invokeMethod<void>('TextInput.hide'));
+                  setState(() => _submittingKidsActivityIds.add(activity.id));
+                  Navigator.of(sheetContext).pop();
+                  try {
+                    final response = await http.post(
+                      Uri.parse('$_residentApiBaseUrl/kids-activities/resident/${activity.id}/register'),
+                      headers: {'Accept': 'application/json', 'Content-Type': 'application/json', 'Authorization': 'Bearer ${widget.user.accessToken}'},
+                      body: jsonEncode({'children': parsed}),
+                    ).timeout(const Duration(seconds: 15));
+                    final body = response.body.isEmpty ? <String, dynamic>{} : jsonDecode(response.body) as Map<String, dynamic>;
+                    if (response.statusCode < 200 || response.statusCode >= 300) {
+                      throw Exception(body['message']?.toString() ?? 'Could not submit the registration.');
+                    }
+                    if (mounted) {
+                      ScaffoldMessenger.of(this.context).showSnackBar(
+                        const SnackBar(content: Text('Registration submitted successfully.')),
+                      );
+                      unawaited(_refreshDashboard().catchError((_) {}));
+                      unawaited(_refreshNotifications());
+                    }
+                  } catch (error) {
+                    if (mounted) {
+                      final message = error is TimeoutException
+                          ? 'The registration request timed out. Please check your connection and try again.'
+                          : error.toString().replaceFirst('Exception: ', '');
+                      ScaffoldMessenger.of(this.context).showSnackBar(
+                        SnackBar(content: Text(message)),
+                      );
+                    }
+                  } finally {
+                    if (mounted) {
+                      setState(() => _submittingKidsActivityIds.remove(activity.id));
+                    }
+                  }
+                },
+                child: Text(submitting ? 'Submitting…' : 'Submit registration'),
+              )),
+            ],
+          )),
+        )),
+      );
+    } finally {
+      countController.dispose();
+      for (final child in children) { child.name.dispose(); child.age.dispose(); }
+    }
   }
 
   Widget _topBar(BuildContext context, ResidentDashboardData? dashboard) => Row(

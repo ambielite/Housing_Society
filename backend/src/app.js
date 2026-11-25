@@ -8,6 +8,8 @@ const { pool } = require("./config/db");
 const sequelize = require("./config/database");
 const sujalApiRoutes = require("./routes");
 const residentFinanceRoutes = require("./modules/resident-finance/residentFinance.routes");
+const kidsActivitiesRoutes = require("./modules/kids-activities/kids-activities.routes");
+const advertisementsRoutes = require("./modules/advertisements/advertisements.routes");
 const { notFoundHandler, errorHandler } = require("./common/errorHandler");
 const { authenticate } = require("./common/authMiddleware");
 const ApiError = require("./common/ApiError");
@@ -116,6 +118,10 @@ app.use(
 
 app.use(
     "/uploads",
+    (req, res, next) => {
+        res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+        next();
+    },
     express.static(
         path.join(
             process.cwd(),
@@ -326,6 +332,8 @@ app.use("/api/kyc-documents",kycDocumentRoutes);
 app.use("/api/resident-kyc",residentKycRoutes);
 app.use("/api/resident-verifications",residentVerificationRoutes);
 app.use("/api/non-members",nonMemberRoutes);
+app.use("/api/kids-activities", kidsActivitiesRoutes);
+app.use("/api/advertisements", advertisementsRoutes);
 
 // The former Sujal service is now mounted into the shared Express server.
 // Keep its established /api/v1 paths while the existing API remains under /api.

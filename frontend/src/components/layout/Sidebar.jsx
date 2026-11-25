@@ -110,6 +110,7 @@ const NAV_ITEMS = [
     ],
   },
   { label: 'Manage Vendors', to: '/vendors', permission: 'VENDOR_READ', icon: Truck },
+  { label: 'Advertisement', to: '/advertisements', permission: 'ADVERTISEMENT_READ', icon: Megaphone },
   {
     label: 'Notifications', to: '/notifications', permission: ['NOTIFICATION_READ', 'NOTIFICATION_TEMPLATE_READ', 'BROADCAST_READ'], icon: CalendarDays,
     children: [
@@ -131,6 +132,7 @@ const NAV_ITEMS = [
       { label: 'AGM / SGM', to: '/community/governance', permission: 'COMMUNITY_GOVERNANCE_READ', icon: FileCheck2 },
       { label: 'Moderation', to: '/community/moderation', permission: 'COMMUNITY_MODERATION_READ', icon: Shield },
       { label: 'Voting & rules', to: '/community/voting', permission: 'COMMUNITY_VOTING_READ', icon: CheckCircle },
+      { label: 'Kids Activities', to: '/community/kids-activities', permission: 'COMMUNITY_EVENT_READ', icon: CalendarDays },
     ],
   },
   {

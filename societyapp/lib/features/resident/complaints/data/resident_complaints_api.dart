@@ -46,7 +46,7 @@ class ResidentComplaint {
   final String? categoryName;
   final DateTime? openedAt;
 
-  factory ResidentComplaint.fromJson(Map<String, dynamic> json) =>
+  factory ResidentComplaint.fromJson(Map<String, dynamic> json) =>     
       ResidentComplaint(
         id: '${json['id'] ?? ''}',
         ticketNumber: '${json['ticket_no'] ?? ''}',

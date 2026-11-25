@@ -30,6 +30,8 @@ class ResidentDashboardData {
     this.maintenance = const [],
     this.upcomingBookings = const [],
     this.notices = const [],
+    this.kidsActivities = const [],
+    this.advertisements = const [],
   });
 
   final String? societyName;
@@ -47,6 +49,8 @@ class ResidentDashboardData {
   final List<ResidentMaintenance> maintenance;
   final List<ResidentUpcomingBooking> upcomingBookings;
   final List<ResidentNotice> notices;
+  final List<ResidentKidsActivity> kidsActivities;
+  final List<ResidentAdvertisement> advertisements;
 
   ResidentDashboardData copyWith({
     List<ResidentUpcomingBooking>? upcomingBookings,
@@ -66,6 +70,8 @@ class ResidentDashboardData {
     maintenance: maintenance,
     upcomingBookings: upcomingBookings ?? this.upcomingBookings,
     notices: notices,
+    kidsActivities: kidsActivities,
+    advertisements: advertisements,
   );
 
   factory ResidentDashboardData.fromJson(Map<String, dynamic> json) {
@@ -109,8 +115,116 @@ class ResidentDashboardData {
           .whereType<Map<String, dynamic>>()
           .map(ResidentNotice.fromJson)
           .toList(),
+      kidsActivities: (json['kidsActivities'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(ResidentKidsActivity.fromJson)
+          .toList(),
+      advertisements: (json['advertisements'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(ResidentAdvertisement.fromJson)
+          .toList(),
     );
   }
+}
+
+class ResidentAdvertisement {
+  const ResidentAdvertisement({
+    required this.id,
+    required this.title,
+    required this.imageUrl,
+    required this.description,
+    required this.startsOn,
+    required this.endsOn,
+    required this.maxViewsPerResident,
+    required this.impressionCount,
+  });
+
+  final String id;
+  final String title;
+  final String imageUrl;
+  final String description;
+  final DateTime? startsOn;
+  final DateTime? endsOn;
+  final int maxViewsPerResident;
+  final int impressionCount;
+
+  factory ResidentAdvertisement.fromJson(Map<String, dynamic> json) => ResidentAdvertisement(
+    id: '${json['id'] ?? ''}',
+    title: _string(json['title']) ?? 'Advertisement',
+    imageUrl: _imageUrl(json['image_url']) ?? '',
+    description: _string(json['description']) ?? '',
+    startsOn: _parseCalendarDate(json['starts_on']),
+    endsOn: _parseCalendarDate(json['ends_on']),
+    maxViewsPerResident: int.tryParse('${json['max_views_per_resident'] ?? 1}') ?? 1,
+    impressionCount: int.tryParse('${json['impression_count'] ?? 0}') ?? 0,
+  );
+}
+
+class ResidentKidsActivity {
+  const ResidentKidsActivity({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.activityDate,
+    required this.activityDay,
+    required this.activityTime,
+    required this.activityEndTime,
+    required this.minimumAge,
+    required this.maximumAge,
+    required this.registrationRequired,
+    required this.registrationOpen,
+    this.registrationDeadline,
+    required this.registered,
+    required this.children,
+    this.winnerPrize,
+  });
+
+  final String id;
+  final String name;
+  final String description;
+  final DateTime? activityDate;
+  final String activityDay;
+  final String activityTime;
+  final String activityEndTime;
+  final int minimumAge;
+  final int maximumAge;
+  final bool registrationRequired;
+  final bool registrationOpen;
+  final DateTime? registrationDeadline;
+  final String? winnerPrize;
+  final bool registered;
+  final List<ResidentActivityChild> children;
+
+  factory ResidentKidsActivity.fromJson(Map<String, dynamic> json) => ResidentKidsActivity(
+    id: '${json['id'] ?? ''}',
+    name: _string(json['name']) ?? 'Kids activity',
+    description: _string(json['description']) ?? '',
+    activityDate: _parseCalendarDate(json['activity_date']),
+    activityDay: _string(json['activity_day']) ?? '',
+    activityTime: _activityTimeLabel(json['activity_time']),
+    activityEndTime: _activityTimeLabel(json['activity_end_time'] ?? json['activity_time']),
+    minimumAge: int.tryParse('${json['minimum_age'] ?? 0}') ?? 0,
+    maximumAge: int.tryParse('${json['maximum_age'] ?? 0}') ?? 0,
+    registrationRequired: json['registration_required'] != false,
+    registrationOpen: json['registration_open'] == true,
+    registrationDeadline: DateTime.tryParse('${json['registration_deadline'] ?? ''}'),
+    winnerPrize: _string(json['winner_prize']),
+    registered: json['registered'] == true,
+    children: (json['children'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(ResidentActivityChild.fromJson)
+        .toList(),
+  );
+}
+
+class ResidentActivityChild {
+  const ResidentActivityChild({required this.name, required this.age});
+  final String name;
+  final int age;
+  factory ResidentActivityChild.fromJson(Map<String, dynamic> json) => ResidentActivityChild(
+    name: _string(json['name']) ?? '',
+    age: int.tryParse('${json['age'] ?? 0}') ?? 0,
+  );
 }
 
 class ResidentProfileDetails {
@@ -281,6 +395,33 @@ class ResidentDashboardApi {
       client.close();
     }
   }
+
+  static Future<void> recordAdvertisementImpression(String accessToken, String id) =>
+      _postAdvertisementAction(accessToken, id, 'impression');
+
+  static Future<void> dismissAdvertisement(String accessToken, String id) =>
+      _postAdvertisementAction(accessToken, id, 'dismiss');
+
+  static Future<void> _postAdvertisementAction(String accessToken, String id, String action) async {
+    final client = http.Client();
+    try {
+      final response = await client.post(
+        Uri.parse('$_apiBaseUrl/advertisements/resident/$id/$action'),
+        headers: {'Accept': 'application/json', 'Authorization': 'Bearer $accessToken'},
+      ).timeout(const Duration(seconds: 12));
+      if (response.statusCode == 401) SessionManager.expire();
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        final body = response.body.isEmpty ? <String, dynamic>{} : jsonDecode(response.body) as Map<String, dynamic>;
+        throw ResidentDashboardException(_string(body['message']) ?? 'Could not update advertisement view.');
+      }
+    } on http.ClientException {
+      throw const ResidentDashboardException('Cannot reach the server.');
+    } on TimeoutException {
+      throw const ResidentDashboardException('The server took too long to respond.');
+    } finally {
+      client.close();
+    }
+  }
 }
 
 class ResidentDashboardException implements Exception {
@@ -323,4 +464,15 @@ DateTime? _parseCalendarDate(Object? value) {
 String _timeLabel(Object? value) {
   final raw = value?.toString() ?? '';
   return raw.length >= 5 ? raw.substring(0, 5) : raw;
+}
+
+String _activityTimeLabel(Object? value) {
+  final raw = _timeLabel(value);
+  final parts = raw.split(':');
+  if (parts.length != 2) return raw;
+  final hour24 = int.tryParse(parts[0]);
+  if (hour24 == null || hour24 < 0 || hour24 > 23) return raw;
+  final period = hour24 >= 12 ? 'PM' : 'AM';
+  final hour12 = hour24 % 12 == 0 ? 12 : hour24 % 12;
+  return '$hour12:${parts[1]} $period';
 }

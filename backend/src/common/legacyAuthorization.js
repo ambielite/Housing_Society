@@ -14,6 +14,8 @@ const ROUTE_MODULES = [
   ['/community-moderation', 'COMMUNITY_MODERATION'],
   ['/community-meetings', 'COMMUNITY_MEETING'],
   ['/community-events', 'COMMUNITY_EVENT'],
+  ['/kids-activities', 'COMMUNITY_EVENT'],
+  ['/advertisements', 'ADVERTISEMENT'],
   ['/community-forums', 'COMMUNITY_FORUM'],
   ['/community-groups', 'COMMUNITY_GROUP'],
   ['/community-posts', 'COMMUNITY_POST'],
@@ -134,6 +136,9 @@ const authorizeLegacyRequest = (req, res, next) => {
   }
   if (req.method === 'POST' && /^\/notices\/[^/]+\/template\/?$/i.test(pathname)) {
     return authorize('NOTICE_UPDATE')(req, res, next);
+  }
+  if (/^\/advertisements\/resident(?:\/|$)/i.test(pathname)) {
+    return next();
   }
   if (/^\/community-events\/(?:rsvps(?:\/|$)|events\/[^/]+\/rsvp(?:\/|$))/.test(pathname)) {
     return authorizeLegacy('COMMUNITY_EVENT_RSVP')(req, res, next);

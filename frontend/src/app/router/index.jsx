@@ -80,6 +80,7 @@ const OperationsSecurityPage = lazy(() => import('../../features/security/pages/
 const AssetsPage = lazy(() => import('../../features/assets/pages/AssetsPage'));
 const NotificationsPage = lazy(() => import('../../features/notifications/pages/NotificationsPage'));
 const CommunityPage = lazy(() => import('../../features/community/pages/CommunityPage'));
+const AdvertisementPage = lazy(() => import('../../features/advertisements/pages/AdvertisementPage'));
 const ReportsModulePage = lazy(() => import('../../features/reports/pages/ReportsModulePage'));
 const REPORTS_MODULE_PERMISSIONS = ['REPORT_DASHBOARD_READ', 'REPORT_FINANCE_READ', 'REPORT_OPERATIONS_READ', 'REPORT_SECURITY_READ', 'REPORT_APPROVAL_READ', 'REPORT_HELPDESK_READ', 'REPORT_VENDOR_READ', 'REPORT_PROCUREMENT_READ', 'REPORT_AMENITY_READ', 'REPORT_UTILITY_READ'];
 const MultiSocietyPage = lazy(() => import('../../features/multiSociety/pages/MultiSocietyPage'));
@@ -190,6 +191,9 @@ export default function AppRoutes() {
             <Route element={<ProtectedRoute permission={['COMMUNITY_GROUP_READ', 'COMMUNITY_FORUM_READ', 'COMMUNITY_EVENT_READ', 'COMMUNITY_MEETING_READ', 'COMMUNITY_GOVERNANCE_READ', 'COMMUNITY_VOTING_READ']} />}>
               <Route path="/community" element={<CommunityPage />} />
               <Route path="/community/:section" element={<CommunityPage />} />
+            </Route>
+            <Route element={<ProtectedRoute permission="ADVERTISEMENT_READ" />}>
+              <Route path="/advertisements" element={<AdvertisementPage />} />
             </Route>
             <Route element={<ProtectedRoute permission={REPORTS_MODULE_PERMISSIONS} />}>
               <Route path="/reports" element={<ReportsModulePage />} />

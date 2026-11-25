@@ -9,12 +9,13 @@ import CommunityResourcePanel from "./CommunityResourcePanel";
 import CommunityMembersDialog from "./CommunityMembersDialogV2";
 import CommunityRecordForm from "./CommunityRecordForm";
 import VotingManagementDialog from "./VotingManagementDialog";
+import KidsActivitiesPanel from "./KidsActivitiesPanel";
 import { useAuth } from "../../../app/providers/useAuth";
 
 const sections = [
   ["dashboard", "Overview", Shield], ["groups", "Groups & members", Users], ["forums", "Forums & discussions", MessageSquare],
   ["classifieds", "Classifieds", FileText], ["events", "Events & RSVPs", CalendarDays], ["meetings", "Meetings", CalendarDays],
-  ["governance", "AGM / SGM", FileText], ["moderation", "Moderation", CircleAlert], ["voting", "Voting & rules", Check]
+  ["governance", "AGM / SGM", FileText], ["moderation", "Moderation", CircleAlert], ["voting", "Voting & rules", Check], ["kids-activities", "Kids Activities", CalendarDays]
 ];
 const configs = {
   groups: { title: "Community groups", base: "/community-groups", create: true, fields: ["societyId", "name", "description", "category", "visibility", "status"], children: ["members"] },
@@ -224,9 +225,10 @@ export default function CommunityPage() {
     <nav className="security-tabs assets-tabs" aria-label="Community sections">{sections.map(([key, label, Icon]) => <button key={key} className={tab === key ? "active" : ""} onClick={() => selectTab(key)}><Icon size={16}/>{label}</button>)}</nav>
     {(error || notice) && <div className={error ? "society-error" : "society-list-panel"}>{error || notice}</div>}
     {tab === "dashboard" && <CommunityDashboard data={data} loading={loading} onNavigate={selectTab} onCreate={(key) => openCreate(key)} />}
-    {tab !== "dashboard" && <div className="society-toolbar"><label className="society-search"><Search size={17}/><input aria-label="Search community records" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search records"/></label><span className="society-count">{loading ? "Loading" : `${recordCount} ${recordCount === 1 ? "record" : "records"}`}</span></div>}
+    {tab === "kids-activities" && <KidsActivitiesPanel />}
+    {tab !== "dashboard" && tab !== "kids-activities" && <div className="society-toolbar"><label className="society-search"><Search size={17}/><input aria-label="Search community records" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search records"/></label><span className="society-count">{loading ? "Loading" : `${recordCount} ${recordCount === 1 ? "record" : "records"}`}</span></div>}
     {tab === "voting" && <aside className="community-compliance-note" role="note"><span className="community-compliance-icon"><CircleAlert size={18}/></span><div><strong>Voting setup is available; opening a ballot is approval-gated</strong><p>You can prepare draft voting records and governance rules. Opening a ballot, issuing ballots, accepting votes, and tallying require formally approved eligibility, quorum, ballot secrecy, and audit requirements.</p></div></aside>}
-    {tab !== "overview" && activeKeys.map((key) => configs[key] && resourceTab(key))}
+    {tab !== "overview" && tab !== "kids-activities" && activeKeys.map((key) => configs[key] && resourceTab(key))}
     {dialog && <div className="society-modal-layer" onMouseDown={(event) => event.target === event.currentTarget && setDialog(null)}><section className="society-form-modal security-record-modal community-record-modal" role="dialog" aria-modal="true" aria-labelledby="community-record-title"><header className="society-form-header"><div><span className="society-eyebrow">COMMUNITY WORKSPACE</span><h2 id="community-record-title">{dialog.key === "comments" ? `Comment on ${titleOf(dialog.parent)}` : configs[dialog.key]?.title}</h2><p>Complete the details below to save this record.</p></div><button type="button" className="modal-close-btn" aria-label="Close" onClick={() => setDialog(null)}><X size={18} aria-hidden="true" /></button></header>
       {error && <p className="security-form-error" role="alert">{error}</p>}
       {dialog.key === "comments" && <div className="community-comments-list">{(data.comments || []).map((comment) => <article key={idOf(comment)}><strong>{comment.authorName || comment.authorId || "Resident"}</strong><p>{comment.content}</p><button type="button" className="society-workflow-action" onClick={() => remove("comments", comment)}>Delete</button></article>)}{!(data.comments || []).length && <p>No comments yet. Start the conversation below.</p>}</div>}
