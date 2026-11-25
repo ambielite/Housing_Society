@@ -13,6 +13,7 @@ router.get('/categories', controller.listCategories);
 router.get('/events', controller.streamStatusUpdates);
 router.get('/', controller.listComplaints);
 router.post('/', controller.createComplaint);
+router.post('/support', controller.createSupportRequest);
 router.get('/:ticketId', controller.getComplaint);
 
 module.exports = router;

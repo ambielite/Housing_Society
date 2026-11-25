@@ -4,6 +4,24 @@ const { resolveResidentUnits } = require('../resident-context/residentUnitContex
 const ApiError = require('../../common/ApiError');
 const amenityBookingsService = require('../amenity-bookings/amenity-bookings.service');
 
+const listSocietyStaff = async (user) => {
+  if (!user?.societyId) return [];
+  const result = await query(
+    `SELECT id, first_name, last_name, mobile_number, photo_path, staff_type
+       FROM staff
+      WHERE society_id = $1 AND status = 'ACTIVE'
+      ORDER BY first_name, last_name`,
+    [user.societyId],
+  );
+  return result.rows.map((staff) => ({
+    id: staff.id,
+    name: [staff.first_name, staff.last_name].filter(Boolean).join(' '),
+    mobileNumber: staff.mobile_number,
+    profilePhotoUrl: staff.photo_path,
+    staffType: staff.staff_type,
+  }));
+};
+
 const listResidentNotifications = async (user) => {
   if (!user.societyId) return [];
   await noticesService.processSchedule();
@@ -157,4 +175,4 @@ const getDashboard = async (user) => {
   };
 };
 
-module.exports = { getDashboard, listResidentNotifications, markResidentNotificationRead };
+module.exports = { getDashboard, listResidentNotifications, markResidentNotificationRead, listSocietyStaff };

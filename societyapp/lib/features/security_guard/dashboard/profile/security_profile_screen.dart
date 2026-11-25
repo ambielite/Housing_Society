@@ -826,9 +826,20 @@ class _SecurityProfileScreenState extends State<SecurityProfileScreen> {
     if (_shiftAssignments.isEmpty) {
       return _box(
         padding: const EdgeInsets.all(20),
-        child: const Text(
-          'No upcoming shifts are currently assigned.',
-          style: TextStyle(color: _soft, fontSize: 14, height: 1.4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'No upcoming shifts are currently assigned.',
+              style: TextStyle(color: _soft, fontSize: 14, height: 1.4),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: _loadingShiftAssignments ? null : _loadShiftAssignments,
+              icon: const Icon(Icons.refresh_rounded, size: 17),
+              label: const Text('Refresh shifts'),
+            ),
+          ],
         ),
       );
     }

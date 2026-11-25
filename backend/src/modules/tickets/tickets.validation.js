@@ -33,10 +33,16 @@ const updateStatusSchema = Joi.object({
   remarks: Joi.string().max(500).allow('', null),
 });
 
+const staffTicketStatusSchema = Joi.object({
+  status: Joi.string().valid('IN_PROGRESS', 'ON_HOLD', 'RESOLVED').required(),
+  remarks: Joi.string().max(500).allow('', null),
+});
+
 const assignTicketSchema = Joi.object({
   assignedToUserId: Joi.string().uuid().allow(null),
+  assignedToStaffId: Joi.string().uuid().allow(null),
   assignedVendorId: Joi.string().uuid().allow(null),
-}).or('assignedToUserId', 'assignedVendorId');
+}).or('assignedToUserId', 'assignedToStaffId', 'assignedVendorId');
 
 const addCommentSchema = Joi.object({
   comment: Joi.string().max(3000).required(),
@@ -57,6 +63,7 @@ module.exports = {
   listTicketsQuerySchema,
   updateTicketSchema,
   updateStatusSchema,
+  staffTicketStatusSchema,
   assignTicketSchema,
   addCommentSchema,
   addAttachmentSchema,

@@ -1,4 +1,4 @@
-import api from '../../../lib/axios';
+import api, { legacyApi } from '../../../lib/axios';
 const unwrap = (r) => r.data.data;
 const clean = (p = {}) => Object.fromEntries(Object.entries(p).filter(([,v]) => v !== '' && v !== null && v !== undefined));
 // Paths and HTTP methods follow API Reference - Helpdesk, SLA & Escalation (Phase 13).
@@ -11,6 +11,17 @@ export const updateStatus = (id,body) => api.patch(`/tickets/${id}/status`,body)
 export const assignTicket = (id,body) => api.post(`/tickets/${id}/assign`,body).then(unwrap);
 export const unassignTicket = (id) => api.patch(`/tickets/${id}/unassign`).then(unwrap);
 export const listAssignments = (id) => api.get(`/tickets/${id}/assignments`).then(unwrap);
+export const listAssignableStaff = (societyId) => legacyApi.get('/staff', { params: { societyId, status: 'ACTIVE' } }).then((response) => {
+  const staffRows = response.data?.data;
+  return Array.isArray(staffRows) ? staffRows.map((staff) => ({
+    ...staff,
+    staff_id: staff.id,
+    staff_type: staff.staffType || staff.staff_type,
+    employee_code: staff.employeeCode || staff.employee_code,
+    first_name: staff.firstName || staff.first_name,
+    last_name: staff.lastName || staff.last_name,
+  })) : [];
+});
 export const addComment = (id,body) => api.post(`/tickets/${id}/comments`,body).then(unwrap);
 export const listComments = (id) => api.get(`/tickets/${id}/comments`).then(unwrap);
 export const addAttachment = (id,body) => api.post(`/tickets/${id}/attachments`,body).then(unwrap);

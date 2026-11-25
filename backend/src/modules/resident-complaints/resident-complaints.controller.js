@@ -31,6 +31,15 @@ const createComplaint = asyncHandler(async (req, res) => {
   );
 });
 
+const createSupportRequest = asyncHandler(async (req, res) => {
+  return ApiResponse.success(
+    res,
+    await service.createSupportRequest(req.user, req.body),
+    'Support request submitted successfully',
+    201,
+  );
+});
+
 const getComplaint = asyncHandler(async (req, res) => {
   return ApiResponse.success(
     res,
@@ -44,5 +53,6 @@ module.exports = {
   listComplaints,
   streamStatusUpdates,
   createComplaint,
+  createSupportRequest,
   getComplaint,
 };

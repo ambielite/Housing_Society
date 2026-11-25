@@ -180,6 +180,26 @@ class ResidentComplaintsApi {
     );
   }
 
+  static Future<ResidentComplaint> createSupportRequest({
+    required String token,
+    required String subject,
+    required String description,
+  }) async {
+    final result = await _send(
+      token,
+      '/resident-complaints/support',
+      method: 'POST',
+      payload: {'subject': subject, 'description': description},
+    );
+    if (result is Map<String, dynamic>) {
+      return ResidentComplaint.fromJson(result)
+          .withCategoryName('Resident Support');
+    }
+    throw const ResidentComplaintException(
+      'The server did not return the submitted support request.',
+    );
+  }
+
   static Future<dynamic> _get(String token, String path) async {
     return _request(token, path, method: 'GET');
   }

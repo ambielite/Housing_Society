@@ -1,5 +1,96 @@
 const db = require('../../config/db');
 
+const findAssignableStaff = async (staffId, societyId) => {
+  const result = await db.query(
+    `SELECT id FROM staff
+      WHERE id = $1 AND society_id = $2 AND status = 'ACTIVE'`,
+    [staffId, societyId],
+  );
+  return result.rows[0] || null;
+};
+
+const findStaffIdForUser = async (userId, societyId, employeeCode) => {
+  const result = await db.query(
+    `SELECT s.id
+       FROM staff s
+       LEFT JOIN security_guards g ON g.staff_id = s.id
+       LEFT JOIN users u ON u.id = $1
+      WHERE s.society_id = $2
+        AND s.status = 'ACTIVE'
+        AND (
+          (g.user_id = $1 AND ($3::text IS NULL OR upper(s.employee_code) = upper($3)))
+          OR (s.email IS NOT NULL AND lower(s.email) = lower(u.email))
+        )
+      ORDER BY CASE
+        WHEN g.user_id = $1 AND ($3::text IS NULL OR upper(s.employee_code) = upper($3)) THEN 0
+        ELSE 1
+      END
+      LIMIT 1`,
+    [userId, societyId, employeeCode || null],
+  );
+  return result.rows[0] || null;
+};
+
+const listAssignedStaffTickets = async (staffId, userId) => {
+  const result = await db.query(
+    `SELECT t.id, t.ticket_no, t.subject, t.description, t.priority, t.status,
+            t.opened_at, c.name AS category_name, ta.id AS assignment_id,
+            concat_ws(' ', resident.first_name, resident.last_name) AS resident_name,
+            resident.phone AS resident_phone,
+            concat_ws(' / ', tower.name,
+              COALESCE(NULLIF(floor.name, ''), floor.floor_number::text),
+              unit.unit_number) AS flat_details,
+            unit.unit_number
+       FROM ticket_assignments ta
+       JOIN tickets t ON t.id = ta.ticket_id
+       LEFT JOIN ticket_categories c ON c.id = t.category_id
+       LEFT JOIN users resident ON resident.id = t.raised_by
+       LEFT JOIN units unit ON unit.id = t.unit_id
+       LEFT JOIN floors floor ON floor.id = unit.floor_id
+       LEFT JOIN towers tower ON tower.id = floor.tower_id
+      WHERE ta.unassigned_at IS NULL
+        AND (ta.assigned_staff_id = $1
+             OR (ta.assigned_staff_id IS NULL AND ta.assigned_to_user_id = $2))
+        AND t.status NOT IN ('RESOLVED', 'CLOSED')
+      ORDER BY ta.assigned_at DESC`,
+    [staffId, userId],
+  );
+  return result.rows;
+};
+
+const findActiveAssignmentForStaff = async (ticketId, staffId, userId) => {
+  const result = await db.query(
+    `SELECT * FROM ticket_assignments
+      WHERE ticket_id = $1 AND unassigned_at IS NULL
+        AND (assigned_staff_id = $2
+             OR (assigned_staff_id IS NULL AND assigned_to_user_id = $3))
+      ORDER BY assigned_at DESC LIMIT 1`,
+    [ticketId, staffId, userId],
+  );
+  return result.rows[0] || null;
+};
+
+const findStaffUserId = async (staffId) => {
+  const result = await db.query(
+    `SELECT linked.user_id
+       FROM (
+         SELECT g.user_id, 0 AS priority
+           FROM security_guards g
+          WHERE g.staff_id = $1 AND g.status = 'ACTIVE' AND g.user_id IS NOT NULL
+         UNION ALL
+         SELECT u.id AS user_id, 1 AS priority
+           FROM staff s
+           JOIN users u ON lower(u.email) = lower(s.email)
+                        AND u.society_id = s.society_id
+          WHERE s.id = $1 AND s.email IS NOT NULL AND u.status = 'ACTIVE'
+       ) linked
+      ORDER BY priority
+      LIMIT 1`,
+    [staffId],
+  );
+  return result.rows[0]?.user_id || null;
+};
+
 // --- tickets ------------------------------------------------------------------
 
 const createTicket = async ({ societyId, ticketNo, categoryId, raisedBy, unitId, subject, description, priority }) => {
@@ -105,12 +196,12 @@ const deleteTicket = async (id) => {
 
 // --- ticket_assignments ---------------------------------------------------------
 
-const createAssignment = async ({ ticketId, assignedToUserId, assignedVendorId }) => {
+const createAssignment = async ({ ticketId, assignedToUserId, assignedToStaffId, assignedVendorId }) => {
   const result = await db.query(
-    `INSERT INTO ticket_assignments (ticket_id, assigned_to_user_id, assigned_vendor_id)
-     VALUES ($1, $2, $3)
+    `INSERT INTO ticket_assignments (ticket_id, assigned_to_user_id, assigned_staff_id, assigned_vendor_id)
+     VALUES ($1, $2, $3, $4)
      RETURNING *`,
-    [ticketId, assignedToUserId || null, assignedVendorId || null]
+    [ticketId, assignedToUserId || null, assignedToStaffId || null, assignedVendorId || null]
   );
   return result.rows[0];
 };
@@ -125,7 +216,14 @@ const findActiveAssignment = async (ticketId) => {
 
 const listAssignments = async (ticketId, vendorId) => {
   const result = await db.query(
-    `SELECT * FROM ticket_assignments WHERE ticket_id = $1 ${vendorId ? 'AND assigned_vendor_id = $2' : ''} ORDER BY assigned_at DESC`,
+    `SELECT ta.*, s.first_name AS assigned_staff_first_name,
+            s.last_name AS assigned_staff_last_name,
+            s.employee_code AS assigned_staff_employee_code,
+            s.staff_type AS assigned_staff_type
+       FROM ticket_assignments ta
+       LEFT JOIN staff s ON s.id = ta.assigned_staff_id
+      WHERE ta.ticket_id = $1 ${vendorId ? 'AND ta.assigned_vendor_id = $2' : ''}
+      ORDER BY ta.assigned_at DESC`,
     vendorId ? [ticketId, vendorId] : [ticketId]
   );
   return result.rows;
@@ -230,6 +328,11 @@ const addRating = async ({ ticketId, ratedBy, rating, comment }) => {
 };
 
 module.exports = {
+  findAssignableStaff,
+  findStaffIdForUser,
+  listAssignedStaffTickets,
+  findActiveAssignmentForStaff,
+  findStaffUserId,
   createTicket,
   findByTicketNo,
   findById,

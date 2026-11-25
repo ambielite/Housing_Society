@@ -8,7 +8,7 @@ import floorApi from "../../floors/api/floor.api";
 import unitApi from "../../units/api/unit.api";
 import residentApi from "../api/resident.api";
 import residentKycApi from "../api/residentKyc.api";
-import { PHONE_PATTERN, phoneInputProps } from "../../../utils/phone";
+import { PHONE_PATTERN, phoneInputProps, sanitizePhone } from "../../../utils/phone";
 import unitLocationLabel from "../../../utils/unitLocation";
 
 const RESIDENT_ROLES = [
@@ -203,9 +203,10 @@ const ResidentForm = ({ resident, residents = [], onClose, onSuccess }) => {
     const update = (event) => {
         const { name, value, type, checked } = event.target;
         if (["mobile", "alternateMobile", "emergencyContactMobile"].includes(name)) setTouchedPhones((current) => ({ ...current, [name]: true }));
+        const nextValue = ["mobile", "alternateMobile", "emergencyContactMobile"].includes(name) ? sanitizePhone(value) : value;
         setValues((current) => ({
             ...current,
-            [name]: type === "checkbox" ? checked : value,
+            [name]: type === "checkbox" ? checked : nextValue,
             ...(name === "societyId" ? { towerId: "", unitId: "", userId: "", familyOwnerId: "" } : {}),
             ...(name === "towerId" ? { unitId: "" } : {}),
             ...(name === "role" && !["PRIMARY_OWNER", "CO_OWNER", "TENANT"].includes(value) ? { unitId: "" } : {}),

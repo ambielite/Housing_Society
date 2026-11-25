@@ -101,6 +101,26 @@ const toTimeInput = (value) => {
   const hour = Number(match[1]);
   return `${String(hour % 12 || 12).padStart(2, "0")}:${match[2]} ${hour >= 12 ? "PM" : "AM"}`;
 };
+const toAttendanceTimeInput = (value) => {
+  if (!value) return "";
+  const text = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}[T ]/.test(text)) {
+    const date = new Date(text);
+    if (!Number.isNaN(date.getTime())) {
+      return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+    }
+    return text.match(/[T ](\d{2}:\d{2})/)?.[1] || "";
+  }
+  const match = text.match(/^(\d{1,2}):(\d{2})/);
+  return match ? `${String(Number(match[1])).padStart(2, "0")}:${match[2]}` : "";
+};
+const attendanceDateTime = (time, attendanceDate, originalValue) => {
+  if (!time) return null;
+  const date = String(attendanceDate || originalValue || "").match(/\d{4}-\d{2}-\d{2}/)?.[0];
+  if (!date) return null;
+  const localDateTime = new Date(`${date}T${time}:00`);
+  return Number.isNaN(localDateTime.getTime()) ? null : localDateTime.toISOString();
+};
 const toApiTime = (value) => {
   const match = /^(\d{1,2}):([0-5]\d)\s*(AM|PM)$/i.exec(String(value).trim());
   if (!match) return null;
@@ -1387,7 +1407,13 @@ export default function SecurityPage() {
                           title={name === "mobileNumber" || name === "phone" ? "Enter a valid 10-digit phone number." : undefined}
                           value={form === "staff" && selectedStaffType === "SECURITY_GUARD" && ["firstName", "lastName", "mobileNumber"].includes(name) ? guardIdentity[name] : undefined}
                           readOnly={form === "staff" && selectedStaffType === "SECURITY_GUARD" && !manualGuardDetails && !!selectedSecurityHeadId && !!guardIdentity[name] && ["firstName", "lastName", "mobileNumber"].includes(name)}
-                          onChange={form === "staff" && selectedStaffType === "SECURITY_GUARD" && ["firstName", "lastName", "mobileNumber"].includes(name) ? (event) => setGuardIdentity((current) => ({ ...current, [name]: event.target.value })) : undefined}
+                          onChange={(event) => {
+                            const isPhone = name === "mobileNumber" || name === "phone";
+                            if (isPhone) event.target.value = event.target.value.replace(/\D/g, "").slice(0, 10);
+                            if (form === "staff" && selectedStaffType === "SECURITY_GUARD" && ["firstName", "lastName", "mobileNumber"].includes(name)) {
+                              setGuardIdentity((current) => ({ ...current, [name]: event.target.value }));
+                            }
+                          }}
                           required={
                             (form === "staff" && name === "email" && selectedStaffType === "SECURITY_GUARD" && manualGuardDetails) || ![
                               "lastName",
@@ -1522,6 +1548,8 @@ function RecordEditModal({ record, tab, fields = [], staff = [], shifts = [], ga
       key,
       (["dateOfBirth", "joiningDate"].includes(key) || (tab === "rosters" && fieldToken(key) === "rosterdate"))
         ? normalizeDate(value)
+        : tab === "attendance" && ["checkInTime", "checkOutTime"].includes(key)
+          ? toAttendanceTimeInput(value)
         : tab === "shifts" && ["startTime", "endTime"].includes(key)
           ? toTimeInput(value)
           : value,
@@ -1537,6 +1565,14 @@ function RecordEditModal({ record, tab, fields = [], staff = [], shifts = [], ga
         value === "" ? null : value,
       ]),
     );
+    if (tab === "attendance") {
+      const attendanceDate = Object.entries(payload).find(([key]) => fieldToken(key) === "attendancedate")?.[1];
+      Object.keys(payload).forEach((key) => {
+        if (!["checkintime", "checkouttime"].includes(fieldToken(key))) return;
+        const original = Object.entries(record).find(([recordKey]) => fieldToken(recordKey) === fieldToken(key))?.[1];
+        payload[key] = attendanceDateTime(payload[key], attendanceDate, original);
+      });
+    }
     const phoneEntry = Object.entries(payload).find(([key]) => ["mobileNumber", "mobile_number", "phone"].includes(key));
     if (phoneEntry && phoneEntry[1] && !/^\d{10}$/.test(String(phoneEntry[1]).trim())) {
       setError("Enter a valid 10-digit mobile number.");
@@ -1724,6 +1760,12 @@ function RecordEditModal({ record, tab, fields = [], staff = [], shifts = [], ga
                     onChange={(nextValue) =>
                       setValues((current) => ({ ...current, [key]: nextValue }))
                     }
+                  />
+                ) : tab === "attendance" && ["checkInTime", "checkOutTime"].includes(key) ? (
+                  <input
+                    type="time"
+                    value={value ?? ""}
+                    onChange={(event) => setValues((current) => ({ ...current, [key]: event.target.value }))}
                   />
                 ) : (
                   <input

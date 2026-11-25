@@ -105,6 +105,7 @@
 .ad-role-row small { overflow: hidden; color: var(--ad-muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .ad-role-tag { padding: 5px 7px; border: 1px solid color-mix(in srgb, #27a779 18%, transparent); border-radius: 999px; background: rgba(39,167,121,.08); color: #16855d; font-size: 8px; font-weight: 800; }
 .ad-role-arrow { color: var(--ad-muted); }
+.ad-ticket-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .ad-no-roles { padding: 15px; border: 1px dashed var(--ad-line); border-radius: 12px; color: var(--ad-muted); font-size: 11px; }
 
 @keyframes ad-rise { from { opacity: 0; transform: translateY(15px) scale(.99); } to { opacity: 1; transform: translateY(0) scale(1); } }

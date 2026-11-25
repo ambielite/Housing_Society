@@ -5,6 +5,7 @@ const ticketsRepository = require('../tickets/tickets.repository');
 const ticketsService = require('../tickets/tickets.service');
 const { resolveResident, resolveSingleUnit } = require('../resident-context/residentUnitContext.service');
 const { subscribeToTicketStatusChanges } = require('../tickets/tickets.events');
+const { notifySocietyAdmins } = require('../notifications/notification/adminActivityNotification');
 
 const requireResidentContext = async (user) => {
   if (!user.societyId) throw new ApiError(403, 'Your account is not linked to a society');
@@ -19,7 +20,7 @@ const listCategories = async (user) => {
     societyId: user.societyId,
     status: 'ACTIVE',
   });
-  return categories;
+  return categories.filter((category) => category.code !== 'RESIDENT_SUPPORT');
 };
 
 const listComplaints = async (user) => {
@@ -67,7 +68,7 @@ const createComplaint = async (user, payload) => {
     throw new ApiError(400, 'Describe the complaint in 1 to 5000 characters');
   }
 
-  return ticketsService.createTicket({
+  const ticket = await ticketsService.createTicket({
     societyId: user.societyId,
     categoryId: category.id,
     raisedBy: user.id,
@@ -75,6 +76,65 @@ const createComplaint = async (user, payload) => {
     subject,
     description,
   });
+  const residentName = resident.display_name || resident.displayName ||
+    [resident.first_name || resident.firstName, resident.last_name || resident.lastName].filter(Boolean).join(' ') || 'A resident';
+  await notifySocietyAdmins({
+    societyId: user.societyId,
+    title: 'New resident complaint',
+    message: `${residentName} submitted a complaint: ${subject} (${ticket.ticket_no}).`,
+    referenceType: 'TICKET',
+    referenceId: ticket.id,
+    data: { ticketId: ticket.id, ticketNo: ticket.ticket_no, category: category.name, subject },
+    excludeUserId: user.id,
+  });
+  return ticket;
+};
+
+const createSupportRequest = async (user, payload) => {
+  if (!user.societyId) throw new ApiError(403, 'Your account is not linked to a society');
+  const { resident, unit } = await resolveSingleUnit(user, { allowEmailFallback: false });
+  const subject = String(payload.subject || '').trim();
+  const description = String(payload.description || '').trim();
+  if (!subject || subject.length > 255) {
+    throw new ApiError(400, 'Enter a subject of 1 to 255 characters');
+  }
+  if (!description || description.length > 5000) {
+    throw new ApiError(400, 'Add details in 1 to 5000 characters');
+  }
+
+  let category = (await helpdeskRepository.listCategories({
+    societyId: user.societyId,
+    status: 'ACTIVE',
+  })).find((item) => item.code === 'RESIDENT_SUPPORT');
+  if (!category) {
+    category = await helpdeskRepository.createCategory({
+      societyId: user.societyId,
+      name: 'Resident Support',
+      code: 'RESIDENT_SUPPORT',
+      defaultPriority: 'MEDIUM',
+    });
+  }
+
+  const ticket = await ticketsService.createTicket({
+    societyId: user.societyId,
+    categoryId: category.id,
+    raisedBy: user.id,
+    unitId: unit.unit_id,
+    subject,
+    description,
+  });
+  const residentName = resident.display_name || resident.displayName ||
+    [resident.first_name || resident.firstName, resident.last_name || resident.lastName].filter(Boolean).join(' ') || 'A resident';
+  await notifySocietyAdmins({
+    societyId: user.societyId,
+    title: 'New resident support request',
+    message: `${residentName} submitted a support request: ${subject} (${ticket.ticket_no}).`,
+    referenceType: 'TICKET',
+    referenceId: ticket.id,
+    data: { ticketId: ticket.id, ticketNo: ticket.ticket_no, category: 'Resident Support', subject },
+    excludeUserId: user.id,
+  });
+  return ticket;
 };
 
 const getComplaint = async (user, ticketId) => {
@@ -86,4 +146,4 @@ const getComplaint = async (user, ticketId) => {
   return ticket;
 };
 
-module.exports = { listCategories, listComplaints, streamStatusUpdates, createComplaint, getComplaint };
+module.exports = { listCategories, listComplaints, streamStatusUpdates, createComplaint, createSupportRequest, getComplaint };

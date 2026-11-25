@@ -6,6 +6,7 @@ const {
   listTicketsQuerySchema,
   updateTicketSchema,
   updateStatusSchema,
+  staffTicketStatusSchema,
   assignTicketSchema,
   addCommentSchema,
   addAttachmentSchema,
@@ -18,6 +19,8 @@ const router = express.Router();
 router.use(authenticate);
 
 router.get('/', authorize('TICKET_READ'), validate(listTicketsQuerySchema, 'query'), controller.listTickets);
+router.get('/my-staff-tickets', controller.listAssignedStaffTickets);
+router.patch('/:ticketId/staff-status', validate(staffTicketStatusSchema), controller.updateAssignedStaffTicketStatus);
 router.post('/', authorize('TICKET_CREATE'), validate(createTicketSchema), controller.createTicket);
 router.get('/:ticketId', authorize('TICKET_READ'), controller.getTicket);
 router.patch('/:ticketId', authorize('TICKET_UPDATE'), validate(updateTicketSchema), controller.updateTicket);

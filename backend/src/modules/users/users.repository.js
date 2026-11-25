@@ -197,6 +197,32 @@ const updateProfile = async (id, { email, firstName, lastName, phone, societyId,
           ]
         );
       }
+      if (residentResult.rowCount && !actorLabel && changedFields.length) {
+        const resident = residentResult.rows[0];
+        const residentName = [updated.first_name, updated.last_name].filter(Boolean).join(' ') || 'A resident';
+        await client.query(
+          `INSERT INTO notifications
+             (society_id, user_id, channel, notification_type, title, subject, message,
+              data, reference_type, reference_id, priority, status, is_read, created_at, updated_at)
+           SELECT DISTINCT $1, u.id, 'IN_APP', 'OPERATIONAL', 'Resident profile updated',
+              'Resident profile updated', $2, $3::jsonb, 'RESIDENT_PROFILE', $4,
+              'MEDIUM', 'PENDING', false, now(), now()
+             FROM users u
+             JOIN user_roles ur ON ur.user_id = u.id
+             JOIN roles r ON r.id = ur.role_id AND r.status = 'ACTIVE'
+            WHERE u.status = 'ACTIVE'
+              AND r.code IN ('SOCIETY_ADMIN', 'SUPER_ADMIN', 'PRESIDENT_SECRETARY')
+              AND (ur.society_id = $1 OR (r.code = 'SUPER_ADMIN' AND ur.society_id IS NULL))
+              AND u.id <> $5`,
+          [
+            resident.society_id,
+            `${residentName} updated their profile. Updated: ${changedFields.join(', ')}.`,
+            JSON.stringify({ residentId: resident.id, changedFields }),
+            resident.id,
+            id,
+          ]
+        );
+      }
 
       const guardResult = await client.query(
         `WITH linked_guards AS (

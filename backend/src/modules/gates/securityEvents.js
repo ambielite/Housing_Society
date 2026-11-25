@@ -35,4 +35,14 @@ const publishProfileUpdated = (userId) => {
   }
 };
 
-module.exports = { subscribe, publishRosterUpdated, publishProfileUpdated };
+const publishTicketAssigned = (userId) => {
+  if (!userId) return;
+  const listeners = listenersByUser.get(String(userId));
+  if (!listeners) return;
+  const event = `event: ticket-assigned\ndata: ${JSON.stringify({ type: 'ticket-assigned' })}\n\n`;
+  for (const response of listeners) {
+    if (!response.destroyed && !response.writableEnded) response.write(event);
+  }
+};
+
+module.exports = { subscribe, publishRosterUpdated, publishProfileUpdated, publishTicketAssigned };

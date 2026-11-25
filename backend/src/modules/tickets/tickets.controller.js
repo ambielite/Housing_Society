@@ -21,6 +21,20 @@ const listTickets = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, tickets);
 });
 
+const listAssignedStaffTickets = asyncHandler(async (req, res) => {
+  return ApiResponse.success(res, await service.listAssignedStaffTickets(req.user), 'Assigned tickets loaded');
+});
+
+const updateAssignedStaffTicketStatus = asyncHandler(async (req, res) => {
+  const ticket = await service.updateAssignedStaffTicketStatus(
+    req.user,
+    req.params.ticketId,
+    req.body.status,
+    req.body.remarks,
+  );
+  return ApiResponse.success(res, ticket, 'Ticket status updated successfully');
+});
+
 const getTicket = asyncHandler(async (req, res) => {
   const ticket = await service.getTicket(req.params.ticketId, vendorScopeFor(req));
   return ApiResponse.success(res, ticket);
@@ -43,7 +57,7 @@ const deleteTicket = asyncHandler(async (req, res) => {
 
 // --- assignments ---
 const assignTicket = asyncHandler(async (req, res) => {
-  const assignment = await service.assignTicket(req.params.ticketId, req.body, vendorScopeFor(req));
+  const assignment = await service.assignTicket(req.params.ticketId, req.body, vendorScopeFor(req), req.user.id);
   return ApiResponse.success(res, assignment, 'Ticket assigned successfully', 201);
 });
 
@@ -101,6 +115,8 @@ const addRating = asyncHandler(async (req, res) => {
 module.exports = {
   createTicket,
   listTickets,
+  listAssignedStaffTickets,
+  updateAssignedStaffTicketStatus,
   getTicket,
   updateTicket,
   updateStatus,

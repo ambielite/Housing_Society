@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { legacyApi } from "../../../lib/axios";
 import useAuth from "../../../app/providers/useAuth";
+import { isValidPhone, phoneInputProps, sanitizePhone } from "../../../utils/phone";
 import "./society-emergency-contacts.css";
 
 const CATEGORIES = [
@@ -134,12 +135,25 @@ export default function SocietyEmergencyContactsPage() {
   };
   const startEdit = (contact) => {
     setEditing(contact);
-    setForm({ ...EMPTY, ...contact });
+    setForm({
+      ...EMPTY,
+      ...contact,
+      phone: sanitizePhone(contact.phone),
+      alternatePhone: sanitizePhone(contact.alternatePhone),
+    });
     setError("");
     setFormOpen(true);
   };
   const submit = async (event) => {
     event.preventDefault();
+    if (!isValidPhone(form.phone)) {
+      setError("Phone number must contain exactly 10 digits.");
+      return;
+    }
+    if (!isValidPhone(form.alternatePhone)) {
+      setError("Alternate phone must contain exactly 10 digits.");
+      return;
+    }
     setSaving(true);
     setError("");
     setMessage("");
@@ -171,8 +185,12 @@ export default function SocietyEmergencyContactsPage() {
       setError(errorMessage(requestError));
     }
   };
-  const updateField = (key, value) =>
-    setForm((current) => ({ ...current, [key]: value }));
+  const updateField = (key, value) => {
+    const nextValue = ["phone", "alternatePhone"].includes(key)
+      ? sanitizePhone(value)
+      : value;
+    setForm((current) => ({ ...current, [key]: nextValue }));
+  };
   const filteredContacts = useMemo(() => {
     const query = search.trim().toLowerCase();
     return contacts.filter(
@@ -533,7 +551,7 @@ export default function SocietyEmergencyContactsPage() {
                 <input
                   required
                   type="tel"
-                  maxLength={30}
+                  {...phoneInputProps}
                   value={form.phone}
                   onChange={(event) => updateField("phone", event.target.value)}
                 />
@@ -542,7 +560,7 @@ export default function SocietyEmergencyContactsPage() {
                 Alternate phone (optional)
                 <input
                   type="tel"
-                  maxLength={30}
+                  {...phoneInputProps}
                   value={form.alternatePhone || ""}
                   onChange={(event) =>
                     updateField("alternatePhone", event.target.value)

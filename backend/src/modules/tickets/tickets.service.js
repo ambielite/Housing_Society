@@ -6,6 +6,8 @@ const slaService = require('../sla/sla.service');
 const vendorsRepository = require('../vendors/vendors.repository');
 const usersRepository = require('../users/users.repository');
 const { publishTicketStatusChanged } = require('./tickets.events');
+const securityEvents = require('../gates/securityEvents');
+const { notifySocietyAdmins } = require('../notifications/notification/adminActivityNotification');
 
 const generateTicketNo = () => `TKT-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
 
@@ -59,6 +61,50 @@ const createTicket = async ({ societyId, categoryId, raisedBy, unitId, subject, 
   }
 
   return ticket;
+};
+
+const requireAssignedStaff = async (user) => {
+  if (!user?.id || !user?.societyId) {
+    throw new ApiError(403, 'This account is not linked to a staff profile');
+  }
+  const staff = await repository.findStaffIdForUser(
+    user.id,
+    user.societyId,
+    user.guardEmployeeCode,
+  );
+  if (!staff) throw new ApiError(403, 'This account is not linked to an active staff profile');
+  return staff.id;
+};
+
+const listAssignedStaffTickets = async (user) => {
+  const staffId = await requireAssignedStaff(user);
+  return repository.listAssignedStaffTickets(staffId, user.id);
+};
+
+const updateAssignedStaffTicketStatus = async (user, ticketId, status, remarks) => {
+  const staffId = await requireAssignedStaff(user);
+  if (!['IN_PROGRESS', 'ON_HOLD', 'RESOLVED'].includes(status)) {
+    throw new ApiError(400, 'Staff can set a ticket to In Progress, On Hold, or Complete');
+  }
+  const assignment = await repository.findActiveAssignmentForStaff(ticketId, staffId, user.id);
+  if (!assignment) throw new ApiError(404, 'This ticket is not assigned to your staff profile');
+  const updated = await updateStatus(ticketId, status, user.id, remarks || 'Updated by assigned staff');
+  const statusLabel = {
+    IN_PROGRESS: 'In Progress',
+    ON_HOLD: 'On Hold',
+    RESOLVED: 'Complete',
+  }[status];
+  const staffName = [user.firstName || user.first_name, user.lastName || user.last_name].filter(Boolean).join(' ') || 'Assigned staff';
+  await notifySocietyAdmins({
+    societyId: updated.society_id,
+    title: 'Assigned ticket updated',
+    message: `${staffName} changed ticket ${updated.ticket_no}${updated.subject ? ` (${updated.subject})` : ''} to ${statusLabel}.`,
+    referenceType: 'TICKET',
+    referenceId: updated.id,
+    data: { ticketId: updated.id, ticketNo: updated.ticket_no, subject: updated.subject, status },
+    excludeUserId: user.id,
+  });
+  return updated;
 };
 
 /** A restricted scope object prevents an unlinked VENDOR login from falling back to society-wide data. */
@@ -150,14 +196,14 @@ const deleteTicket = async (id, vendorScope) => {
 
 // --- assignments -----------------------------------------------------------------
 
-const assignTicket = async (ticketId, { assignedToUserId, assignedVendorId }, vendorScope) => {
+const assignTicket = async (ticketId, { assignedToUserId, assignedToStaffId, assignedVendorId }, vendorScope, assignedByUserId) => {
   const ticket = await repository.findById(ticketId);
   if (!ticket) {
     throw new ApiError(404, 'Ticket not found');
   }
   await assertVendorCanAccess(ticketId, vendorScope);
-  if (!assignedToUserId && !assignedVendorId) {
-    throw new ApiError(400, 'Provide at least one of assignedToUserId or assignedVendorId');
+  if (!assignedToUserId && !assignedToStaffId && !assignedVendorId) {
+    throw new ApiError(400, 'Select a staff member or vendor to assign this ticket');
   }
 
   const current = await repository.findActiveAssignment(ticketId);
@@ -186,14 +232,35 @@ const assignTicket = async (ticketId, { assignedToUserId, assignedVendorId }, ve
     }
   }
 
+  if (assignedToStaffId) {
+    const targetStaff = await repository.findAssignableStaff(assignedToStaffId, ticket.society_id);
+    if (!targetStaff) throw new ApiError(400, 'Select an active staff member from this society');
+  }
+
   if (current) {
     await repository.unassign(current.id);
   }
 
-  const assignment = await repository.createAssignment({ ticketId, assignedToUserId, assignedVendorId: finalVendorId });
+  // Keep a user link alongside the staff profile when that staff member has a
+  // login. Staff home screens can then find the assignment by either identity.
+  const staffUserId = assignedToStaffId
+    ? await repository.findStaffUserId(assignedToStaffId)
+    : null;
+  const assignment = await repository.createAssignment({
+    ticketId,
+    assignedToUserId: assignedToUserId || staffUserId,
+    assignedToStaffId,
+    assignedVendorId: finalVendorId,
+  });
+
+  if (assignedToStaffId) {
+    securityEvents.publishTicketAssigned(staffUserId);
+  } else if (assignedToUserId) {
+    securityEvents.publishTicketAssigned(assignedToUserId);
+  }
 
   if (ticket.status === 'OPEN') {
-    await updateStatus(ticketId, 'ASSIGNED', assignedToUserId || null, 'Auto-transitioned on assignment', vendorScope);
+    await updateStatus(ticketId, 'ASSIGNED', assignedByUserId || null, 'Auto-transitioned on assignment', vendorScope);
   }
 
   return assignment;
@@ -313,6 +380,8 @@ const addRating = async (ticketId, { ratedBy, rating, comment }, vendorScope) =>
 module.exports = {
   createTicket,
   listTickets,
+  listAssignedStaffTickets,
+  updateAssignedStaffTicketStatus,
   getTicket,
   updateTicket,
   updateStatus,

@@ -4,12 +4,14 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 import 'package:housing_society_app/app/session_manager.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../auth/data/auth_api.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../resident/dashboard/screens/resident_home_screen.dart';
+import '../../../staff/screens/domestic_helpers_screen.dart';
 import '../profile/security_profile_screen.dart';
 import '../../visitor_check_in/security_register_visitor_screen.dart';
 
@@ -151,6 +153,7 @@ class _SecurityHomeState extends State<_SecurityHome>
   _GuardSnapshot? _loadedSnapshot;
   Timer? _deliverySyncTimer;
   Timer? _visitorPassSyncTimer;
+  Timer? _helpdeskTicketSyncTimer;
   Timer? _securityEventsReconnectTimer;
   StreamSubscription<String>? _securityEventsSubscription;
   http.Client? _securityEventsClient;
@@ -158,6 +161,10 @@ class _SecurityHomeState extends State<_SecurityHome>
   List<_GuardNotification> _notifications = const [];
   bool _deliverySyncRunning = false;
   bool _visitorPassSyncRunning = false;
+  bool _helpdeskTicketSyncRunning = false;
+  bool _helpdeskTicketsLoaded = false;
+  List<Map<String, dynamic>> _assignedHelpdeskTickets = const [];
+  final Set<String> _seenHelpdeskAssignmentIds = {};
   bool _shiftSyncRunning = false;
   Map<String, dynamic>? _guardAttendanceRecord;
   bool _attendanceLoading = false;
@@ -188,12 +195,20 @@ class _SecurityHomeState extends State<_SecurityHome>
       _shiftClock.value = DateTime.now();
     });
     _loadNotifications();
+    unawaited(_refreshAssignedHelpdeskTickets(notifyNewAssignments: true));
+    _helpdeskTicketSyncTimer = Timer.periodic(
+      const Duration(seconds: 25),
+      (_) => unawaited(_refreshAssignedHelpdeskTickets(notifyNewAssignments: true)),
+    );
     _connectSecurityEvents();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _restartSecurityEvents();
+    if (state == AppLifecycleState.resumed) {
+      _restartSecurityEvents();
+      unawaited(_refreshAssignedHelpdeskTickets(notifyNewAssignments: true));
+    }
   }
 
   void _restartSecurityEvents() {
@@ -238,6 +253,11 @@ class _SecurityHomeState extends State<_SecurityHome>
                     event['type'] == 'profile-updated') {
                   unawaited(_refreshGuardProfile());
                   unawaited(_loadNotifications());
+                } else if (event is Map &&
+                    event['type'] == 'ticket-assigned') {
+                  unawaited(_refreshAssignedHelpdeskTickets(
+                    notifyNewAssignments: true,
+                  ));
                 }
               } catch (_) {
                 // Ignore malformed stream messages and keep the connection open.
@@ -359,6 +379,210 @@ class _SecurityHomeState extends State<_SecurityHome>
     }
   }
 
+  Future<void> _refreshAssignedHelpdeskTickets({
+    bool notifyNewAssignments = false,
+  }) async {
+    if (!mounted || _helpdeskTicketSyncRunning) return;
+    _helpdeskTicketSyncRunning = true;
+    try {
+      final tickets = await _GuardApi.loadAssignedHelpdeskTickets(widget.user);
+      if (!mounted) return;
+      final freshAssignments = <Map<String, dynamic>>[];
+      for (final ticket in tickets) {
+        final assignmentId = (ticket['assignment_id'] ?? ticket['id'] ?? '')
+            .toString();
+        if (assignmentId.isNotEmpty &&
+            _seenHelpdeskAssignmentIds.add(assignmentId)) {
+          freshAssignments.add(ticket);
+        }
+      }
+      setState(() => _assignedHelpdeskTickets = tickets);
+      final shouldNotify = notifyNewAssignments &&
+          (_helpdeskTicketsLoaded || freshAssignments.isNotEmpty);
+      _helpdeskTicketsLoaded = true;
+      if (shouldNotify && freshAssignments.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          unawaited(_showNewHelpdeskAssignments(freshAssignments));
+        });
+      }
+    } catch (_) {
+      // Keep the home screen usable if Helpdesk is unavailable.
+    } finally {
+      _helpdeskTicketSyncRunning = false;
+    }
+  }
+
+  Future<void> _showNewHelpdeskAssignments(
+    List<Map<String, dynamic>> tickets,
+  ) async {
+    for (final ticket in tickets) {
+      if (!mounted) return;
+      await _showHelpdeskTicketActions(ticket, isNewAssignment: true);
+    }
+  }
+
+  List<String> _nextHelpdeskStatuses(Map<String, dynamic> ticket) {
+    switch ('${ticket['status'] ?? ''}'.toUpperCase()) {
+      case 'ASSIGNED':
+        return const ['IN_PROGRESS', 'ON_HOLD'];
+      case 'IN_PROGRESS':
+        return const ['ON_HOLD', 'RESOLVED'];
+      case 'ON_HOLD':
+        return const ['IN_PROGRESS'];
+      default:
+        return const [];
+    }
+  }
+
+  String _helpdeskStatusLabel(String status) => switch (status) {
+    'IN_PROGRESS' => 'In progress',
+    'ON_HOLD' => 'On hold',
+    'RESOLVED' => 'Complete',
+    _ => status.replaceAll('_', ' '),
+  };
+
+  Future<void> _showHelpdeskTicketActions(
+    Map<String, dynamic> ticket, {
+    bool isNewAssignment = false,
+  }) async {
+    final ticketId = (ticket['id'] ?? '').toString();
+    if (ticketId.isEmpty || !mounted) return;
+    final choices = _nextHelpdeskStatuses(ticket);
+    final description = (ticket['description'] ?? '').toString().trim();
+    final selectedStatus = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(isNewAssignment ? 'New ticket assigned' : 'Update ticket'),
+            ),
+            IconButton(
+              tooltip: 'Cancel',
+              visualDensity: VisualDensity.compact,
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              icon: const Icon(Icons.close_rounded),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                (ticket['subject'] ?? 'Helpdesk ticket').toString(),
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 6),
+              Text('Ticket ${ticket['ticket_no'] ?? ''}'),
+              const SizedBox(height: 4),
+              Text('Raised by: ${_ticketResidentName(ticket)}'),
+              const SizedBox(height: 4),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const Text('Mobile: '),
+                  Expanded(
+                    child: TextButton.icon(
+                      onPressed: _ticketResidentPhone(ticket) == 'Not provided'
+                          ? null
+                          : () => _callTicketResident(_ticketResidentPhone(ticket)),
+                      icon: const Icon(Icons.call_rounded, size: 16),
+                      label: Text(_ticketResidentPhone(ticket)),
+                      style: TextButton.styleFrom(
+                        alignment: Alignment.centerLeft,
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        minimumSize: const Size(0, 36),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text('Flat: ${_ticketFlatDetails(ticket)}'),
+              if ((ticket['category_name'] ?? '').toString().isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text('Category: ${ticket['category_name']}'),
+              ],
+              const SizedBox(height: 8),
+              const Text('Description', style: TextStyle(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 3),
+              Text(description.isEmpty ? 'No description provided.' : description),
+              const SizedBox(height: 8),
+              Text('Current status: ${_helpdeskStatusLabel('${ticket['status'] ?? ''}'.toUpperCase())}'),
+            ],
+          ),
+        ),
+        actions: [
+          if (choices.isNotEmpty)
+            Align(
+              alignment: Alignment.centerRight,
+              child: Wrap(
+                alignment: WrapAlignment.end,
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final status in choices)
+                    FilledButton.tonal(
+                      onPressed: () => Navigator.of(dialogContext).pop(status),
+                      child: Text(_helpdeskStatusLabel(status)),
+                    ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+    if (selectedStatus == null || !mounted) return;
+    try {
+      await _GuardApi.updateAssignedHelpdeskTicketStatus(
+        widget.user,
+        ticketId,
+        selectedStatus,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Ticket marked ${_helpdeskStatusLabel(selectedStatus).toLowerCase()}.')),
+      );
+      await _refreshAssignedHelpdeskTickets();
+    } on _GuardApiException catch (error) {
+      if (mounted) _showError(error.message);
+    }
+  }
+
+  String _ticketResidentName(Map<String, dynamic> ticket) {
+    final name = (ticket['resident_name'] ?? '').toString().trim();
+    return name.isEmpty ? 'Resident details unavailable' : name;
+  }
+
+  String _ticketResidentPhone(Map<String, dynamic> ticket) {
+    final phone = (ticket['resident_phone'] ?? '').toString().trim();
+    return phone.isEmpty ? 'Not provided' : phone;
+  }
+
+  Future<void> _callTicketResident(String phone) async {
+    final dialablePhone = phone.replaceAll(RegExp(r'[^0-9+]'), '');
+    if (dialablePhone.isEmpty) return;
+    try {
+      final launched = await launchUrl(
+        Uri(scheme: 'tel', path: dialablePhone),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched && mounted) _showError('Could not open the phone dialer.');
+    } catch (_) {
+      if (mounted) _showError('Could not open the phone dialer.');
+    }
+  }
+
+  String _ticketFlatDetails(Map<String, dynamic> ticket) {
+    final details = (ticket['flat_details'] ?? '').toString().trim();
+    if (details.isNotEmpty) return details;
+    final unitNumber = (ticket['unit_number'] ?? '').toString().trim();
+    return unitNumber.isEmpty ? 'Common area / not specified' : unitNumber;
+  }
+
   Future<void> _refreshGuardProfile() async {
     try {
       final profile = await _GuardApi.loadGuardProfile(widget.user);
@@ -388,6 +612,7 @@ class _SecurityHomeState extends State<_SecurityHome>
     _deliverySyncTimer?.cancel();
     _deliverySyncTimer = null;
     _visitorPassSyncTimer?.cancel();
+    _helpdeskTicketSyncTimer?.cancel();
     _visitorPassSyncTimer = null;
     if (index == 4) {
       unawaited(_openProfile());
@@ -742,6 +967,14 @@ class _SecurityHomeState extends State<_SecurityHome>
     } on _GuardApiException catch (error) {
       if (mounted) _showError(error.message);
     }
+  }
+
+  void _openDomesticHelpers() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => DomesticHelpersScreen(accessToken: widget.user.accessToken),
+      ),
+    );
   }
 
   Future<void> _registerWalkIn(_GuardSnapshot data) async {
@@ -1485,6 +1718,15 @@ class _SecurityHomeState extends State<_SecurityHome>
   Widget _overview(_GuardSnapshot data) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
+      if (_assignedHelpdeskTickets.isNotEmpty) ...[
+        _sectionHeading(
+          'Assigned tickets',
+          '${_assignedHelpdeskTickets.length} active',
+        ),
+        const SizedBox(height: 10),
+        ..._assignedHelpdeskTickets.take(3).map(_assignedHelpdeskTicketCard),
+        const SizedBox(height: 14),
+      ],
       _sectionHeading('Quick actions', 'Security desk'),
       const SizedBox(height: 10),
       Row(
@@ -1508,6 +1750,17 @@ class _SecurityHomeState extends State<_SecurityHome>
               title: 'Gate log',
               subtitle: 'Review recent entries',
               onTap: () => setState(() => _tab = 2),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _quickAction(
+              icon: Icons.cleaning_services_rounded,
+              iconBackground: const Color(0xFFF3EAFE),
+              iconColor: const Color(0xFF8354B8),
+              title: 'Staff Directory',
+              subtitle: 'View staff records',
+              onTap: _openDomesticHelpers,
             ),
           ),
         ],
@@ -1551,6 +1804,67 @@ class _SecurityHomeState extends State<_SecurityHome>
         ),
       ),
     ],
+  );
+
+  Widget _assignedHelpdeskTicketCard(Map<String, dynamic> ticket) => Padding(
+    padding: const EdgeInsets.only(bottom: 9),
+    child: Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(15),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(15),
+        onTap: () => _showHelpdeskTicketActions(ticket),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(color: const Color(0xFFE3E7EF)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEEF0FF),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.confirmation_number_outlined,
+                  color: AppColors.indigo,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      (ticket['subject'] ?? 'Helpdesk ticket').toString(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.ink,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${ticket['ticket_no'] ?? ''} · ${_helpdeskStatusLabel('${ticket['status'] ?? ''}'.toUpperCase())}',
+                      style: const TextStyle(
+                        color: Color(0xFF5B6479),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: Color(0xFF7B8496)),
+            ],
+          ),
+        ),
+      ),
+    ),
   );
 
   DateTime _shiftDateTime(DateTime date, String time) {
@@ -1711,13 +2025,11 @@ class _SecurityHomeState extends State<_SecurityHome>
             ? 'No shift assigned'
             : 'Could not load',
         statusColor: const Color(0xFF61708A),
-        child: data.shiftLoadError == null
-            ? const SizedBox.shrink()
-            : TextButton.icon(
-                onPressed: () => _refreshShiftAssignments(),
-                icon: const Icon(Icons.refresh_rounded, size: 17),
-                label: const Text('Try again'),
-              ),
+        child: TextButton.icon(
+          onPressed: () => _refreshShiftAssignments(showResult: true),
+          icon: const Icon(Icons.refresh_rounded, size: 17),
+          label: Text(data.shiftLoadError == null ? 'Refresh shifts' : 'Try again'),
+        ),
       );
     }
 
@@ -2876,6 +3188,22 @@ class _GuardNotification {
 }
 
 class _GuardApi {
+  static Future<List<Map<String, dynamic>>> loadAssignedHelpdeskTickets(
+    AuthenticatedUser user,
+  ) => _get('/tickets/my-staff-tickets', user.accessToken);
+
+  static Future<void> updateAssignedHelpdeskTicketStatus(
+    AuthenticatedUser user,
+    String ticketId,
+    String status,
+  ) async {
+    await patch(
+      '/tickets/${Uri.encodeComponent(ticketId)}/staff-status',
+      {'status': status},
+      user.accessToken,
+    );
+  }
+
   static Future<Map<String, dynamic>> loadGuardProfile(
     AuthenticatedUser user,
   ) => _getObject('/gates/guards/me', user.accessToken);

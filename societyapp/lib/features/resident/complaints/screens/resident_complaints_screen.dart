@@ -7,6 +7,7 @@ import '../../widgets/resident_back_button.dart';
 import '../../../auth/data/auth_api.dart';
 import '../data/resident_complaints_api.dart';
 import 'new_complaint_screen.dart';
+import 'new_support_screen.dart';
 
 class ResidentComplaintsScreen extends StatefulWidget {
   const ResidentComplaintsScreen({super.key, required this.user, this.onBack});
@@ -208,6 +209,21 @@ class _ResidentComplaintsScreenState extends State<ResidentComplaintsScreen>
     }
   }
 
+  Future<void> _newSupportRequest() async {
+    final created = await Navigator.of(context).push<ResidentComplaint>(
+      MaterialPageRoute<ResidentComplaint>(
+        builder: (_) => NewSupportScreen(user: widget.user),
+      ),
+    );
+    if (created != null && mounted) {
+      setState(() {
+        final complaints = _mergeComplaints([created]);
+        _complaintsFuture = Future.value(complaints);
+      });
+      _reloadAfterCreate();
+    }
+  }
+
   Future<void> _reloadAfterCreate() async {
     try {
       final complaints = await _loadComplaints();
@@ -262,12 +278,27 @@ class _ResidentComplaintsScreenState extends State<ResidentComplaintsScreen>
             ),
           ],
         ),
-        floatingActionButton: FloatingActionButton.extended(
-          onPressed: _newComplaint,
-          backgroundColor: AppColors.navy,
-          foregroundColor: Colors.white,
-          icon: const Icon(Icons.add_rounded),
-          label: const Text('New complaint'),
+        floatingActionButton: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FloatingActionButton.extended(
+              heroTag: 'resident_support',
+              onPressed: _newSupportRequest,
+              backgroundColor: AppColors.navy,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.support_agent_rounded),
+              label: const Text('Support'),
+            ),
+            const SizedBox(width: 10),
+            FloatingActionButton.extended(
+              heroTag: 'new_complaint',
+              onPressed: _newComplaint,
+              backgroundColor: AppColors.navy,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('New complaint'),
+            ),
+          ],
         ),
         body: SafeArea(
           child: RefreshIndicator(

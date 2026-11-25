@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowUpRight,
   BadgeCheck,
@@ -9,6 +9,7 @@ import {
   UserRound,
 } from 'lucide-react';
 import useAuth from '../../../app/providers/useAuth';
+import apiClient from '../../../lib/axios';
 import { roleLabel } from '../../../components/layout/Topbar';
 import { formatDateTime, humanize } from '../../../utils/format';
 import './account-dashboard.css';
@@ -115,6 +116,69 @@ function AccountAvatar({ user, name }) {
   );
 }
 
+function MyAssignedTickets() {
+  const [tickets, setTickets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [updatingId, setUpdatingId] = useState('');
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await apiClient.get('/tickets/my-staff-tickets');
+      const rows = response.data?.data;
+      setTickets(Array.isArray(rows) ? rows : []);
+      setError('');
+    } catch (requestError) {
+      setTickets([]);
+      setError(requestError.response?.data?.message || 'Could not load tickets for this staff login. Ask an administrator to link your login email to your staff profile.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  const updateStatus = async (ticketId, status) => {
+    setUpdatingId(ticketId);
+    try {
+      await apiClient.patch(`/tickets/${ticketId}/staff-status`, { status });
+      await refresh();
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Ticket status could not be updated.');
+    } finally {
+      setUpdatingId('');
+    }
+  };
+
+  return (
+    <section className="ad-panel ad-roles-panel">
+      <div className="ad-panel-heading">
+        <div><span className="ad-kicker">STAFF WORK QUEUE</span><h2>My assigned tickets</h2><p>Tickets assigned to your staff profile.</p></div>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={refresh} disabled={loading}>Refresh</button>
+      </div>
+      {error ? <div className="ad-no-roles" role="alert">{error}</div> : loading ? <p className="ad-no-roles">Loading assigned tickets…</p> : tickets.length ? (
+        <div className="ad-role-list">
+          {tickets.map((ticket) => {
+            const status = String(ticket.status || '').toUpperCase();
+            const actions = status === 'ASSIGNED' ? [['IN_PROGRESS', 'Start'], ['ON_HOLD', 'Put on hold']]
+              : status === 'IN_PROGRESS' ? [['ON_HOLD', 'Put on hold'], ['RESOLVED', 'Complete']]
+                : status === 'ON_HOLD' ? [['IN_PROGRESS', 'Resume']] : [];
+            return (
+              <article className="ad-role-row" key={ticket.assignment_id || ticket.id}>
+                <span className="ad-role-icon"><Layers3 size={17} /></span>
+                <span><strong>{ticket.subject || 'Helpdesk ticket'}</strong><small>{ticket.ticket_no} · {humanize(status)}</small></span>
+                <span className="ad-role-tag">{humanize(ticket.priority || 'MEDIUM')}</span>
+                <span className="ad-ticket-actions">{actions.map(([nextStatus, label]) => <button type="button" className="btn btn-secondary btn-sm" key={nextStatus} disabled={updatingId === ticket.id} onClick={() => updateStatus(ticket.id, nextStatus)}>{updatingId === ticket.id ? 'Saving…' : label}</button>)}</span>
+              </article>
+            );
+          })}
+        </div>
+      ) : <div className="ad-no-roles">No active tickets are assigned to your staff profile.</div>}
+    </section>
+  );
+}
+
 function DashboardPage() {
   const { user, roles = [], permissions = [], hasRole } = useAuth();
   const name = user?.first_name || user?.email?.split('@')[0] || 'there';
@@ -191,6 +255,8 @@ function DashboardPage() {
           </div>
         ) : <div className="ad-no-roles">No role is assigned yet. Ask your society administrator to review your account access.</div>}
       </section>
+
+      <MyAssignedTickets />
 
     </main>
   );

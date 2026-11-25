@@ -25,6 +25,11 @@ const getDashboard = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, dashboard, 'Resident dashboard loaded');
 });
 
+const listSocietyStaff = asyncHandler(async (req, res) => {
+  const staff = await service.listSocietyStaff(req.user);
+  return ApiResponse.success(res, staff, 'Staff directory loaded');
+});
+
 const listNotifications = asyncHandler(async (req, res) => {
   const notifications = await service.listResidentNotifications(req.user);
   return ApiResponse.success(res, notifications, 'Resident notifications loaded');
@@ -38,4 +43,4 @@ const markNotificationRead = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, notification, 'Notification marked as read');
 });
 
-module.exports = { getDashboard, listNotifications, markNotificationRead, streamEvents };
+module.exports = { getDashboard, listSocietyStaff, listNotifications, markNotificationRead, streamEvents };

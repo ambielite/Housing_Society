@@ -32,6 +32,10 @@ export default function TicketListPage(){
  const cats=useFetch(()=>societyId?api.listCategories({societyId}):Promise.resolve(null),[societyId]);
  const tickets=useFetch(()=>societyId?api.listTickets({societyId,status,priority,categoryId}):Promise.resolve(null),[societyId,status,priority,categoryId]);
  useEffect(()=>{
+  const timerId=window.setInterval(tickets.reload,8000);
+  return ()=>window.clearInterval(timerId);
+ },[tickets.reload]);
+ useEffect(()=>{
   if(!show||!societyId)return undefined;
   let active=true;
   setUnitsLoading(true);setUnitsError('');setUnits([]);

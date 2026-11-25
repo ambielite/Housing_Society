@@ -5,6 +5,7 @@ import { ImagePlus, Trash2, X } from "lucide-react";
 
 import societyApi from "../api/society.api";
 import { societyLogoUrl } from "../utils/societyLogo";
+import { isValidPhone, phoneInputProps, sanitizePhone } from "../../../utils/phone";
 
 const createInitialForm = (society) => ({
     name: society?.name || "",
@@ -35,10 +36,11 @@ const SocietyForm = ({ society, onClose, onSuccess }) => {
 
     const handleChange = (e) => {
         const { name, value } = e.target;
+        const nextValue = name === "phone" ? sanitizePhone(value) : value;
 
         setFormData((prev) => ({
             ...prev,
-            [name]: value
+            [name]: nextValue
         }));
     };
 
@@ -79,6 +81,10 @@ const SocietyForm = ({ society, onClose, onSuccess }) => {
 
         if (!formData.address.trim()) {
             setError("Address is required.");
+            return;
+        }
+        if (!isValidPhone(formData.phone)) {
+            setError("Society phone must contain exactly 10 digits.");
             return;
         }
 
@@ -218,6 +224,7 @@ const SocietyForm = ({ society, onClose, onSuccess }) => {
                                         value={formData.phone}
                                         onChange={handleChange}
                                         placeholder="Enter society phone"
+                                        {...phoneInputProps}
                                     />
                                 </div>
 

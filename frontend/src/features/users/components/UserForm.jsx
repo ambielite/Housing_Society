@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { isValidEmail, passwordError } from '../../../utils/validators';
 import TextField from '../../../components/ui/TextField';
 import Alert from '../../../components/ui/Alert';
-import { isValidPhone, phoneInputProps } from '../../../utils/phone';
+import { isValidPhone, phoneInputProps, sanitizePhone } from '../../../utils/phone';
 
 const EMPTY = { firstName: '', lastName: '', email: '', phone: '', password: '', status: 'ACTIVE' };
 const imageUrl = (value) => {
@@ -40,7 +40,8 @@ export default function UserForm({ mode, initialValues, societyId, onSubmit, sub
   const onChange = (event) => {
     setNote('');
     if (event.target.name === 'phone') setPhoneTouched(true);
-    setValues((v) => ({ ...v, [event.target.name]: event.target.value }));
+    const value = event.target.name === 'phone' ? sanitizePhone(event.target.value) : event.target.value;
+    setValues((v) => ({ ...v, [event.target.name]: value }));
   };
 
   const validate = () => {

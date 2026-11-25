@@ -18,6 +18,7 @@ import '../data/resident_emergency_contacts_api.dart';
 import '../data/resident_notifications_api.dart';
 import '../../visitors/data/resident_visitors_api.dart';
 import '../../visitors/screens/resident_visitors_screen.dart';
+import '../../../staff/screens/domestic_helpers_screen.dart';
 import '../data/resident_dashboard_api.dart';
 import '../../profile/screens/resident_profile_screen.dart';
 import '../../widgets/resident_back_button.dart';
@@ -944,7 +945,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                                       _quickActions(context),
                                       const SizedBox(height: 27),
                                       _sectionTitle(
-                                        'Complaint status',
+                                        'Your Requests',
                                         trailing: 'View all',
                                         onTap: _openHelp,
                                       ),
@@ -1748,6 +1749,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
   );
 
   Widget _quickActions(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Expanded(
         child: _action(
@@ -1788,6 +1790,16 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           onTap: _openAmenities,
         ),
       ),
+      const SizedBox(width: 10),
+      Expanded(
+        child: _action(
+          Icons.cleaning_services_rounded,
+          'Staff Directory',
+          const Color(0xFFF3EAFE),
+          const Color(0xFF8354B8),
+          onTap: _openDomesticHelpers,
+        ),
+      ),
     ],
   );
 
@@ -1814,8 +1826,9 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
         const SizedBox(height: 8),
         Text(
           label,
-          maxLines: 1,
+          maxLines: 2,
           overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
           style: const TextStyle(
             fontSize: 10,
             fontWeight: FontWeight.w700,
@@ -1836,6 +1849,14 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
 
   void _openAmenities() {
     _navigateTo(_ResidentSection.amenities, 0);
+  }
+
+  void _openDomesticHelpers() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => DomesticHelpersScreen(accessToken: widget.user.accessToken),
+      ),
+    );
   }
 
   Widget _maintenanceCard(ResidentDashboardData dashboard) {
