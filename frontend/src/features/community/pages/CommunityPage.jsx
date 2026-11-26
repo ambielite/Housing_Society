@@ -24,8 +24,8 @@ const configs = {
   posts: { title: "Posts", base: "/community-posts", create: true, fields: ["forumId", "title", "content", "status"] },
   comments: { title: "Comments", base: "/community", create: true, fields: ["content"], endpoint: (row) => `/community/posts/${row.postId}/comments` },
   classifieds: { title: "Classifieds", base: "/community-classifieds", create: true, fields: ["societyId", "sellerId", "title", "description", "category", "price", "isNegotiable", "contactPhone", "contactEmail"] },
-  events: { title: "Events", base: "/community-events", create: true, fields: ["societyId", "title", "description", "category", "venue", "startAt", "endAt", "capacity", "isFree", "ticketPrice"] },
-  rsvps: { title: "Event RSVP", base: "/community-events/rsvps", fields: ["userId", "totalTickets", "guestCount"] },
+  events: { title: "Events", base: "/community-events", create: true, fields: ["societyId", "title", "description", "category", "venue", "startAt", "endAt", "registrationStartAt", "registrationEndAt", "capacity", "isFree", "ticketPrice"] },
+  rsvps: { title: "Event RSVP", base: "/community-events/rsvps", fields: ["userId", "totalTickets", "guestCount", "teamName"] },
   meetings: { title: "Meetings", base: "/community-meetings", create: true, fields: ["societyId", "title", "description", "meetingType", "scheduledAt", "endAt", "venue", "meetingLink"] },
   agendas: { title: "Agendas", base: "/community-meeting-agendas", create: true, fields: ["meetingId", "title", "description", "agendaOrder", "discussionRequired", "decisionRequired"] },
   attendance: { title: "Attendance", base: "/community-meeting-attendance", create: true, fields: ["meetingId", "userId", "attendanceStatus", "remarks"] },
@@ -41,6 +41,7 @@ const idOf = (r) => r?.id ?? r?.uuid ?? r?._id;
 const titleOf = (r) => r?.title || r?.name || r?.subject || r?.id || "Community record";
 const selectedSocietyId = () => String(localStorage.getItem("selectedSocietyId") || "").replace(/^:+/, "").trim();
 const currentUserId = () => { try { const user = JSON.parse(localStorage.getItem("user") || "{}"); return user.id || user.userId || user.user?.id || user.data?.id || ""; } catch { return ""; } };
+const localToday = () => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`; };
 const actions = {
   groups: [["activate", "Activate"], ["deactivate", "Deactivate"]], forums: [["activate", "Activate"], ["deactivate", "Deactivate"]],
   posts: [["pin", "Pin"], ["unpin", "Unpin"], ["lock", "Lock"], ["unlock", "Unlock"]],
@@ -189,6 +190,12 @@ export default function CommunityPage() {
   const remove = async (key, row) => { if (!await confirmDashboardAction("Delete this record permanently?")) return; const endpoint = key === "comments" ? `/community/posts/${row.postId || idOf(dialog?.parent)}/comments/${idOf(row)}` : `${configs[key].base}/${idOf(row)}`; run(() => communityApi.delete(endpoint)); };
   const saveDialog = async () => {
     const key = dialog.key; const payload = { ...form }; let endpoint = configs[key].base;
+    if (key === "events") {
+      const dateFields = [["startAt", "Event start date"], ["endAt", "Event end date"], ["registrationStartAt", "Registration open date"], ["registrationEndAt", "Registration close date"]];
+      for (const [field, label] of dateFields) {
+        if (payload[field] && String(payload[field]).slice(0, 10) < localToday()) throw new Error(`${label} cannot be before today.`);
+      }
+    }
     Object.keys(payload).forEach((name) => { if (payload[name] === "") delete payload[name]; else if (["price", "ticketPrice", "capacity", "totalTickets", "guestCount", "agendaOrder", "noticePeriodDays", "quorumRequired"].includes(name)) payload[name] = Number(payload[name]); else if (["isFree", "isNegotiable", "isActive", "discussionRequired", "decisionRequired", "candidateApprovalRequired", "identityVerificationRequired", "otpRequired"].includes(name)) payload[name] = payload[name] === "true"; });
     if (["posts", "comments", "attendance", "rsvps"].includes(key)) payload.userId = payload.userId || currentUserId();
     if (["events", "meetings", "groups", "forums", "governance", "rules"].includes(key) && currentUserId()) payload.createdBy = currentUserId();

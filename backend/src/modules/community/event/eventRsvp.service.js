@@ -9,19 +9,27 @@ const rsvpRepository =
 const {
     validateRsvp
 } = require("./event.validation");
+const sequelize = require("../../../config/database");
 
 
 const registerForEvent = async (data) => {
 
     validateRsvp(data);
 
+    return sequelize.transaction(async (transaction) => {
+
     const event =
         await eventRepository.findById(
-            data.eventId
+            data.eventId,
+            { transaction, lock: transaction.LOCK.UPDATE }
         );
 
     if (!event) {
         throw new Error("Event not found");
+    }
+
+    if (event.societyId !== data.societyId) {
+        throw new Error("Event does not belong to this society");
     }
 
     if (event.status !== "PUBLISHED") {
@@ -67,7 +75,7 @@ const registerForEvent = async (data) => {
                     "CHECKED_IN"
                 ]
             }
-        });
+        }, { transaction });
 
     if (existing) {
         throw new Error(
@@ -86,16 +94,7 @@ const registerForEvent = async (data) => {
 
     if (event.capacity) {
 
-        const registered =
-            await rsvpRepository.count({
-                eventId: event.id,
-                status: {
-                    [Op.in]: [
-                        "REGISTERED",
-                        "CHECKED_IN"
-                    ]
-                }
-            });
+        const registered = await rsvpRepository.countSeats(event.id, transaction);
 
         if (
             registered + requestedSeats >
@@ -134,7 +133,10 @@ const registerForEvent = async (data) => {
         totalAmount,
         paymentStatus,
         status: "REGISTERED",
-        remarks: data.remarks || null
+        remarks: data.remarks || null,
+        teamName: String(data.teamName || '').trim().slice(0, 120) || null,
+        participantNames: Array.isArray(data.participantNames) ? data.participantNames : [],
+    }, { transaction });
     });
 };
 

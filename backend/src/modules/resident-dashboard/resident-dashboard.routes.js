@@ -8,6 +8,7 @@ router.get('/events', authenticate, controller.streamEvents);
 router.get('/staff-directory', authenticate, controller.listSocietyStaff);
 router.get('/notifications', authenticate, controller.listNotifications);
 router.patch('/notifications/:id/read', authenticate, controller.markNotificationRead);
+router.post('/community-events/:eventId/register', authenticate, controller.registerCommunityEvent);
 router.get('/', authenticate, controller.getDashboard);
 
 module.exports = router;

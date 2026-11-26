@@ -125,6 +125,19 @@ const CommunityEventRsvp = sequelize.define(
             allowNull: true
         },
 
+        teamName: {
+            type: DataTypes.STRING(120),
+            allowNull: true,
+            field: "team_name"
+        },
+
+        participantNames: {
+            type: DataTypes.JSONB,
+            allowNull: false,
+            defaultValue: [],
+            field: "participant_names"
+        },
+
         createdAt: {
             type: DataTypes.DATE,
             allowNull: false,
