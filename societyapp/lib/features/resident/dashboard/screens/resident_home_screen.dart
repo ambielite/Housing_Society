@@ -423,9 +423,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     final now = DateTime.now();
     return dashboard.kidsActivities.where((activity) {
       final end = _kidsActivityEndDateTime(activity);
-      final deadline = activity.registrationDeadline;
-      return (end != null && end.isAfter(now)) ||
-          (activity.registrationRequired && deadline != null && deadline.isAfter(now));
+      return end != null && end.isAfter(now);
     }).toList(growable: false);
   }
 
@@ -1304,10 +1302,12 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     final children = <({TextEditingController name, TextEditingController age})>[
       (name: TextEditingController(), age: TextEditingController()),
     ];
+    final retiredControllers = <TextEditingController>[];
     var submitting = false;
     String? formError;
+    List<Map<String, dynamic>>? submittedChildren;
     try {
-      await showModalBottomSheet<void>(
+      submittedChildren = await showModalBottomSheet<List<Map<String, dynamic>>>(
         context: context,
         isScrollControlled: true,
         useSafeArea: true,
@@ -1322,7 +1322,6 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                 IconButton(
                   tooltip: 'Close registration form',
                   onPressed: () {
-                    unawaited(SystemChannels.textInput.invokeMethod<void>('TextInput.hide'));
                     Navigator.of(sheetContext).pop();
                   },
                   icon: const Icon(Icons.close_rounded),
@@ -1346,8 +1345,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                     while (children.length < count) children.add((name: TextEditingController(), age: TextEditingController()));
                     while (children.length > count) {
                       final removed = children.removeLast();
-                      removed.name.dispose();
-                      removed.age.dispose();
+                      retiredControllers..add(removed.name)..add(removed.age);
                     }
                   });
                 },
@@ -1365,8 +1363,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                   )),
                   if (children.length > 1) IconButton(onPressed: submitting ? null : () => setSheetState(() {
                     final removed = children.removeAt(entry.key);
-                    removed.name.dispose();
-                    removed.age.dispose();
+                    retiredControllers..add(removed.name)..add(removed.age);
                     countController.text = '${children.length}';
                   }), icon: const Icon(Icons.remove_circle_outline)),
                 ]),
@@ -1399,41 +1396,16 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                     }
                     parsed.add({'name': child.name.text.trim(), 'age': age});
                   }
-                  FocusManager.instance.primaryFocus?.unfocus();
-                  unawaited(SystemChannels.textInput.invokeMethod<void>('TextInput.hide'));
-                  setState(() => _submittingKidsActivityIds.add(activity.id));
-                  Navigator.of(sheetContext).pop();
+                  setSheetState(() => submitting = true);
+                  FocusScope.of(context).unfocus();
                   try {
-                    final response = await http.post(
-                      Uri.parse('$_residentApiBaseUrl/kids-activities/resident/${activity.id}/register'),
-                      headers: {'Accept': 'application/json', 'Content-Type': 'application/json', 'Authorization': 'Bearer ${widget.user.accessToken}'},
-                      body: jsonEncode({'children': parsed}),
-                    ).timeout(const Duration(seconds: 15));
-                    final body = response.body.isEmpty ? <String, dynamic>{} : jsonDecode(response.body) as Map<String, dynamic>;
-                    if (response.statusCode < 200 || response.statusCode >= 300) {
-                      throw Exception(body['message']?.toString() ?? 'Could not submit the registration.');
-                    }
-                    if (mounted) {
-                      ScaffoldMessenger.of(this.context).showSnackBar(
-                        const SnackBar(content: Text('Registration submitted successfully.')),
-                      );
-                      unawaited(_refreshDashboard().catchError((_) {}));
-                      unawaited(_refreshNotifications());
-                    }
-                  } catch (error) {
-                    if (mounted) {
-                      final message = error is TimeoutException
-                          ? 'The registration request timed out. Please check your connection and try again.'
-                          : error.toString().replaceFirst('Exception: ', '');
-                      ScaffoldMessenger.of(this.context).showSnackBar(
-                        SnackBar(content: Text(message)),
-                      );
-                    }
-                  } finally {
-                    if (mounted) {
-                      setState(() => _submittingKidsActivityIds.remove(activity.id));
-                    }
+                    await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+                  } catch (_) {
+                    // Closing the sheet still needs to proceed if the platform
+                    // has no active text input connection.
                   }
+                  await WidgetsBinding.instance.endOfFrame;
+                  if (sheetContext.mounted) Navigator.of(sheetContext).pop(parsed);
                 },
                 child: Text(submitting ? 'Submitting…' : 'Submit registration'),
               )),
@@ -1444,6 +1416,41 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     } finally {
       countController.dispose();
       for (final child in children) { child.name.dispose(); child.age.dispose(); }
+      for (final controller in retiredControllers) { controller.dispose(); }
+    }
+    final childPayload = submittedChildren;
+    if (childPayload == null || !mounted) return;
+    setState(() => _submittingKidsActivityIds.add(activity.id));
+    try {
+      final response = await http.post(
+        Uri.parse('$_residentApiBaseUrl/kids-activities/resident/${activity.id}/register'),
+        headers: {'Accept': 'application/json', 'Content-Type': 'application/json', 'Authorization': 'Bearer ${widget.user.accessToken}'},
+        body: jsonEncode({'children': childPayload}),
+      ).timeout(const Duration(seconds: 15));
+      final body = response.body.isEmpty ? <String, dynamic>{} : jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception(body['message']?.toString() ?? 'Could not submit the registration.');
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(this.context).showSnackBar(
+          const SnackBar(content: Text('Registration submitted successfully.')),
+        );
+        unawaited(_refreshDashboard().catchError((_) {}));
+        unawaited(_refreshNotifications());
+      }
+    } catch (error) {
+      if (mounted) {
+        final message = error is TimeoutException
+            ? 'The registration request timed out. Please check your connection and try again.'
+            : error.toString().replaceFirst('Exception: ', '');
+        ScaffoldMessenger.of(this.context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _submittingKidsActivityIds.remove(activity.id));
+      }
     }
   }
 

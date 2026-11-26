@@ -2774,6 +2774,8 @@ body .dashboard-page .dashboard-panel .chip { padding: 7px 12px; font-size: 12px
 .community-page .kids-activity-deadline-controls { display: grid; grid-template-columns: minmax(180px, 2fr) minmax(75px, .8fr) auto minmax(75px, .8fr) minmax(80px, .9fr); align-items: center; gap: 9px; }
 .community-page .kids-activity-deadline-controls > * { min-width: 0; width: 100%; }
 .community-page .kids-activity-deadline-controls > span { justify-self: center; color: var(--text-muted); }
+.community-page .kids-activity-deadline-error { color: #b42318; font-size: 12px; font-weight: 500; line-height: 1.4; }
+.community-page .kids-activity-modal .kids-activity-deadline-field-message[role='alert'] { display: block !important; margin: 5px 0 0; padding: 0; border: 0; background: transparent; color: #b42318; font-size: 12px; font-weight: 500; line-height: 1.4; }
 @media(max-width:650px){.community-page .kids-activity-deadline-controls{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) minmax(0,1fr)}.community-page .kids-activity-deadline-controls>input[type=date]{grid-column:1/-1}}
 .community-page .kids-activities-table { width: 100%; min-width: 1320px; table-layout: fixed; }
 .community-page .kids-activities-table th,
@@ -2801,7 +2803,6 @@ body .dashboard-page .dashboard-panel .chip { padding: 7px 12px; font-size: 12px
 .advertisement-table { min-width: 850px; }
 .advertisement-table td small { display: block; margin-top: 4px; color: #68758b; }
 .advertisement-title-cell { display: flex; align-items: center; gap: 12px; min-width: 220px; max-width: 390px; text-align: left; }
-.advertisement-title-cell img { width: 76px; height: 52px; flex: 0 0 auto; object-fit: cover; border: 1px solid #e4e9f2; border-radius: 9px; background: #f5f7fb; }
 .advertisement-title-cell strong { display: block; color: #17243a; }
 .advertisement-title-cell small { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .advertisement-status { display: inline-flex; white-space: nowrap; }
