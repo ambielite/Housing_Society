@@ -76,6 +76,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
   bool _refreshingNotifications = false;
   final Set<String> _decidingVisitorRequestIds = {};
   final Set<String> _submittingKidsActivityIds = {};
+  final Set<String> _submittingCommunityEventIds = {};
   final Set<String> _recordedAdvertisementImpressions = {};
   final Set<String> _dismissedAdvertisementIds = {};
   final Set<String> _expandedKidsActivityNotificationIds = {};
@@ -193,6 +194,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                     (event['type'] == 'resident-updated' ||
                         event['type'] == 'notice-published' ||
                         event['type'] == 'kids-activity-published' ||
+                        event['type'] == 'community-event-updated' ||
                         event['type'] == 'advertisement-updated')) {
                   unawaited(_refreshNotifications());
                   unawaited(_refreshDashboard().catchError((_) {}));
@@ -286,6 +288,12 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           if (end != null && end.isAfter(now)) end,
         ];
       }),
+      ...dashboard.communityEvents.expand((event) => [
+        if (event.startAt != null && event.startAt!.isAfter(now)) event.startAt!,
+        if (event.endAt != null && event.endAt!.isAfter(now)) event.endAt!,
+        if (event.registrationStartAt != null && event.registrationStartAt!.isAfter(now)) event.registrationStartAt!,
+        if (event.registrationEndAt != null && event.registrationEndAt!.isAfter(now)) event.registrationEndAt!,
+      ]),
     ]..sort();
     if (upcomingExpiries.isEmpty) return;
 
@@ -427,6 +435,16 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
       return (end != null && end.isAfter(now)) ||
           (activity.registrationRequired && deadline != null && deadline.isAfter(now));
     }).toList(growable: false);
+  }
+
+  List<ResidentCommunityEvent> _visibleCommunityEvents(ResidentDashboardData dashboard) {
+    final now = DateTime.now();
+    return dashboard.communityEvents
+        .where((event) {
+          final expiry = event.endAt ?? event.startAt;
+          return expiry != null && expiry.isAfter(now);
+        })
+        .toList(growable: false);
   }
 
   List<ResidentNotice> _visibleNotices(ResidentDashboardData dashboard) {
@@ -1212,6 +1230,18 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                                           child: _kidsActivityCard(activity),
                                         )),
                                       ],
+                                      if (_visibleCommunityEvents(dashboard).isNotEmpty) ...[
+                                        const SizedBox(height: 18),
+                                        _sectionTitle(
+                                          'Upcoming events',
+                                          trailing: '${_visibleCommunityEvents(dashboard).length} activities',
+                                        ),
+                                        const SizedBox(height: 13),
+                                        ..._visibleCommunityEvents(dashboard).map((event) => Padding(
+                                          padding: const EdgeInsets.only(bottom: 10),
+                                          child: _communityEventCard(event),
+                                        )),
+                                      ],
                                       const SizedBox(height: 16),
                                     ],
                                   ),
@@ -1297,6 +1327,197 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
         ]),
       ),
     );
+  }
+
+  Widget _communityEventCard(ResidentCommunityEvent event) {
+    final category = event.category.toLowerCase().replaceAll('_', ' ');
+    final start = event.startAt;
+    final end = event.endAt;
+    final schedule = start == null
+        ? 'Schedule to be announced'
+        : '${_formatDateTime(start)}${end == null ? '' : ' – ${_formatDateTime(end)}'}';
+    final spots = event.capacity == null
+        ? '${event.registeredCount} registered'
+        : '${event.remainingCapacity ?? 0} of ${event.capacity} spots left';
+    return Card(
+      elevation: 0,
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: const BorderSide(color: Color(0xFFE5EAF3)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(child: Text(event.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.ink))),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+              decoration: BoxDecoration(color: const Color(0xFFEEF2FF), borderRadius: BorderRadius.circular(99)),
+              child: Text(category.toUpperCase(), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: .3, color: Color(0xFF5146B8))),
+            ),
+          ]),
+          if (event.description.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(event.description, style: const TextStyle(color: Color(0xFF526078))),
+          ],
+          const SizedBox(height: 8),
+          Text(schedule, style: const TextStyle(color: Color(0xFF526078), fontWeight: FontWeight.w600)),
+          const SizedBox(height: 5),
+          Row(children: [
+            const Icon(Icons.location_on_outlined, size: 16, color: AppColors.muted),
+            const SizedBox(width: 4),
+            Expanded(child: Text(event.venue, style: const TextStyle(color: Color(0xFF526078), fontWeight: FontWeight.w600))),
+          ]),
+          const SizedBox(height: 5),
+          Text(spots, style: const TextStyle(color: Color(0xFF526078), fontWeight: FontWeight.w600)),
+          if (event.registered) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 11),
+              decoration: BoxDecoration(color: const Color(0xFFEAF7F0), borderRadius: BorderRadius.circular(12)),
+              alignment: Alignment.center,
+              child: Text(event.teamName == null ? 'You are registered' : 'Registered · ${event.teamName}', style: const TextStyle(color: Color(0xFF187344), fontWeight: FontWeight.w700)),
+            ),
+          ] else if (event.registrationOpen) ...[
+            const SizedBox(height: 12),
+            SizedBox(width: double.infinity, child: FilledButton(
+              onPressed: _submittingCommunityEventIds.contains(event.id)
+                  ? null
+                  : () => _registerForCommunityEvent(event),
+              child: Text(_submittingCommunityEventIds.contains(event.id) ? 'Registering…' : 'Register'),
+            )),
+          ] else ...[
+            const SizedBox(height: 10),
+            const Text('Registration is closed or event capacity is full.', style: TextStyle(color: AppColors.muted, fontWeight: FontWeight.w600)),
+          ],
+        ]),
+      ),
+    );
+  }
+
+  Future<void> _registerForCommunityEvent(ResidentCommunityEvent event) async {
+    final teamController = TextEditingController();
+    final countController = TextEditingController(text: '1');
+    final participantControllers = <TextEditingController>[TextEditingController()];
+    try {
+      final registration = await showDialog<Map<String, dynamic>>(
+        context: context,
+        builder: (dialogContext) {
+          var participantCount = 1;
+          String? formError;
+          final maxParticipants = (event.remainingCapacity ?? 20).clamp(1, 20).toInt();
+          return StatefulBuilder(builder: (context, setDialogState) => AlertDialog(
+            title: Text('Register for ${event.title}'),
+            content: SizedBox(
+              width: 420,
+              child: SingleChildScrollView(child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: countController,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: InputDecoration(
+                      labelText: 'Number of participants',
+                      helperText: 'Up to $maxParticipants participants',
+                    ),
+                    onChanged: (value) {
+                      final count = int.tryParse(value);
+                      if (count == null || count < 1 || count > maxParticipants) {
+                        setDialogState(() => formError = 'Enter a count from 1 to $maxParticipants.');
+                        return;
+                      }
+                      setDialogState(() {
+                        formError = null;
+                        while (participantControllers.length < count) {
+                          participantControllers.add(TextEditingController());
+                        }
+                        while (participantControllers.length > count) {
+                          participantControllers.removeLast().dispose();
+                        }
+                        participantCount = count;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  ...List.generate(participantCount, (index) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: TextField(
+                      controller: participantControllers[index],
+                      textCapitalization: TextCapitalization.words,
+                      maxLength: 100,
+                      decoration: InputDecoration(
+                        labelText: 'Participant ${index + 1} name',
+                        counterText: '',
+                      ),
+                    ),
+                  )),
+                  if (formError != null) ...[
+                    Text(formError!, style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12)),
+                    const SizedBox(height: 8),
+                  ],
+                  TextField(
+                    controller: teamController,
+                    maxLength: 120,
+                    decoration: const InputDecoration(
+                      labelText: 'Team name (optional)',
+                      hintText: 'Enter your team name',
+                    ),
+                  ),
+                ],
+              )),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+              FilledButton(
+                onPressed: () {
+                  final count = int.tryParse(countController.text);
+                  final names = participantControllers.map((controller) => controller.text.trim()).toList();
+                  final invalidCount = count == null || count < 1 || count > maxParticipants || count != participantControllers.length;
+                  if (invalidCount || names.any((name) => name.isEmpty)) {
+                    setDialogState(() => formError = invalidCount
+                        ? 'Enter a count from 1 to $maxParticipants.'
+                        : 'Enter a name for each participant.');
+                    return;
+                  }
+                  Navigator.pop(dialogContext, {
+                    'teamName': teamController.text.trim(),
+                    'participantNames': names,
+                  });
+                },
+                child: const Text('Register'),
+              ),
+            ],
+          ));
+        },
+      );
+      if (registration == null || !mounted) return;
+      setState(() => _submittingCommunityEventIds.add(event.id));
+      await ResidentDashboardApi.registerForCommunityEvent(
+        widget.user.accessToken,
+        event.id,
+        teamName: registration['teamName'] as String?,
+        participantNames: (registration['participantNames'] as List<String>),
+      );
+      await _refreshDashboard();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Event registration submitted successfully.')),
+        );
+      }
+    } on ResidentDashboardException catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+    } finally {
+      teamController.dispose();
+      countController.dispose();
+      for (final controller in participantControllers) {
+        controller.dispose();
+      }
+      if (mounted) setState(() => _submittingCommunityEventIds.remove(event.id));
+    }
   }
 
   Future<void> _openKidsActivityRegistration(ResidentKidsActivity activity) async {

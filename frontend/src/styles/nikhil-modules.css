@@ -2260,6 +2260,16 @@ tbody tr:hover {
 .community-page .society-workflow-action { min-height: 32px; padding: 0 10px; border-color: #d0d5dd; background: #fff; color: #475467; font-size: 11px; font-weight: 550; }
 .community-page .society-workflow-action:hover:not(:disabled) { border-color: #c7d2fe; background: #f8f9ff; color: #4338ca; }
 .community-page .society-icon-action { min-height: 32px; height: 32px; padding: 0 9px; font-size: 11px; }
+.community-page .community-table-rsvps { min-width: 1380px; table-layout: fixed; }
+.community-page .community-table-rsvps th:nth-child(1),.community-page .community-table-rsvps td:nth-child(1) { width: 18%; }
+.community-page .community-table-rsvps th:nth-child(2),.community-page .community-table-rsvps td:nth-child(2),.community-page .community-table-rsvps th:nth-child(3),.community-page .community-table-rsvps td:nth-child(3) { width: 8%; text-align: center; }
+.community-page .community-table-rsvps th:nth-child(4),.community-page .community-table-rsvps td:nth-child(4) { width: 20%; }
+.community-page .community-table-rsvps th:nth-child(5),.community-page .community-table-rsvps td:nth-child(5) { width: 11%; }
+.community-page .community-table-rsvps th:nth-child(6),.community-page .community-table-rsvps td:nth-child(6) { width: 10%; }
+.community-page .community-table-rsvps th:nth-child(7),.community-page .community-table-rsvps td:nth-child(7) { width: 9%; }
+.community-page .community-table-rsvps th:nth-child(8),.community-page .community-table-rsvps td:nth-child(8) { width: 16%; min-width: 300px; }
+.community-page .community-table-rsvps td:last-child .society-row-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.community-page .community-table-rsvps td:last-child .society-workflow-action,.community-page .community-table-rsvps td:last-child .society-icon-action { white-space: nowrap; }
 .community-page .community-compliance-note { display: flex; align-items: flex-start; gap: 12px; margin: 14px 0; padding: 14px 16px; border: 1px solid #fedf89; border-radius: 9px; background: #fffaeb; color: #7a2e0e; }
 .community-page .community-compliance-icon { flex: 0 0 32px; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 8px; background: #fef0c7; color: #b54708; }
 .community-page .community-compliance-note strong { display: block; color: #7a2e0e; font-size: 13px; line-height: 1.4; }

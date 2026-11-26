@@ -24,16 +24,17 @@ const labels = {
     governanceType: "Meeting type", meetingType: "Meeting type", ruleName: "Rule name", ruleCode: "Rule code",
     attendanceStatus: "Attendance status", agendaOrder: "Agenda order", isFree: "Free event",
     isNegotiable: "Price negotiable", effectiveFrom: "Effective from", effectiveTo: "Effective to",
-    startAt: "Starts at", endAt: "Ends at", ticketPrice: "Ticket price", totalTickets: "Tickets",
+    startAt: "Starts at", endAt: "Ends at", registrationStartAt: "Registration opens", registrationEndAt: "Registration closes", teamName: "Team name", ticketPrice: "Ticket price", totalTickets: "Tickets",
     guestCount: "Guests", quorumRequired: "Required quorum", financialYear: "Financial year",
     isActive: "Active", votingType: "Voting type", ballotType: "Ballot type",
-    secrecy: "Ballot secrecy", startAt: "Voting opens at", endAt: "Voting closes at",
+    secrecy: "Ballot secrecy",
     governanceMeetingId: "AGM / SGM record",
     legalBasis: "Applicable law / bylaw reference", eligibilityRules: "Eligibility rules (JSON)",
     candidateApprovalRequired: "Require candidate approval", identityVerificationRequired: "Require identity verification", otpRequired: "Require OTP verification"
 };
 
 const titleCase = (value) => String(value).replace(/([a-z])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+const localDateTime = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}T00:00`;
 const societyName = (item) => item.name || item.societyName || `Society ${item.id}`;
 const residentName = (item) => item.displayName || [item.firstName, item.middleName, item.lastName].filter(Boolean).join(" ") || item.name || `Resident ${item.id}`;
 const itemId = (item) => item?.id ?? item?.uuid ?? item?._id;
@@ -82,7 +83,7 @@ export default function CommunityRecordForm({ resource, fields, value = {}, opti
         {fields.map((field) => {
             const label = labels[field] || titleCase(field);
             const selectOptions = optionsFor(field, resource, options);
-            const isOptional = ["capacity", "ticketPrice", "contactPhone", "contactEmail", "agendaId", "effectiveFrom", "effectiveTo", "discussionSummary", "venue", "meetingLink", "noticeDate", "noticePeriodDays", "financialYear", "quorumRequired", "chairmanId", "secretaryId", "isNegotiable", "isFree", "isActive", "governanceMeetingId", "legalBasis", "eligibilityRules", "candidateApprovalRequired", "identityVerificationRequired", "otpRequired"].includes(field)
+            const isOptional = ["capacity", "ticketPrice", "registrationStartAt", "registrationEndAt", "contactPhone", "contactEmail", "agendaId", "effectiveFrom", "effectiveTo", "discussionSummary", "venue", "meetingLink", "noticeDate", "noticePeriodDays", "financialYear", "quorumRequired", "chairmanId", "secretaryId", "isNegotiable", "isFree", "isActive", "governanceMeetingId", "legalBasis", "eligibilityRules", "candidateApprovalRequired", "identityVerificationRequired", "otpRequired"].includes(field)
                 || (field === "description" && !["classifieds", "events"].includes(resource))
                 || (field === "endAt" && resource !== "events")
                 || (field === "category" && !["classifieds", "events"].includes(resource));
@@ -95,7 +96,8 @@ export default function CommunityRecordForm({ resource, fields, value = {}, opti
                 </select></label>;
             }
             const type = inputType(field);
-                return <label key={field}>{label}{type === "textarea" ? <textarea rows={field === "configuration" || field === "eligibilityRules" ? 4 : 3} required={!isOptional} value={value[field] ?? (["configuration", "eligibilityRules"].includes(field) ? "{}" : "")} onChange={(event) => setValue(field, event.target.value)} placeholder={field === "configuration" || field === "eligibilityRules" ? '{"excludeTenants": true}' : ""}/> : <input type={type} min={type === "number" ? 0 : undefined} step={field === "price" || field === "ticketPrice" ? "0.01" : undefined} required={!isOptional} value={value[field] ?? ""} onChange={(event) => setValue(field, event.target.value)}/>}</label>;
+                const eventDateField = resource === "events" && ["startAt", "endAt", "registrationStartAt", "registrationEndAt"].includes(field);
+                return <label key={field}>{label}{type === "textarea" ? <textarea rows={field === "configuration" || field === "eligibilityRules" ? 4 : 3} required={!isOptional} value={value[field] ?? (["configuration", "eligibilityRules"].includes(field) ? "{}" : "")} onChange={(event) => setValue(field, event.target.value)} placeholder={field === "configuration" || field === "eligibilityRules" ? '{"excludeTenants": true}' : ""}/> : <input type={type} min={eventDateField ? localDateTime(new Date()) : type === "number" ? 0 : undefined} step={field === "price" || field === "ticketPrice" ? "0.01" : undefined} required={!isOptional} value={value[field] ?? ""} onChange={(event) => setValue(field, event.target.value)}/>}</label>;
         })}
     </div>;
 }

@@ -2,6 +2,8 @@ const { Op } = require("sequelize");
 
 const Society =
     require("../../societies/society/society.model");
+const sequelize = require("../../../config/database");
+const residentDashboardEvents = require("../../resident-dashboard/residentDashboardEvents");
 
 const eventRepository =
     require("./event.repository");
@@ -15,6 +17,19 @@ const {
     validateApproval,
     validateCancellation
 } = require("./event.validation");
+
+const publishResidentEventUpdate = async (societyId) => {
+    const [residents] = await sequelize.query(
+        `SELECT DISTINCT u.id
+           FROM users u
+           JOIN user_roles ur ON ur.user_id = u.id
+           JOIN roles r ON r.id = ur.role_id AND r.code IN ('RESIDENT_APP', 'RESIDENT') AND r.status = 'ACTIVE'
+          WHERE u.society_id = :societyId AND u.status = 'ACTIVE'
+            AND (ur.society_id = :societyId OR ur.society_id IS NULL)`,
+        { replacements: { societyId } }
+    );
+    residentDashboardEvents.publishToUsers(residents.map((resident) => resident.id), "community-event-updated");
+};
 
 
 const createEvent = async (data) => {
@@ -179,13 +194,15 @@ const publishEvent = async (id) => {
         );
     }
 
-    return await eventRepository.update(
+    const published = await eventRepository.update(
         event,
         {
             status: "PUBLISHED",
             publishedAt: new Date()
         }
     );
+    await publishResidentEventUpdate(published.societyId);
+    return published;
 };
 
 
@@ -205,7 +222,7 @@ const cancelEvent = async (id, data) => {
         );
     }
 
-    return await eventRepository.update(
+    const cancelled = await eventRepository.update(
         event,
         {
             status: "CANCELLED",
@@ -214,6 +231,8 @@ const cancelEvent = async (id, data) => {
                 data.cancellationReason
         }
     );
+    await publishResidentEventUpdate(cancelled.societyId);
+    return cancelled;
 };
 
 
@@ -228,13 +247,15 @@ const completeEvent = async (id) => {
         );
     }
 
-    return await eventRepository.update(
+    const completed = await eventRepository.update(
         event,
         {
             status: "COMPLETED",
             completedAt: new Date()
         }
     );
+    await publishResidentEventUpdate(completed.societyId);
+    return completed;
 };
 
 
@@ -242,19 +263,10 @@ const deleteEvent = async (id) => {
 
     const event =
         await getEventById(id);
-
-    if (
-        event.status === "PUBLISHED" ||
-        event.status === "COMPLETED"
-    ) {
-        throw new Error(
-            "Published or completed events cannot be deleted"
-        );
-    }
-
-    return await eventRepository.deleteEvent(
-        event
-    );
+    const societyId = event.societyId;
+    await eventRepository.deleteEvent(event);
+    await publishResidentEventUpdate(societyId);
+    return { id, deleted: true };
 };
 
 
