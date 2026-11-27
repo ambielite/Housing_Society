@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-const String kAppName = 'ShubhNivas';
+const String kAppName = 'ShubhaNivas';
 const String kTagline = 'HOME  •  COMMUNITY  •  CARE';
 
 class SplashScreen extends StatefulWidget {

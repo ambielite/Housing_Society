@@ -274,8 +274,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       AuthBrandHeader(
                         height: keyboardOpen ? 220 : 300,
                         headline: _securityLogin
-                            ? 'Welcome, guard'
-                            : 'Welcome home',
+                            ? 'Welcome, Guard'
+                            : 'Welcome Home',
                         subtitle: _securityLogin
                             ? 'Your community. Your duty.'
                             : 'Your community, connected',

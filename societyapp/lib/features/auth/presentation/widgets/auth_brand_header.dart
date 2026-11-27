@@ -32,7 +32,7 @@ class AuthBrandHeader extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         Image.asset(
-          'assets/images/shubhnivas_residence.jpg',
+          'assets/images/shubhanivas_residence.jpg',
           fit: BoxFit.cover,
           alignment: Alignment.topCenter,
         ),
@@ -65,7 +65,7 @@ class AuthBrandHeader extends StatelessWidget {
                   ),
                 const Spacer(),
                 const Text(
-                  'ShubhNivas',
+                  'ShubhaNivas',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Color(0xFFFFD000),

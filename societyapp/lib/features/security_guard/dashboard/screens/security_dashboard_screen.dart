@@ -1423,7 +1423,7 @@ class _SecurityHomeState extends State<_SecurityHome>
             width: 44,
             height: 44,
             fit: BoxFit.contain,
-            semanticLabel: 'ShubNivas logo',
+            semanticLabel: 'ShubhaNivas logo',
           ),
         ),
       ),
@@ -1433,7 +1433,7 @@ class _SecurityHomeState extends State<_SecurityHome>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'ShubNivas',
+              'ShubhaNivas',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
