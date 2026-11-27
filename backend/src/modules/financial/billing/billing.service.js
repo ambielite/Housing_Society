@@ -5,6 +5,17 @@ const sequelize =
 
 const repository =
     require("./billing.repository");
+const Unit = require("../../societies/unit/unit.model");
+
+const assertUnitCanBeBilled = async (unitId, transaction = null) => {
+    const unit = await Unit.findOne({
+        where: { id: unitId },
+        ...(transaction ? { transaction } : {})
+    });
+    if (!unit || unit.status === "VACANT") {
+        throw new Error("Bills cannot be generated or assigned to vacant units.");
+    }
+};
 
 const BillingConfig =
     require("../billing-config/billingConfig.model");
@@ -397,6 +408,8 @@ const calculateCompleteBilling = async ({
     transaction = null
 }) => {
 
+    await assertUnitCanBeBilled(unitId, transaction);
+
     const billingRule =
         await getBillingRule(
             societyId,
@@ -495,6 +508,8 @@ const createBillingRecord = async (
     data,
     transaction = null
 ) => {
+
+    await assertUnitCanBeBilled(data.unitId, transaction);
 
     const existing =
         await repository.findByBillNumber(
@@ -817,6 +832,8 @@ const issueBilling = async (
                 "Billing record not found"
             );
         }
+
+        await assertUnitCanBeBilled(billing.unitId, transaction);
 
 
         if (

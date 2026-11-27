@@ -6,6 +6,7 @@ const repository =
 
 const Billing =
     require("../billing/billing.model");
+const Unit = require("../../societies/unit/unit.model");
 const PreviousBalanceService = require("./previousBalance.service");
 
 const toCents = (amount) => Math.round(Number(amount || 0) * 100);
@@ -49,6 +50,11 @@ const createInvoice = async (
 ) => {
     const transaction = options.transaction || null;
     const ownsTransaction = !transaction;
+
+    const unit = await Unit.findByPk(data.unitId, transaction ? { transaction } : undefined);
+    if (!unit || unit.status === "VACANT") {
+        throw new Error("Bills cannot be generated or assigned to vacant units.");
+    }
 
     /*
      * STEP 1
