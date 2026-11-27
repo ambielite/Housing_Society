@@ -5,6 +5,8 @@ const ApiError = require('../../common/ApiError');
 const amenityBookingsService = require('../amenity-bookings/amenity-bookings.service');
 const kidsActivitiesService = require('../kids-activities/kids-activities.service');
 const advertisementsService = require('../advertisements/advertisements.service');
+const eventRsvpService = require('../community/event/eventRsvp.service');
+const { resolveResident } = require('../resident-context/residentUnitContext.service');
 
 const listSocietyStaff = async (user) => {
   if (!user?.societyId) return [];
@@ -53,6 +55,66 @@ const markResidentNotificationRead = async (user, notificationId) => {
   );
   if (!result.rows[0]) throw new ApiError(404, 'Notification not found');
   return result.rows[0];
+};
+
+const listResidentCommunityEvents = async (user) => {
+  if (!user?.societyId) return [];
+  const result = await query(
+    `SELECT event.id, event.title, event.description, event.category, event.venue,
+            event.start_at, event.end_at, event.registration_start_at, event.registration_end_at,
+            event.capacity, event.is_free, event.ticket_price,
+            COALESCE(registration_counts.registered_seats, 0)::int AS registered_count,
+            CASE WHEN event.capacity IS NULL THEN NULL ELSE GREATEST(
+              event.capacity - COALESCE(registration_counts.registered_seats, 0), 0
+            )::int END AS remaining_capacity,
+            (mine.id IS NOT NULL) AS registered,
+            mine.id AS rsvp_id, mine.team_name, mine.participant_names
+       FROM community_events event
+       LEFT JOIN LATERAL (
+         SELECT COALESCE(SUM(rsvp.total_tickets + rsvp.guest_count)
+                  FILTER (WHERE rsvp.status IN ('REGISTERED', 'CHECKED_IN')), 0)::int AS registered_seats
+           FROM community_event_rsvps rsvp
+          WHERE rsvp.event_id = event.id
+       ) registration_counts ON true
+       LEFT JOIN community_event_rsvps mine
+         ON mine.event_id = event.id AND mine.user_id = $2
+        AND mine.status IN ('REGISTERED', 'WAITLISTED', 'CHECKED_IN')
+      WHERE event.society_id = $1
+        AND event.status = 'PUBLISHED'
+        AND COALESCE(event.end_at, event.start_at) > now()
+      ORDER BY event.start_at ASC`,
+    [user.societyId, user.id],
+  );
+  return result.rows.map((event) => ({
+    ...event,
+    registration_open: (!event.registration_start_at || new Date(event.registration_start_at) <= new Date()) &&
+      (!event.registration_end_at || new Date(event.registration_end_at) >= new Date()) &&
+      new Date(event.start_at) > new Date() &&
+      (event.remaining_capacity == null || event.remaining_capacity > 0),
+  }));
+};
+
+const registerResidentForCommunityEvent = async (user, eventId, input = {}) => {
+  if (!user?.societyId) throw new ApiError(403, 'Your account is not linked to a society');
+  const resident = await resolveResident(user, { allowEmailFallback: false });
+  if (!resident) throw new ApiError(403, 'Your resident profile is not linked to this account');
+  const teamName = String(input.teamName || '').trim();
+  if (teamName.length > 120) throw new ApiError(400, 'Team name must be 120 characters or fewer');
+  const participantNames = Array.isArray(input.participantNames)
+    ? input.participantNames.map((name) => String(name || '').trim())
+    : [];
+  if (!participantNames.length || participantNames.length > 20 || participantNames.some((name) => !name || name.length > 100)) {
+    throw new ApiError(400, 'Enter between 1 and 20 participant names, with each name 100 characters or fewer');
+  }
+  return eventRsvpService.registerForEvent({
+    eventId,
+    societyId: user.societyId,
+    userId: user.id,
+    totalTickets: participantNames.length,
+    guestCount: 0,
+    teamName,
+    participantNames,
+  });
 };
 
 const getDashboard = async (user) => {
@@ -150,6 +212,7 @@ const getDashboard = async (user) => {
     return rightDate - leftDate;
   });
   const kidsActivities = await kidsActivitiesService.listResident(user);
+  const communityEvents = resident ? await listResidentCommunityEvents(user) : [];
   const advertisements = await advertisementsService.listForResident(user);
 
   return {
@@ -177,8 +240,9 @@ const getDashboard = async (user) => {
     upcomingBookings,
     notices,
     kidsActivities,
+    communityEvents,
     advertisements,
   };
 };
 
-module.exports = { getDashboard, listResidentNotifications, markResidentNotificationRead, listSocietyStaff };
+module.exports = { getDashboard, listResidentNotifications, markResidentNotificationRead, listSocietyStaff, registerResidentForCommunityEvent };

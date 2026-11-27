@@ -4,6 +4,17 @@ import communityApi from '../api/community.api';
 import { confirmDashboardAction } from '../../../lib/dashboardConfirmation.js';
 
 const rowsFrom = (response) => response?.data?.data ?? response?.data ?? [];
+const registrationDeadlineError = (form) => {
+  if (!form.registrationRequired || !form.date || !form.timeHour || !form.timeMinute || !form.timePeriod || !form.endTimeHour || !form.endTimeMinute || !form.endTimePeriod || !form.registrationDeadlineDate || !form.registrationDeadlineHour || !form.registrationDeadlineMinute || !form.registrationDeadlinePeriod) return '';
+  if (form.registrationDeadlineDate > form.date) return 'Registration deadline cannot be after the activity date.';
+  if (form.registrationDeadlineDate !== form.date) return '';
+  const toMinutes = (hour, minute, period) => (((Number(hour) % 12) + (period === 'PM' ? 12 : 0)) * 60) + Number(minute);
+  const startMinutes = toMinutes(form.timeHour, form.timeMinute, form.timePeriod);
+  const endMinutes = toMinutes(form.endTimeHour, form.endTimeMinute, form.endTimePeriod);
+  const deadlineMinutes = toMinutes(form.registrationDeadlineHour, form.registrationDeadlineMinute, form.registrationDeadlinePeriod);
+  if (deadlineMinutes > endMinutes) return 'Registration deadline cannot be after the activity end time.';
+  return deadlineMinutes >= startMinutes ? 'Registration deadline must be before the activity starts.' : '';
+};
 const dateLabel = (value) => value ? new Date(`${String(value).slice(0, 10)}T00:00:00`).toLocaleDateString() : '—';
 const timeLabel = (value) => value ? new Date(`2000-01-01T${value}`).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '—';
 
@@ -31,6 +42,11 @@ export default function KidsActivitiesPanel() {
   const emptyForm = { name: '', description: '', date: '', timeHour: '', timeMinute: '', timePeriod: '', endTimeHour: '', endTimeMinute: '', endTimePeriod: '', minimumAge: '', maximumAge: '', winnerPrize: '', registrationRequired: true, registrationDeadlineDate: '', registrationDeadlineHour: '', registrationDeadlineMinute: '00', registrationDeadlinePeriod: 'AM' };
   const [form, setForm] = useState(emptyForm);
   const [editActivity, setEditActivity] = useState(null);
+  const updateActivityForm = (changes) => {
+    const nextForm = { ...form, ...changes };
+    setForm(nextForm);
+    setError('');
+  };
 
   const load = async () => {
     setLoading(true); setError(''); setRegistrations({}); setExpanded(null);
@@ -49,7 +65,10 @@ export default function KidsActivitiesPanel() {
   };
 
   const saveActivity = async (event) => {
-    event.preventDefault(); setBusy(true); setError('');
+    event.preventDefault();
+    const deadlineError = registrationDeadlineError(form);
+    if (deadlineError) return;
+    setBusy(true); setError('');
     try {
       const hour12 = Number(form.timeHour);
       const hour24 = (hour12 % 12) + (form.timePeriod === 'PM' ? 12 : 0);
@@ -122,13 +141,13 @@ export default function KidsActivitiesPanel() {
       {error && <p className="security-form-error" role="alert">{error}</p>}
       <form onSubmit={saveActivity}><div className="society-form-body community-record-body"><div className="security-form-grid community-form-grid kids-activity-form-grid">
         <label className="kids-activity-wide">Activity name<input required maxLength="200" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="e.g. Drawing competition"/></label>
-        <label>Date<input required type="date" {...(editActivity ? {} : { min: new Date().toISOString().slice(0, 10) })} value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })}/></label>
+        <label>Date<input required type="date" min={localToday()} value={form.date} onChange={(event) => updateActivityForm({ date: event.target.value })}/></label>
         <label className="kids-activity-wide">Activity time<div className="kids-activity-time-range">
           <div><span>From</span><div className="kids-activity-time-controls">
-            <select required aria-label="Start hour" value={form.timeHour} onChange={(event) => setForm({ ...form, timeHour: event.target.value })}><option value="">Hour</option>{Array.from({ length: 12 }, (_, index) => String(index + 1)).map((hour) => <option key={hour} value={hour}>{hour}</option>)}</select>
+            <select required aria-label="Start hour" value={form.timeHour} onChange={(event) => updateActivityForm({ timeHour: event.target.value })}><option value="">Hour</option>{Array.from({ length: 12 }, (_, index) => String(index + 1)).map((hour) => <option key={hour} value={hour}>{hour}</option>)}</select>
             <span>:</span>
-            <select required aria-label="Start minute" value={form.timeMinute} onChange={(event) => setForm({ ...form, timeMinute: event.target.value })}><option value="">Minute</option>{Array.from({ length: 60 }, (_, minute) => String(minute).padStart(2, '0')).map((minute) => <option key={minute} value={minute}>{minute}</option>)}</select>
-            <select required aria-label="Start AM or PM" value={form.timePeriod} onChange={(event) => setForm({ ...form, timePeriod: event.target.value })}><option value="">AM/PM</option><option>AM</option><option>PM</option></select>
+            <select required aria-label="Start minute" value={form.timeMinute} onChange={(event) => updateActivityForm({ timeMinute: event.target.value })}><option value="">Minute</option>{Array.from({ length: 60 }, (_, minute) => String(minute).padStart(2, '0')).map((minute) => <option key={minute} value={minute}>{minute}</option>)}</select>
+            <select required aria-label="Start AM or PM" value={form.timePeriod} onChange={(event) => updateActivityForm({ timePeriod: event.target.value })}><option value="">AM/PM</option><option>AM</option><option>PM</option></select>
           </div></div>
           <div><span>To</span><div className="kids-activity-time-controls">
             <select required aria-label="End hour" value={form.endTimeHour} onChange={(event) => setForm({ ...form, endTimeHour: event.target.value })}><option value="">Hour</option>{Array.from({ length: 12 }, (_, index) => String(index + 1)).map((hour) => <option key={hour} value={hour}>{hour}</option>)}</select>
@@ -139,8 +158,8 @@ export default function KidsActivitiesPanel() {
         </div></label>
         <label>From age<input required type="text" inputMode="numeric" pattern="[0-9]*" maxLength="2" value={form.minimumAge} onChange={(event) => setForm({ ...form, minimumAge: event.target.value.replace(/\D/g, '') })} placeholder="0"/></label>
         <label>To age<input required type="text" inputMode="numeric" pattern="[0-9]*" maxLength="2" value={form.maximumAge} onChange={(event) => setForm({ ...form, maximumAge: event.target.value.replace(/\D/g, '') })} placeholder="12"/></label>
-        <label>Resident registration required<select value={form.registrationRequired ? "yes" : "no"} onChange={(event) => setForm({ ...form, registrationRequired: event.target.value === "yes", registrationDeadlineDate: event.target.value === "yes" ? form.registrationDeadlineDate : '', registrationDeadlineHour: event.target.value === "yes" ? form.registrationDeadlineHour : '' })}><option value="yes">Yes</option><option value="no">No</option></select></label>
-        {form.registrationRequired && <label className="kids-activity-wide">Registration deadline<div className="kids-activity-deadline-controls"><input required type="date" min={localToday()} value={form.registrationDeadlineDate} onChange={(event) => setForm({ ...form, registrationDeadlineDate: event.target.value })}/><select required aria-label="Deadline hour" value={form.registrationDeadlineHour} onChange={(event) => setForm({ ...form, registrationDeadlineHour: event.target.value })}><option value="">Hour</option>{Array.from({ length: 12 }, (_, index) => String(index + 1)).map((hour) => <option key={hour} value={hour}>{hour}</option>)}</select><span>:</span><select required aria-label="Deadline minute" value={form.registrationDeadlineMinute} onChange={(event) => setForm({ ...form, registrationDeadlineMinute: event.target.value })}>{Array.from({ length: 60 }, (_, minute) => String(minute).padStart(2, '0')).map((minute) => <option key={minute} value={minute}>{minute}</option>)}</select><select required aria-label="Deadline AM or PM" value={form.registrationDeadlinePeriod} onChange={(event) => setForm({ ...form, registrationDeadlinePeriod: event.target.value })}><option>AM</option><option>PM</option></select></div></label>}
+        <label>Resident registration required<select value={form.registrationRequired ? "yes" : "no"} onChange={(event) => updateActivityForm({ registrationRequired: event.target.value === "yes", registrationDeadlineDate: event.target.value === "yes" ? form.registrationDeadlineDate : '', registrationDeadlineHour: event.target.value === "yes" ? form.registrationDeadlineHour : '' })}><option value="yes">Yes</option><option value="no">No</option></select></label>
+        {form.registrationRequired && <label className="kids-activity-wide">Registration deadline<div className="kids-activity-deadline-controls"><input required type="date" min={localToday()} max={form.date || undefined} value={form.registrationDeadlineDate} onChange={(event) => updateActivityForm({ registrationDeadlineDate: event.target.value })}/><select required aria-label="Deadline hour" value={form.registrationDeadlineHour} onChange={(event) => updateActivityForm({ registrationDeadlineHour: event.target.value })}><option value="">Hour</option>{Array.from({ length: 12 }, (_, index) => String(index + 1)).map((hour) => <option key={hour} value={hour}>{hour}</option>)}</select><span>:</span><select required aria-label="Deadline minute" value={form.registrationDeadlineMinute} onChange={(event) => updateActivityForm({ registrationDeadlineMinute: event.target.value })}>{Array.from({ length: 60 }, (_, minute) => String(minute).padStart(2, '0')).map((minute) => <option key={minute} value={minute}>{minute}</option>)}</select><select required aria-label="Deadline AM or PM" value={form.registrationDeadlinePeriod} onChange={(event) => updateActivityForm({ registrationDeadlinePeriod: event.target.value })}><option>AM</option><option>PM</option></select></div>{registrationDeadlineError(form) && <small className="kids-activity-deadline-field-message" role="alert">{registrationDeadlineError(form)}</small>}</label>}
         <label>Winner prize (optional)<input maxLength="255" value={form.winnerPrize} onChange={(event) => setForm({ ...form, winnerPrize: event.target.value })} placeholder="Prize details"/></label>
         <label className="kids-activity-wide">Activity description<textarea required maxLength="3000" rows="4" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Describe the activity and what children will do"/></label>
       </div></div><footer className="society-form-footer"><button type="button" className="btn-secondary" disabled={busy} onClick={() => setShowForm(false)}>Cancel</button><button type="submit" className="btn-primary" disabled={busy}>{busy ? (editActivity ? 'Saving...' : 'Creating...') : (editActivity ? 'Save changes' : 'Create activity')}</button></footer></form>

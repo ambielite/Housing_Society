@@ -13,8 +13,8 @@ const findAll = async (where = {}) => {
     });
 };
 
-const findById = async (id) => {
-    return await CommunityEvent.findByPk(id);
+const findById = async (id, options = {}) => {
+    return await CommunityEvent.findByPk(id, options);
 };
 
 const update = async (event, data) => {

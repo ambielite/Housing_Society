@@ -31,6 +31,7 @@ class ResidentDashboardData {
     this.upcomingBookings = const [],
     this.notices = const [],
     this.kidsActivities = const [],
+    this.communityEvents = const [],
     this.advertisements = const [],
   });
 
@@ -50,6 +51,7 @@ class ResidentDashboardData {
   final List<ResidentUpcomingBooking> upcomingBookings;
   final List<ResidentNotice> notices;
   final List<ResidentKidsActivity> kidsActivities;
+  final List<ResidentCommunityEvent> communityEvents;
   final List<ResidentAdvertisement> advertisements;
 
   ResidentDashboardData copyWith({
@@ -71,6 +73,7 @@ class ResidentDashboardData {
     upcomingBookings: upcomingBookings ?? this.upcomingBookings,
     notices: notices,
     kidsActivities: kidsActivities,
+    communityEvents: communityEvents,
     advertisements: advertisements,
   );
 
@@ -118,6 +121,10 @@ class ResidentDashboardData {
       kidsActivities: (json['kidsActivities'] as List<dynamic>? ?? const [])
           .whereType<Map<String, dynamic>>()
           .map(ResidentKidsActivity.fromJson)
+          .toList(),
+      communityEvents: (json['communityEvents'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(ResidentCommunityEvent.fromJson)
           .toList(),
       advertisements: (json['advertisements'] as List<dynamic>? ?? const [])
           .whereType<Map<String, dynamic>>()
@@ -224,6 +231,66 @@ class ResidentActivityChild {
   factory ResidentActivityChild.fromJson(Map<String, dynamic> json) => ResidentActivityChild(
     name: _string(json['name']) ?? '',
     age: int.tryParse('${json['age'] ?? 0}') ?? 0,
+  );
+}
+
+class ResidentCommunityEvent {
+  const ResidentCommunityEvent({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.category,
+    required this.venue,
+    required this.startAt,
+    required this.endAt,
+    this.registrationStartAt,
+    this.registrationEndAt,
+    this.capacity,
+    this.remainingCapacity,
+    this.registeredCount = 0,
+    this.registrationOpen = false,
+    this.registered = false,
+    this.rsvpId,
+    this.teamName,
+    this.isFree = true,
+  });
+
+  final String id;
+  final String title;
+  final String description;
+  final String category;
+  final String venue;
+  final DateTime? startAt;
+  final DateTime? endAt;
+  final DateTime? registrationStartAt;
+  final DateTime? registrationEndAt;
+  final int? capacity;
+  final int? remainingCapacity;
+  final int registeredCount;
+  final bool registrationOpen;
+  final bool registered;
+  final String? rsvpId;
+  final String? teamName;
+  final bool isFree;
+
+  factory ResidentCommunityEvent.fromJson(Map<String, dynamic> json) => ResidentCommunityEvent(
+    id: '${json['id'] ?? ''}',
+    title: _string(json['title']) ?? 'Community event',
+    description: _string(json['description']) ?? '',
+    category: (_string(json['category']) ?? 'OTHER').toUpperCase(),
+    venue: _string(json['venue']) ?? 'Venue to be announced',
+    startAt: DateTime.tryParse('${json['start_at'] ?? ''}')?.toLocal(),
+    endAt: DateTime.tryParse('${json['end_at'] ?? ''}')?.toLocal(),
+    registrationStartAt: DateTime.tryParse('${json['registration_start_at'] ?? ''}')?.toLocal(),
+    registrationEndAt: DateTime.tryParse('${json['registration_end_at'] ?? ''}')?.toLocal(),
+    capacity: int.tryParse('${json['capacity'] ?? ''}'),
+    remainingCapacity: int.tryParse('${json['remaining_capacity'] ?? ''}'),
+    registeredCount: int.tryParse('${json['registered_count'] ?? 0}') ?? 0,
+    registrationOpen: json['registration_open'] == true,
+    registered: json['registered'] == true,
+    rsvpId: _string(json['rsvp_id']),
+    teamName: _string(json['team_name']),
+    isFree: json['is_free'] != false,
   );
 }
 
@@ -401,6 +468,37 @@ class ResidentDashboardApi {
 
   static Future<void> dismissAdvertisement(String accessToken, String id) =>
       _postAdvertisementAction(accessToken, id, 'dismiss');
+
+  static Future<void> registerForCommunityEvent(
+    String accessToken,
+    String eventId, {
+    String? teamName,
+    required List<String> participantNames,
+  }) async {
+    final client = http.Client();
+    try {
+      final response = await client.post(
+        Uri.parse('$_apiBaseUrl/resident-dashboard/community-events/$eventId/register'),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $accessToken',
+        },
+        body: jsonEncode({'teamName': teamName, 'participantNames': participantNames}),
+      ).timeout(const Duration(seconds: 15));
+      if (response.statusCode == 401) SessionManager.expire();
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        final body = response.body.isEmpty ? <String, dynamic>{} : jsonDecode(response.body) as Map<String, dynamic>;
+        throw ResidentDashboardException(_string(body['message']) ?? 'Could not register for this event.');
+      }
+    } on http.ClientException {
+      throw const ResidentDashboardException('Cannot reach the server.');
+    } on TimeoutException {
+      throw const ResidentDashboardException('The server took too long to respond.');
+    } finally {
+      client.close();
+    }
+  }
 
   static Future<void> _postAdvertisementAction(String accessToken, String id, String action) async {
     final client = http.Client();

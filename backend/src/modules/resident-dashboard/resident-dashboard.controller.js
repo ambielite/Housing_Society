@@ -43,4 +43,13 @@ const markNotificationRead = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, notification, 'Notification marked as read');
 });
 
-module.exports = { getDashboard, listSocietyStaff, listNotifications, markNotificationRead, streamEvents };
+const registerCommunityEvent = asyncHandler(async (req, res) => {
+  const rsvp = await service.registerResidentForCommunityEvent(
+    req.user,
+    req.params.eventId,
+    req.body,
+  );
+  return ApiResponse.success(res, rsvp, 'Event registration successful', 201);
+});
+
+module.exports = { getDashboard, listSocietyStaff, listNotifications, markNotificationRead, streamEvents, registerCommunityEvent };

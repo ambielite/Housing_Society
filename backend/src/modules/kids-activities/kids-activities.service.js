@@ -23,6 +23,10 @@ const normalizeActivityInput = (input) => {
   if (registrationDeadline && registrationDeadline <= new Date()) throw new ApiError(400, 'Registration deadline must be in the future');
   const date = new Date(`${input.date}T12:00:00Z`);
   if (Number.isNaN(date.getTime())) throw new ApiError(400, 'Enter a valid activity date');
+  const activityStart = new Date(`${input.date}T${input.time}:00+05:30`);
+  const activityEnd = new Date(`${input.date}T${input.endTime}:00+05:30`);
+  if (registrationRequired && registrationDeadline > activityEnd) throw new ApiError(400, 'Registration deadline cannot be after the activity end time');
+  if (registrationRequired && registrationDeadline >= activityStart) throw new ApiError(400, 'Registration deadline must be before the activity starts');
   return { name, description, minimumAge, maximumAge, registrationRequired,
     day: date.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' }),
     date: input.date, time: input.time, endTime: input.endTime, prize: String(input.winnerPrize || '').trim() || null,
@@ -30,7 +34,8 @@ const normalizeActivityInput = (input) => {
 };
 const listForAdmin = async (societyId) => {
   const result = await query(
-    `SELECT activity.*, COUNT(DISTINCT registration.id)::int AS registration_count,
+    `SELECT activity.*, activity.activity_date::text AS activity_date,
+            COUNT(DISTINCT registration.id)::int AS registration_count,
             COUNT(child.id)::int AS child_count
        FROM kids_activities activity
        LEFT JOIN kids_activity_registrations registration ON registration.activity_id = activity.id
@@ -45,7 +50,7 @@ const listForAdmin = async (societyId) => {
 const listResident = async (user) => {
   if (!user.societyId) return [];
   const result = await query(
-    `SELECT activity.id, activity.name, activity.description, activity.activity_date, activity.activity_day,
+    `SELECT activity.id, activity.name, activity.description, activity.activity_date::text AS activity_date, activity.activity_day,
             activity.activity_time, COALESCE(activity.activity_end_time, activity.activity_time) AS activity_end_time,
             activity.minimum_age, activity.maximum_age, activity.winner_prize,
             activity.registration_required, activity.registration_deadline, activity.status, activity.created_at,
@@ -57,10 +62,7 @@ const listResident = async (user) => {
             '[]'::jsonb AS children
        FROM kids_activities activity
       WHERE activity.society_id = $1 AND activity.status = 'OPEN'
-        AND (
-          (activity.activity_date + COALESCE(activity.activity_end_time, activity.activity_time)) > timezone('Asia/Kolkata', now())
-          OR (activity.registration_required AND activity.registration_deadline > now())
-        )
+        AND (activity.activity_date + COALESCE(activity.activity_end_time, activity.activity_time)) > timezone('Asia/Kolkata', now())
       ORDER BY activity.activity_date, activity.activity_time`,
     [user.societyId, user.id],
   );
