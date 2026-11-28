@@ -518,19 +518,32 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
             ),
           ),
         ),
-        Positioned(
-          left: 12,
-          top: 12,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-            decoration: BoxDecoration(color: Colors.white.withValues(alpha: .94), borderRadius: BorderRadius.circular(99)),
-            child: const Text('ADVERTISEMENT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: .5, color: AppColors.muted)),
-          ),
-        ),
       ]),
       Padding(
-        padding: const EdgeInsets.fromLTRB(15, 12, 15, 15),
+        padding: const EdgeInsets.fromLTRB(15, 10, 15, 15),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              margin: const EdgeInsets.only(top: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+              decoration: BoxDecoration(color: const Color(0xFFF0EEFF), borderRadius: BorderRadius.circular(99)),
+              child: const Text('ADVERTISEMENT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: .5, color: AppColors.indigo)),
+            ),
+            const Spacer(),
+            OutlinedButton.icon(
+              onPressed: () => _dismissAdvertisement(advertisement),
+              icon: const Icon(Icons.close_rounded, size: 15),
+              label: const Text('Close Ad'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.ink,
+                side: const BorderSide(color: Color(0xFFD8E0ED)),
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ]),
+          const SizedBox(height: 8),
           Text(advertisement.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.ink)),
           if (advertisement.description.isNotEmpty) ...[
             const SizedBox(height: 5),
@@ -554,16 +567,6 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                     visualDensity: VisualDensity.compact,
                   ),
                 ),
-              OutlinedButton.icon(
-                onPressed: () => _dismissAdvertisement(advertisement),
-                icon: const Icon(Icons.close_rounded, size: 16),
-                label: const Text('Close Ad'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.ink,
-                  side: const BorderSide(color: Color(0xFFD8E0ED)),
-                  visualDensity: VisualDensity.compact,
-                ),
-              ),
             ],
           ),
         ]),
