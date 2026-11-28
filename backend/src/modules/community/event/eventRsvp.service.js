@@ -10,6 +10,7 @@ const {
     validateRsvp
 } = require("./event.validation");
 const sequelize = require("../../../config/database");
+const { notifyResidentUser } = require("../../notifications/notification/residentActivityNotification");
 
 
 const registerForEvent = async (data) => {
@@ -285,13 +286,24 @@ const checkIn = async (id) => {
         );
     }
 
-    return await rsvpRepository.update(
+    const checkedIn = await rsvpRepository.update(
         rsvp,
         {
             status: "CHECKED_IN",
             checkedInAt: new Date()
         }
     );
+    const event = await eventRepository.findById(rsvp.eventId);
+    await notifyResidentUser({
+        societyId: rsvp.societyId,
+        userId: rsvp.userId,
+        title: "Event check-in recorded",
+        message: `Your registration for ${event?.title || "the event"} has been checked in.`,
+        referenceType: "COMMUNITY_EVENT_RSVP",
+        referenceId: rsvp.id,
+        data: { eventId: rsvp.eventId, rsvpId: rsvp.id, status: "CHECKED_IN" },
+    });
+    return checkedIn;
 };
 
 

@@ -2,7 +2,7 @@ const db = require('../../config/db');
 
 const findAssignableStaff = async (staffId, societyId) => {
   const result = await db.query(
-    `SELECT id FROM staff
+    `SELECT id, first_name, last_name FROM staff
       WHERE id = $1 AND society_id = $2 AND status = 'ACTIVE'`,
     [staffId, societyId],
   );

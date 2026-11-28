@@ -4,6 +4,7 @@ const Society =
     require("../../societies/society/society.model");
 const sequelize = require("../../../config/database");
 const residentDashboardEvents = require("../../resident-dashboard/residentDashboardEvents");
+const { notifySocietyResidents } = require("../../notifications/notification/residentActivityNotification");
 
 const eventRepository =
     require("./event.repository");
@@ -201,7 +202,14 @@ const publishEvent = async (id) => {
             publishedAt: new Date()
         }
     );
-    await publishResidentEventUpdate(published.societyId);
+    await notifySocietyResidents({
+        societyId: published.societyId,
+        title: "New event published",
+        message: `${published.title} has been published. See Upcoming activities to view the details.`,
+        referenceType: "COMMUNITY_EVENT",
+        referenceId: published.id,
+        data: { eventId: published.id, title: published.title, category: published.category },
+    });
     return published;
 };
 

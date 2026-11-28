@@ -8,6 +8,7 @@ const usersRepository = require('../users/users.repository');
 const { publishTicketStatusChanged } = require('./tickets.events');
 const securityEvents = require('../gates/securityEvents');
 const { notifySocietyAdmins } = require('../notifications/notification/adminActivityNotification');
+const { notifyResidentUser } = require('../notifications/notification/residentActivityNotification');
 
 const generateTicketNo = () => `TKT-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
 
@@ -30,7 +31,7 @@ const ALLOWED_TRANSITIONS = {
 
 // --- tickets --------------------------------------------------------------------
 
-const createTicket = async ({ societyId, categoryId, raisedBy, unitId, subject, description, priority }) => {
+const createTicket = async ({ societyId, categoryId, raisedBy, unitId, subject, description, priority }, actor) => {
   const category = await helpdeskSetupRepository.findCategoryById(categoryId);
   if (!category) {
     throw new ApiError(404, 'Ticket category not found');
@@ -58,6 +59,27 @@ const createTicket = async ({ societyId, categoryId, raisedBy, unitId, subject, 
     if (policy) {
       await slaService.startTimer(ticket.id, policy);
     }
+  }
+
+  const isResident = actor?.roles?.some((role) =>
+    ['RESIDENT', 'RESIDENT_APP'].includes(role),
+  );
+  if (isResident) {
+    await notifySocietyAdmins({
+      societyId: ticket.society_id,
+      title: 'New resident ticket',
+      message: `A resident submitted ticket ${ticket.ticket_no}${ticket.subject ? `: ${ticket.subject}` : ''}${category.name ? ` (${category.name})` : ''}.`,
+      referenceType: 'TICKET',
+      referenceId: ticket.id,
+      data: {
+        ticketId: ticket.id,
+        ticketNo: ticket.ticket_no,
+        subject: ticket.subject,
+        categoryName: category.name,
+        status: ticket.status,
+      },
+      excludeUserId: actor.id,
+    });
   }
 
   return ticket;
@@ -103,6 +125,15 @@ const updateAssignedStaffTicketStatus = async (user, ticketId, status, remarks) 
     referenceId: updated.id,
     data: { ticketId: updated.id, ticketNo: updated.ticket_no, subject: updated.subject, status },
     excludeUserId: user.id,
+  });
+  await notifyResidentUser({
+    societyId: updated.society_id,
+    userId: updated.raised_by,
+    title: 'Your request status changed',
+    message: `Your request ${updated.ticket_no}${updated.subject ? ` (${updated.subject})` : ''} is now ${statusLabel}.`,
+    referenceType: 'TICKET',
+    referenceId: updated.id,
+    data: { ticketId: updated.id, ticketNo: updated.ticket_no, subject: updated.subject, status },
   });
   return updated;
 };
@@ -232,9 +263,11 @@ const assignTicket = async (ticketId, { assignedToUserId, assignedToStaffId, ass
     }
   }
 
-  if (assignedToStaffId) {
-    const targetStaff = await repository.findAssignableStaff(assignedToStaffId, ticket.society_id);
-    if (!targetStaff) throw new ApiError(400, 'Select an active staff member from this society');
+  const assignedStaff = assignedToStaffId
+    ? await repository.findAssignableStaff(assignedToStaffId, ticket.society_id)
+    : null;
+  if (assignedToStaffId && !assignedStaff) {
+    throw new ApiError(400, 'Select an active staff member from this society');
   }
 
   if (current) {
@@ -261,6 +294,19 @@ const assignTicket = async (ticketId, { assignedToUserId, assignedToStaffId, ass
 
   if (ticket.status === 'OPEN') {
     await updateStatus(ticketId, 'ASSIGNED', assignedByUserId || null, 'Auto-transitioned on assignment', vendorScope);
+  }
+
+  if (assignedStaff) {
+    const staffName = [assignedStaff.first_name, assignedStaff.last_name].filter(Boolean).join(' ') || 'A staff member';
+    await notifyResidentUser({
+      societyId: ticket.society_id,
+      userId: ticket.raised_by,
+      title: 'Staff assigned to your request',
+      message: `${staffName} has been assigned to your request ${ticket.ticket_no}${ticket.subject ? ` (${ticket.subject})` : ''}.`,
+      referenceType: 'TICKET',
+      referenceId: ticket.id,
+      data: { ticketId: ticket.id, ticketNo: ticket.ticket_no, subject: ticket.subject, staffName },
+    });
   }
 
   return assignment;

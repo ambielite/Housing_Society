@@ -1,13 +1,13 @@
 import { legacyApi as axiosClient } from "../../../lib/axios";
 
-const societyId = () => String(localStorage.getItem("selectedSocietyId") || "").replace(/^:+/, "").trim();
+const societyId = () => String(localStorage.getItem("hs_active_society_id") || localStorage.getItem("selectedSocietyId") || "").replace(/^:+/, "").trim();
 const params = (extra = {}) => ({ params: { ...(societyId() ? { societyId: societyId() } : {}), ...extra } });
 const unwrap = async (request) => (await request).data;
 
 const notificationsApi = {
     getNotifications: (filters = {}) => unwrap(axiosClient.get("/notifications", params(filters))),
     getUserNotifications: (userId, filters = {}) => unwrap(axiosClient.get(`/notifications/user/${societyId()}/${userId}`, params(filters))),
-    getUnreadNotifications: (userId) => unwrap(axiosClient.get(`/notifications/user/${societyId()}/${userId}/unread`)),
+    getUnreadNotifications: (userId, activeSocietyId = societyId()) => unwrap(axiosClient.get(`/notifications/user/${activeSocietyId}/${userId}/unread`)),
     createNotification: (data) => unwrap(axiosClient.post("/notifications", data)),
     updateNotification: (id, data) => unwrap(axiosClient.put(`/notifications/${id}`, data)),
     markRead: (id) => unwrap(axiosClient.post(`/notifications/${id}/read`)),
