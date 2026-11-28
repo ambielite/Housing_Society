@@ -12,7 +12,7 @@ const vendorScopeFor = (req) => {
 
 // --- tickets ---
 const createTicket = asyncHandler(async (req, res) => {
-  const ticket = await service.createTicket(req.body);
+  const ticket = await service.createTicket(req.body, req.user);
   return ApiResponse.success(res, ticket, 'Ticket created successfully', 201);
 });
 

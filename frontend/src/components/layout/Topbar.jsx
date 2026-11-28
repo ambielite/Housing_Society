@@ -115,7 +115,7 @@ export default function Topbar() {
     setNotificationLoading(true);
     setNotificationError(false);
     try {
-      const result = await notificationsApi.getUnreadNotifications(userId);
+      const result = await notificationsApi.getUnreadNotifications(userId, societyId);
       const rows = Array.isArray(result) ? result : result?.data || result?.notifications || [];
       setUnreadNotifications(rows.filter((notification) => notification?.channel === 'IN_APP'));
     } catch {

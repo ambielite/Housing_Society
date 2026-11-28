@@ -127,11 +127,11 @@ const createSupportRequest = async (user, payload) => {
     [resident.first_name || resident.firstName, resident.last_name || resident.lastName].filter(Boolean).join(' ') || 'A resident';
   await notifySocietyAdmins({
     societyId: user.societyId,
-    title: 'New resident support request',
-    message: `${residentName} submitted a support request: ${subject} (${ticket.ticket_no}).`,
+    title: 'New support ticket raised',
+    message: `${residentName} raised a support ticket: “${subject}” (${ticket.ticket_no}).`,
     referenceType: 'TICKET',
     referenceId: ticket.id,
-    data: { ticketId: ticket.id, ticketNo: ticket.ticket_no, category: 'Resident Support', subject },
+    data: { ticketId: ticket.id, ticketNo: ticket.ticket_no, category: 'Resident Support', subject, residentName },
     excludeUserId: user.id,
   });
   return ticket;

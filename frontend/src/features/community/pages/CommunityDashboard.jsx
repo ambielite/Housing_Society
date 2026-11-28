@@ -24,11 +24,11 @@ export default function CommunityDashboard({ data = {}, loading, onNavigate, onC
 
         <section className="society-list-panel">
             <div className="society-list-heading"><div><h2>Quick access</h2><p>Jump to a community workspace or start a new record.</p></div></div>
-            <div className="society-lifecycle-grid">{[
+            <div className="community-quick-grid">{[
                 ["groups", "Groups & members", Users, "groups"], ["forums", "Forums & posts", MessageSquare, "posts"],
                 ["classifieds", "Classifieds", ClipboardList, "classifieds"], ["events", "Plan an event", CalendarDays, "events"],
                 ["meetings", "Meetings & actions", ClipboardList, "meetings"], ["governance", "AGM / SGM", Users, "governance"]
-            ].map(([key, label, Icon, createKey]) => <button type="button" className="assets-quick-card" key={key} onClick={() => key === "events" ? onCreate?.(createKey) : onNavigate?.(key)}><Icon size={19}/><span>{label}</span><ArrowUpRight size={16}/></button>)}</div>
+            ].map(([key, label, Icon, createKey]) => <button type="button" className="community-quick-card" key={key} onClick={() => key === "events" ? onCreate?.(createKey) : onNavigate?.(key)}><Icon size={19}/><span>{label}</span><ArrowUpRight size={16}/></button>)}</div>
         </section>
 
         <div className="community-dashboard-grid">

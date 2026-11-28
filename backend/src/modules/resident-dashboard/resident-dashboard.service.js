@@ -6,6 +6,7 @@ const amenityBookingsService = require('../amenity-bookings/amenity-bookings.ser
 const kidsActivitiesService = require('../kids-activities/kids-activities.service');
 const advertisementsService = require('../advertisements/advertisements.service');
 const eventRsvpService = require('../community/event/eventRsvp.service');
+const eventRepository = require('../community/event/event.repository');
 const { resolveResident } = require('../resident-context/residentUnitContext.service');
 
 const listSocietyStaff = async (user) => {
@@ -106,7 +107,7 @@ const registerResidentForCommunityEvent = async (user, eventId, input = {}) => {
   if (!participantNames.length || participantNames.length > 20 || participantNames.some((name) => !name || name.length > 100)) {
     throw new ApiError(400, 'Enter between 1 and 20 participant names, with each name 100 characters or fewer');
   }
-  return eventRsvpService.registerForEvent({
+  const rsvp = await eventRsvpService.registerForEvent({
     eventId,
     societyId: user.societyId,
     userId: user.id,
@@ -115,6 +116,30 @@ const registerResidentForCommunityEvent = async (user, eventId, input = {}) => {
     teamName,
     participantNames,
   });
+  const event = await eventRepository.findById(eventId);
+  const residentName = resident.display_name || [resident.first_name, resident.last_name].filter(Boolean).join(' ') || 'A resident';
+  if (event?.createdBy) {
+    try {
+      await query(
+        `INSERT INTO notifications
+          (society_id, user_id, channel, notification_type, title, subject, message, data,
+           reference_type, reference_id, priority, status, created_at, updated_at)
+         VALUES ($1, $2, 'IN_APP', 'OPERATIONAL', $3, $3, $4, $5::jsonb,
+                 'COMMUNITY_EVENT_RSVP', $6::uuid, 'MEDIUM', 'PENDING', now(), now())`,
+        [
+          user.societyId,
+          event.createdBy,
+          `New registration: ${event.title}`,
+          `${residentName} registered ${participantNames.length} participant${participantNames.length === 1 ? '' : 's'} for ${event.title}.`,
+          JSON.stringify({ eventId, rsvpId: rsvp.id, eventTitle: event.title, residentName, participantCount: participantNames.length }),
+          rsvp.id,
+        ],
+      );
+    } catch (error) {
+      console.error('Could not notify the event creator about a resident registration:', error);
+    }
+  }
+  return rsvp;
 };
 
 const getDashboard = async (user) => {
@@ -229,7 +254,12 @@ const getDashboard = async (user) => {
     resident: resident ? {
       name: resident.display_name,
       photoUrl: resident.profile_photo,
+      email: resident.email,
+      phone: resident.mobile,
+      alternatePhone: resident.alternate_mobile,
+      dateOfBirth: resident.date_of_birth,
       role: resident.role,
+      status: resident.status,
     } : null,
     unit: unit ? {
       number: unit.unit_number,

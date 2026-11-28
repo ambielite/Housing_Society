@@ -5,7 +5,8 @@ const resolveResident = async (user, { allowEmailFallback = true } = {}) => {
   if (!user?.societyId) return null;
 
   const linked = await query(
-    `SELECT id, display_name, profile_photo, role
+    `SELECT id, display_name, profile_photo, email, mobile, alternate_mobile,
+            date_of_birth, role, status
        FROM residents
       WHERE society_id = $1 AND user_id = $2 AND status = 'ACTIVE'
       ORDER BY id ASC`,
@@ -18,7 +19,8 @@ const resolveResident = async (user, { allowEmailFallback = true } = {}) => {
 
   if (!allowEmailFallback || !user.email) return null;
   const emailMatches = await query(
-    `SELECT id, display_name, profile_photo, role
+    `SELECT id, display_name, profile_photo, email, mobile, alternate_mobile,
+            date_of_birth, role, status
        FROM residents
       WHERE society_id = $1 AND user_id IS NULL AND status = 'ACTIVE'
         AND lower(email) = lower($2)

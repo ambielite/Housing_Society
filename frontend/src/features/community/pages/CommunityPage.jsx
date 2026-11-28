@@ -116,6 +116,9 @@ export default function CommunityPage() {
   const [cancellationTarget, setCancellationTarget] = useState(null);
   const [cancellationReason, setCancellationReason] = useState("");
   const [votingManage, setVotingManage] = useState(null);
+  const [eventParticipants, setEventParticipants] = useState({});
+  const [expandedEventParticipants, setExpandedEventParticipants] = useState(null);
+  const [loadingEventParticipants, setLoadingEventParticipants] = useState(null);
   const [lookups, setLookups] = useState({ societies: [], residents: [] });
   useEffect(() => setTab(section === "overview" ? "dashboard" : section), [section]);
   const selectTab = (key) => {
@@ -211,8 +214,27 @@ export default function CommunityPage() {
     await communityApi.post(endpoint, payload);
   };
   const openComments = async (post) => { setForm({}); setDialog({ key: "comments", parent: post }); try { const response = await communityApi.get(`/community/posts/${idOf(post)}/comments`); setData((old) => ({ ...old, comments: rowsFrom(response) })); } catch (e) { setError(e.response?.data?.message || "Could not load comments."); } };
+  const openEventParticipants = async (event) => {
+    const eventId = idOf(event);
+    if (expandedEventParticipants === eventId) {
+      setExpandedEventParticipants(null);
+      return;
+    }
+    setExpandedEventParticipants(eventId);
+    if (Object.prototype.hasOwnProperty.call(eventParticipants, eventId)) return;
+    setLoadingEventParticipants(eventId);
+    try {
+      const response = await communityApi.get(`/community-events/rsvps?eventId=${encodeURIComponent(eventId)}`);
+      setEventParticipants((current) => ({ ...current, [eventId]: rowsFrom(response) }));
+    } catch (e) {
+      setError(e.response?.data?.message || "Could not load event participants.");
+      setExpandedEventParticipants(null);
+    } finally {
+      setLoadingEventParticipants((current) => current === eventId ? null : current);
+    }
+  };
   const filtered = (key) => (data[key] || []).filter((r) => JSON.stringify(r).toLowerCase().includes(search.toLowerCase()));
-  const resourceTab = (key) => <CommunityResourcePanel resource={key} title={key === "voting" ? "Voting records and drafts" : configs[key].title} rows={filtered(key)} loading={loading} onCreate={configs[key].create ? () => openCreate(key) : null} onAction={(row) => workflowActionsFor(key, row).map(([action, label]) => ({ label, run: () => (["events", "meetings", "governance", "voting"].includes(key) && action === "cancel") ? (setCancellationReason(""), setCancellationTarget({ key, row })) : act(key, row, action) }))} onDelete={key === "voting" ? null : (row) => remove(key, row)} relatedLabel={key === "posts" ? "Comments" : key === "events" ? "RSVP" : key === "voting" ? "Manage voting" : "Manage members"} onOpenRelated={key === "posts" ? openComments : key === "events" ? (row) => { setForm({}); setDialog({ key: "rsvps", parent: row }); } : key === "groups" ? setMemberGroup : key === "voting" ? setVotingManage : null} />;
+  const resourceTab = (key) => <CommunityResourcePanel resource={key} title={key === "voting" ? "Voting records and drafts" : configs[key].title} rows={filtered(key)} loading={loading} onCreate={configs[key].create ? () => openCreate(key) : null} onAction={(row) => workflowActionsFor(key, row).map(([action, label]) => ({ label, run: () => (["events", "meetings", "governance", "voting"].includes(key) && action === "cancel") ? (setCancellationReason(""), setCancellationTarget({ key, row })) : act(key, row, action) }))} onDelete={key === "voting" ? null : (row) => remove(key, row)} relatedLabel={key === "posts" ? "Comments" : key === "events" ? "RSVP" : key === "voting" ? "Manage voting" : "Manage members"} onOpenRelated={key === "posts" ? openComments : key === "events" ? (row) => { setForm({}); setDialog({ key: "rsvps", parent: row }); } : key === "groups" ? setMemberGroup : key === "voting" ? setVotingManage : null} onOpenParticipants={key === "events" ? openEventParticipants : null} expandedRelatedId={expandedEventParticipants} relatedRows={eventParticipants} loadingRelatedId={loadingEventParticipants} />;
   const submitEventCancellation = async (event) => {
     event.preventDefault();
     const reason = cancellationReason.trim();

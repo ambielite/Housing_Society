@@ -83,6 +83,8 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
   final Set<String> _closedAdvertisementPopupIds = {};
   final Set<String> _shownAdvertisementPopupIds = {};
   bool _showingAdvertisementPopups = false;
+  final Set<String> _markingReadNotificationIds = {};
+  final Set<String> _readNotificationIds = {};
   final Set<String> _expandedKidsActivityNotificationIds = {};
   List<ResidentVisitorRequest> _visitorRequests = const [];
   List<ResidentDeliveryNotification> _deliveryNotifications = const [];
@@ -709,6 +711,23 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
         .toList(growable: false);
   }
 
+  String _communityEventRegistrationNotice(ResidentCommunityEvent event) {
+    final now = DateTime.now();
+    final opensAt = event.registrationStartAt;
+    if (opensAt != null && opensAt.isAfter(now)) {
+      return 'Registrations beginning soon · Opens ${_formatDateTime(opensAt)}';
+    }
+    final closesAt = event.registrationEndAt;
+    if ((closesAt != null && !closesAt.isAfter(now)) ||
+        (event.startAt != null && !event.startAt!.isAfter(now))) {
+      return 'Registration is closed.';
+    }
+    if (event.remainingCapacity != null && event.remainingCapacity! <= 0) {
+      return 'Capacity is full.';
+    }
+    return 'Registration is closed.';
+  }
+
   List<ResidentNotice> _visibleNotices(ResidentDashboardData dashboard) {
     final now = DateTime.now();
     return dashboard.notices.where((notice) {
@@ -796,7 +815,13 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
       final notifications = await ResidentNotificationsApi.listUnread(
         widget.user.accessToken,
       );
-      if (mounted) setState(() => _notifications = notifications);
+      if (mounted) {
+        setState(() => _notifications = notifications
+            .where((item) =>
+                !_markingReadNotificationIds.contains(item.id) &&
+                !_readNotificationIds.contains(item.id))
+            .toList());
+      }
     } catch (_) {
       // Keep the last known unread count when the service is unavailable.
     } finally {
@@ -804,19 +829,30 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     }
   }
 
-  Future<void> _markNotificationRead(
+  Future<bool> _markNotificationRead(
     ResidentAppNotification notification,
   ) async {
-    setState(
-      () => _notifications.removeWhere((item) => item.id == notification.id),
-    );
+    if (!mounted || !_markingReadNotificationIds.add(notification.id)) {
+      return false;
+    }
+    _readNotificationIds.add(notification.id);
+    setState(() {
+      _notifications = _notifications
+          .where((item) => item.id != notification.id)
+          .toList();
+    });
     try {
       await ResidentNotificationsApi.markRead(
         widget.user.accessToken,
         notification.id,
       );
+      return true;
     } catch (_) {
+      _readNotificationIds.remove(notification.id);
       unawaited(_refreshNotifications());
+      return false;
+    } finally {
+      _markingReadNotificationIds.remove(notification.id);
     }
   }
 
@@ -827,7 +863,8 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (sheetContext) => SafeArea(
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) => SafeArea(
         top: false,
         child: Container(
           constraints: BoxConstraints(
@@ -924,14 +961,20 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
                           Navigator.of(sheetContext).pop();
                           unawaited(_markNotificationRead(notification));
                         },
-                        onMarkRead: () =>
-                            unawaited(_markNotificationRead(notification)),
+                        onMarkRead: () async {
+                          final markingRead =
+                              _markNotificationRead(notification);
+                          setSheetState(() {});
+                          await markingRead;
+                          if (sheetContext.mounted) setSheetState(() {});
+                        },
                       );
                     },
                   ),
                 ),
             ],
           ),
+        ),
         ),
       ),
     );
@@ -1652,7 +1695,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
             )),
           ] else ...[
             const SizedBox(height: 10),
-            const Text('Registration is closed or event capacity is full.', style: TextStyle(color: AppColors.muted, fontWeight: FontWeight.w600)),
+            Text(_communityEventRegistrationNotice(event), style: const TextStyle(color: AppColors.muted, fontWeight: FontWeight.w600)),
           ],
         ]),
       ),

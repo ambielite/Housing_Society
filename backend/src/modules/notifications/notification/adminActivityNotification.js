@@ -12,7 +12,7 @@ const notifySocietyAdmins = async ({
   if (!societyId || !title || !message) return;
 
   try {
-    await query(
+    const result = await query(
       `INSERT INTO notifications
          (society_id, user_id, channel, notification_type, title, subject, message,
           data, reference_type, reference_id, priority, status, is_read, created_at, updated_at)
@@ -35,6 +35,9 @@ const notifySocietyAdmins = async ({
         excludeUserId,
       ],
     );
+    if (result.rowCount === 0) {
+      console.warn(`No active admin notification recipients found for society ${societyId}.`);
+    }
   } catch (error) {
     // Notification delivery must not roll back the resident or ticket action.
     console.error("Could not notify society admins about resident activity:", error);
