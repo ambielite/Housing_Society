@@ -302,6 +302,18 @@ const login = async ({ email, password, securityCode, selfieData, selfieMimeType
     throw new ApiError(403, 'Resident accounts can sign in only through the resident app.');
   }
 
+  // A popup closed with X is suppressed for the current login session only.
+  // Keep dismissed_at untouched so an ad explicitly closed from its card
+  // remains permanently dismissed for this resident.
+  if (clientType === 'resident_app' && isResidentOnly(roles)) {
+    await db.query(
+      `UPDATE advertisement_resident_state
+          SET popup_closed_at = NULL, updated_at = now()
+        WHERE user_id = $1 AND popup_closed_at IS NOT NULL`,
+      [authenticatedUser.id],
+    );
+  }
+
   const tokens = await issueTokens(authenticatedUser, { ...meta, clientType });
   await usersRepository.updateLastLogin(authenticatedUser.id);
   await authRepository.createLoginHistory({

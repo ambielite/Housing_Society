@@ -8,21 +8,39 @@ const validateInput = (input, file, existingImage) => {
   const description = String(input.description || '').trim() || null;
   const startsOn = String(input.startsOn || '').slice(0, 10);
   const endsOn = String(input.endsOn || '').slice(0, 10);
-  const maxViews = Number(input.maxViewsPerResident);
+  const websiteEnabled = input.websiteEnabled === true || String(input.websiteEnabled).toLowerCase() === 'true';
+  const rawWebsiteUrl = String(input.websiteUrl || '').trim();
+  let websiteUrl = rawWebsiteUrl || null;
   if (!title || title.length > 200) throw new ApiError(400, 'Enter an advertisement title of up to 200 characters');
   const validDate = (value) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
     const date = new Date(`${value}T00:00:00Z`);
     return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
   };
+  const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
   if (!validDate(startsOn)) throw new ApiError(400, 'Choose a valid start date');
   if (!validDate(endsOn)) throw new ApiError(400, 'Choose a valid end date');
+  if (startsOn < today) throw new ApiError(400, 'Start date cannot be in the past');
+  if (endsOn < today) throw new ApiError(400, 'End date cannot be in the past');
   if (endsOn < startsOn) throw new ApiError(400, 'End date must be on or after the start date');
-  if (!Number.isInteger(maxViews) || maxViews < 1 || maxViews > 1000) throw new ApiError(400, 'Maximum views must be between 1 and 1000 per resident');
+  if (websiteEnabled) {
+    if (!websiteUrl) throw new ApiError(400, 'Enter the brand website URL');
+    let parsedWebsiteUrl;
+    try { parsedWebsiteUrl = new URL(websiteUrl); }
+    catch (_) { throw new ApiError(400, 'Enter a valid brand website URL'); }
+    if (!['http:', 'https:'].includes(parsedWebsiteUrl.protocol) || !parsedWebsiteUrl.hostname) {
+      throw new ApiError(400, 'Brand website URL must use HTTP or HTTPS');
+    }
+    websiteUrl = parsedWebsiteUrl.toString();
+  } else {
+    websiteUrl = null;
+  }
   if (description && description.length > 3000) throw new ApiError(400, 'Description must be 3000 characters or fewer');
   if (!file && !existingImage) throw new ApiError(400, 'Upload an advertisement image or banner');
   if (file && !['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.mimetype)) throw new ApiError(400, 'Choose a JPG, PNG, WEBP, or GIF image');
-  return { title, description, startsOn, endsOn, maxViews, isActive: input.isActive == null ? true : input.isActive === true || input.isActive === 'true' };
+  return { title, description, startsOn, endsOn, websiteEnabled, websiteUrl, isActive: input.isActive == null ? true : input.isActive === true || input.isActive === 'true' };
 };
 
 const publishToResidents = async (societyId) => {
@@ -44,6 +62,8 @@ const publishToResidents = async (societyId) => {
 const listForAdmin = async (societyId) => {
   const result = await query(
     `SELECT ad.*,
+            ad.starts_on::text AS starts_on,
+            ad.ends_on::text AS ends_on,
             COALESCE(state.total_resident_views, 0)::int AS total_resident_views,
             CASE WHEN NOT ad.is_active THEN 'INACTIVE'
                  WHEN ad.ends_on < timezone('Asia/Kolkata', now())::date THEN 'EXPIRED'
@@ -64,14 +84,16 @@ const listForAdmin = async (societyId) => {
 const listForResident = async (user) => {
   if (!user.societyId) return [];
   const result = await query(
-    `SELECT ad.id, ad.title, ad.image_url, ad.description, ad.starts_on, ad.ends_on,
-            ad.max_views_per_resident, COALESCE(state.impression_count, 0)::int AS impression_count
+    `SELECT ad.id, ad.title, ad.image_url, ad.description,
+            ad.website_enabled, ad.website_url,
+            ad.starts_on::text AS starts_on, ad.ends_on::text AS ends_on,
+            COALESCE(state.impression_count, 0)::int AS impression_count,
+            state.popup_closed_at IS NOT NULL AS popup_closed
        FROM advertisements ad
        LEFT JOIN advertisement_resident_state state
          ON state.advertisement_id = ad.id AND state.user_id = $2 AND state.society_id = $1
       WHERE ad.society_id = $1 AND ad.is_active = TRUE
         AND ad.ends_on >= timezone('Asia/Kolkata', now())::date
-        AND COALESCE(state.impression_count, 0) < ad.max_views_per_resident
         AND state.dismissed_at IS NULL
       ORDER BY ad.created_at DESC`,
     [user.societyId, user.id],
@@ -86,9 +108,9 @@ const create = async (user, input, file) => {
     imageUrl = storage.saveImage(file);
     const result = await query(
       `INSERT INTO advertisements
-         (society_id, created_by, updated_by, title, image_url, description, starts_on, ends_on, max_views_per_resident, is_active)
-       VALUES ($1, $2, $2, $3, $4, $5, $6::date, $7::date, $8, $9) RETURNING *`,
-      [user.societyId, user.id, values.title, imageUrl, values.description, values.startsOn, values.endsOn, values.maxViews, values.isActive],
+         (society_id, created_by, updated_by, title, image_url, description, starts_on, ends_on, website_enabled, website_url, is_active)
+       VALUES ($1, $2, $2, $3, $4, $5, $6::date, $7::date, $8, $9, $10) RETURNING *`,
+      [user.societyId, user.id, values.title, imageUrl, values.description, values.startsOn, values.endsOn, values.websiteEnabled, values.websiteUrl, values.isActive],
     );
     await publishToResidents(user.societyId);
     return result.rows[0];
@@ -108,10 +130,11 @@ const update = async (user, id, input, file) => {
     const result = await query(
       `UPDATE advertisements
           SET updated_by = $3, title = $4, image_url = $5, description = $6,
-              starts_on = $7::date, ends_on = $8::date, max_views_per_resident = $9,
-              is_active = $10, updated_at = now()
+              starts_on = $7::date, ends_on = $8::date,
+              website_enabled = $9, website_url = $10,
+              is_active = $11, updated_at = now()
         WHERE id = $1 AND society_id = $2 RETURNING *`,
-      [id, user.societyId, user.id, values.title, imageUrl, values.description, values.startsOn, values.endsOn, values.maxViews, values.isActive],
+      [id, user.societyId, user.id, values.title, imageUrl, values.description, values.startsOn, values.endsOn, values.websiteEnabled, values.websiteUrl, values.isActive],
     );
     if (file) storage.removeImage(old.image_url);
     await publishToResidents(user.societyId);
@@ -150,14 +173,10 @@ const recordImpression = async (user, id) => {
       WHERE ad.id = $1 AND ad.society_id = $3 AND ad.is_active
         AND ad.starts_on <= timezone('Asia/Kolkata', now())::date
         AND ad.ends_on >= timezone('Asia/Kolkata', now())::date
-        AND ad.max_views_per_resident > 0
      ON CONFLICT (advertisement_id, user_id) DO UPDATE
        SET impression_count = advertisement_resident_state.impression_count + 1,
            last_viewed_at = now(), updated_at = now()
        WHERE advertisement_resident_state.dismissed_at IS NULL
-         AND advertisement_resident_state.impression_count < (
-           SELECT max_views_per_resident FROM advertisements WHERE id = $1
-         )
      RETURNING impression_count`,
     [id, user.id, user.societyId],
   );
@@ -180,4 +199,20 @@ const dismiss = async (user, id) => {
   return { id };
 };
 
-module.exports = { listForAdmin, listForResident, create, update, setActive, remove, recordImpression, dismiss };
+const closePopup = async (user, id) => {
+  const result = await query(
+    `INSERT INTO advertisement_resident_state
+       (advertisement_id, society_id, user_id, popup_closed_at, updated_at)
+     SELECT ad.id, ad.society_id, $2, now(), now()
+       FROM advertisements ad WHERE ad.id = $1 AND ad.society_id = $3
+     ON CONFLICT (advertisement_id, user_id) DO UPDATE
+       SET popup_closed_at = COALESCE(advertisement_resident_state.popup_closed_at, now()),
+           updated_at = now()
+     RETURNING advertisement_id`,
+    [id, user.id, user.societyId],
+  );
+  if (!result.rowCount) throw new ApiError(404, 'Advertisement not found');
+  return { id };
+};
+
+module.exports = { listForAdmin, listForResident, create, update, setActive, remove, recordImpression, dismiss, closePopup };

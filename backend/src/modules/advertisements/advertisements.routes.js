@@ -45,5 +45,7 @@ router.post('/resident/:id/impression', residentOnly, asyncHandler(async (req, r
   ApiResponse.success(res, await service.recordImpression(req.user, req.params.id), 'Advertisement view recorded')));
 router.post('/resident/:id/dismiss', residentOnly, asyncHandler(async (req, res) =>
   ApiResponse.success(res, await service.dismiss(req.user, req.params.id), 'Advertisement dismissed')));
+router.post('/resident/:id/popup-closed', residentOnly, asyncHandler(async (req, res) =>
+  ApiResponse.success(res, await service.closePopup(req.user, req.params.id), 'Advertisement popup closed')));
 
 module.exports = router;

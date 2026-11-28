@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -79,6 +80,9 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
   final Set<String> _submittingCommunityEventIds = {};
   final Set<String> _recordedAdvertisementImpressions = {};
   final Set<String> _dismissedAdvertisementIds = {};
+  final Set<String> _closedAdvertisementPopupIds = {};
+  final Set<String> _shownAdvertisementPopupIds = {};
+  bool _showingAdvertisementPopups = false;
   final Set<String> _expandedKidsActivityNotificationIds = {};
   List<ResidentVisitorRequest> _visitorRequests = const [];
   List<ResidentDeliveryNotification> _deliveryNotifications = const [];
@@ -97,6 +101,9 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           _dashboardData = data;
           _scheduleNoticeExpiry(data);
           _recordAdvertisementImpressions(data);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) unawaited(_showPendingAdvertisementPopups(data));
+          });
           return data;
         });
     _complaintsFuture = ResidentComplaintsApi.listComplaints(
@@ -253,6 +260,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           _dashboardData = refreshedData;
           _dashboardFuture = Future.value(refreshedData);
         });
+        unawaited(_showPendingAdvertisementPopups(refreshedData));
       }
     } finally {
       _refreshingDashboard = false;
@@ -341,6 +349,117 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
         .toList(growable: false);
   }
 
+  Future<void> _showPendingAdvertisementPopups(ResidentDashboardData dashboard) async {
+    if (!mounted || _showingAdvertisementPopups || _activeSection != _ResidentSection.home) return;
+    final now = DateTime.now();
+    final pending = dashboard.advertisements.where((advertisement) =>
+      advertisement.id.isNotEmpty &&
+      !advertisement.popupClosed &&
+      !_closedAdvertisementPopupIds.contains(advertisement.id) &&
+      !_shownAdvertisementPopupIds.contains(advertisement.id) &&
+      !_dismissedAdvertisementIds.contains(advertisement.id) &&
+      _isAdvertisementInDateWindow(advertisement, now)
+    ).toList(growable: false);
+    if (pending.isEmpty) return;
+
+    _showingAdvertisementPopups = true;
+    try {
+      for (final advertisement in pending) {
+        if (!mounted || _activeSection != _ResidentSection.home) break;
+        _shownAdvertisementPopupIds.add(advertisement.id);
+        await showGeneralDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          barrierLabel: 'Advertisement',
+          barrierColor: Colors.black.withValues(alpha: .48),
+          transitionDuration: const Duration(milliseconds: 920),
+          pageBuilder: (dialogContext, _, _) => _advertisementPopup(
+            advertisement,
+            onClose: () => Navigator.of(dialogContext).pop(),
+          ),
+          transitionBuilder: (dialogContext, animation, secondaryAnimation, child) {
+            final lift = CurvedAnimation(
+              parent: animation,
+              curve: const Interval(0, .82, curve: Curves.easeOutCubic),
+            );
+            final scale = TweenSequence<double>([
+              TweenSequenceItem(
+                tween: Tween(begin: .70, end: 1.035)
+                    .chain(CurveTween(curve: Curves.easeOutCubic)),
+                weight: 72,
+              ),
+              TweenSequenceItem(
+                tween: Tween(begin: 1.035, end: .988)
+                    .chain(CurveTween(curve: Curves.easeInOut)),
+                weight: 14,
+              ),
+              TweenSequenceItem(
+                tween: Tween(begin: .988, end: 1.0)
+                    .chain(CurveTween(curve: Curves.easeOut)),
+                weight: 14,
+              ),
+            ]).animate(animation);
+            final tilt = TweenSequence<double>([
+              TweenSequenceItem(
+                tween: Tween(begin: -.026, end: .009)
+                    .chain(CurveTween(curve: Curves.easeOutCubic)),
+                weight: 76,
+              ),
+              TweenSequenceItem(
+                tween: Tween(begin: .009, end: 0.0)
+                    .chain(CurveTween(curve: Curves.easeInOut)),
+                weight: 24,
+              ),
+            ]).animate(animation);
+
+            return Stack(fit: StackFit.expand, children: [
+              IgnorePointer(
+                child: ClipRect(
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(
+                      sigmaX: animation.value * 3.5,
+                      sigmaY: animation.value * 3.5,
+                    ),
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+              ),
+              Center(
+                child: FadeTransition(
+                  opacity: CurvedAnimation(
+                    parent: animation,
+                    curve: const Interval(0, .58, curve: Curves.easeOut),
+                  ),
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0, 1.18),
+                      end: Offset.zero,
+                    ).animate(lift),
+                    child: ScaleTransition(
+                      scale: scale,
+                      child: RotationTransition(
+                        turns: tilt,
+                        child: child,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ]);
+          },
+        );
+        if (!mounted) break;
+        _closedAdvertisementPopupIds.add(advertisement.id);
+        unawaited(ResidentDashboardApi.closeAdvertisementPopup(
+          widget.user.accessToken,
+          advertisement.id,
+        ).catchError((_) {}));
+      }
+    } finally {
+      _showingAdvertisementPopups = false;
+    }
+  }
+
   void _dismissAdvertisement(ResidentAdvertisement advertisement) {
     setState(() => _dismissedAdvertisementIds.add(advertisement.id));
     unawaited(ResidentDashboardApi.dismissAdvertisement(
@@ -349,6 +468,29 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
     ).catchError((_) {
       // Keep it dismissed locally for this login; the backend persists on success.
     }));
+  }
+
+  Future<void> _openAdvertisementWebsite(ResidentAdvertisement advertisement) async {
+    final uri = Uri.tryParse(advertisement.websiteUrl?.trim() ?? '');
+    if (!advertisement.websiteEnabled || uri == null ||
+        !const {'http', 'https'}.contains(uri.scheme.toLowerCase()) ||
+        uri.host.isEmpty) {
+      return;
+    }
+    try {
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open this website.')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open this website.')),
+        );
+      }
+    }
   }
 
   Widget _advertisementCard(ResidentAdvertisement advertisement) => Card(
@@ -375,16 +517,6 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
           ),
         ),
         Positioned(
-          top: 10,
-          right: 10,
-          child: IconButton.filledTonal(
-            tooltip: 'Dismiss advertisement',
-            onPressed: () => _dismissAdvertisement(advertisement),
-            style: IconButton.styleFrom(backgroundColor: Colors.white.withValues(alpha: .94), foregroundColor: AppColors.ink),
-            icon: const Icon(Icons.close_rounded, size: 20),
-          ),
-        ),
-        Positioned(
           left: 12,
           top: 12,
           child: Container(
@@ -402,9 +534,141 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen>
             const SizedBox(height: 5),
             Text(advertisement.description, style: const TextStyle(fontSize: 13, height: 1.4, color: Color(0xFF526078))),
           ],
+          const SizedBox(height: 12),
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (advertisement.websiteEnabled &&
+                  advertisement.websiteUrl?.isNotEmpty == true)
+                OutlinedButton.icon(
+                  onPressed: () => _openAdvertisementWebsite(advertisement),
+                  icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                  label: const Text('View More'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.indigo,
+                    side: const BorderSide(color: Color(0xFFD8E0ED)),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              OutlinedButton.icon(
+                onPressed: () => _dismissAdvertisement(advertisement),
+                icon: const Icon(Icons.close_rounded, size: 16),
+                label: const Text('Close Ad'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.ink,
+                  side: const BorderSide(color: Color(0xFFD8E0ED)),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+            ],
+          ),
         ]),
       ),
     ]),
+  );
+
+  Widget _advertisementPopup(
+    ResidentAdvertisement advertisement, {
+    required VoidCallback onClose,
+  }) => SafeArea(
+      child: Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 22, vertical: 24),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        elevation: 24,
+        shadowColor: AppColors.ink.withValues(alpha: .24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        clipBehavior: Clip.antiAlias,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 440,
+            maxHeight: MediaQuery.sizeOf(context).height * .82,
+          ),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 12, 12, 10),
+              child: Row(children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF0EEFF),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: const Text(
+                    'ADVERTISEMENT',
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: .55, color: AppColors.indigo),
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  tooltip: 'Close advertisement popup',
+                  onPressed: onClose,
+                  style: IconButton.styleFrom(
+                    backgroundColor: const Color(0xFFF2F4F8),
+                    foregroundColor: AppColors.ink,
+                  ),
+                  icon: const Icon(Icons.close_rounded, size: 21),
+                ),
+              ]),
+            ),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 18),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: AspectRatio(
+                      aspectRatio: 1.72,
+                      child: Image.network(
+                        advertisement.imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => Container(
+                          color: const Color(0xFFF1F4FA),
+                          alignment: Alignment.center,
+                          child: const Icon(Icons.image_not_supported_outlined, color: AppColors.muted, size: 38),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(advertisement.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.ink)),
+                      if (advertisement.description.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(advertisement.description, style: const TextStyle(fontSize: 14, height: 1.45, color: Color(0xFF526078))),
+                      ],
+                      if (advertisement.websiteEnabled &&
+                          advertisement.websiteUrl?.isNotEmpty == true) ...[
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: () => _openAdvertisementWebsite(advertisement),
+                            icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                            label: const Text('View More'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppColors.indigo,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 13),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ]),
+                  ),
+                ]),
+              ),
+            ),
+          ]),
+        ),
+      ),
   );
 
   DateTime? _kidsActivityEndDateTime(ResidentKidsActivity activity) {

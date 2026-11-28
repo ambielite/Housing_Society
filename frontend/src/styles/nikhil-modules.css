@@ -2840,6 +2840,8 @@ body .dashboard-page .dashboard-panel .chip { padding: 7px 12px; font-size: 12px
 .advertisement-page .advertisement-form-grid input:not([type="checkbox"]),
 .advertisement-page .advertisement-form-grid select,
 .advertisement-page .advertisement-form-grid textarea { min-height: 42px; padding: 10px 11px; border-color: #cbd5e1; border-radius: 8px; color: #172033; font-size: 13px; }
+.advertisement-page .advertisement-form-grid input:not([type="checkbox"]),
+.advertisement-page .advertisement-form-grid textarea { text-align: left; direction: ltr; }
 .advertisement-page .advertisement-form-grid input[type="file"] { padding: 8px 10px; }
 .advertisement-page .advertisement-form-grid textarea { min-height: 96px; resize: vertical; }
 .advertisement-page .advertisement-form-grid input:focus,
@@ -2852,12 +2854,11 @@ body .dashboard-page .dashboard-panel .chip { padding: 7px 12px; font-size: 12px
 .advertisement-page .advertisement-table { table-layout: fixed; }
 .advertisement-page .advertisement-table th,
 .advertisement-page .advertisement-table td { box-sizing: border-box; overflow-wrap: anywhere; }
-.advertisement-page .advertisement-table th:nth-child(1),.advertisement-page .advertisement-table td:nth-child(1) { width: 35%; }
-.advertisement-page .advertisement-table th:nth-child(2),.advertisement-page .advertisement-table td:nth-child(2) { width: 15%; }
-.advertisement-page .advertisement-table th:nth-child(3),.advertisement-page .advertisement-table td:nth-child(3) { width: 14%; text-align: center; }
-.advertisement-page .advertisement-table th:nth-child(4),.advertisement-page .advertisement-table td:nth-child(4) { width: 10%; text-align: center; }
-.advertisement-page .advertisement-table th:nth-child(5),.advertisement-page .advertisement-table td:nth-child(5) { width: 11%; text-align: center; }
-.advertisement-page .advertisement-table th:nth-child(6),.advertisement-page .advertisement-table td:nth-child(6) { width: 15%; }
+.advertisement-page .advertisement-table th:nth-child(1),.advertisement-page .advertisement-table td:nth-child(1) { width: 40%; }
+.advertisement-page .advertisement-table th:nth-child(2),.advertisement-page .advertisement-table td:nth-child(2) { width: 20%; }
+.advertisement-page .advertisement-table th:nth-child(3),.advertisement-page .advertisement-table td:nth-child(3) { width: 12%; text-align: center; }
+.advertisement-page .advertisement-table th:nth-child(4),.advertisement-page .advertisement-table td:nth-child(4) { width: 13%; text-align: center; }
+.advertisement-page .advertisement-table th:nth-child(5),.advertisement-page .advertisement-table td:nth-child(5) { width: 15%; }
 .advertisement-page .advertisement-title-cell { min-width: 0; max-width: none; }
 .advertisement-page .advertisement-title-cell > div { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .advertisement-page .advertisement-title-cell strong { overflow-wrap: anywhere; }

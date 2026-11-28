@@ -142,8 +142,9 @@ class ResidentAdvertisement {
     required this.description,
     required this.startsOn,
     required this.endsOn,
-    required this.maxViewsPerResident,
-    required this.impressionCount,
+    required this.popupClosed,
+    required this.websiteEnabled,
+    required this.websiteUrl,
   });
 
   final String id;
@@ -152,8 +153,9 @@ class ResidentAdvertisement {
   final String description;
   final DateTime? startsOn;
   final DateTime? endsOn;
-  final int maxViewsPerResident;
-  final int impressionCount;
+  final bool popupClosed;
+  final bool websiteEnabled;
+  final String? websiteUrl;
 
   factory ResidentAdvertisement.fromJson(Map<String, dynamic> json) => ResidentAdvertisement(
     id: '${json['id'] ?? ''}',
@@ -162,8 +164,9 @@ class ResidentAdvertisement {
     description: _string(json['description']) ?? '',
     startsOn: _parseCalendarDate(json['starts_on']),
     endsOn: _parseCalendarDate(json['ends_on']),
-    maxViewsPerResident: int.tryParse('${json['max_views_per_resident'] ?? 1}') ?? 1,
-    impressionCount: int.tryParse('${json['impression_count'] ?? 0}') ?? 0,
+    popupClosed: json['popup_closed'] == true,
+    websiteEnabled: json['website_enabled'] == true,
+    websiteUrl: _string(json['website_url']),
   );
 }
 
@@ -468,6 +471,9 @@ class ResidentDashboardApi {
 
   static Future<void> dismissAdvertisement(String accessToken, String id) =>
       _postAdvertisementAction(accessToken, id, 'dismiss');
+
+  static Future<void> closeAdvertisementPopup(String accessToken, String id) =>
+      _postAdvertisementAction(accessToken, id, 'popup-closed');
 
   static Future<void> registerForCommunityEvent(
     String accessToken,

@@ -148,7 +148,7 @@ const updateProfile = async (id, { email, firstName, lastName, phone, societyId,
          society_id = COALESCE($6, society_id),
          profile_picture_url = COALESCE($7, profile_picture_url),
          updated_at = now()
-       WHERE id = $1
+       WHERE id = $1::uuid
        RETURNING *`,
       [id, email, firstName, lastName, phone, societyId, profilePictureUrl]
     );
@@ -162,20 +162,20 @@ const updateProfile = async (id, { email, firstName, lastName, phone, societyId,
            mobile = CASE WHEN $5::text IS NULL OR $5::text = '' THEN mobile ELSE $5::text END,
            profile_photo = COALESCE($6, profile_photo),
            updated_at = now()
-         WHERE user_id = $1
+         WHERE user_id = $1::uuid
             OR (user_id IS NULL AND lower(email) = lower($7))`,
         [id, updated.email, updated.first_name, updated.last_name, updated.phone, updated.profile_picture_url, previousEmail]
       );
       await client.query(
         `UPDATE residents
             SET display_name = concat_ws(' ', first_name, NULLIF(middle_name, ''), last_name)
-          WHERE user_id = $1
+          WHERE user_id = $1::uuid
              OR (user_id IS NULL AND lower(email) = lower($2))`,
         [id, updated.email]
       );
       const residentResult = await client.query(
         `SELECT id, society_id FROM residents
-          WHERE user_id = $1
+          WHERE user_id = $1::uuid
              OR (user_id IS NULL AND lower(email) = lower($2))
           LIMIT 1`,
         [id, updated.email]
@@ -185,9 +185,11 @@ const updateProfile = async (id, { email, firstName, lastName, phone, societyId,
           `INSERT INTO notifications
              (society_id, user_id, channel, notification_type, title, subject, message,
               data, reference_type, reference_id, priority, status, is_read, created_at, updated_at)
-           VALUES ($1, $2, 'IN_APP', 'OPERATIONAL', 'Your resident profile was updated',
+           VALUES ($1, $2, 'IN_APP'::public.enum_notifications_channel,
+              'OPERATIONAL'::public.enum_notifications_notification_type, 'Your resident profile was updated',
               'Your resident profile was updated', $3, $4::jsonb, 'RESIDENT_PROFILE', $5,
-              'MEDIUM', 'PENDING', false, now(), now())`,
+              'MEDIUM'::public.enum_notifications_priority,
+              'PENDING'::public.enum_notifications_status, false, now(), now())`,
           [
             residentResult.rows[0].society_id,
             id,
@@ -204,16 +206,20 @@ const updateProfile = async (id, { email, firstName, lastName, phone, societyId,
           `INSERT INTO notifications
              (society_id, user_id, channel, notification_type, title, subject, message,
               data, reference_type, reference_id, priority, status, is_read, created_at, updated_at)
-           SELECT DISTINCT $1, u.id, 'IN_APP', 'OPERATIONAL', 'Resident profile updated',
-              'Resident profile updated', $2, $3::jsonb, 'RESIDENT_PROFILE', $4,
-              'MEDIUM', 'PENDING', false, now(), now()
+           SELECT DISTINCT $1::uuid, u.id,
+              'IN_APP'::public.enum_notifications_channel,
+              'OPERATIONAL'::public.enum_notifications_notification_type,
+              'Resident profile updated',
+              'Resident profile updated', $2, $3::jsonb, 'RESIDENT_PROFILE', $4::uuid,
+              'MEDIUM'::public.enum_notifications_priority,
+              'PENDING'::public.enum_notifications_status, false, now(), now()
              FROM users u
              JOIN user_roles ur ON ur.user_id = u.id
              JOIN roles r ON r.id = ur.role_id AND r.status = 'ACTIVE'
             WHERE u.status = 'ACTIVE'
               AND r.code IN ('SOCIETY_ADMIN', 'SUPER_ADMIN', 'PRESIDENT_SECRETARY')
-              AND (ur.society_id = $1 OR (r.code = 'SUPER_ADMIN' AND ur.society_id IS NULL))
-              AND u.id <> $5`,
+              AND (ur.society_id = $1::uuid OR (r.code = 'SUPER_ADMIN' AND ur.society_id IS NULL))
+              AND u.id <> $5::uuid`,
           [
             resident.society_id,
             `${residentName} updated their profile. Updated: ${changedFields.join(', ')}.`,
@@ -229,7 +235,7 @@ const updateProfile = async (id, { email, firstName, lastName, phone, societyId,
            SELECT staff_member.id, staff_member.society_id
              FROM staff staff_member
              JOIN security_guards guard ON guard.staff_id = staff_member.id
-            WHERE guard.user_id = $1
+            WHERE guard.user_id = $1::uuid
               AND staff_member.staff_type = 'SECURITY_GUARD'
          ), sole_guard AS (
            SELECT id, society_id
